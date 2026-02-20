@@ -1,5 +1,7 @@
 from google import genai
 from config import GEMINI_API_KEY
+import PIL.Image
+import io
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -40,3 +42,34 @@ def generate_apexify_report(tech_data):
     report += f"📝 **สรุปภาพรวม {tech_data['symbol']}:**\n{ai_text}"
 
     return report
+# ... (ฟังก์ชัน generate_apexify_report เดิมคงไว้) ...
+
+def analyze_payment_slip(image_bytes):
+    """ฟังก์ชันส่งรูปสลิปให้ AI ตรวจสอบ"""
+    try:
+        # แปลงข้อมูล bytes เป็นรูปภาพที่ Gemini อ่านได้
+        image = PIL.Image.open(io.BytesIO(image_bytes))
+        
+        prompt = """
+        คุณคือระบบตรวจสอบสลิปธนาคารอัตโนมัติ จงตรวจสอบรูปภาพนี้:
+        1. นี่คือรูปสลิปโอนเงินธนาคาร (Bank Transfer Slip) ที่ถูกต้องใช่หรือไม่?
+        2. ยอดเงินในสลิปคือเท่าไหร่? (มองหาตัวเลขจำนวนเงิน)
+        3. วันที่โอนคือเมื่อไหร่?
+        
+        ตอบกลับมาในรูปแบบ JSON เท่านั้น ดังนี้:
+        {"is_slip": true/false, "amount": 199.00, "date": "DD/MM/YYYY"}
+        ถ้าไม่ใช่สลิป ให้ตอบ {"is_slip": false}
+        """
+        
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=[prompt, image]
+        )
+        
+        # คลีนข้อมูล JSON (เผื่อ AI ตอบติด Backtick มา)
+        text = response.text.strip().replace('```json', '').replace('```', '')
+        return text # ส่ง String JSON กลับไปให้ main.py แปลงต่อ
+        
+    except Exception as e:
+        print(f"❌ AI Vision Error: {e}")
+        return None
