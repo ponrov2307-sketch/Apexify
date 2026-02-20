@@ -66,21 +66,41 @@ def calculate_indicators(data):
     
     return data
 
-def calculate_technical_indicators(symbol, generate_chart=True): # 👈 จุดที่ 1: เพิ่มตัวแปร generate_chart=True
+def calculate_technical_indicators(symbol, generate_chart=True):
     import time
     
     for attempt in range(2):
         try:
+            # --- 🌟 ระบบจัดการชื่อหุ้นอัจฉริยะ (Smart Symbol Format) ---
             clean_symbol = symbol.strip().upper()
+            
+            # 1. จัดการหุ้นคลาส B ของอเมริกา (เช่น พิมพ์ BRK.B แปลงเป็น BRK-B)
+            if "." in clean_symbol and not clean_symbol.endswith(".BK"):
+                clean_symbol = clean_symbol.replace(".", "-")
+            
             ticker = yf.Ticker(clean_symbol)
-            data = ticker.history(period="1y") # (แนะนำแก้เป็น 1y ตามที่คุยกันก่อนหน้า เพื่อให้ EMA200 แม่นยำ)
+            data = ticker.history(period="1y")
             
-            if data.empty:
-                return None, None, f"❌ ไม่พบข้อมูลหุ้น '{clean_symbol}'"
-            
-            if len(data) < 20: # (ดัก Error หุ้นใหม่)
-                return None, None, f"❌ ข้อมูลหุ้น '{clean_symbol}' มีน้อยเกินไป"
+            # 2. ระบบ Auto-Append .BK สำหรับหุ้นไทย
+            # ถ้าหาข้อมูลไม่เจอ และชื่อไม่ได้ลงท้ายด้วย .BK หรือมีขีด ให้ลองเติม .BK แล้วหาใหม่
+            if data.empty and not clean_symbol.endswith(".BK") and "-" not in clean_symbol:
+                thai_symbol = clean_symbol + ".BK"
+                ticker_thai = yf.Ticker(thai_symbol)
+                data_thai = ticker_thai.history(period="1y")
+                
+                # ถ้าเติม .BK แล้วเจอข้อมูล ให้ยึดข้อมูลของหุ้นไทยเป็นหลัก
+                if not data_thai.empty:
+                    clean_symbol = thai_symbol # อัปเดตชื่อให้มี .BK โชว์ในกราฟเพื่อความชัดเจน
+                    data = data_thai
+                    ticker = ticker_thai
 
+            if data.empty:
+                return None, None, f"❌ ไม่พบข้อมูลหุ้น '{symbol}' โปรดตรวจสอบตัวสะกด"
+            
+            if len(data) < 20:
+                return None, None, f"❌ ข้อมูลหุ้น '{clean_symbol}' มีน้อยเกินไป ระบบไม่สามารถคำนวณกราฟได้"
+
+            # --- เริ่มคำนวณอินดิเคเตอร์ ---
             data = calculate_indicators(data)
             latest = data.iloc[-1]
             prev = data.iloc[-2]
@@ -107,7 +127,6 @@ def calculate_technical_indicators(symbol, generate_chart=True): # 👈 จุ�
                 'fear_greed': get_fear_and_greed_index()
             }
 
-            # 👈 จุดที่ 2: ครอบส่วนสร้างกราฟด้วย if generate_chart:
             if generate_chart:
                 # --- 🎨 สร้างกราฟสวยงามด้วย mplfinance ---
                 buf = io.BytesIO()
@@ -131,7 +150,7 @@ def calculate_technical_indicators(symbol, generate_chart=True): # 👈 จุ�
                     title=f'\nApexify Pro Chart: {clean_symbol}',
                     volume=True,
                     addplot=add_plots,
-                    savefig=dict(fname=buf, dpi=80, bbox_inches='tight', pad_inches=0.1), # 👈 ปรับ dpi ตรงนี้
+                    savefig=dict(fname=buf, dpi=80, bbox_inches='tight', pad_inches=0.1),
                     figratio=(12, 8),
                     figscale=1.2,
                     tight_layout=True
@@ -141,11 +160,11 @@ def calculate_technical_indicators(symbol, generate_chart=True): # 👈 จุ�
                 return tech_data, buf, None
             
             else:
-                # 👈 จุดที่ 3: ถ้าไม่เอากราฟ (generate_chart=False) ให้ส่งค่า None กลับไป
+                # ถ้าไม่เอากราฟ (เช่นจาก alert_system) ให้ส่งค่า None กลับไปแทนรูป
                 return tech_data, None, None
 
         except Exception as e:
             if attempt == 0:
                 time.sleep(1)
                 continue
-            return None, None, f"❌ เกิดข้อผิดพลาด: {str(e)}"
+            return None, None, f"❌ เกิดข้อผิดพลาดในการคำนวณกราฟ: {str(e)}"
