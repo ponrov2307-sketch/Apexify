@@ -6,9 +6,19 @@ DB_NAME = "apexify.db"
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    # เพิ่ม usage_count เพื่อเก็บจำนวนครั้งที่ใช้ไปแล้ว (ค่าเริ่มต้น 0)
+    # ตารางข้อมูลผู้ใช้งาน
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT, role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0)''')
+    conn.commit()
+    conn.close()
+    init_watchlist_db() # เรียกสร้างตาราง Watchlist ด้วย
+
+def init_watchlist_db():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    # ตารางเก็บหุ้นที่ลูกค้าเฝ้าดู
+    c.execute('''CREATE TABLE IF NOT EXISTS watchlists 
+                 (user_id TEXT, symbol TEXT, PRIMARY KEY (user_id, symbol))''')
     conn.commit()
     conn.close()
 
@@ -44,7 +54,6 @@ def check_vip(user_id):
     return False
 
 def get_usage(user_id):
-    """ดึงจำนวนครั้งที่ใช้ไปแล้ว"""
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute("SELECT usage_count FROM users WHERE user_id=?", (str(user_id),))
@@ -53,9 +62,45 @@ def get_usage(user_id):
     return result[0] if result else 0
 
 def increment_usage(user_id):
-    """บวกจำนวนการใช้งานเพิ่ม 1 ครั้ง"""
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute("UPDATE users SET usage_count = usage_count + 1 WHERE user_id=?", (str(user_id),))
     conn.commit()
     conn.close()
+
+# --- ระบบ Watchlist ---
+def add_watch(user_id, symbol):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO watchlists (user_id, symbol) VALUES (?, ?)", (str(user_id), symbol.upper()))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False # มีหุ้นตัวนี้ในลิสต์อยู่แล้ว
+    finally:
+        conn.close()
+
+def get_user_watch(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT symbol FROM watchlists WHERE user_id=?", (str(user_id),))
+    result = c.fetchall()
+    conn.close()
+    return [row[0] for row in result]
+
+def get_users_watching(symbol):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM watchlists WHERE symbol=?", (symbol.upper(),))
+    result = c.fetchall()
+    conn.close()
+    return [row[0] for row in result]
+
+def get_all_active_symbols():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT DISTINCT symbol FROM watchlists")
+    result = c.fetchall()
+    conn.close()
+    return [row[0] for row in result]

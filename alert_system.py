@@ -4,14 +4,11 @@ import yfinance as yf
 from google import genai
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
 from technical_tools import calculate_technical_indicators
-# ในไฟล์ alert_system.py ให้เพิ่ม import เข้ามา
 from database import get_all_active_symbols, get_users_watching
 
-# ตั้งค่า Bot และ AI
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# เก็บสถานะเพื่อกันแจ้งเตือนซ้ำรัวๆ
 last_alert_state = {}
 last_news_title = {}
 
@@ -28,7 +25,6 @@ def send_alert_to_users(symbol, message):
             print(f"❌ Failed to send to {user_id}: {e}")
 
 def check_hot_news(symbol):
-    """ฟังก์ชันให้ AI สแกนข่าวและประเมินผลกระทบ"""
     try:
         ticker = yf.Ticker(symbol)
         news = ticker.news
@@ -37,30 +33,32 @@ def check_hot_news(symbol):
             title = latest_news['title']
             link = latest_news.get('link', '#')
 
-            # ถ้าเป็นข่าวเดิมที่เคยแจ้งเตือนไปแล้วให้ข้าม
             if symbol in last_news_title and last_news_title[symbol] == title:
                 return
 
-            # ให้ Gemini วิเคราะห์พาดหัวข่าว
             prompt = f"ในฐานะนักวิเคราะห์ ข่าวนี้ส่งผลกระทบต่อราคาหุ้น {symbol} อย่างมีนัยสำคัญรุนแรงหรือไม่? ตอบแค่ 'YES' หรือ 'NO' เท่านั้น: {title}"
             ai_check = client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
             
             if "YES" in ai_check.text.upper():
                 msg = f"🗞 **BREAKING NEWS!**\n\nหัวข้อ: {title}\n🤖 **AI ประเมิน:** ข่าวนี้อาจส่งผลกระทบแรงต่อราคา!\n🔗 [อ่านข่าวเต็มคลิกที่นี่]({link})"
-                send_alert(symbol, msg)
-                last_news_title[symbol] = title # จำข่าวนี้ไว้ จะได้ไม่เตือนซ้ำ
+                send_alert_to_users(symbol, msg)
+                last_news_title[symbol] = title
     except Exception as e:
         print(f"⚠️ News Error {symbol}: {e}")
 
 def check_market_conditions():
-    print(f"🔍 [{time.strftime('%H:%M:%S')}] Scanning market & news...")
     active_symbols = get_all_active_symbols()
+    
+    if not active_symbols:
+        print(f"[{time.strftime('%H:%M:%S')}] 💤 ไม่มีหุ้นใน Watchlist รอผู้ใช้งานเพิ่มข้อมูล...")
+        return
+
+    print(f"🔍 [{time.strftime('%H:%M:%S')}] Scanning {len(active_symbols)} symbols...")
+    
     for symbol in active_symbols:
         try:
-            # 1. ให้นักสืบ AI เช็คข่าวด่วนก่อน
             check_hot_news(symbol)
 
-            # 2. ดึงข้อมูลเทคนิค
             tech_data, _, error = calculate_technical_indicators(symbol)
             if error or not tech_data:
                 continue
@@ -86,38 +84,45 @@ def check_market_conditions():
 
             if rsi_condition != 'normal' and rsi_condition != last_alert_state[symbol]['rsi']:
                 send_alert_to_users(symbol, msg)
-            last_alert_state[symbol]['rsi'] = rsi_condition
-
-        # ... (ทำแบบเดียวกันกับจุดเช็ค Breakout และ News) ...
-            last_alert_state[symbol]['rsi'] = rsi_condition
+                last_alert_state[symbol]['rsi'] = rsi_condition
             elif rsi_condition == 'normal':
-            last_alert_state[symbol]['rsi'] = 'normal'
+                last_alert_state[symbol]['rsi'] = 'normal'
 
-            # --- เช็ค Breakout แนวรับ-แนวต้าน (ฟีเจอร์ใหม่) ---
+            # --- เช็ค EMA Cross ---
+            cross_condition = 'normal'
+            if ema50 > ema200 and (ema50 / ema200) < 1.01:
+                cross_condition = 'golden_cross'
+                msg = f"✨ **GOLDEN CROSS DETECTED** ✨\nเส้น EMA50 ตัดขึ้นเหนือ EMA200 สัญญาณกลับตัวเป็นขาขึ้นระยะยาว!"
+            elif ema50 < ema200 and (ema200 / ema50) < 1.01:
+                cross_condition = 'death_cross'
+                msg = f"💀 **DEATH CROSS DETECTED** 💀\nเส้น EMA50 ตัดลงต่ำกว่า EMA200 สัญญาณกลับตัวเป็นขาลงระยะยาว!"
+
+            if cross_condition != 'normal' and cross_condition != last_alert_state[symbol]['cross']:
+                send_alert_to_users(symbol, msg)
+                last_alert_state[symbol]['cross'] = cross_condition
+
+            # --- เช็ค Breakout ---
             breakout_condition = 'normal'
-            # ถ้าราคาปัจจุบัน ทะลุแนวต้าน 20 วันล่าสุด
             if price > resistance:
                 breakout_condition = 'break_res'
                 msg = f"🚀 **RESISTANCE BREAKOUT**\nราคาทะลุแนวต้านสำคัญที่ {resistance:.2f} ขึ้นไปได้แล้ว! (ราคาปัจจุบัน: {price:.2f}) จับตาดู Volume!"
-            # ถ้าราคาปัจจุบัน หลุดแนวรับ 20 วันล่าสุด
             elif price < support:
                 breakout_condition = 'break_sup'
                 msg = f"🩸 **SUPPORT BROKEN**\nราคาหลุดแนวรับสำคัญที่ {support:.2f} ลงมาแล้ว! (ราคาปัจจุบัน: {price:.2f}) ระวังแรงเทขาย!"
 
             if breakout_condition != 'normal' and breakout_condition != last_alert_state[symbol]['breakout']:
-                send_alert(symbol, msg)
+                send_alert_to_users(symbol, msg)
                 last_alert_state[symbol]['breakout'] = breakout_condition
             elif breakout_condition == 'normal':
                 last_alert_state[symbol]['breakout'] = 'normal'
 
-            time.sleep(2) # พัก 2 วินาทีกันโดนแบน API
+            time.sleep(2)
 
         except Exception as e:
             print(f"⚠️ Error checking {symbol}: {e}")
 
 if __name__ == "__main__":
-    print("🚀 Apexify Alert System with News Hunter is Running...")
-    send_alert("SYSTEM", "อัปเกรดระบบเสร็จสิ้น: AI News Hunter 🗞 และ Breakout Alert 🚀 พร้อมทำงานครับ!")
+    print("🚀 Apexify Alert System with News Hunter & Personal Watchlist is Running...")
     while True:
         check_market_conditions()
         time.sleep(300) # ตรวจสอบทุกๆ 5 นาที
