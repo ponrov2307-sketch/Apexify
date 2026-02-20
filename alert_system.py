@@ -170,7 +170,7 @@ def check_market_conditions():
             print(f"⚠️ Error checking {symbol}: {e}")
 
 if __name__ == "__main__":
-    
+    init_db()
     print("🚀 Apexify Alert System with News Hunter & Personal Watchlist is Running...")
     while True:
         check_market_conditions()
