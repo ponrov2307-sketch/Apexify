@@ -27,6 +27,10 @@ def send_welcome(message):
     markup.add(KeyboardButton("🌍 สภาวะตลาด"), KeyboardButton("👤 บัญชีของฉัน"))
     markup.add(KeyboardButton("📚 วิธีอ่านสัญญาณ"), KeyboardButton("💎 สมัคร VIP"))
     
+    # 🌟 เพิ่มปุ่มสำหรับแอดมินโดยเฉพาะ (จะโผล่มาแค่หน้าจอแอดมินเท่านั้น)
+    if user_id == ADMIN_ID:
+        markup.add(KeyboardButton("👑 แผงควบคุมแอดมิน"))
+    
     welcome_text = (
         "⚡️ ยินดีต้อนรับสู่ **Apexify** ระบบวิเคราะห์หุ้นอัจฉริยะ\n\n"
         "🎁 **คุณได้รับสิทธิ์ทดลองใช้งานฟรี 10 ครั้ง!**\n"
@@ -111,10 +115,7 @@ def handle_payment_slip_check(message):
         else:
             bot.edit_message_text("❌ สลิปไม่ถูกต้องหรือยอดเงินไม่ครบ 199 บาท", message.chat.id, progress_msg.message_id)
     except Exception as e:
-        # 1. แจ้งลูกค้าแบบนุ่มนวล
         bot.edit_message_text("⚠️ AI ไม่สามารถอ่านสลิปได้ โปรดถ่ายให้ชัดเจนอีกครั้ง หรือติดต่อแอดมินครับ", message.chat.id, progress_msg.message_id)
-        
-        # 2. ฟ้องแอดมินทันที! พร้อมส่งรูปสลิปใบนั้นให้แอดมินดูด้วย
         error_msg = f"🚨 **บอสครับ! มีปัญหาระบบตรวจสลิป** 🚨\n👤 User ID: `{user_id}`\n❌ Error: {e}"
         bot.send_message(ADMIN_ID, error_msg, parse_mode="Markdown")
         bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption="สลิปที่มีปัญหาครับ 👇")
@@ -146,7 +147,7 @@ def handle_main(message):
     user_id = str(message.chat.id)
     text = message.text.strip()
 
-    # จัดการ 6 ปุ่มเมนู
+    # จัดการ 6 ปุ่มเมนู (+1 ปุ่มแอดมิน)
     if text == "📊 วิเคราะห์หุ้น":
         bot.reply_to(message, "ส่งชื่อหุ้นมาได้เลยครับ (เช่น NVDA, AAPL, PTT.BK)")
         return
@@ -190,7 +191,6 @@ def handle_main(message):
         try:
             fg_index = get_fear_and_greed_index()
             
-            # ดึงดัชนีหลักโลกและไทยมาประกอบ
             indices = {"SET (ไทย)": "^SET.BK", "S&P 500 (สหรัฐ)": "^GSPC", "Bitcoin (คริปโต)": "BTC-USD"}
             market_text = ""
             
@@ -232,6 +232,22 @@ def handle_main(message):
             "• ถ้าราคาหลุดขอบล่าง: ถูกไป อาจหาจังหวะทยอยเก็บ\n"
         )
         bot.reply_to(message, tutorial, parse_mode="Markdown")
+        return
+        
+    elif text == "👑 แผงควบคุมแอดมิน":
+        if user_id != ADMIN_ID:
+            return
+        admin_text = (
+            "👑 **ระบบจัดการสำหรับแอดมิน** 👑\n\n"
+            "กด Copy คำสั่งด้านล่างไปวางในแชทแล้วพิมพ์ต่อได้เลยครับ:\n\n"
+            "1️⃣ **เพิ่มวัน VIP ให้ลูกค้า:**\n"
+            "👉 `/addvip [รหัสผู้ใช้] [จำนวนวัน]`\n"
+            "*(เช่น `/addvip 123456789 30`)*\n\n"
+            "2️⃣ **บรอดแคสต์ (Broadcast):**\n"
+            "👉 `/broadcast [ข้อความที่ต้องการส่ง]`\n"
+            "*(เช่น `/broadcast แจ้งเตือน! ระบบอัปเดตใหม่`)*"
+        )
+        bot.reply_to(message, admin_text, parse_mode="Markdown")
         return
 
     # วิเคราะห์หุ้น
