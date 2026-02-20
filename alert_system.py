@@ -4,7 +4,7 @@ import yfinance as yf
 from google import genai
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
 from technical_tools import calculate_technical_indicators
-from database import get_all_active_symbols, get_users_watching
+from database import get_all_active_symbols, get_users_watching, init_db
 import json
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
@@ -170,6 +170,7 @@ def check_market_conditions():
             print(f"⚠️ Error checking {symbol}: {e}")
 
 if __name__ == "__main__":
+    
     print("🚀 Apexify Alert System with News Hunter & Personal Watchlist is Running...")
     while True:
         check_market_conditions()
