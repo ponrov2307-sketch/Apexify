@@ -1,16 +1,11 @@
 import matplotlib
+matplotlib.use('Agg') # ป้องกัน Error บน Server ที่ไม่มีหน้าจอ
+import matplotlib.pyplot as plt
+import mplfinance as mpf
 import yfinance as yf
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 import io
-import requests # <--- เพิ่ม import requests
-matplotlib.use('Agg') # <--- เพิ่ม 2 บรรทัดนี้ก่อน import pyplot
-import matplotlib.pyplot as plt 
-yf_session = requests.Session()
-yf_session.headers.update({
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
-})
+import requests
 
 def get_fear_and_greed_index():
     try:
@@ -24,22 +19,17 @@ def get_fear_and_greed_index():
             score = data['fear_and_greed']['score']
             rating = data['fear_and_greed']['rating'].lower()
             
-            # แปลงสถานะเป็นภาษาไทยและอีโมจิ
             rating_map = {
-                "extreme fear": "กลัวสุดขีด 🩸",
-                "fear": "กลัว 🔴",
-                "neutral": "ปกติ ⚪️",
-                "greed": "โลภ 🟢",
-                "extreme greed": "โลภสุดขีด 🤑"
+                "extreme fear": "กลัวสุดขีด 🩸", "fear": "กลัว 🔴",
+                "neutral": "ปกติ ⚪️", "greed": "โลภ 🟢", "extreme greed": "โลภสุดขีด 🤑"
             }
-            rating_th = rating_map.get(rating, rating.capitalize())
-            return f"{score:.0f}/100 ({rating_th})"
+            return f"{score:.0f}/100 ({rating_map.get(rating, rating.capitalize())})"
     except Exception as e:
         print(f"F&G API Error: {e}")
     return "ไม่สามารถดึงข้อมูลได้"
+
 def calculate_indicators(data):
     # EMA
-    data['EMA5'] = data['Close'].ewm(span=5, adjust=False).mean()
     data['EMA20'] = data['Close'].ewm(span=20, adjust=False).mean()
     data['EMA50'] = data['Close'].ewm(span=50, adjust=False).mean()
     data['EMA200'] = data['Close'].ewm(span=200, adjust=False).mean()
@@ -63,7 +53,7 @@ def calculate_indicators(data):
     data['BB_Upper'] = data['BB_Middle'] + (2 * std)
     data['BB_Lower'] = data['BB_Middle'] - (2 * std)
     
-    # OBV (On-Balance Volume)
+    # OBV
     obv = [0]
     for i in range(1, len(data.Close)):
         if data.Close.iloc[i] > data.Close.iloc[i-1]:
@@ -77,39 +67,29 @@ def calculate_indicators(data):
     return data
 
 def calculate_technical_indicators(symbol):
-    import time # นำเข้าเครื่องมือหน่วงเวลา
+    import time
     
-    # --- ระบบ Auto-Retry พยายามดึงข้อมูล 2 รอบ ---
     for attempt in range(2):
         try:
-            # ตัดช่องว่างเผื่อพิมพ์ผิด และทำเป็นตัวพิมพ์ใหญ่
             clean_symbol = symbol.strip().upper()
-            # --- แก้ไขบรรทัดนี้บรรทัดเดียว ---
-            # จากเดิม: ticker = yf.Ticker(clean_symbol)
-            ticker = yf.Ticker(clean_symbol, session=yf_session) 
-            
-            data = ticker.history(period="6mo")
+            ticker = yf.Ticker(clean_symbol)
+            data = ticker.history(period="6mo") # ดึง 6 เดือนให้เห็นเทรนด์ชัดขึ้น
             
             if data.empty:
-                return None, None, f"❌ ไม่พบข้อมูลหุ้น '{clean_symbol}' ในระบบ โปรดตรวจสอบตัวสะกด (หุ้นไทยอย่าลืมใส่ .BK)"
+                return None, None, f"❌ ไม่พบข้อมูลหุ้น '{clean_symbol}'"
 
-            # ส่งไปคำนวณอินดิเคเตอร์
             data = calculate_indicators(data)
-            
             latest = data.iloc[-1]
             prev = data.iloc[-2]
             
-            current_price = float(latest['Close'])
+            # คำนวณแนวรับแนวต้าน (High/Low 20 วัน)
             recent20 = data.tail(20)
             support = float(recent20['Low'].min())
             resistance = float(recent20['High'].max())
             
-            obv_trend = "เพิ่มขึ้น 📈" if latest['OBV'] > prev['OBV'] else "ลดลง 📉"
-            fg_index = get_fear_and_greed_index()
-            
             tech_data = {
                 'symbol': clean_symbol,
-                'price': current_price,
+                'price': float(latest['Close']),
                 'rsi': float(latest['RSI']),
                 'macd': float(latest['MACD']),
                 'macd_signal': float(latest['Signal_Line']),
@@ -120,38 +100,43 @@ def calculate_technical_indicators(symbol):
                 'bb_lower': float(latest['BB_Lower']),
                 'support': support,
                 'resistance': resistance,
-                'obv_trend': obv_trend,
-                'fear_greed': fg_index
+                'obv_trend': "เพิ่มขึ้น 📈" if latest['OBV'] > prev['OBV'] else "ลดลง 📉",
+                'fear_greed': get_fear_and_greed_index()
             }
 
-            # --- วาดกราฟ Apexify Pro ---
-            plt.figure(figsize=(10, 6))
-            plt.style.use('dark_background')
-            plot_data = data.tail(90)
-            plt.plot(plot_data.index, plot_data['Close'], label='Price', color='#00e676', linewidth=2)
-            plt.plot(plot_data.index, plot_data['EMA20'], label='EMA20', color='#3b82f6', linestyle='--')
-            plt.plot(plot_data.index, plot_data['EMA50'], label='EMA50', color='#ff5252', linestyle='--')
-            
-            plt.axhline(y=support, color='green', linestyle=':', alpha=0.6, label='Support')
-            plt.axhline(y=resistance, color='red', linestyle=':', alpha=0.6, label='Resistance')
-            
-            plt.title(f"Apexify Intelligence: {clean_symbol}", color='#d4af37', size=16, weight='bold')
-            plt.legend(loc='best')
-            plt.grid(color='#333', linestyle='--')
-            
+            # --- 🎨 สร้างกราฟสวยงามด้วย mplfinance ---
             buf = io.BytesIO()
-            plt.savefig(buf, format='png')
-            buf.seek(0)
-            plt.close()
+            
+            # ตั้งค่าสไตล์กราฟ (Dark Mode แบบ Binance)
+            mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit', volume='in')
+            s = mpf.make_mpf_style(marketcolors=mc, base_mpf_style='nightclouds', gridstyle=':', rc={'font.size': 10})
+            
+            # เส้น Moving Average ที่จะพล็อต
+            add_plots = [
+                mpf.make_addplot(data['EMA20'], color='#2962ff', width=1.5),  # น้ำเงิน
+                mpf.make_addplot(data['EMA50'], color='#ff6d00', width=1.5),  # ส้ม
+                mpf.make_addplot(data['EMA200'], color='#d500f9', width=1.5), # ม่วง
+            ]
 
-            # ถ้าสำเร็จตั้งแต่รอบแรก ให้ส่งข้อมูลกลับทันที
+            # วาดกราฟ (Candlestick + Volume + EMAs)
+            mpf.plot(
+                data.tail(60), # โชว์แค่ 60 แท่งล่าสุดให้ชัดๆ
+                type='candle',
+                style=s,
+                title=f'\nApexify Pro Chart: {clean_symbol}',
+                volume=True,
+                addplot=add_plots,
+                savefig=dict(fname=buf, dpi=100, bbox_inches='tight', pad_inches=0.1),
+                figratio=(12, 8),
+                figscale=1.2,
+                tight_layout=True
+            )
+            
+            buf.seek(0)
             return tech_data, buf, None
 
         except Exception as e:
-            # ถ้าพังในรอบแรก (attempt 0) ให้รอ 1.5 วินาทีแล้ววนลูปเริ่มใหม่
             if attempt == 0:
-                time.sleep(1.5)
+                time.sleep(1)
                 continue
-                
-            # ถ้าพังครบ 2 รอบ ค่อยฟ้อง Error จริงๆ
-            return None, None, f"❌ เกิดข้อผิดพลาดในการคำนวณ: {str(e)}"
+            return None, None, f"❌ เกิดข้อผิดพลาด: {str(e)}"

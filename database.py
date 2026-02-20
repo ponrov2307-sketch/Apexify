@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 DB_NAME = "apexify.db"
 
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
+    conn = conn = sqlite3.connect(DB_NAME, timeout=10, check_same_thread=False)
     c = conn.cursor()
     # ตารางข้อมูลผู้ใช้งาน
     c.execute('''CREATE TABLE IF NOT EXISTS users 
@@ -14,7 +14,7 @@ def init_db():
     init_watchlist_db() # เรียกสร้างตาราง Watchlist ด้วย
 
 def init_watchlist_db():
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=10, check_same_thread=False)
     c = conn.cursor()
     # ตารางเก็บหุ้นที่ลูกค้าเฝ้าดู
     c.execute('''CREATE TABLE IF NOT EXISTS watchlists 
@@ -23,7 +23,7 @@ def init_watchlist_db():
     conn.close()
 
 def register_user(user_id):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=10, check_same_thread=False)
     c = conn.cursor()
     c.execute("INSERT OR IGNORE INTO users (user_id, status, registered_date, role, usage_count) VALUES (?, ?, ?, ?, ?)", 
               (user_id, 'active', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'free', 0))
@@ -31,7 +31,7 @@ def register_user(user_id):
     conn.close()
 
 def add_vip(user_id, days=30):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=10, check_same_thread=False)
     c = conn.cursor()
     expiry = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
     c.execute("UPDATE users SET role='vip', expiry_date=? WHERE user_id=?", (expiry, str(user_id)))
@@ -40,7 +40,7 @@ def add_vip(user_id, days=30):
     return expiry
 
 def check_vip(user_id):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=10, check_same_thread=False)
     c = conn.cursor()
     c.execute("SELECT role, expiry_date FROM users WHERE user_id=?", (str(user_id),))
     result = c.fetchone()
@@ -54,7 +54,7 @@ def check_vip(user_id):
     return False
 
 def get_usage(user_id):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=10, check_same_thread=False)
     c = conn.cursor()
     c.execute("SELECT usage_count FROM users WHERE user_id=?", (str(user_id),))
     result = c.fetchone()
@@ -62,7 +62,7 @@ def get_usage(user_id):
     return result[0] if result else 0
 
 def increment_usage(user_id):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=10, check_same_thread=False)
     c = conn.cursor()
     c.execute("UPDATE users SET usage_count = usage_count + 1 WHERE user_id=?", (str(user_id),))
     conn.commit()
@@ -70,7 +70,7 @@ def increment_usage(user_id):
 
 # --- ระบบ Watchlist ---
 def add_watch(user_id, symbol):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=10, check_same_thread=False)
     c = conn.cursor()
     try:
         c.execute("INSERT INTO watchlists (user_id, symbol) VALUES (?, ?)", (str(user_id), symbol.upper()))
@@ -82,7 +82,7 @@ def add_watch(user_id, symbol):
         conn.close()
 
 def get_user_watch(user_id):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=10, check_same_thread=False)
     c = conn.cursor()
     c.execute("SELECT symbol FROM watchlists WHERE user_id=?", (str(user_id),))
     result = c.fetchall()
@@ -90,7 +90,7 @@ def get_user_watch(user_id):
     return [row[0] for row in result]
 
 def get_users_watching(symbol):
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=10, check_same_thread=False)
     c = conn.cursor()
     c.execute("SELECT user_id FROM watchlists WHERE symbol=?", (symbol.upper(),))
     result = c.fetchall()
@@ -98,7 +98,7 @@ def get_users_watching(symbol):
     return [row[0] for row in result]
 
 def get_all_active_symbols():
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=10, check_same_thread=False)
     c = conn.cursor()
     c.execute("SELECT DISTINCT symbol FROM watchlists")
     result = c.fetchall()
