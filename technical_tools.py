@@ -66,28 +66,26 @@ def calculate_indicators(data):
     
     return data
 
-def calculate_technical_indicators(symbol, generate_chart=True):
+def calculate_technical_indicators(symbol, generate_chart=True): # 👈 จุดที่ 1: เพิ่มตัวแปร generate_chart=True
     import time
     
     for attempt in range(2):
         try:
             clean_symbol = symbol.strip().upper()
             ticker = yf.Ticker(clean_symbol)
-            # แก้ไขจาก 6mo เป็น 1y
-            data = ticker.history(period="1y") # ดึง 6 เดือนให้เห็นเทรนด์ชัดขึ้น
+            data = ticker.history(period="1y") # (แนะนำแก้เป็น 1y ตามที่คุยกันก่อนหน้า เพื่อให้ EMA200 แม่นยำ)
             
             if data.empty:
                 return None, None, f"❌ ไม่พบข้อมูลหุ้น '{clean_symbol}'"
-
-                # เพิ่มบรรทัดนี้เข้าไปดักหุ้นที่เข้าตลาดใหม่
-            if len(data) < 20: 
-                return None, None, f"❌ ข้อมูลหุ้น '{clean_symbol}' มีน้อยเกินไป ไม่สามารถคำนวณอินดิเคเตอร์ได้"
+            
+            if len(data) < 20: # (ดัก Error หุ้นใหม่)
+                return None, None, f"❌ ข้อมูลหุ้น '{clean_symbol}' มีน้อยเกินไป"
 
             data = calculate_indicators(data)
             latest = data.iloc[-1]
             prev = data.iloc[-2]
             
-            # คำนวณแนวรับแนวต้าน (High/Low 20 วัน)
+            # คำนวณแนวรับแนวต้าน
             recent20 = data.tail(20)
             support = float(recent20['Low'].min())
             resistance = float(recent20['High'].max())
@@ -109,35 +107,42 @@ def calculate_technical_indicators(symbol, generate_chart=True):
                 'fear_greed': get_fear_and_greed_index()
             }
 
-            # --- 🎨 สร้างกราฟสวยงามด้วย mplfinance ---
-            buf = io.BytesIO()
-            
-            # ตั้งค่าสไตล์กราฟ (Dark Mode แบบ Binance)
-            mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit', volume='in')
-            s = mpf.make_mpf_style(marketcolors=mc, base_mpf_style='nightclouds', gridstyle=':', rc={'font.size': 10})
-            # เส้น Moving Average ที่จะพล็อต (ใส่ .tail(60) เพื่อให้เท่ากับแท่งเทียน)
-            add_plots = [
-                mpf.make_addplot(data['EMA20'].tail(60), color='#2962ff', width=1.5),  
-                mpf.make_addplot(data['EMA50'].tail(60), color='#ff6d00', width=1.5),  
-                mpf.make_addplot(data['EMA200'].tail(60), color='#d500f9', width=1.5), 
-            ]
+            # 👈 จุดที่ 2: ครอบส่วนสร้างกราฟด้วย if generate_chart:
+            if generate_chart:
+                # --- 🎨 สร้างกราฟสวยงามด้วย mplfinance ---
+                buf = io.BytesIO()
+                
+                # ตั้งค่าสไตล์กราฟ
+                mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit', volume='in')
+                s = mpf.make_mpf_style(marketcolors=mc, base_mpf_style='nightclouds', gridstyle=':', rc={'font.size': 10})
+                
+                # เส้น Moving Average ที่จะพล็อต (ใส่ .tail(60) แก้บั๊กกราฟพัง)
+                add_plots = [
+                    mpf.make_addplot(data['EMA20'].tail(60), color='#2962ff', width=1.5),
+                    mpf.make_addplot(data['EMA50'].tail(60), color='#ff6d00', width=1.5),
+                    mpf.make_addplot(data['EMA200'].tail(60), color='#d500f9', width=1.5),
+                ]
 
-            # วาดกราฟ (Candlestick + Volume + EMAs)
-            mpf.plot(
-                data.tail(60), # โชว์แค่ 60 แท่งล่าสุดให้ชัดๆ
-                type='candle',
-                style=s,
-                title=f'\nApexify Pro Chart: {clean_symbol}',
-                volume=True,
-                addplot=add_plots,
-                savefig=dict(fname=buf, dpi=100, bbox_inches='tight', pad_inches=0.1),
-                figratio=(12, 8),
-                figscale=1.2,
-                tight_layout=True
-            )
+                # วาดกราฟ (ลด dpi เหลือ 80 เพื่อความเร็ว)
+                mpf.plot(
+                    data.tail(60),
+                    type='candle',
+                    style=s,
+                    title=f'\nApexify Pro Chart: {clean_symbol}',
+                    volume=True,
+                    addplot=add_plots,
+                    savefig=dict(fname=buf, dpi=80, bbox_inches='tight', pad_inches=0.1), # 👈 ปรับ dpi ตรงนี้
+                    figratio=(12, 8),
+                    figscale=1.2,
+                    tight_layout=True
+                )
+                
+                buf.seek(0)
+                return tech_data, buf, None
             
-            buf.seek(0)
-            return tech_data, buf, None
+            else:
+                # 👈 จุดที่ 3: ถ้าไม่เอากราฟ (generate_chart=False) ให้ส่งค่า None กลับไป
+                return tech_data, None, None
 
         except Exception as e:
             if attempt == 0:

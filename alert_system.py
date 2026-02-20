@@ -107,7 +107,7 @@ def check_market_conditions():
         try:
             check_hot_news(symbol)
 
-            tech_data, _, error = calculate_technical_indicators(symbol)
+            tech_data, _, error = calculate_technical_indicators(symbol, generate_chart=False)
             if error or not tech_data:
                 continue
 

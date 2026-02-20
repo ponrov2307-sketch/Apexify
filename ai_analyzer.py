@@ -24,7 +24,7 @@ def generate_apexify_report(tech_data):
     """
     
     try:
-        ai_response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        ai_response = client.models.generate_content(model='gemini-3-flash', contents=prompt)
         ai_text = ai_response.text
     except Exception as e:
         print(f"❌ เจอตัวการแล้ว AI Error: {e}") # พิมพ์ Error ลงในหน้าจอ Terminal
@@ -63,7 +63,7 @@ def analyze_payment_slip(image_bytes):
         """
         
         response = client.models.generate_content(
-            model='Gemini 3 Flash',
+            model='Gemini-3 Flash',
             contents=[prompt, image]
         )
         
