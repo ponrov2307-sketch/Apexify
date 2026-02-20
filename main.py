@@ -214,24 +214,27 @@ def handle_main(message):
     elif text == "📰 ข่าวด่วนตลาดทุน":
         load_msg = bot.reply_to(message, "📰 กำลังรวบรวมข่าวด่วนการลงทุนล่าสุด...")
         try:
-            ticker = yf.Ticker('SPY') 
-            news = ticker.news[:3] 
-            if news:
+            # ใช้ Ticker ตัวอื่นเผื่อ SPY ดึงข่าวไม่ติด และดัก Error ให้แสดงในแชท
+            ticker = yf.Ticker('AAPL') 
+            news = ticker.news
+            if news and len(news) > 0:
                 news_text = "📰 **Top 3 ข่าวเด่นตลาดทุนวันนี้**\n\n"
-                for i, n in enumerate(news, 1):
-                    title = n.get('title', 'ไม่มีหัวข้อ')
+                for i, n in enumerate(news[:3], 1):
+                    title = n.get('title', 'ไม่มีหัวข้อข่าว')
                     link = n.get('link', '#')
                     news_text += f"{i}. [{title}]({link})\n\n"
                 bot.edit_message_text(news_text, message.chat.id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
             else:
-                bot.edit_message_text("❌ ขณะนี้ไม่มีข่าวด่วนในระบบ", message.chat.id, load_msg.message_id)
+                bot.edit_message_text("❌ ขณะนี้ไม่มีข่าวด่วนในระบบ (Yahoo Finance ไม่ส่งข้อมูลกลับมา)", message.chat.id, load_msg.message_id)
+        except AttributeError:
+            bot.edit_message_text("❌ ระบบดึงข่าวของ yfinance ขัดข้องชั่วคราว (พบข้อผิดพลาดจากเซิร์ฟเวอร์หลัก)", message.chat.id, load_msg.message_id)
         except Exception as e:
             bot.edit_message_text(f"❌ ดึงข้อมูลข่าวล้มเหลว: {e}", message.chat.id, load_msg.message_id)
         return
 
     elif text == "🚀 สแกน Watchlist (VIP)":
         if user_id != ADMIN_ID and not is_vip:
-            bot.reply_to(message, "🔒 ฟีเจอร์นี้สงวนสิทธิ์เฉพาะ **VIP Member** เท่านั้นครับ\n\n💎 ระบบจะทำการสแกนกราฟเทคนิคหุ้นทั้งหมดใน Watchlist ของคุณอัตโนมัติ เพื่อหาจุดเข้าซื้อ (Golden Cross/Oversold) ช่วยประหยัดเวลาสุดๆ กดปุ่ม สมัคร VIP เพื่อใช้งานได้เลย!")
+            bot.reply_to(message, "🔒 ฟีเจอร์นี้สงวนสิทธิ์เฉพาะ **VIP Member** เท่านั้นครับ\n\n💎 ระบบจะสแกนกราฟเทคนิคหุ้นทั้งหมดใน Watchlist อัตโนมัติ เพื่อหาจุดเข้าซื้อ ช่วยประหยัดเวลาสุดๆ กดปุ่ม สมัคร VIP ได้เลย!")
             return
             
         my_list = get_user_watch(user_id)
@@ -243,22 +246,26 @@ def handle_main(message):
         scan_result = "🚀 **รายงานสแกนหุ้นใน Watchlist (VIP Exclusive)**\n\n"
         
         for sym in my_list:
-            tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
-            if err or not tech_data:
-                scan_result += f"• **{sym}**: ⚠️ ข้อมูลไม่สมบูรณ์\n"
-                continue
+            try:
+                # ⚠️ ถ้าตรงนี้บรรทัดนี้ Error แสดงว่า technical_tools.py ไม่อัปเดต
+                tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
+                if err or not tech_data:
+                    scan_result += f"• **{sym}**: ⚠️ ข้อมูลไม่สมบูรณ์ ({err})\n"
+                    continue
+                    
+                ema_short = "🟢 ขาขึ้น" if tech_data['ema20'] > tech_data['ema50'] else "🔴 ขาลง"
+                cross = "✨ Golden Cross!" if tech_data['ema50'] > tech_data['ema200'] else "ธรรมดา"
+                rsi = tech_data['rsi']
+                rsi_txt = "🔥 ตึงไป (Overbought)" if rsi > 70 else "🎯 น่าสะสม (Oversold)" if rsi < 30 else "⚪️ กลางๆ"
                 
-            ema_short = "🟢 ขาขึ้น" if tech_data['ema20'] > tech_data['ema50'] else "🔴 ขาลง"
-            cross = "✨ Golden Cross!" if tech_data['ema50'] > tech_data['ema200'] else "ธรรมดา"
-            rsi = tech_data['rsi']
-            rsi_txt = "🔥 ตึงไป (Overbought)" if rsi > 70 else "🎯 น่าสะสม (Oversold)" if rsi < 30 else "⚪️ กลางๆ"
-            
-            scan_result += f"📌 **{sym}** ({tech_data['price']:.2f})\n"
-            scan_result += f"   เทรนด์: {ema_short} | RSI: {rsi_txt}\n"
-            if "Golden" in cross or rsi < 30:
-                scan_result += f"   👉 **สัญญาณพิเศษ:** {cross}\n"
-            scan_result += "\n"
-            
+                scan_result += f"📌 **{sym}** ({tech_data['price']:.2f})\n"
+                scan_result += f"   เทรนด์: {ema_short} | RSI: {rsi_txt}\n"
+                if "Golden" in cross or rsi < 30:
+                    scan_result += f"   👉 **สัญญาณพิเศษ:** {cross}\n"
+                scan_result += "\n"
+            except Exception as e:
+                scan_result += f"• **{sym}**: ❌ โค้ด Error ({e})\n"
+                
         bot.edit_message_text(scan_result, message.chat.id, scan_msg.message_id, parse_mode="Markdown")
         return
 
