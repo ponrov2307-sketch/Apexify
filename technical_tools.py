@@ -79,8 +79,13 @@ def calculate_technical_indicators(symbol):
             if data.empty:
                 return None, None, f"❌ ไม่พบข้อมูลหุ้น '{clean_symbol}'"
 
+                # เพิ่มบรรทัดนี้เข้าไปดักหุ้นที่เข้าตลาดใหม่
+            if len(data) < 20: 
+                return None, None, f"❌ ข้อมูลหุ้น '{clean_symbol}' มีน้อยเกินไป ไม่สามารถคำนวณอินดิเคเตอร์ได้"
+
             data = calculate_indicators(data)
-            
+            latest = data.iloc[-1]
+            prev = data.iloc[-2]
             
             # คำนวณแนวรับแนวต้าน (High/Low 20 วัน)
             recent20 = data.tail(20)
