@@ -66,7 +66,7 @@ def calculate_indicators(data):
     
     return data
 
-def calculate_technical_indicators(symbol):
+def calculate_technical_indicators(symbol, generate_chart=True):
     import time
     
     for attempt in range(2):

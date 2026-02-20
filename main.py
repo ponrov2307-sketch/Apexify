@@ -6,10 +6,10 @@ import io
 import sqlite3
 import yfinance as yf
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-
+get_all_users
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID
-from database import init_db, register_user, check_vip, add_vip, get_usage, increment_usage, add_watch, get_user_watch
+from database import get_all_users, init_db, register_user, check_vip, add_vip, get_usage, increment_usage, add_watch, get_user_watch
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
 
@@ -78,7 +78,30 @@ def handle_watchlist_cmd(message):
         
     msg = "📋 **จัดการ Watchlist ของคุณ:**\n(กดปุ่มด้านล่างเพื่อลบหุ้นที่ไม่ต้องการแจ้งเตือน)"
     bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
-
+@bot.message_handler(commands=['broadcast'])
+def handle_broadcast(message):
+    user_id = str(message.chat.id)
+    if user_id != ADMIN_ID:
+        bot.reply_to(message, "🔒 คำสั่งนี้สำหรับแอดมินเท่านั้นครับ")
+        return
+        
+    msg_text = message.text.replace('/broadcast', '').strip()
+    if not msg_text:
+        bot.reply_to(message, "❌ รูปแบบคำสั่ง: /broadcast [ข้อความที่ต้องการส่ง]")
+        return
+        
+    users = get_all_users()
+    success, fail = 0, 0
+    bot.reply_to(message, f"⏳ กำลังส่งข้อความหาผู้ใช้ {len(users)} คน...")
+    
+    for uid in users:
+        try:
+            bot.send_message(uid, f"📢 **ประกาศจาก Apexify:**\n\n{msg_text}", parse_mode="Markdown")
+            success += 1
+        except Exception:
+            fail += 1 # นับคนที่บล็อคบอทไปแล้ว
+            
+    bot.reply_to(message, f"✅ บรอดแคสต์สำเร็จ: {success} คน\n❌ ล้มเหลว/บล็อคบอท: {fail} คน")
 # --- 3. ระบบตรวจสลิปด้วย AI ---
 @bot.message_handler(content_types=['photo'])
 def handle_payment_slip_check(message):
@@ -100,10 +123,17 @@ def handle_payment_slip_check(message):
             bot.delete_message(message.chat.id, progress_msg.message_id)
             bot.reply_to(message, f"✅ **ชำระเงินสำเร็จ!**\nอัปเกรดเป็น VIP แล้ว\n⏰ หมดอายุ: {expiry}", parse_mode="Markdown")
             bot.send_message(ADMIN_ID, f"💰 เงินเข้า! User {user_id} โอน {result['amount']} บาท")
+        # ... (โค้ดตรวจสลิปส่วนบนเหมือนเดิม) ...
         else:
             bot.edit_message_text("❌ สลิปไม่ถูกต้องหรือยอดเงินไม่ครบ 199 บาท", message.chat.id, progress_msg.message_id)
-    except:
-        bot.edit_message_text("❌ เกิดข้อผิดพลาดในการอ่านสลิป", message.chat.id, progress_msg.message_id)
+    except Exception as e:
+        # 1. แจ้งลูกค้าแบบนุ่มนวล
+        bot.edit_message_text("⚠️ AI ไม่สามารถอ่านสลิปได้ โปรดถ่ายให้ชัดเจนอีกครั้ง หรือติดต่อแอดมินครับ", message.chat.id, progress_msg.message_id)
+        
+        # 2. ฟ้องแอดมินทันที! พร้อมส่งรูปสลิปใบนั้นให้แอดมินดูด้วย
+        error_msg = f"🚨 **บอสครับ! มีปัญหาระบบตรวจสลิป** 🚨\n👤 User ID: `{user_id}`\n❌ Error: {e}"
+        bot.send_message(ADMIN_ID, error_msg, parse_mode="Markdown")
+        bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption="สลิปที่มีปัญหาครับ 👇")
 
 # --- 4. ปุ่ม Inline (เพิ่ม/ลบ Watchlist) ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_'))
