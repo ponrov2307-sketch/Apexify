@@ -71,28 +71,26 @@ def calculate_technical_indicators(symbol, generate_chart=True):
     
     for attempt in range(2):
         try:
-            # --- 🌟 ระบบจัดการชื่อหุ้นอัจฉริยะ (Smart Symbol Format) ---
             clean_symbol = symbol.strip().upper()
             
-            # 1. จัดการหุ้นคลาส B ของอเมริกา (เช่น พิมพ์ BRK.B แปลงเป็น BRK-B)
+            # 1. จัดการหุ้นคลาส B (อเมริกา) (เช่น BRK.B แปลงเป็น BRK-B)
             if "." in clean_symbol and not clean_symbol.endswith(".BK"):
                 clean_symbol = clean_symbol.replace(".", "-")
             
+            # 2. 🌟 ระบบให้ความสำคัญหุ้นไทยเป็นอันดับแรก (Prioritize Thai Stocks) 🌟
+            # ถ้าผู้ใช้พิมพ์ชื่อหุ้นปกติ (ไม่มีจุด ไม่มีขีด) เช่น PTT, AOT, TSLA
+            if "." not in clean_symbol and "-" not in clean_symbol:
+                # ลองแอบเติม .BK แล้วเคาะประตูดูก่อนว่ามีหุ้นไทยชื่อนี้ไหม (ดึงข้อมูลสั้นๆ เพื่อความไว)
+                thai_symbol = clean_symbol + ".BK"
+                thai_data = yf.Ticker(thai_symbol).history(period="5d")
+                
+                if not thai_data.empty:
+                    # ถ้าเจอว่ามีหุ้นไทยชื่อนี้ ให้สวมรอยใช้ชื่อแบบมี .BK ทันที!
+                    clean_symbol = thai_symbol
+            
+            # 3. ดึงข้อมูลจริง 1 ปี (ใช้ชื่อที่ผ่านการกรองแล้วจากข้อ 1 และ 2)
             ticker = yf.Ticker(clean_symbol)
             data = ticker.history(period="1y")
-            
-            # 2. ระบบ Auto-Append .BK สำหรับหุ้นไทย
-            # ถ้าหาข้อมูลไม่เจอ และชื่อไม่ได้ลงท้ายด้วย .BK หรือมีขีด ให้ลองเติม .BK แล้วหาใหม่
-            if data.empty and not clean_symbol.endswith(".BK") and "-" not in clean_symbol:
-                thai_symbol = clean_symbol + ".BK"
-                ticker_thai = yf.Ticker(thai_symbol)
-                data_thai = ticker_thai.history(period="1y")
-                
-                # ถ้าเติม .BK แล้วเจอข้อมูล ให้ยึดข้อมูลของหุ้นไทยเป็นหลัก
-                if not data_thai.empty:
-                    clean_symbol = thai_symbol # อัปเดตชื่อให้มี .BK โชว์ในกราฟเพื่อความชัดเจน
-                    data = data_thai
-                    ticker = ticker_thai
 
             if data.empty:
                 return None, None, f"❌ ไม่พบข้อมูลหุ้น '{symbol}' โปรดตรวจสอบตัวสะกด"
@@ -105,7 +103,6 @@ def calculate_technical_indicators(symbol, generate_chart=True):
             latest = data.iloc[-1]
             prev = data.iloc[-2]
             
-            # คำนวณแนวรับแนวต้าน
             recent20 = data.tail(20)
             support = float(recent20['Low'].min())
             resistance = float(recent20['High'].max())
@@ -128,21 +125,17 @@ def calculate_technical_indicators(symbol, generate_chart=True):
             }
 
             if generate_chart:
-                # --- 🎨 สร้างกราฟสวยงามด้วย mplfinance ---
                 buf = io.BytesIO()
                 
-                # ตั้งค่าสไตล์กราฟ
                 mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit', volume='in')
                 s = mpf.make_mpf_style(marketcolors=mc, base_mpf_style='nightclouds', gridstyle=':', rc={'font.size': 10})
                 
-                # เส้น Moving Average ที่จะพล็อต (ใส่ .tail(60) แก้บั๊กกราฟพัง)
                 add_plots = [
                     mpf.make_addplot(data['EMA20'].tail(60), color='#2962ff', width=1.5),
                     mpf.make_addplot(data['EMA50'].tail(60), color='#ff6d00', width=1.5),
                     mpf.make_addplot(data['EMA200'].tail(60), color='#d500f9', width=1.5),
                 ]
 
-                # วาดกราฟ (ลด dpi เหลือ 80 เพื่อความเร็ว)
                 mpf.plot(
                     data.tail(60),
                     type='candle',
@@ -160,7 +153,6 @@ def calculate_technical_indicators(symbol, generate_chart=True):
                 return tech_data, buf, None
             
             else:
-                # ถ้าไม่เอากราฟ (เช่นจาก alert_system) ให้ส่งค่า None กลับไปแทนรูป
                 return tech_data, None, None
 
         except Exception as e:
