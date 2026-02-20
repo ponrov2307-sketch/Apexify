@@ -18,9 +18,9 @@ load_dotenv()
 # ===========================
 # 🔑 ส่วนตั้งค่าระบบ (Apexify)
 # ===========================
-TELEGRAM_TOKEN = "8547579935:AAHO19NUArcAQwk0iM0mnOeoowfiWNFffbo"
-GEMINI_API_KEY = "AIzaSyBaX407gKCKTPsfBFTgUbSDbJZldcQf2po"
-ADMIN_ID = "8295809187" 
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+ADMIN_ID = os.getenv("ADMIN_ID")
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)

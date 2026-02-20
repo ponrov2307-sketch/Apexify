@@ -3,7 +3,32 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import io
-
+import requests # <--- เพิ่ม import requests
+def get_fear_and_greed_index():
+    try:
+        url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            score = data['fear_and_greed']['score']
+            rating = data['fear_and_greed']['rating'].lower()
+            
+            # แปลงสถานะเป็นภาษาไทยและอีโมจิ
+            rating_map = {
+                "extreme fear": "กลัวสุดขีด 🩸",
+                "fear": "กลัว 🔴",
+                "neutral": "ปกติ ⚪️",
+                "greed": "โลภ 🟢",
+                "extreme greed": "โลภสุดขีด 🤑"
+            }
+            rating_th = rating_map.get(rating, rating.capitalize())
+            return f"{score:.0f}/100 ({rating_th})"
+    except Exception as e:
+        print(f"F&G API Error: {e}")
+    return "ไม่สามารถดึงข้อมูลได้"
 def calculate_indicators(data):
     # EMA
     data['EMA5'] = data['Close'].ewm(span=5, adjust=False).mean()
