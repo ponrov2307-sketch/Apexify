@@ -8,13 +8,19 @@ import io
 import sqlite3
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
+import os
+import telebot
+from google import genai
+from dotenv import load_dotenv
 
+# โหลดค่าจากไฟล์ .env ขึ้นมา
+load_dotenv()
 # ===========================
 # 🔑 ส่วนตั้งค่าระบบ (Apexify)
 # ===========================
-TELEGRAM_TOKEN = "ใส่_TOKEN_ของคุณ"
+TELEGRAM_TOKEN = "8547579935:AAHO19NUArcAQwk0iM0mnOeoowfiWNFffbo"
 GEMINI_API_KEY = "AIzaSyBaX407gKCKTPsfBFTgUbSDbJZldcQf2po"
-ADMIN_ID = "ใส่_ID_ของคุณ" 
+ADMIN_ID = "8295809187" 
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)
