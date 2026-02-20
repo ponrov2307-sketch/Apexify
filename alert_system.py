@@ -4,24 +4,28 @@ import yfinance as yf
 from google import genai
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
 from technical_tools import calculate_technical_indicators
+# ในไฟล์ alert_system.py ให้เพิ่ม import เข้ามา
+from database import get_all_active_symbols, get_users_watching
 
 # ตั้งค่า Bot และ AI
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-WATCHLIST = ["BTC-USD", "ETH-USD", "NVDA", "TSLA", "PTT.BK"]
-
 # เก็บสถานะเพื่อกันแจ้งเตือนซ้ำรัวๆ
 last_alert_state = {}
 last_news_title = {}
 
-def send_alert(symbol, message):
-    try:
-        full_msg = f"🚨 **APEXIFY ALERT: {symbol}** 🚨\n\n{message}"
-        bot.send_message(ADMIN_ID, full_msg, parse_mode="Markdown")
-        print(f"✅ Sent alert for {symbol}")
-    except Exception as e:
-        print(f"❌ Failed to send alert: {e}")
+def send_alert_to_users(symbol, message):
+    """ส่งข้อความหาทุกคนที่มีหุ้นตัวนี้ในลิสต์"""
+    users = get_users_watching(symbol)
+    for user_id in users:
+        try:
+            full_msg = f"🚨 **APEXIFY ALERT: {symbol}** 🚨\n\n{message}"
+            bot.send_message(user_id, full_msg, parse_mode="Markdown")
+            print(f"✅ Sent alert for {symbol} to User {user_id}")
+            time.sleep(0.5) # พักกันสแปม Telegram
+        except Exception as e:
+            print(f"❌ Failed to send to {user_id}: {e}")
 
 def check_hot_news(symbol):
     """ฟังก์ชันให้ AI สแกนข่าวและประเมินผลกระทบ"""
@@ -50,8 +54,8 @@ def check_hot_news(symbol):
 
 def check_market_conditions():
     print(f"🔍 [{time.strftime('%H:%M:%S')}] Scanning market & news...")
-    
-    for symbol in WATCHLIST:
+    active_symbols = get_all_active_symbols()
+    for symbol in active_symbols:
         try:
             # 1. ให้นักสืบ AI เช็คข่าวด่วนก่อน
             check_hot_news(symbol)
@@ -81,10 +85,13 @@ def check_market_conditions():
                 msg = f"🔴 **RSI OVERBOUGHT ({current_rsi:.2f})**\nราคาพุ่งแรง เข้าเขตซื้อมากเกินไป ระวังแรงเทขาย! (ราคา: {price:.2f})"
 
             if rsi_condition != 'normal' and rsi_condition != last_alert_state[symbol]['rsi']:
-                send_alert(symbol, msg)
-                last_alert_state[symbol]['rsi'] = rsi_condition
+                send_alert_to_users(symbol, msg)
+            last_alert_state[symbol]['rsi'] = rsi_condition
+
+        # ... (ทำแบบเดียวกันกับจุดเช็ค Breakout และ News) ...
+            last_alert_state[symbol]['rsi'] = rsi_condition
             elif rsi_condition == 'normal':
-                last_alert_state[symbol]['rsi'] = 'normal'
+            last_alert_state[symbol]['rsi'] = 'normal'
 
             # --- เช็ค Breakout แนวรับ-แนวต้าน (ฟีเจอร์ใหม่) ---
             breakout_condition = 'normal'
