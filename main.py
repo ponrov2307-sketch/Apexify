@@ -6,8 +6,11 @@ from technical_tools import calculate_technical_indicators
 from ai_analyzer import generate_apexify_report
 import logging # <--- เพิ่มบรรทัดนี้
 telebot.logger.setLevel(logging.DEBUG)
+from keep_alive import keep_alive # <--- เพิ่มบรรทัดนี้เข้ามา
+# ...
 from config import TELEGRAM_TOKEN, ADMIN_ID
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
+
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -74,5 +77,6 @@ def handle_stock_query(message):
 
 if __name__ == "__main__":
     init_db()
+    keep_alive()
     print("⚡️ Apexify Bot is running with Freemium Mode...")
     bot.infinity_polling()
