@@ -27,7 +27,8 @@ def generate_apexify_report(tech_data):
         ai_response = client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
         ai_text = ai_response.text
     except Exception as e:
-        ai_text = "AI ไม่สามารถสรุปข้อมูลได้ในขณะนี้"
+        print(f"❌ เจอตัวการแล้ว AI Error: {e}") # พิมพ์ Error ลงในหน้าจอ Terminal
+        ai_text = f"AI ไม่สามารถสรุปข้อมูลได้ (สาเหตุ: {str(e)})" # ส่ง Error เข้าไปโชว์ใน Telegram เลยชั่วคราว
 
     # จัดฟอร์แมตข้อความสไตล์โปรเจกต์
     report = f"📊 **{tech_data['symbol']}**\n"
