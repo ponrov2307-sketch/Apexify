@@ -5,6 +5,7 @@ from google import genai
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
 from technical_tools import calculate_technical_indicators
 from database import get_all_active_symbols, get_users_watching
+import json
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)
@@ -24,6 +25,8 @@ def send_alert_to_users(symbol, message):
         except Exception as e:
             print(f"❌ Failed to send to {user_id}: {e}")
 
+import json # <--- อย่าลืมเพิ่ม import json ไว้ด้านบนสุดของไฟล์ (ใต้ import time)
+
 def check_hot_news(symbol):
     try:
         ticker = yf.Ticker(symbol)
@@ -33,16 +36,61 @@ def check_hot_news(symbol):
             title = latest_news['title']
             link = latest_news.get('link', '#')
 
+            # ถ้าเป็นข่าวเดิมที่เคยแจ้งเตือนไปแล้วให้ข้ามไป
             if symbol in last_news_title and last_news_title[symbol] == title:
                 return
 
-            prompt = f"ในฐานะนักวิเคราะห์ ข่าวนี้ส่งผลกระทบต่อราคาหุ้น {symbol} อย่างมีนัยสำคัญรุนแรงหรือไม่? ตอบแค่ 'YES' หรือ 'NO' เท่านั้น: {title}"
+            # --- อัปเกรด Prompt ให้ AI วิเคราะห์ทิศทางและความรุนแรง ---
+            prompt = f"""
+            ในฐานะนักวิเคราะห์การเงินระดับโลก โปรดอ่านพาดหัวข่าวนี้: "{title}"
+            และวิเคราะห์ผลกระทบต่อหุ้น {symbol} โดยตอบกลับในรูปแบบ JSON เท่านั้น ดังนี้:
+            {{
+                "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
+                "severity": "HIGH" หรือ "MEDIUM" หรือ "LOW",
+                "reason": "คำอธิบายสั้นๆ 1-2 บรรทัดว่าทำไมข่าวนี้ถึงกระทบต่อราคาหุ้น"
+            }}
+            """
+            
             ai_check = client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
             
-            if "YES" in ai_check.text.upper():
-                msg = f"🗞 **BREAKING NEWS!**\n\nหัวข้อ: {title}\n🤖 **AI ประเมิน:** ข่าวนี้อาจส่งผลกระทบแรงต่อราคา!\n🔗 [อ่านข่าวเต็มคลิกที่นี่]({link})"
-                send_alert_to_users(symbol, msg)
-                last_news_title[symbol] = title
+            # คลีนข้อมูลและแปลงเป็น JSON
+            result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
+            
+            try:
+                analysis = json.loads(result_text)
+                
+                # ถ้าระดับความรุนแรงเป็น HIGH ให้ยิงแจ้งเตือนทันที
+                if analysis.get('severity') == 'HIGH':
+                    sentiment = analysis.get('sentiment', 'NEUTRAL')
+                    reason = analysis.get('reason', 'ไม่มีคำอธิบายเพิ่มเติม')
+                    
+                    # เลือก Emoji ให้เข้ากับทิศทางตลาด
+                    if sentiment == "BULLISH":
+                        emoji_status = "🚀 BULLISH (ข่าวดี/เชิงบวกอย่างมาก)"
+                    elif sentiment == "BEARISH":
+                        emoji_status = "🩸 BEARISH (ข่าวร้าย/เชิงลบอย่างมาก)"
+                    else:
+                        emoji_status = "⚪️ NEUTRAL (ส่งผลกระทบแต่ยังไม่แน่ชัด)"
+                    
+                    msg = (
+                        f"🚨 **BREAKING NEWS ALERT!** 🚨\n\n"
+                        f"📌 **หุ้น:** #{symbol}\n"
+                        f"🗞 **พาดหัวข่าว:** {title}\n\n"
+                        f"🤖 **AI สแกนข่าวด่วน:**\n"
+                        f"ทิศทางแนวโน้ม: {emoji_status}\n"
+                        f"💡 **เหตุผล:** {reason}\n\n"
+                        f"🔗 [อ่านข่าวฉบับเต็มคลิกที่นี่]({link})"
+                    )
+                    
+                    # ส่งแจ้งเตือนหาทุกคนที่ตั้ง Watchlist หุ้นตัวนี้ไว้
+                    send_alert_to_users(symbol, msg)
+                    
+                    # บันทึกข่าวนี้ไว้ จะได้ไม่แจ้งเตือนซ้ำ
+                    last_news_title[symbol] = title
+                    
+            except json.JSONDecodeError:
+                print(f"❌ JSON Parse Error สำหรับข่าว {symbol}")
+
     except Exception as e:
         print(f"⚠️ News Error {symbol}: {e}")
 
