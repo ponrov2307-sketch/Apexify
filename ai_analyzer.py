@@ -20,13 +20,12 @@ def generate_apexify_report(tech_data):
     
     ช่วยเขียน 'สรุปภาพรวม' สั้นๆ 3-4 บรรทัด อธิบายพฤติกรรมราคาและประเมินว่าสภาวะตลาดปัจจุบันเอื้อต่อการเข้าซื้อหรือควรระวัง โดยใช้ภาษาที่อ่านง่าย ดูเป็นมืออาชีพ
     """
-    
     try:
         ai_response = client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
         ai_text = ai_response.text
     except Exception as e:
+        print(f"❌ Gemini API Error: {e}") # <--- เพิ่มบรรทัดนี้เข้าไปครับ
         ai_text = "AI ไม่สามารถสรุปข้อมูลได้ในขณะนี้"
-
     # จัดฟอร์แมตข้อความสไตล์โปรเจกต์
     report = f"📊 **{tech_data['symbol']}**\n"
     report += f"🧭 **Market Sentiment:** {tech_data['fear_greed']}\n" # <--- แสดงผลตรงนี้

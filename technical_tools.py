@@ -115,7 +115,7 @@ def calculate_technical_indicators(symbol):
             'support': support,
             'resistance': resistance,
             'obv_trend': obv_trend,
-            'fear_and_greed': fg_index
+            'fear_greed': fg_index
         }
 
         # --- วาดกราฟ Apexify Pro ---
