@@ -72,5 +72,8 @@ def analyze_payment_slip(image_bytes):
         return text # ส่ง String JSON กลับไปให้ main.py แปลงต่อ
         
     except Exception as e:
-        print(f"❌ AI Vision Error: {e}")
-        return None
+        # ปริ้น Error ยาวๆ เก็บไว้ดูใน Log ของ Render พอ ไม่ต้องส่งเข้า Telegram
+        print(f"❌ AI Error: {e}") 
+        
+        # ส่งข้อความสั้นๆ กลับไปหาลูกค้า เพื่อป้องกัน Caption ยาวเกิน 1024 ตัวอักษร
+        ai_text = "AI ชั่วคราวไม่สามารถสรุปข้อมูลได้ (อาจติดข้อจำกัดการใช้งาน API ฟรี) โปรดลองใหม่อีกครั้งในอีกสักครู่ครับ 🤖"

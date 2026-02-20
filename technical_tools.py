@@ -73,72 +73,79 @@ def calculate_indicators(data):
     return data
 
 def calculate_technical_indicators(symbol):
-    try:
-        # ตัดช่องว่างเผื่อพิมพ์ผิด และทำเป็นตัวพิมพ์ใหญ่
-        clean_symbol = symbol.strip().upper()
-        
-        # ใช้วิธีดึงข้อมูลที่เสถียรที่สุด (แก้ปัญหาหาหุ้นไม่เจอ)
-        ticker = yf.Ticker(clean_symbol)
-        data = ticker.history(period="1y")
-        
-        if data.empty:
-            return None, None, f"❌ ไม่พบข้อมูลหุ้น '{clean_symbol}' ในระบบ โปรดตรวจสอบตัวสะกด (หุ้นไทยอย่าลืมใส่ .BK)"
+    import time # นำเข้าเครื่องมือหน่วงเวลา
+    
+    # --- ระบบ Auto-Retry พยายามดึงข้อมูล 2 รอบ ---
+    for attempt in range(2):
+        try:
+            # ตัดช่องว่างเผื่อพิมพ์ผิด และทำเป็นตัวพิมพ์ใหญ่
+            clean_symbol = symbol.strip().upper()
+            
+            ticker = yf.Ticker(clean_symbol)
+            data = ticker.history(period="1y")
+            
+            if data.empty:
+                return None, None, f"❌ ไม่พบข้อมูลหุ้น '{clean_symbol}' ในระบบ โปรดตรวจสอบตัวสะกด (หุ้นไทยอย่าลืมใส่ .BK)"
 
-        # ส่งไปคำนวณอินดิเคเตอร์
-        data = calculate_indicators(data)
-        
-        latest = data.iloc[-1]
-        prev = data.iloc[-2]
-        
-        # ดึงค่าราคาปัจจุบัน
-        current_price = float(latest['Close'])
-        
-        # คำนวณแนวรับ-แนวต้าน (20 วันล่าสุด)
-        recent20 = data.tail(20)
-        support = float(recent20['Low'].min())
-        resistance = float(recent20['High'].max())
-        
-        obv_trend = "เพิ่มขึ้น 📈" if latest['OBV'] > prev['OBV'] else "ลดลง 📉"
-        fg_index = get_fear_and_greed_index()
-        # แพ็กข้อมูลส่งกลับไปให้ AI สรุปใน ai_analyzer.py
-        tech_data = {
-            'symbol': clean_symbol,
-            'price': current_price,
-            'rsi': float(latest['RSI']),
-            'macd': float(latest['MACD']),
-            'macd_signal': float(latest['Signal_Line']),
-            'ema20': float(latest['EMA20']),
-            'ema50': float(latest['EMA50']),
-            'ema200': float(latest['EMA200']),
-            'bb_upper': float(latest['BB_Upper']),
-            'bb_lower': float(latest['BB_Lower']),
-            'support': support,
-            'resistance': resistance,
-            'obv_trend': obv_trend,
-            'fear_greed': fg_index
-        }
+            # ส่งไปคำนวณอินดิเคเตอร์
+            data = calculate_indicators(data)
+            
+            latest = data.iloc[-1]
+            prev = data.iloc[-2]
+            
+            current_price = float(latest['Close'])
+            recent20 = data.tail(20)
+            support = float(recent20['Low'].min())
+            resistance = float(recent20['High'].max())
+            
+            obv_trend = "เพิ่มขึ้น 📈" if latest['OBV'] > prev['OBV'] else "ลดลง 📉"
+            fg_index = get_fear_and_greed_index()
+            
+            tech_data = {
+                'symbol': clean_symbol,
+                'price': current_price,
+                'rsi': float(latest['RSI']),
+                'macd': float(latest['MACD']),
+                'macd_signal': float(latest['Signal_Line']),
+                'ema20': float(latest['EMA20']),
+                'ema50': float(latest['EMA50']),
+                'ema200': float(latest['EMA200']),
+                'bb_upper': float(latest['BB_Upper']),
+                'bb_lower': float(latest['BB_Lower']),
+                'support': support,
+                'resistance': resistance,
+                'obv_trend': obv_trend,
+                'fear_greed': fg_index
+            }
 
-        # --- วาดกราฟ Apexify Pro ---
-        plt.figure(figsize=(10, 6))
-        plt.style.use('dark_background')
-        plot_data = data.tail(90) # แสดกราฟแค่ 3 เดือนย้อนหลังให้ดูง่าย
-        plt.plot(plot_data.index, plot_data['Close'], label='Price', color='#00e676', linewidth=2)
-        plt.plot(plot_data.index, plot_data['EMA20'], label='EMA20', color='#3b82f6', linestyle='--')
-        plt.plot(plot_data.index, plot_data['EMA50'], label='EMA50', color='#ff5252', linestyle='--')
-        
-        plt.axhline(y=support, color='green', linestyle=':', alpha=0.6, label='Support')
-        plt.axhline(y=resistance, color='red', linestyle=':', alpha=0.6, label='Resistance')
-        
-        plt.title(f"Apexify Intelligence: {clean_symbol}", color='#d4af37', size=16, weight='bold')
-        plt.legend(loc='best')
-        plt.grid(color='#333', linestyle='--')
-        
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png')
-        buf.seek(0)
-        plt.close()
+            # --- วาดกราฟ Apexify Pro ---
+            plt.figure(figsize=(10, 6))
+            plt.style.use('dark_background')
+            plot_data = data.tail(90)
+            plt.plot(plot_data.index, plot_data['Close'], label='Price', color='#00e676', linewidth=2)
+            plt.plot(plot_data.index, plot_data['EMA20'], label='EMA20', color='#3b82f6', linestyle='--')
+            plt.plot(plot_data.index, plot_data['EMA50'], label='EMA50', color='#ff5252', linestyle='--')
+            
+            plt.axhline(y=support, color='green', linestyle=':', alpha=0.6, label='Support')
+            plt.axhline(y=resistance, color='red', linestyle=':', alpha=0.6, label='Resistance')
+            
+            plt.title(f"Apexify Intelligence: {clean_symbol}", color='#d4af37', size=16, weight='bold')
+            plt.legend(loc='best')
+            plt.grid(color='#333', linestyle='--')
+            
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png')
+            buf.seek(0)
+            plt.close()
 
-        return tech_data, buf, None
+            # ถ้าสำเร็จตั้งแต่รอบแรก ให้ส่งข้อมูลกลับทันที
+            return tech_data, buf, None
 
-    except Exception as e:
-        return None, None, f"❌ เกิดข้อผิดพลาดในการคำนวณ: {str(e)}"
+        except Exception as e:
+            # ถ้าพังในรอบแรก (attempt 0) ให้รอ 1.5 วินาทีแล้ววนลูปเริ่มใหม่
+            if attempt == 0:
+                time.sleep(1.5)
+                continue
+                
+            # ถ้าพังครบ 2 รอบ ค่อยฟ้อง Error จริงๆ
+            return None, None, f"❌ เกิดข้อผิดพลาดในการคำนวณ: {str(e)}"
