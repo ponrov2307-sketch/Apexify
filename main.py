@@ -4,17 +4,23 @@ import json
 import PIL.Image
 import io
 import yfinance as yf
-import requests  # 🌟 เพิ่ม requests สำหรับดึงข่าวโดยตรง
+import requests
+import random
+import string
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID
-from database import get_all_users, init_db, register_user, check_vip, add_vip, get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, remove_watch_db
+from database import get_all_users, init_db, register_user, check_vip, add_vip, get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, remove_watch_db, add_promo_code, redeem_code
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
 
 telebot.logger.setLevel(logging.DEBUG)
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
+
+# ฟังก์ชันสุ่มโค้ดสำหรับแอดมิน
+def generate_random_code(length=6):
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -23,9 +29,10 @@ def send_welcome(message):
     
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(KeyboardButton("📊 วิเคราะห์หุ้น"), KeyboardButton("📋 Watchlist ของฉัน"))
-    markup.add(KeyboardButton("🌍 สภาวะตลาด"), KeyboardButton("👤 บัญชีของฉัน"))
-    markup.add(KeyboardButton("📰 ข่าวด่วนตลาดทุน"), KeyboardButton("🚀 สแกน Watchlist (VIP)"))
+    markup.add(KeyboardButton("🌍 สภาวะตลาด"), KeyboardButton("📰 ข่าวด่วนตลาดทุน"))
+    markup.add(KeyboardButton("🚀 สแกน Watchlist (VIP)"), KeyboardButton("👤 บัญชีของฉัน"))
     markup.add(KeyboardButton("📚 วิธีอ่านสัญญาณ"), KeyboardButton("💎 สมัคร VIP"))
+    markup.add(KeyboardButton("🎁 เติมโค้ด VIP")) 
     
     if user_id == ADMIN_ID:
         markup.add(KeyboardButton("👑 แผงควบคุมแอดมิน"))
@@ -36,6 +43,46 @@ def send_welcome(message):
         "เลือกเมนูด้านล่าง หรือพิมพ์ชื่อหุ้น (เช่น AAPL, TSLA, PTT) เพื่อเริ่มใช้งานได้เลย"
     )
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
+
+@bot.message_handler(commands=['gencode'])
+def handle_gencode(message):
+    if str(message.chat.id) != ADMIN_ID: return
+    try:
+        args = message.text.split()
+        days = int(args[1])
+        count = int(args[2])
+        codes = []
+        for _ in range(count):
+            code = f"VIP{days}-" + generate_random_code(6)
+            if add_promo_code(code, days):
+                codes.append(code)
+        
+        msg = f"✅ สร้างโค้ด VIP {days} วัน จำนวน {len(codes)} โค้ดสำเร็จ:\n\n"
+        msg += "\n".join([f"`{c}`" for c in codes]) 
+        msg += "\n\n*(ส่งให้ลูกค้ากด Copy และพิมพ์ /redeem ตามด้วยโค้ดได้เลย)*"
+        
+        bot.reply_to(message, msg, parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: /gencode [จำนวนวัน] [จำนวนโค้ด]\nเช่น /gencode 3 10")
+
+@bot.message_handler(commands=['redeem'])
+def handle_redeem(message):
+    user_id = str(message.chat.id)
+    args = message.text.split()
+    if len(args) < 2:
+        bot.reply_to(message, "❌ รูปแบบคำสั่งไม่ถูกต้อง พิมพ์: `/redeem [โค้ดของคุณ]`\nเช่น `/redeem VIP3-A1B2C3`", parse_mode="Markdown")
+        return
+    
+    code = args[1].strip().upper()
+    success, reason, expiry = redeem_code(user_id, code)
+    
+    if success:
+        bot.reply_to(message, f"🎉 **ยินดีด้วย!** เติมโค้ดสำเร็จ\nคุณได้รับสิทธิ์ VIP พรีเมียมถึงวันที่: `{expiry}`\n\nสามารถใช้ระบบสแกนหุ้นและ AI ฟันธงได้ทันทีครับ 🚀", parse_mode="Markdown")
+        increment_usage(user_id) 
+    elif reason == "used":
+        bot.reply_to(message, "❌ โค้ดนี้ถูกใช้งานไปแล้วครับ")
+    else:
+        bot.reply_to(message, "❌ โค้ดไม่ถูกต้อง หรือไม่มีในระบบ")
 
 @bot.message_handler(commands=['addvip'])
 def handle_add_vip(message):
@@ -52,15 +99,12 @@ def handle_add_vip(message):
 def handle_watchlist_cmd(message):
     user_id = str(message.chat.id)
     my_list = get_user_watch(user_id)
-    
     if not my_list:
         bot.reply_to(message, "📋 Watchlist ของคุณว่างเปล่า\nพิมพ์ชื่อหุ้นแล้วกด ⭐ เพิ่มเข้า Watchlist ใต้กราฟได้เลยครับ")
         return
-        
     markup = InlineKeyboardMarkup()
     for symbol in my_list:
         markup.add(InlineKeyboardButton(f"❌ ลบ {symbol}", callback_data=f"delwatch_{symbol}"))
-        
     msg = "📋 **จัดการ Watchlist ของคุณ:**\n(กดปุ่มด้านล่างเพื่อลบหุ้นที่ไม่ต้องการแจ้งเตือน)"
     bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
 
@@ -70,23 +114,19 @@ def handle_broadcast(message):
     if user_id != ADMIN_ID:
         bot.reply_to(message, "🔒 คำสั่งนี้สำหรับแอดมินเท่านั้นครับ")
         return
-        
     msg_text = message.text.replace('/broadcast', '').strip()
     if not msg_text:
         bot.reply_to(message, "❌ รูปแบบคำสั่ง: /broadcast [ข้อความที่ต้องการส่ง]")
         return
-        
     users = get_all_users()
     success, fail = 0, 0
     bot.reply_to(message, f"⏳ กำลังส่งข้อความหาผู้ใช้ {len(users)} คน...")
-    
     for uid in users:
         try:
             bot.send_message(uid, f"📢 **ประกาศจาก Apexify:**\n\n{msg_text}", parse_mode="Markdown")
             success += 1
         except Exception:
             fail += 1 
-            
     bot.reply_to(message, f"✅ บรอดแคสต์สำเร็จ: {success} คน\n❌ ล้มเหลว/บล็อคบอท: {fail} คน")
 
 @bot.message_handler(content_types=['photo'])
@@ -95,15 +135,12 @@ def handle_payment_slip_check(message):
     if check_vip(user_id):
         bot.reply_to(message, "💎 คุณเป็น VIP อยู่แล้วครับ!")
         return
-
     progress_msg = bot.reply_to(message, "🧾 AI กำลังตรวจสอบสลิปโอนเงิน...")
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        
         ai_result = analyze_payment_slip(downloaded_file)
         result = json.loads(ai_result.replace('```json', '').replace('```', ''))
-        
         if result.get('is_slip') and result.get('amount', 0) >= 199:
             expiry = add_vip(user_id, 30)
             bot.delete_message(message.chat.id, progress_msg.message_id)
@@ -122,17 +159,14 @@ def inline_watchlist(call):
     user_id = str(call.message.chat.id)
     action, symbol = call.data.split('_')
     bot.answer_callback_query(call.id)
-    
     if action == 'addwatch':
         if user_id != ADMIN_ID and not check_vip(user_id):
             bot.send_message(user_id, "🔒 สิทธิ์นี้สำหรับสมาชิก VIP เท่านั้น")
             return
-
         if add_watch(user_id, symbol):
             bot.send_message(user_id, f"✅ เพิ่ม **{symbol}** เข้า Watchlist แล้ว")
         else:
             bot.send_message(user_id, f"⚠️ มี **{symbol}** อยู่แล้ว")
-            
     elif action == 'delwatch':
         remove_watch_db(user_id, symbol)
         bot.edit_message_text(f"🗑️ ลบ **{symbol}** ออกจาก Watchlist เรียบร้อยแล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id)
@@ -146,11 +180,9 @@ def handle_main(message):
     if text == "📊 วิเคราะห์หุ้น":
         bot.reply_to(message, "ส่งชื่อหุ้นมาได้เลยครับ (เช่น NVDA, AAPL, PTT.BK)")
         return
-        
     elif text == "📋 Watchlist ของฉัน":
         handle_watchlist_cmd(message)
         return
-        
     elif text == "💎 สมัคร VIP":
         pay_text = (
             "💎 **สมัคร VIP (199.- / 30 วัน)**\n"
@@ -165,7 +197,9 @@ def handle_main(message):
         )
         bot.reply_to(message, pay_text, parse_mode="Markdown")
         return
-        
+    elif text == "🎁 เติมโค้ด VIP":
+        bot.reply_to(message, "🎟 **กรุณาส่งโค้ดโปรโมชั่นของคุณ**\nโดยพิมพ์คำสั่ง `/redeem ตามด้วยโค้ด`\n\n*(เช่น `/redeem VIP3-ABCDEF`)*", parse_mode="Markdown")
+        return
     elif text == "👤 บัญชีของฉัน":
         profile = get_user_profile(user_id)
         if profile:
@@ -189,7 +223,6 @@ def handle_main(message):
             msg = "❌ ไม่พบข้อมูลบัญชีของคุณ พิมพ์ /start เพื่อลงทะเบียนใหม่"
         bot.reply_to(message, msg, parse_mode="Markdown")
         return
-        
     elif text == "🌍 สภาวะตลาด":
         load_msg = bot.reply_to(message, "🌍 กำลังดึงข้อมูลสภาวะตลาดโลก...")
         try:
@@ -211,15 +244,12 @@ def handle_main(message):
         except Exception as e:
             bot.edit_message_text(f"❌ ดึงข้อมูลตลาดล้มเหลว: {e}", message.chat.id, load_msg.message_id)
         return
-        
     elif text == "📰 ข่าวด่วนตลาดทุน":
         load_msg = bot.reply_to(message, "📰 กำลังรวบรวมข่าวด่วนการลงทุนล่าสุด...")
         try:
-            # 🌟 ใช้ Direct API ของ Yahoo เจาะทะลวงข่าวโดยตรง (เลิกง้อ yfinance) 🌟
             url = "https://query2.finance.yahoo.com/v1/finance/search?q=finance&newsCount=3"
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
             res = requests.get(url, headers=headers, timeout=10)
-            
             if res.status_code == 200:
                 data = res.json()
                 news = data.get('news', [])
@@ -234,36 +264,29 @@ def handle_main(message):
                     bot.edit_message_text("❌ ขณะนี้ไม่มีข่าวด่วนในระบบ", message.chat.id, load_msg.message_id)
             else:
                 bot.edit_message_text("❌ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ข่าวได้", message.chat.id, load_msg.message_id)
-                
         except Exception as e:
             bot.edit_message_text(f"❌ ดึงข้อมูลข่าวล้มเหลว: {e}", message.chat.id, load_msg.message_id)
         return
-
     elif text == "🚀 สแกน Watchlist (VIP)":
         if user_id != ADMIN_ID and not is_vip:
             bot.reply_to(message, "🔒 ฟีเจอร์นี้สงวนสิทธิ์เฉพาะ **VIP Member** เท่านั้นครับ\n\n💎 ระบบจะสแกนกราฟเทคนิคหุ้นทั้งหมดใน Watchlist อัตโนมัติ เพื่อหาจุดเข้าซื้อ ช่วยประหยัดเวลาสุดๆ กดปุ่ม สมัคร VIP ได้เลย!")
             return
-            
         my_list = get_user_watch(user_id)
         if not my_list:
             bot.reply_to(message, "📋 Watchlist ของคุณว่างเปล่า โปรดเพิ่มหุ้นก่อนทำการสแกนครับ")
             return
-            
         scan_msg = bot.reply_to(message, f"🚀 ระบบกำลังสแกนหุ้น {len(my_list)} ตัวใน Watchlist ของคุณ...")
         scan_result = "🚀 **รายงานสแกนหุ้นใน Watchlist (VIP Exclusive)**\n\n"
-        
         for sym in my_list:
             try:
                 tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
                 if err or not tech_data:
                     scan_result += f"• **{sym}**: ⚠️ ข้อมูลไม่สมบูรณ์ ({err})\n"
                     continue
-                    
                 ema_short = "🟢 ขาขึ้น" if tech_data['ema20'] > tech_data['ema50'] else "🔴 ขาลง"
                 cross = "✨ Golden Cross!" if tech_data['ema50'] > tech_data['ema200'] else "ธรรมดา"
                 rsi = tech_data['rsi']
                 rsi_txt = "🔥 ตึงไป (Overbought)" if rsi > 70 else "🎯 น่าสะสม (Oversold)" if rsi < 30 else "⚪️ กลางๆ"
-                
                 scan_result += f"📌 **{sym}** ({tech_data['price']:.2f})\n"
                 scan_result += f"   เทรนด์: {ema_short} | RSI: {rsi_txt}\n"
                 if "Golden" in cross or rsi < 30:
@@ -271,10 +294,8 @@ def handle_main(message):
                 scan_result += "\n"
             except Exception as e:
                 scan_result += f"• **{sym}**: ❌ โค้ด Error ({e})\n"
-                
         bot.edit_message_text(scan_result, message.chat.id, scan_msg.message_id, parse_mode="Markdown")
         return
-
     elif text == "📚 วิธีอ่านสัญญาณ":
         tutorial = (
             "📚 **คู่มืออ่านสัญญาณ Apexify เบื้องต้น**\n\n"
@@ -293,16 +314,18 @@ def handle_main(message):
         )
         bot.reply_to(message, tutorial, parse_mode="Markdown")
         return
-        
     elif text == "👑 แผงควบคุมแอดมิน":
         if user_id != ADMIN_ID: return
         admin_text = (
             "👑 **ระบบจัดการสำหรับแอดมิน** 👑\n\n"
             "กด Copy คำสั่งด้านล่างไปวางในแชทแล้วพิมพ์ต่อได้เลยครับ:\n\n"
-            "1️⃣ **เพิ่มวัน VIP ให้ลูกค้า:**\n"
+            "1️⃣ **เพิ่มวัน VIP ให้ลูกค้า (Manual):**\n"
             "👉 `/addvip [รหัสผู้ใช้] [จำนวนวัน]`\n"
             "*(เช่น `/addvip 123456789 30`)*\n\n"
-            "2️⃣ **บรอดแคสต์ (Broadcast):**\n"
+            "2️⃣ **สร้างโค้ดโปรโมชั่น (แจก VIP ฟรี):**\n"
+            "👉 `/gencode [จำนวนวัน] [จำนวนโค้ด]`\n"
+            "*(เช่น `/gencode 3 10` เพื่อสร้างโค้ด 3 วัน จำนวน 10 อัน)*\n\n"
+            "3️⃣ **บรอดแคสต์ส่งข้อความหาทุกคน:**\n"
             "👉 `/broadcast [ข้อความที่ต้องการส่ง]`\n"
             "*(เช่น `/broadcast แจ้งเตือน! ระบบอัปเดตใหม่`)*"
         )
@@ -314,7 +337,7 @@ def handle_main(message):
 
     usage = get_usage(user_id)
     if user_id != ADMIN_ID and not is_vip and usage >= 10:
-        bot.reply_to(message, "🔒 โควต้าฟรีหมดแล้ว กดปุ่ม [💎 สมัคร VIP] เพื่อใช้งานต่อ")
+        bot.reply_to(message, "🔒 โควต้าฟรีหมดแล้ว กดปุ่ม [💎 สมัคร VIP] หรือเติมโค้ดเพื่อใช้งานต่อ")
         return
 
     load_msg = bot.reply_to(message, f"🔍 Apexify กำลังวิเคราะห์ {symbol}...")
@@ -336,7 +359,15 @@ def handle_main(message):
     markup.add(InlineKeyboardButton(f"⭐ เพิ่ม {symbol} เข้า Watchlist", callback_data=f"addwatch_{symbol}"))
 
     bot.delete_message(message.chat.id, load_msg.message_id)
-    bot.send_photo(message.chat.id, chart, caption=report, parse_mode="Markdown", reply_markup=markup)
+    
+    # 🌟 แก้อาการ Caption ยาวเกิน 1024 ตัวอักษร
+    if len(report) > 1000:
+        # ถ้ายาวเกิน ให้ส่งรูปกราฟไปก่อน แล้วค่อยส่งข้อความตามไป
+        bot.send_photo(message.chat.id, chart)
+        bot.send_message(message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
+    else:
+        # ถ้ายาวไม่เกิน ก็ส่งรูปแนบข้อความตามปกติ
+        bot.send_photo(message.chat.id, chart, caption=report, parse_mode="Markdown", reply_markup=markup)
 
 if __name__ == "__main__":
     init_db()

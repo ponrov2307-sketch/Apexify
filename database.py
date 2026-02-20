@@ -15,6 +15,9 @@ def init_db():
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT, role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0)''')
+    # 🌟 ตารางใหม่สำหรับเก็บโค้ดโปรโมชั่น
+    c.execute('''CREATE TABLE IF NOT EXISTS promo_codes 
+                 (code TEXT PRIMARY KEY, days INTEGER, is_used BOOLEAN DEFAULT FALSE, used_by TEXT)''')
     conn.commit()
     conn.close()
     init_watchlist_db() 
@@ -38,11 +41,27 @@ def register_user(user_id):
 def add_vip(user_id, days=30):
     conn = get_connection()
     c = conn.cursor()
-    expiry = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
-    c.execute("UPDATE users SET role='vip', expiry_date=%s WHERE user_id=%s", (expiry, str(user_id)))
+    
+    # เช็คว่ามีวันหมดอายุเดิมไหม เพื่อทบยอดวันถ้ายังไม่หมดอายุ
+    c.execute("SELECT expiry_date FROM users WHERE user_id=%s", (str(user_id),))
+    result = c.fetchone()
+    
+    now = datetime.now()
+    new_expiry = now + timedelta(days=days)
+    
+    if result and result[0]:
+        try:
+            old_expiry = datetime.strptime(result[0], '%Y-%m-%d %H:%M:%S')
+            if old_expiry > now:
+                new_expiry = old_expiry + timedelta(days=days) # ทบวันเดิม
+        except:
+            pass
+            
+    expiry_str = new_expiry.strftime('%Y-%m-%d %H:%M:%S')
+    c.execute("UPDATE users SET role='vip', expiry_date=%s WHERE user_id=%s", (expiry_str, str(user_id)))
     conn.commit()
     conn.close()
-    return expiry
+    return expiry_str
 
 def check_vip(user_id):
     conn = get_connection()
@@ -120,7 +139,6 @@ def remove_watch_db(user_id, symbol):
 def get_user_profile(user_id):
     conn = get_connection()
     c = conn.cursor()
-    # ดึง registered_date ออกมาด้วย
     c.execute("SELECT role, expiry_date, usage_count, registered_date FROM users WHERE user_id=%s", (str(user_id),))
     res = c.fetchone()
     conn.close()
@@ -133,3 +151,38 @@ def get_all_users():
     result = c.fetchall()
     conn.close()
     return [row[0] for row in result]
+
+# --- 🌟 ระบบจัดการโค้ดโปรโมชั่น 🌟 ---
+def add_promo_code(code, days):
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO promo_codes (code, days, is_used) VALUES (%s, %s, FALSE)", (code, days))
+        conn.commit()
+        return True
+    except psycopg2.IntegrityError:
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def redeem_code(user_id, code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT days, is_used FROM promo_codes WHERE code=%s", (code,))
+    result = c.fetchone()
+    if result:
+        days, is_used = result
+        if not is_used:
+            # อัปเดตสถานะว่าใช้แล้ว
+            c.execute("UPDATE promo_codes SET is_used=TRUE, used_by=%s WHERE code=%s", (str(user_id), code))
+            conn.commit()
+            conn.close()
+            # เติมวัน VIP ทันที
+            expiry = add_vip(user_id, days)
+            return True, days, expiry
+        else:
+            conn.close()
+            return False, "used", None
+    conn.close()
+    return False, "invalid", None
