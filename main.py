@@ -3,35 +3,18 @@ import logging
 import json
 import PIL.Image
 import io
-import sqlite3
 import yfinance as yf
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-get_all_users
+
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID
-from database import get_all_users, init_db, register_user, check_vip, add_vip, get_usage, increment_usage, add_watch, get_user_watch
+from database import get_all_users, init_db, register_user, check_vip, add_vip, get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, remove_watch_db
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
 
 # ตั้งค่า Logging
 telebot.logger.setLevel(logging.DEBUG)
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
-
-# --- Helper Functions (จัดการฐานข้อมูลเพิ่มเติม) ---
-def get_user_profile(user_id):
-    conn = sqlite3.connect("apexify.db")
-    c = conn.cursor()
-    c.execute("SELECT role, expiry_date, usage_count FROM users WHERE user_id=?", (str(user_id),))
-    res = c.fetchone()
-    conn.close()
-    return res
-
-def remove_watch_db(user_id, symbol):
-    conn = sqlite3.connect("apexify.db")
-    c = conn.cursor()
-    c.execute("DELETE FROM watchlists WHERE user_id=? AND symbol=?", (str(user_id), symbol))
-    conn.commit()
-    conn.close()
 
 # --- 1. เมนูเริ่มต้น (อัปเกรดปุ่ม) ---
 @bot.message_handler(commands=['start'])
@@ -78,6 +61,7 @@ def handle_watchlist_cmd(message):
         
     msg = "📋 **จัดการ Watchlist ของคุณ:**\n(กดปุ่มด้านล่างเพื่อลบหุ้นที่ไม่ต้องการแจ้งเตือน)"
     bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
+
 @bot.message_handler(commands=['broadcast'])
 def handle_broadcast(message):
     user_id = str(message.chat.id)
@@ -102,6 +86,7 @@ def handle_broadcast(message):
             fail += 1 # นับคนที่บล็อคบอทไปแล้ว
             
     bot.reply_to(message, f"✅ บรอดแคสต์สำเร็จ: {success} คน\n❌ ล้มเหลว/บล็อคบอท: {fail} คน")
+
 # --- 3. ระบบตรวจสลิปด้วย AI ---
 @bot.message_handler(content_types=['photo'])
 def handle_payment_slip_check(message):
@@ -123,7 +108,6 @@ def handle_payment_slip_check(message):
             bot.delete_message(message.chat.id, progress_msg.message_id)
             bot.reply_to(message, f"✅ **ชำระเงินสำเร็จ!**\nอัปเกรดเป็น VIP แล้ว\n⏰ หมดอายุ: {expiry}", parse_mode="Markdown")
             bot.send_message(ADMIN_ID, f"💰 เงินเข้า! User {user_id} โอน {result['amount']} บาท")
-        # ... (โค้ดตรวจสลิปส่วนบนเหมือนเดิม) ...
         else:
             bot.edit_message_text("❌ สลิปไม่ถูกต้องหรือยอดเงินไม่ครบ 199 บาท", message.chat.id, progress_msg.message_id)
     except Exception as e:

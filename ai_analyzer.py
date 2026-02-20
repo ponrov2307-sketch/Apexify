@@ -63,7 +63,7 @@ def analyze_payment_slip(image_bytes):
         """
         
         response = client.models.generate_content(
-            model='Gemini-3 Flash',
+            model='Gemini-3-Flash',
             contents=[prompt, image]
         )
         
