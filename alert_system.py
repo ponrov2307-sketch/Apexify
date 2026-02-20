@@ -51,7 +51,7 @@ def check_hot_news(symbol):
             }}
             """
             
-            ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+            ai_check = client.models.generate_content(model='Gemini 3 Flash', contents=prompt)
             
             # คลีนข้อมูลและแปลงเป็น JSON
             result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
