@@ -9,23 +9,27 @@ from technical_tools import calculate_technical_indicators
 from ai_analyzer import generate_apexify_report
 import json
 from ai_analyzer import generate_apexify_report, analyze_payment_slip # <--- import เพิ่ม
-
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
-
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     user_id = str(message.chat.id)
     register_user(user_id)
+    
+    # --- สร้างปุ่มเมนูหลักด้านล่าง ---
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    btn1 = KeyboardButton("📊 วิเคราะห์หุ้น")
+    btn2 = KeyboardButton("📋 Watchlist ของฉัน")
+    btn3 = KeyboardButton("💎 สมัคร VIP")
+    markup.add(btn1, btn2, btn3)
+    
     welcome_text = (
         "⚡️ ยินดีต้อนรับสู่ **Apexify** ระบบวิเคราะห์หุ้นอัจฉริยะ\n\n"
         "🎁 **คุณได้รับสิทธิ์ทดลองใช้งานฟรี 10 ครั้ง!**\n"
-        "พิมพ์ชื่อหุ้น (เช่น AAPL, TSLA, PTT.BK) เพื่อเริ่มใช้งานได้เลย\n\n"
-        "📌 **คำสั่งสำหรับสมาชิก VIP:**\n"
-        "`/addwatch [ชื่อหุ้น]` - เพิ่มหุ้นเข้าลิสต์แจ้งเตือนส่วนตัว\n"
-        "`/watchlist` - ดูหุ้นที่คุณกำลังเฝ้าระวังอยู่"
+        "พิมพ์ชื่อหุ้น (เช่น AAPL, TSLA, PTT.BK) เพื่อเริ่มใช้งานได้เลย"
     )
-    bot.reply_to(message, welcome_text, parse_mode="Markdown")
-
+    # ส่งข้อความพร้อมแนบเมนู (markup) ไปด้วย
+    bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
 @bot.message_handler(commands=['addvip'])
 def handle_add_vip(message):
     user_id = str(message.chat.id)
@@ -73,13 +77,38 @@ def handle_show_watchlist(message):
 
 @bot.message_handler(func=lambda message: True)
 def handle_stock_query(message):
-    if message.text.startswith('/'): return # ป้องกันบั๊กเวลาคนพิมพ์คำสั่งแปลกๆ
+    if message.text.startswith('/'): return 
     
-    user_id = str(message.chat.id)
-    symbol = message.text.upper().strip()
+    # --- ดักจับการกดปุ่มจากเมนูหลัก ---
+    text = message.text.strip()
+    if text == "📊 วิเคราะห์หุ้น":
+        bot.reply_to(message, "พิมพ์ชื่อสัญลักษณ์หุ้นที่ต้องการวิเคราะห์มาได้เลยครับ เช่น AAPL, TSLA, PTT.BK")
+        return
+    elif text == "📋 Watchlist ของฉัน":
+        handle_show_watchlist(message) # เรียกใช้ฟังก์ชันเดิมได้เลย
+        return
+    elif text == "💎 สมัคร VIP":
+        bot.reply_to(message, "💎 **อัปเกรดเป็น VIP (199.-/เดือน)**\n\n✅ ใช้ AI วิเคราะห์ไม่จำกัด\n✅ ระบบแจ้งเตือนจุดกลับตัว\n✅ สร้าง Watchlist ส่วนตัวได้ 5 ตัว\n\nพิมพ์ `/vip` เพื่อดูวิธีชำระเงินครับ", parse_mode="Markdown")
+        return
+
+    symbol = text.upper()
     
     if len(symbol) > 15 or " " in symbol:
         return
+
+    is_vip = check_vip(str(message.chat.id)) # เช็คสิทธิ์
+    # ... (ส่วนโค้ดเช็คโควต้าและคำนวณกราฟ AI ปล่อยไว้เหมือนเดิม) ...
+
+    # --- เลื่อนลงมาล่างสุด ตรงก่อนจะส่งรูปภาพ (bot.send_photo) ให้เพิ่มโค้ดนี้ ---
+    
+    # สร้างปุ่มกดใต้รูป
+    markup = InlineKeyboardMarkup()
+    btn_add = InlineKeyboardButton(f"⭐ เพิ่ม {symbol} เข้า Watchlist", callback_data=f"addwatch_{symbol}")
+    markup.add(btn_add)
+
+    bot.delete_message(chat_id=message.chat.id, message_id=msg.message_id)
+    # แนบ reply_markup=markup เข้าไปตอนส่งรูปด้วย
+    bot.send_photo(message.chat.id, chart_buf, caption=report_text, parse_mode="Markdown", reply_markup=markup)
 
     is_vip = check_vip(user_id)
     usage_count = get_usage(user_id)
@@ -163,6 +192,30 @@ def handle_payment_slip(message):
     except Exception as e:
         print(f"Error checking slip: {e}")
         bot.edit_message_text("❌ เกิดข้อผิดพลาดในการตรวจสอบ กรุณาส่งสลิปให้แอดมินตรวจสอบแทนครับ", chat_id=message.chat.id, message_id=msg.message_id)
+# --- ฟังก์ชันจัดการเมื่อมีคนกดปุ่ม Inline ใต้ข้อความ ---
+@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_'))
+def handle_inline_addwatch(call):
+    user_id = str(call.message.chat.id)
+    symbol = call.data.split('_')[1] # ตัดเอาชื่อหุ้นออกมาจาก addwatch_NVDA
+    
+    # 1. ลบสถานะโหลดของปุ่ม (กันปุ่มค้าง)
+    bot.answer_callback_query(call.id)
+    
+    # 2. เช็คสิทธิ์ VIP
+    if user_id != ADMIN_ID and not check_vip(user_id):
+        bot.send_message(user_id, "🔒 สิทธิ์เพิ่ม Watchlist เฉพาะ **สมาชิก VIP** เท่านั้น!\n💎 กดปุ่ม [สมัคร VIP] ที่เมนูด้านล่างเพื่อปลดล็อกครับ")
+        return
+
+    # 3. เพิ่มเข้าฐานข้อมูล
+    current_list = get_user_watch(user_id)
+    if len(current_list) >= 5:
+        bot.send_message(user_id, "❌ คุณเพิ่มหุ้นเข้า Watchlist เต็มโควต้า 5 ตัวแล้วครับ")
+        return
+
+    if add_watch(user_id, symbol):
+        bot.send_message(user_id, f"✅ เพิ่ม **{symbol}** เข้า Watchlist ของคุณแล้ว! บอทจะแจ้งเตือนทันทีที่มีสัญญานสำคัญ")
+    else:
+        bot.send_message(user_id, f"⚠️ คุณมี **{symbol}** ใน Watchlist อยู่แล้วครับ")
 if __name__ == "__main__":
     init_db()
     keep_alive() 
