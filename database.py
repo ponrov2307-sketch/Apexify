@@ -133,3 +133,10 @@ def get_user_profile(user_id):
     res = c.fetchone()
     conn.close()
     return res
+def get_all_users():
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM users")
+    result = c.fetchall()
+    conn.close()
+    return [row[0] for row in result]
