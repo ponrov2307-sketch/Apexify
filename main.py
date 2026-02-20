@@ -4,6 +4,7 @@ import json
 import PIL.Image
 import io
 import yfinance as yf
+import requests  # 🌟 เพิ่ม requests สำหรับดึงข่าวโดยตรง
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 from keep_alive import keep_alive 
@@ -143,7 +144,7 @@ def handle_main(message):
     is_vip = check_vip(user_id)
 
     if text == "📊 วิเคราะห์หุ้น":
-        bot.reply_to(message, "ส่งชื่อหุ้นมาได้เลยครับ (เช่น NVDA, AAPL, PTT)")
+        bot.reply_to(message, "ส่งชื่อหุ้นมาได้เลยครับ (เช่น NVDA, AAPL, PTT.BK)")
         return
         
     elif text == "📋 Watchlist ของฉัน":
@@ -214,20 +215,26 @@ def handle_main(message):
     elif text == "📰 ข่าวด่วนตลาดทุน":
         load_msg = bot.reply_to(message, "📰 กำลังรวบรวมข่าวด่วนการลงทุนล่าสุด...")
         try:
-            # ใช้ Ticker ตัวอื่นเผื่อ SPY ดึงข่าวไม่ติด และดัก Error ให้แสดงในแชท
-            ticker = yf.Ticker('AAPL') 
-            news = ticker.news
-            if news and len(news) > 0:
-                news_text = "📰 **Top 3 ข่าวเด่นตลาดทุนวันนี้**\n\n"
-                for i, n in enumerate(news[:3], 1):
-                    title = n.get('title', 'ไม่มีหัวข้อข่าว')
-                    link = n.get('link', '#')
-                    news_text += f"{i}. [{title}]({link})\n\n"
-                bot.edit_message_text(news_text, message.chat.id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
+            # 🌟 ใช้ Direct API ของ Yahoo เจาะทะลวงข่าวโดยตรง (เลิกง้อ yfinance) 🌟
+            url = "https://query2.finance.yahoo.com/v1/finance/search?q=finance&newsCount=3"
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            res = requests.get(url, headers=headers, timeout=10)
+            
+            if res.status_code == 200:
+                data = res.json()
+                news = data.get('news', [])
+                if news:
+                    news_text = "📰 **Top 3 ข่าวเด่นตลาดทุนวันนี้**\n\n"
+                    for i, n in enumerate(news[:3], 1):
+                        title = n.get('title', 'ไม่มีหัวข้อข่าว')
+                        link = n.get('link', '#')
+                        news_text += f"{i}. [{title}]({link})\n\n"
+                    bot.edit_message_text(news_text, message.chat.id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
+                else:
+                    bot.edit_message_text("❌ ขณะนี้ไม่มีข่าวด่วนในระบบ", message.chat.id, load_msg.message_id)
             else:
-                bot.edit_message_text("❌ ขณะนี้ไม่มีข่าวด่วนในระบบ (Yahoo Finance ไม่ส่งข้อมูลกลับมา)", message.chat.id, load_msg.message_id)
-        except AttributeError:
-            bot.edit_message_text("❌ ระบบดึงข่าวของ yfinance ขัดข้องชั่วคราว (พบข้อผิดพลาดจากเซิร์ฟเวอร์หลัก)", message.chat.id, load_msg.message_id)
+                bot.edit_message_text("❌ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ข่าวได้", message.chat.id, load_msg.message_id)
+                
         except Exception as e:
             bot.edit_message_text(f"❌ ดึงข้อมูลข่าวล้มเหลว: {e}", message.chat.id, load_msg.message_id)
         return
@@ -247,7 +254,6 @@ def handle_main(message):
         
         for sym in my_list:
             try:
-                # ⚠️ ถ้าตรงนี้บรรทัดนี้ Error แสดงว่า technical_tools.py ไม่อัปเดต
                 tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
                 if err or not tech_data:
                     scan_result += f"• **{sym}**: ⚠️ ข้อมูลไม่สมบูรณ์ ({err})\n"

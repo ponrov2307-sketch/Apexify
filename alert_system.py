@@ -1,6 +1,7 @@
 import time
 import telebot
 import yfinance as yf
+import requests # 🌟 เพิ่ม requests
 from google import genai
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
 from technical_tools import calculate_technical_indicators
@@ -25,71 +26,78 @@ def send_alert_to_users(symbol, message):
         except Exception as e:
             print(f"❌ Failed to send to {user_id}: {e}")
 
-import json # <--- อย่าลืมเพิ่ม import json ไว้ด้านบนสุดของไฟล์ (ใต้ import time)
-
 def check_hot_news(symbol):
     try:
-        ticker = yf.Ticker(symbol)
-        news = ticker.news
-        if news:
-            latest_news = news[0]
-            title = latest_news['title']
-            link = latest_news.get('link', '#')
+        # 🌟 ใช้ Direct API ทะลวงข่าวจาก Yahoo โดยตรง เลิกพึ่งพา yfinance
+        url = f"https://query2.finance.yahoo.com/v1/finance/search?q={symbol}&newsCount=1"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        res = requests.get(url, headers=headers, timeout=5)
+        
+        if res.status_code == 200:
+            data = res.json()
+            news = data.get('news', [])
+            
+            if news:
+                title = news[0].get('title', '')
+                link = news[0].get('link', '#')
 
-            # ถ้าเป็นข่าวเดิมที่เคยแจ้งเตือนไปแล้วให้ข้ามไป
-            if symbol in last_news_title and last_news_title[symbol] == title:
-                return
+                if not title:
+                    return
 
-            # --- อัปเกรด Prompt ให้ AI วิเคราะห์ทิศทางและความรุนแรง ---
-            prompt = f"""
-            ในฐานะนักวิเคราะห์การเงินระดับโลก โปรดอ่านพาดหัวข่าวนี้: "{title}"
-            และวิเคราะห์ผลกระทบต่อหุ้น {symbol} โดยตอบกลับในรูปแบบ JSON เท่านั้น ดังนี้:
-            {{
-                "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
-                "severity": "HIGH" หรือ "MEDIUM" หรือ "LOW",
-                "reason": "คำอธิบายสั้นๆ 1-2 บรรทัดว่าทำไมข่าวนี้ถึงกระทบต่อราคาหุ้น"
-            }}
-            """
-            
-            ai_check = client.models.generate_content(model='Gemini-2.5-Flash', contents=prompt)
-            
-            # คลีนข้อมูลและแปลงเป็น JSON
-            result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
-            
-            try:
-                analysis = json.loads(result_text)
+                # ถ้าเป็นข่าวเดิมที่เคยแจ้งเตือนไปแล้วให้ข้ามไป
+                if symbol in last_news_title and last_news_title[symbol] == title:
+                    return
+
+                # --- อัปเกรด Prompt ให้ AI วิเคราะห์ทิศทางและความรุนแรง ---
+                prompt = f"""
+                ในฐานะนักวิเคราะห์การเงินระดับโลก โปรดอ่านพาดหัวข่าวนี้: "{title}"
+                และวิเคราะห์ผลกระทบต่อหุ้น {symbol} โดยตอบกลับในรูปแบบ JSON เท่านั้น ดังนี้:
+                {{
+                    "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
+                    "severity": "HIGH" หรือ "MEDIUM" หรือ "LOW",
+                    "reason": "คำอธิบายสั้นๆ 1-2 บรรทัดว่าทำไมข่าวนี้ถึงกระทบต่อราคาหุ้น"
+                }}
+                """
                 
-                # ถ้าระดับความรุนแรงเป็น HIGH ให้ยิงแจ้งเตือนทันที
-                if analysis.get('severity') == 'HIGH':
-                    sentiment = analysis.get('sentiment', 'NEUTRAL')
-                    reason = analysis.get('reason', 'ไม่มีคำอธิบายเพิ่มเติม')
+                ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+                
+                # คลีนข้อมูลและแปลงเป็น JSON
+                result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
+                
+                try:
+                    analysis = json.loads(result_text)
                     
-                    # เลือก Emoji ให้เข้ากับทิศทางตลาด
-                    if sentiment == "BULLISH":
-                        emoji_status = "🚀 BULLISH (ข่าวดี/เชิงบวกอย่างมาก)"
-                    elif sentiment == "BEARISH":
-                        emoji_status = "🩸 BEARISH (ข่าวร้าย/เชิงลบอย่างมาก)"
-                    else:
-                        emoji_status = "⚪️ NEUTRAL (ส่งผลกระทบแต่ยังไม่แน่ชัด)"
-                    
-                    msg = (
-                        f"🚨 **BREAKING NEWS ALERT!** 🚨\n\n"
-                        f"📌 **หุ้น:** #{symbol}\n"
-                        f"🗞 **พาดหัวข่าว:** {title}\n\n"
-                        f"🤖 **AI สแกนข่าวด่วน:**\n"
-                        f"ทิศทางแนวโน้ม: {emoji_status}\n"
-                        f"💡 **เหตุผล:** {reason}\n\n"
-                        f"🔗 [อ่านข่าวฉบับเต็มคลิกที่นี่]({link})"
-                    )
-                    
-                    # ส่งแจ้งเตือนหาทุกคนที่ตั้ง Watchlist หุ้นตัวนี้ไว้
-                    send_alert_to_users(symbol, msg)
-                    
-                    # บันทึกข่าวนี้ไว้ จะได้ไม่แจ้งเตือนซ้ำ
-                    last_news_title[symbol] = title
-                    
-            except json.JSONDecodeError:
-                print(f"❌ JSON Parse Error สำหรับข่าว {symbol}")
+                    # ถ้าระดับความรุนแรงเป็น HIGH ให้ยิงแจ้งเตือนทันที
+                    if analysis.get('severity') == 'HIGH':
+                        sentiment = analysis.get('sentiment', 'NEUTRAL')
+                        reason = analysis.get('reason', 'ไม่มีคำอธิบายเพิ่มเติม')
+                        
+                        # เลือก Emoji ให้เข้ากับทิศทางตลาด
+                        if sentiment == "BULLISH":
+                            emoji_status = "🚀 BULLISH (ข่าวดี/เชิงบวกอย่างมาก)"
+                        elif sentiment == "BEARISH":
+                            emoji_status = "🩸 BEARISH (ข่าวร้าย/เชิงลบอย่างมาก)"
+                        else:
+                            emoji_status = "⚪️ NEUTRAL (ส่งผลกระทบแต่ยังไม่แน่ชัด)"
+                        
+                        msg = (
+                            f"🚨 **BREAKING NEWS ALERT!** 🚨\n\n"
+                            f"📌 **หุ้น:** #{symbol}\n"
+                            f"🗞 **พาดหัวข่าว:** {title}\n\n"
+                            f"🤖 **AI สแกนข่าวด่วน:**\n"
+                            f"ทิศทางแนวโน้ม: {emoji_status}\n"
+                            f"💡 **เหตุผล:** {reason}\n\n"
+                            f"🔗 [อ่านข่าวฉบับเต็มคลิกที่นี่]({link})"
+                        )
+                        
+                        # ส่งแจ้งเตือนหาทุกคนที่ตั้ง Watchlist หุ้นตัวนี้ไว้
+                        send_alert_to_users(symbol, msg)
+                        
+                        # บันทึกข่าวนี้ไว้ จะได้ไม่แจ้งเตือนซ้ำ
+                        last_news_title[symbol] = title
+                        
+                except json.JSONDecodeError:
+                    print(f"❌ JSON Parse Error สำหรับข่าว {symbol}")
 
     except Exception as e:
         print(f"⚠️ News Error {symbol}: {e}")

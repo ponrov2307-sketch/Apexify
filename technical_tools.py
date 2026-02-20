@@ -77,23 +77,12 @@ def calculate_technical_indicators(symbol, generate_chart=True):
             if "." in clean_symbol and not clean_symbol.endswith(".BK"):
                 clean_symbol = clean_symbol.replace(".", "-")
             
-            # 2. 🌟 ระบบให้ความสำคัญหุ้นไทยเป็นอันดับแรก (Prioritize Thai Stocks) 🌟
-            # ถ้าผู้ใช้พิมพ์ชื่อหุ้นปกติ (ไม่มีจุด ไม่มีขีด) เช่น PTT, AOT, TSLA
-            if "." not in clean_symbol and "-" not in clean_symbol:
-                # ลองแอบเติม .BK แล้วเคาะประตูดูก่อนว่ามีหุ้นไทยชื่อนี้ไหม (ดึงข้อมูลสั้นๆ เพื่อความไว)
-                thai_symbol = clean_symbol + ".BK"
-                thai_data = yf.Ticker(thai_symbol).history(period="5d")
-                
-                if not thai_data.empty:
-                    # ถ้าเจอว่ามีหุ้นไทยชื่อนี้ ให้สวมรอยใช้ชื่อแบบมี .BK ทันที!
-                    clean_symbol = thai_symbol
-            
-            # 3. ดึงข้อมูลจริง 1 ปี (ใช้ชื่อที่ผ่านการกรองแล้วจากข้อ 1 และ 2)
+            # 2. ดึงข้อมูลจริง 1 ปี (ผู้ใช้ต้องใส่ .BK มาเองถ้าเป็นหุ้นไทย)
             ticker = yf.Ticker(clean_symbol)
             data = ticker.history(period="1y")
 
             if data.empty:
-                return None, None, f"❌ ไม่พบข้อมูลหุ้น '{symbol}' โปรดตรวจสอบตัวสะกด"
+                return None, None, f"❌ ไม่พบข้อมูลหุ้น '{symbol}' โปรดตรวจสอบตัวสะกด (หากเป็นหุ้นไทย อย่าลืมพิมพ์ .BK ต่อท้ายครับ)"
             
             if len(data) < 20:
                 return None, None, f"❌ ข้อมูลหุ้น '{clean_symbol}' มีน้อยเกินไป ระบบไม่สามารถคำนวณกราฟได้"
