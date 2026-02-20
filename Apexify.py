@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import io
 import sqlite3
 from datetime import datetime
-from apscheduler.schedulers.background import BackgroundScheduler
+import apscheduler.schedulers.background
 import os
 import telebot
 from google import genai
@@ -199,7 +199,7 @@ def fetch_hot_news():
 # ===========================
 # ⏰ Scheduler
 # ===========================
-scheduler = BackgroundScheduler()
+scheduler = apscheduler.schedulers.background.BackgroundScheduler()
 scheduler.add_job(fetch_hot_news, 'interval', hours=1) 
 scheduler.start()
 
