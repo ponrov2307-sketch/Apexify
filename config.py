@@ -1,8 +1,8 @@
 import os
-from dotenv import load_dotenv
+import dotenv
 
 # โหลดค่าจากไฟล์ .env (ถ้ารันบนเครื่องตัวเอง)
-load_dotenv()
+dotenv.load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
