@@ -13,12 +13,8 @@ def get_connection():
 def init_db():
     conn = get_connection()
     c = conn.cursor()
-    
-    # PostgreSQL ใช้ SERIAL แทน AUTOINCREMENT ในบางกรณี แต่สำหรับ TEXT PRIMARY KEY ใช้แบบเดิมได้
-    # สร้างตาราง users
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT, role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0)''')
-    
     conn.commit()
     conn.close()
     init_watchlist_db() 
@@ -26,7 +22,6 @@ def init_db():
 def init_watchlist_db():
     conn = get_connection()
     c = conn.cursor()
-    # สร้างตาราง watchlists
     c.execute('''CREATE TABLE IF NOT EXISTS watchlists 
                  (user_id TEXT, symbol TEXT, PRIMARY KEY (user_id, symbol))''')
     conn.commit()
@@ -35,7 +30,6 @@ def init_watchlist_db():
 def register_user(user_id):
     conn = get_connection()
     c = conn.cursor()
-    # ⚠️ เปลี่ยน ? เป็น %s สำหรับ PostgreSQL
     c.execute("INSERT INTO users (user_id, status, registered_date, role, usage_count) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (user_id) DO NOTHING", 
               (str(user_id), 'active', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'free', 0))
     conn.commit()
@@ -45,7 +39,6 @@ def add_vip(user_id, days=30):
     conn = get_connection()
     c = conn.cursor()
     expiry = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
-    # ⚠️ เปลี่ยน ? เป็น %s
     c.execute("UPDATE users SET role='vip', expiry_date=%s WHERE user_id=%s", (expiry, str(user_id)))
     conn.commit()
     conn.close()
@@ -80,7 +73,6 @@ def increment_usage(user_id):
     conn.commit()
     conn.close()
 
-# --- ระบบ Watchlist ---
 def add_watch(user_id, symbol):
     conn = get_connection()
     c = conn.cursor()
@@ -88,8 +80,8 @@ def add_watch(user_id, symbol):
         c.execute("INSERT INTO watchlists (user_id, symbol) VALUES (%s, %s)", (str(user_id), symbol.upper()))
         conn.commit()
         return True
-    except psycopg2.IntegrityError: # เปลี่ยนจาก sqlite3.IntegrityError
-        conn.rollback() # ต้อง Rollback ก่อนถ้า Error
+    except psycopg2.IntegrityError:
+        conn.rollback() 
         return False 
     finally:
         conn.close()
@@ -118,7 +110,6 @@ def get_all_active_symbols():
     conn.close()
     return [row[0] for row in result]
 
-# ฟังก์ชัน Helper ใน main.py (ต้องแก้ด้วย หรือย้ายมาไว้ที่นี่)
 def remove_watch_db(user_id, symbol):
     conn = get_connection()
     c = conn.cursor()
@@ -129,10 +120,12 @@ def remove_watch_db(user_id, symbol):
 def get_user_profile(user_id):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT role, expiry_date, usage_count FROM users WHERE user_id=%s", (str(user_id),))
+    # ดึง registered_date ออกมาด้วย
+    c.execute("SELECT role, expiry_date, usage_count, registered_date FROM users WHERE user_id=%s", (str(user_id),))
     res = c.fetchone()
     conn.close()
     return res
+
 def get_all_users():
     conn = get_connection()
     c = conn.cursor()
