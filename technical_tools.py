@@ -1,9 +1,13 @@
+import matplotlib
 import yfinance as yf
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import io
 import requests # <--- เพิ่ม import requests
+matplotlib.use('Agg') # <--- เพิ่ม 2 บรรทัดนี้ก่อน import pyplot
+import matplotlib.pyplot as plt 
+
 def get_fear_and_greed_index():
     try:
         url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
@@ -95,7 +99,7 @@ def calculate_technical_indicators(symbol):
         resistance = float(recent20['High'].max())
         
         obv_trend = "เพิ่มขึ้น 📈" if latest['OBV'] > prev['OBV'] else "ลดลง 📉"
-
+        fg_index = get_fear_and_greed_index()
         # แพ็กข้อมูลส่งกลับไปให้ AI สรุปใน ai_analyzer.py
         tech_data = {
             'symbol': clean_symbol,
@@ -110,7 +114,8 @@ def calculate_technical_indicators(symbol):
             'bb_lower': float(latest['BB_Lower']),
             'support': support,
             'resistance': resistance,
-            'obv_trend': obv_trend
+            'obv_trend': obv_trend,
+            'fear_and_greed': fg_index
         }
 
         # --- วาดกราฟ Apexify Pro ---
