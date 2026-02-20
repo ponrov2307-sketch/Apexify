@@ -73,14 +73,14 @@ def calculate_technical_indicators(symbol):
         try:
             clean_symbol = symbol.strip().upper()
             ticker = yf.Ticker(clean_symbol)
-            data = ticker.history(period="6mo") # ดึง 6 เดือนให้เห็นเทรนด์ชัดขึ้น
+            # แก้ไขจาก 6mo เป็น 1y
+            data = ticker.history(period="1y") # ดึง 6 เดือนให้เห็นเทรนด์ชัดขึ้น
             
             if data.empty:
                 return None, None, f"❌ ไม่พบข้อมูลหุ้น '{clean_symbol}'"
 
             data = calculate_indicators(data)
-            latest = data.iloc[-1]
-            prev = data.iloc[-2]
+            
             
             # คำนวณแนวรับแนวต้าน (High/Low 20 วัน)
             recent20 = data.tail(20)
@@ -110,12 +110,11 @@ def calculate_technical_indicators(symbol):
             # ตั้งค่าสไตล์กราฟ (Dark Mode แบบ Binance)
             mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit', volume='in')
             s = mpf.make_mpf_style(marketcolors=mc, base_mpf_style='nightclouds', gridstyle=':', rc={'font.size': 10})
-            
-            # เส้น Moving Average ที่จะพล็อต
+            # เส้น Moving Average ที่จะพล็อต (ใส่ .tail(60) เพื่อให้เท่ากับแท่งเทียน)
             add_plots = [
-                mpf.make_addplot(data['EMA20'], color='#2962ff', width=1.5),  # น้ำเงิน
-                mpf.make_addplot(data['EMA50'], color='#ff6d00', width=1.5),  # ส้ม
-                mpf.make_addplot(data['EMA200'], color='#d500f9', width=1.5), # ม่วง
+                mpf.make_addplot(data['EMA20'].tail(60), color='#2962ff', width=1.5),  
+                mpf.make_addplot(data['EMA50'].tail(60), color='#ff6d00', width=1.5),  
+                mpf.make_addplot(data['EMA200'].tail(60), color='#d500f9', width=1.5), 
             ]
 
             # วาดกราฟ (Candlestick + Volume + EMAs)
