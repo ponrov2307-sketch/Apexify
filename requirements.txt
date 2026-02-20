@@ -1,0 +1,7 @@
+pyTelegramBotAPI==4.15.4
+google-genai==0.3.0
+yfinance==0.2.36
+pandas==2.2.0
+matplotlib==3.8.2
+python-dotenv==1.0.1
+numpy==1.26.4
