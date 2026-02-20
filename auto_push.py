@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 
 # ตั้งค่าเวลา (วินาที) เช่น 600 วินาที = 10 นาที
-SYNC_INTERVAL = 120  # 5 นาที 
+SYNC_INTERVAL = 300  # 5 นาที 
 
 def auto_git_push():
     try:
