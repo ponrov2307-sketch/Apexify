@@ -7,6 +7,10 @@ import io
 import requests # <--- เพิ่ม import requests
 matplotlib.use('Agg') # <--- เพิ่ม 2 บรรทัดนี้ก่อน import pyplot
 import matplotlib.pyplot as plt 
+yf_session = requests.Session()
+yf_session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+})
 
 def get_fear_and_greed_index():
     try:
@@ -80,9 +84,11 @@ def calculate_technical_indicators(symbol):
         try:
             # ตัดช่องว่างเผื่อพิมพ์ผิด และทำเป็นตัวพิมพ์ใหญ่
             clean_symbol = symbol.strip().upper()
+            # --- แก้ไขบรรทัดนี้บรรทัดเดียว ---
+            # จากเดิม: ticker = yf.Ticker(clean_symbol)
+            ticker = yf.Ticker(clean_symbol, session=yf_session) 
             
-            ticker = yf.Ticker(clean_symbol)
-            data = ticker.history(period="1y")
+            data = ticker.history(period="6mo")
             
             if data.empty:
                 return None, None, f"❌ ไม่พบข้อมูลหุ้น '{clean_symbol}' ในระบบ โปรดตรวจสอบตัวสะกด (หุ้นไทยอย่าลืมใส่ .BK)"
