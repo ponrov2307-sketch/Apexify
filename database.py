@@ -16,9 +16,9 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT, role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0)''')
     
-    # 🌟 อัปเดตโครงสร้างตารางโค้ด รองรับการใช้หลายคน
+    # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes 
-                 (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '')''')
+                 (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '', role_type TEXT DEFAULT 'vip')''')
     conn.commit()
     conn.close()
     init_watchlist_db() 
@@ -39,32 +39,35 @@ def register_user(user_id):
     conn.commit()
     conn.close()
 
-def add_vip(user_id, days=30):
+# 🌟 เปลี่ยนชื่อจาก add_vip เป็น add_subscription เพื่อรองรับหลายระดับ
+def add_subscription(user_id, role='vip', days=30):
     conn = get_connection()
     c = conn.cursor()
     
-    # เช็คว่ามีวันหมดอายุเดิมไหม เพื่อทบยอดวันถ้ายังไม่หมดอายุ
-    c.execute("SELECT expiry_date FROM users WHERE user_id=%s", (str(user_id),))
+    c.execute("SELECT role, expiry_date FROM users WHERE user_id=%s", (str(user_id),))
     result = c.fetchone()
     
     now = datetime.now()
     new_expiry = now + timedelta(days=days)
     
-    if result and result[0]:
+    if result and result[1]:
+        old_role = result[0]
         try:
-            old_expiry = datetime.strptime(result[0], '%Y-%m-%d %H:%M:%S')
-            if old_expiry > now:
-                new_expiry = old_expiry + timedelta(days=days) # ทบวันเดิม
+            old_expiry = datetime.strptime(result[1], '%Y-%m-%d %H:%M:%S')
+            # ทบวันให้ถ้าเป็นการต่ออายุแพ็กเกจเดิม หรืออัปเกรดจาก VIP ไป PRO
+            if old_expiry > now and (old_role == role or role == 'pro'):
+                new_expiry = old_expiry + timedelta(days=days) 
         except:
             pass
             
     expiry_str = new_expiry.strftime('%Y-%m-%d %H:%M:%S')
-    c.execute("UPDATE users SET role='vip', expiry_date=%s WHERE user_id=%s", (expiry_str, str(user_id)))
+    c.execute("UPDATE users SET role=%s, expiry_date=%s WHERE user_id=%s", (role, expiry_str, str(user_id)))
     conn.commit()
     conn.close()
     return expiry_str
 
-def check_vip(user_id):
+# 🌟 เปลี่ยนจากเช็ก VIP เฉยๆ เป็นการคืนค่าระดับ Role ('free', 'vip', 'pro')
+def check_subscription(user_id):
     conn = get_connection()
     c = conn.cursor()
     c.execute("SELECT role, expiry_date FROM users WHERE user_id=%s", (str(user_id),))
@@ -72,11 +75,11 @@ def check_vip(user_id):
     conn.close()
     if result:
         role, expiry_date = result
-        if role == 'vip' and expiry_date:
+        if role in ['vip', 'pro'] and expiry_date:
             expiry = datetime.strptime(expiry_date, '%Y-%m-%d %H:%M:%S')
             if datetime.now() < expiry:
-                return True
-    return False
+                return role
+    return 'free'
 
 def get_usage(user_id):
     conn = get_connection()
@@ -153,12 +156,12 @@ def get_all_users():
     conn.close()
     return [row[0] for row in result]
 
-# --- 🌟 ระบบจัดการโค้ดโปรโมชั่น (แบบ 1 โค้ดใช้ได้หลายคน) 🌟 ---
-def add_promo_code(code, days, max_uses):
+# --- 🌟 ระบบจัดการโค้ดโปรโมชั่น (รองรับ VIP / PRO) ---
+def add_promo_code(code, days, max_uses, role_type='vip'):
     conn = get_connection()
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO promo_codes (code, days, max_uses, current_uses, used_by) VALUES (%s, %s, %s, 0, '')", (code, days, max_uses))
+        c.execute("INSERT INTO promo_codes (code, days, max_uses, current_uses, used_by, role_type) VALUES (%s, %s, %s, 0, '', %s)", (code, days, max_uses, role_type))
         conn.commit()
         return True
     except psycopg2.IntegrityError:
@@ -170,32 +173,28 @@ def add_promo_code(code, days, max_uses):
 def redeem_code(user_id, code):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT days, max_uses, current_uses, used_by FROM promo_codes WHERE code=%s", (code,))
+    c.execute("SELECT days, max_uses, current_uses, used_by, role_type FROM promo_codes WHERE code=%s", (code,))
     result = c.fetchone()
     
     if result:
-        days, max_uses, current_uses, used_by = result
+        days, max_uses, current_uses, used_by, role_type = result
         used_by_list = used_by.split(',') if used_by else []
         
-        # 1. เช็กว่าคนนี้เคยใช้โค้ดนี้ไปแล้วหรือยัง
         if str(user_id) in used_by_list:
             conn.close()
-            return False, "already_used_by_you", None
+            return False, "already_used_by_you", None, None
             
-        # 2. เช็กว่าโควต้าโค้ดนี้เต็มหรือยัง
         if current_uses < max_uses:
             new_used_by = used_by + f"{user_id},"
-            # อัปเดตยอดคนใช้ และรายชื่อคนใช้
             c.execute("UPDATE promo_codes SET current_uses = current_uses + 1, used_by=%s WHERE code=%s", (new_used_by, code))
             conn.commit()
             
-            # เติมวัน VIP ทันที
-            expiry = add_vip(user_id, days)
+            expiry = add_subscription(user_id, role_type, days)
             conn.close()
-            return True, days, expiry
+            return True, days, expiry, role_type
         else:
             conn.close()
-            return False, "fully_used", None
+            return False, "fully_used", None, None
             
     conn.close()
-    return False, "invalid", None
+    return False, "invalid", None, None
