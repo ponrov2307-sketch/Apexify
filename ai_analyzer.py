@@ -7,7 +7,7 @@ from config import GEMINI_API_KEY
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 def generate_apexify_report(tech_data, role='free'):
-    # --- 1. ดึงข้อมูลตัวเลขจากกราฟ ---
+    # --- 1. ดึงข้อมูลตัวเลขจากกราฟ (เพิ่มการดักจับ Key ป้องกันค่า 0) ---
     symbol = tech_data.get('symbol', 'UNKNOWN')
     price = tech_data.get('price', 0)
     rsi = tech_data.get('rsi', 50)
@@ -16,55 +16,60 @@ def generate_apexify_report(tech_data, role='free'):
     ema20 = tech_data.get('ema20', 0)
     ema50 = tech_data.get('ema50', 0)
     ema200 = tech_data.get('ema200', 0)
-    lower_band = tech_data.get('lower_band', 0)
-    upper_band = tech_data.get('upper_band', 0)
+    
+    # 🌟 ดักจับ Key ของ Bollinger Bands เผื่อระบบใช้ชื่ออื่น จะได้ไม่เป็น 0.00
+    lower_band = tech_data.get('lower_band', tech_data.get('bb_lower', 0))
+    upper_band = tech_data.get('upper_band', tech_data.get('bb_upper', 0))
+    
     support = tech_data.get('support', 0)
     resistance = tech_data.get('resistance', 0)
     obv_trend = tech_data.get('obv_trend', 'คงที่')
     
-    # --- 2. แปลงค่าเป็นคำศัพท์สไตล์ Quant Matrix ---
-    momentum = "🟢 BULLISH (ขาขึ้น)" if price > ema20 else "🔴 BEARISH (ขาลง)"
+    # --- 2. แปลงค่าเป็นคำศัพท์ที่อ่านง่าย สบายตา และดูโปร ---
+    momentum = "🟢 ขาขึ้น (Bullish)" if price > ema20 else "🔴 ขาลง (Bearish)"
     
-    if rsi > 70: rsi_status = "🔴 OVERBOUGHT"
-    elif rsi < 30: rsi_status = "🟢 OVERSOLD"
-    else: rsi_status = "⚪️ NEUTRAL"
+    if rsi > 70: rsi_status = "🔴 ตึงตัว (Overbought)"
+    elif rsi < 30: rsi_status = "🟢 น่าสะสม (Oversold)"
+    else: rsi_status = "⚪️ กลางๆ (Neutral)"
     
-    macd_status = "🟢 BULLISH" if macd_line > signal_line else "🔴 BEARISH"
+    macd_status = "🟢 ตัดขึ้น (Positive)" if macd_line > signal_line else "🔴 ตัดลง (Negative)"
     
-    ema_mid = "🟢 UPTREND" if ema20 > ema50 else "🔴 DOWNTREND"
+    ema_mid = "🟢 ขาขึ้น" if ema20 > ema50 else "🔴 ขาลง"
     
-    if ema50 > ema200 and (ema50/ema200 < 1.03): ema_long = "✨ GOLDEN CROSS"
-    elif ema50 < ema200 and (ema200/ema50 < 1.03): ema_long = "💀 DEATH CROSS"
-    elif ema50 > ema200: ema_long = "🟢 UPTREND"
-    else: ema_long = "🔴 DOWNTREND"
+    if ema50 > ema200 and (ema50/ema200 < 1.03): ema_long = "✨ Golden Cross (จุดกลับตัว)"
+    elif ema50 < ema200 and (ema200/ema50 < 1.03): ema_long = "💀 Death Cross (ระวังเทขาย)"
+    elif ema50 > ema200: ema_long = "🟢 ขาขึ้นระยะยาว"
+    else: ema_long = "🔴 ขาลงระยะยาว"
     
-    if "เพิ่ม" in obv_trend or "up" in obv_trend.lower(): obv_icon = "📈 INFLOW (เงินเข้า)"
-    elif "ลด" in obv_trend or "down" in obv_trend.lower(): obv_icon = "📉 OUTFLOW (เงินออก)"
-    else: obv_icon = "➖ STATIC (ทรงตัว)"
+    if "เพิ่ม" in obv_trend or "up" in obv_trend.lower(): obv_status = "📈 มีแรงซื้อสะสม (Inflow)"
+    elif "ลด" in obv_trend or "down" in obv_trend.lower(): obv_status = "📉 มีแรงเทขาย (Outflow)"
+    else: obv_status = "➖ ทรงตัว (Static)"
     
-    # --- 3. ประกอบร่าง UI รูปแบบใหม่ (Apexify Signature Style) ---
-    report = f"📌 **{symbol}** | Price: `{price:,.2f}`\n\n"
+    # --- 3. ประกอบร่าง UI รูปแบบใหม่ (Executive Summary Style) ---
+    report = f"🎯 **สรุปสภาวะหุ้น: {symbol}**\n"
+    report += f"💵 **ราคาปัจจุบัน:** `{price:,.2f}`\n\n"
     
-    report += "== [ 🤖 **APEX QUANT ENGINE** ] ==\n"
-    report += f"|> 🚀 **Momentum** : `[ {momentum} ]`\n\n"
+    report += "📊 **[ 1. ตัวชี้วัดโมเมนตัม ]**\n"
+    report += f"• 🧭 **แนวโน้มหลัก:** {momentum}\n"
+    report += f"• 🔥 **RSI (ความร้อนแรง):** {rsi_status} `({rsi:.2f})`\n"
+    report += f"• 🌊 **MACD (ทิศทาง):** {macd_status}\n"
+    report += f"• 💰 **OBV (กระแสเงิน):** {obv_status}\n"
     
-    report += "-- 📊 **CORE MATRIX** --\n"
-    report += f"» **RSI** (ความร้อนแรง): `[ {rsi_status} ]` ({rsi:.2f})\n"
-    report += f"» **MACD** (ทิศทาง)    : `[ {macd_status} ]`\n"
-    report += f"» **OBV** (กระแสเงิน)   : `[ {obv_icon} ]`\n"
-    report += f"» **Band** (กรอบราคา) : `[ 🟡 {lower_band:,.2f} ⟷ {upper_band:,.2f} ]`\n\n"
+    # 🌟 แสดง Bollinger Bands แบบปลอดภัย ถ้าหาค่าไม่เจอจริงๆ จะไม่โชว์ 0 ให้ลูกค้างง
+    if lower_band != 0 and upper_band != 0:
+        report += f"• 🟡 **กรอบราคา (Bollinger):** `{lower_band:,.2f} - {upper_band:,.2f}`\n"
+        
+    report += "\n📈 **[ 2. สัญญาณเส้นค่าเฉลี่ย (EMA) ]**\n"
+    report += f"• **ระยะกลาง (20/50):** {ema_mid}\n"
+    report += f"• **ระยะยาว (50/200):** {ema_long}\n\n"
     
-    report += "-- 📈 **TREND RADAR** --\n"
-    report += f"» **M-Trend** (EMA 20/50) : `[ {ema_mid} ]`\n"
-    report += f"» **L-Trend** (EMA 50/200): `[ {ema_long} ]`\n\n"
-    
-    report += "-- 🎯 **BATTLE ZONES** --\n"
-    report += f"🛡️ **ฐานรับ (Support)** : `{support:,.2f}`\n"
-    report += f"⚔️ **ต้านทาน (Resist)** : `{resistance:,.2f}`\n"
+    report += "🎯 **[ 3. โซนเฝ้าระวัง (Key Levels) ]**\n"
+    report += f"• 🟢 **แนวรับสำคัญ:** `{support:,.2f}`\n"
+    report += f"• 🔴 **แนวต้านสำคัญ:** `{resistance:,.2f}`\n"
 
     # --- 4. ส่วนของ AI Analysis เฉพาะลูกค้า VIP / PRO ---
     if role in ['vip', 'pro']:
-        report += "\n🧠 **Apexify AI Analysis:**\n"
+        report += "\n🧠 **[ 4. บทวิเคราะห์จาก Apexify AI ]**\n"
         
         # PRO ได้สิทธิวิเคราะห์ลึกกว่าระดับ VIP
         if role == 'pro':
@@ -82,9 +87,9 @@ def generate_apexify_report(tech_data, role='free'):
             
         try:
             ai_response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-            report += f"*{ai_response.text.strip()}*"
+            report += f"💡 *{ai_response.text.strip()}*"
         except Exception as e:
-            report += "*ระบบสมองกล AI กำลังประมวลผลหนัก กรุณาลองใหม่อีกครั้งครับ*"
+            report += "💡 *ระบบ AI กำลังประมวลผลหนัก กรุณาลองใหม่อีกครั้งครับ*"
             
     return report
 
