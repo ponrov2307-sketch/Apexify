@@ -19,6 +19,11 @@ def init_db():
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes 
                  (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '', role_type TEXT DEFAULT 'vip')''')
+                 
+    # 🌟 ฐานข้อมูลเก็บสลิปที่ใช้แล้ว ป้องกันการส่งซ้ำ
+    c.execute('''CREATE TABLE IF NOT EXISTS used_slips 
+                 (ref_no TEXT PRIMARY KEY, user_id TEXT, date_used TEXT)''')
+                 
     conn.commit()
     conn.close()
     init_watchlist_db() 
@@ -39,7 +44,6 @@ def register_user(user_id):
     conn.commit()
     conn.close()
 
-# 🌟 เปลี่ยนชื่อจาก add_vip เป็น add_subscription เพื่อรองรับหลายระดับ
 def add_subscription(user_id, role='vip', days=30):
     conn = get_connection()
     c = conn.cursor()
@@ -66,7 +70,6 @@ def add_subscription(user_id, role='vip', days=30):
     conn.close()
     return expiry_str
 
-# 🌟 เปลี่ยนจากเช็ก VIP เฉยๆ เป็นการคืนค่าระดับ Role ('free', 'vip', 'pro')
 def check_subscription(user_id):
     conn = get_connection()
     c = conn.cursor()
@@ -156,7 +159,6 @@ def get_all_users():
     conn.close()
     return [row[0] for row in result]
 
-# --- 🌟 ระบบจัดการโค้ดโปรโมชั่น (รองรับ VIP / PRO) ---
 def add_promo_code(code, days, max_uses, role_type='vip'):
     conn = get_connection()
     c = conn.cursor()
@@ -197,6 +199,7 @@ def redeem_code(user_id, code):
             return False, "fully_used", None, None
             
     conn.close()
+
 def get_user_stats():
     conn = get_connection()
     c = conn.cursor()
@@ -214,5 +217,30 @@ def get_user_stats():
         total += count
         
     return stats, total
-    
-    
+
+# ==========================================
+# 🌟 ฟังก์ชันจัดการสลิปซ้ำ
+# ==========================================
+def check_slip_used(ref_no):
+    """ตรวจสอบว่าเลขที่อ้างอิงนี้เคยถูกใช้หรือยัง"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM used_slips WHERE ref_no=%s", (str(ref_no),))
+    result = c.fetchone()
+    conn.close()
+    return result is not None
+
+def mark_slip_used(ref_no, user_id):
+    """บันทึกเลขที่อ้างอิงสลิปลงฐานข้อมูลเมื่อใช้สำเร็จ"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        c.execute("INSERT INTO used_slips (ref_no, user_id, date_used) VALUES (%s, %s, %s)", (str(ref_no), str(user_id), now_str))
+        conn.commit()
+        return True
+    except psycopg2.IntegrityError:
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
