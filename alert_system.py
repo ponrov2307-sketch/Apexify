@@ -17,7 +17,7 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 last_alert_state = {}
 last_news_title = {}
-sent_vip_news = set() 
+sent_vip_news = set() # เก็บข่าว VIP ที่เคยส่งแล้ว ป้องกันสแปมซ้ำ
 
 def send_alert_to_users(symbol, message):
     """ส่งข้อความหาทุกคนที่มีหุ้นตัวนี้ในลิสต์"""
@@ -33,25 +33,29 @@ def send_alert_to_users(symbol, message):
 
 def check_hot_news(symbol):
     try:
-        # ตัด .BK ออกเพื่อให้ค้นหาข่าวในไทยเจอ (เช่น PTT.BK -> PTT)
+        is_thai_stock = symbol.endswith('.BK')
         search_term = symbol.replace('.BK', '')
-        # เปลี่ยนเป็น Google News Thailand
-        url = f"https://news.google.com/rss/search?q={search_term}+หุ้น&hl=th&gl=TH&ceid=TH:th"
         
+        # 🌟 แยกลิงก์ข่าวอัตโนมัติ หุ้นไทยหาข่าวไทย หุ้นนอกหาข่าวโลก
+        if is_thai_stock:
+            url = f"https://news.google.com/rss/search?q={search_term}+หุ้น&hl=th&gl=TH&ceid=TH:th"
+            news_type = "พาดหัวข่าวไทย"
+        else:
+            url = f"https://news.google.com/rss/search?q={search_term}+stock&hl=en-US&gl=US&ceid=US:en"
+            news_type = "พาดหัวข่าว Global"
+
         response = cffi_requests.get(url, impersonate="chrome110", timeout=10)
-        soup = BeautifulSoup(response.content, "html.parser")
+        soup = BeautifulSoup(response.content, "xml")
         
         items = soup.find_all("item")
         if items:
             title = items[0].title.text
-            # ดึงลิงก์ข่าว
             link_tag = items[0].find('link')
-            link = link_tag.next_sibling.strip() if link_tag and link_tag.next_sibling else f"https://news.google.com/search?q={search_term}+หุ้น"
+            link = link_tag.next_sibling.strip() if link_tag and link_tag.next_sibling else f"https://news.google.com/search?q={search_term}"
 
             if not title:
                 return
 
-            # ถ้าเป็นข่าวเดิมที่เคยแจ้งเตือนไปแล้วให้ข้ามไป
             if symbol in last_news_title and last_news_title[symbol] == title:
                 return
 
@@ -61,7 +65,7 @@ def check_hot_news(symbol):
             {{
                 "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
                 "severity": "HIGH" หรือ "MEDIUM" หรือ "LOW",
-                "reason": "คำอธิบายสั้นๆ 1-2 บรรทัดว่าทำไมข่าวนี้ถึงกระทบต่อราคาหุ้น"
+                "reason": "คำอธิบายสั้นๆ 1-2 บรรทัดว่าทำไมข่าวนี้ถึงกระทบต่อราคาหุ้น (ตอบเป็นภาษาไทยเท่านั้นและอ่านง่าย)"
             }}
             """
             
@@ -84,7 +88,7 @@ def check_hot_news(symbol):
                     msg = (
                         f"🚨 **BREAKING NEWS ALERT!** 🚨\n\n"
                         f"📌 **หุ้น:** #{symbol}\n"
-                        f"🗞 **พาดหัวข่าวไทย:** {title}\n\n"
+                        f"🗞 **{news_type}:** {title}\n\n"
                         f"🤖 **AI สแกนข่าวด่วน:**\n"
                         f"ทิศทางแนวโน้ม: {emoji_status}\n"
                         f"💡 **เหตุผล:** {reason}\n\n"
@@ -176,70 +180,85 @@ def check_market_conditions():
             print(f"⚠️ Error checking {symbol}: {e}")
 
 def check_and_broadcast_vip_news(bot_instance):
-    """เช็คข่าวด่วนเศรษฐกิจ/ตลาดหุ้นไทย แล้วให้ AI สรุปส่งให้ VIP"""
-    url = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+ตลาดหลักทรัพย์+OR+การลงทุน+OR+หุ้น&hl=th&gl=TH&ceid=TH:th"
+    """เช็คข่าวด่วน 2 โซน (Global & Thai) แล้วให้ AI สรุปส่งให้ VIP"""
     
-    try:
-        response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
-        soup = BeautifulSoup(response.content, "html.parser")
-        
-        items = soup.find_all("item")[:3]
-        if not items:
-            return
+    # 🌟 กำหนดแหล่งข่าว 2 โซน
+    news_sources = [
+        {
+            "tag": "🇹🇭 **Thai Market News (VIP)** 🇹🇭",
+            "url": "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+ตลาดหลักทรัพย์+OR+การลงทุน+OR+หุ้น&hl=th&gl=TH&ceid=TH:th"
+        },
+        {
+            "tag": "🌍 **Global Market News (VIP)** 🌍",
+            "url": "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+investing&hl=en-US&gl=US&ceid=US:en"
+        }
+    ]
+    
+    for source in news_sources:
+        try:
+            response = cffi_requests.get(source["url"], impersonate="chrome110", timeout=15)
+            soup = BeautifulSoup(response.content, "xml")
             
-        for item in items:
-            title = item.title.text
-            
-            if title not in sent_vip_news:
-                prompt = f"""
-                คุณคือนักวิเคราะห์ข่าวการเงินระดับเชี่ยวชาญ 
-                นี่คือพาดหัวข่าวเศรษฐกิจและการลงทุนล่าสุด: "{title}"
+            # ดึงข่าวบนสุดมาเช็ค
+            items = soup.find_all("item")[:2] 
+            if not items:
+                continue
                 
-                คำสั่งอย่างเคร่งครัด: 
-                1. สรุปข่าวนี้ให้สั้น กระชับ จับใจความสำคัญว่ากระทบนักลงทุนอย่างไร 
-                2. พิมพ์แค่เนื้อหาข่าวที่สรุปแล้วอย่างเดียว ห้ามใส่ลิงก์ ห้ามมีคำเกริ่นนำ มีอีโมจิเพิ่มความน่าสนใจ
-                """
+            for item in items:
+                title = item.title.text
                 
-                try:
-                    ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-                    summary = ai_check.text.strip()
+                if title not in sent_vip_news:
+                    prompt = f"""
+                    คุณคือนักวิเคราะห์ข่าวการเงินระดับเชี่ยวชาญ 
+                    นี่คือพาดหัวข่าวเศรษฐกิจและการลงทุนล่าสุด: "{title}"
                     
-                    news_message = f"🇹🇭 **Thai Market News (VIP)** 🇹🇭\n\n{summary}"
+                    คำสั่งอย่างเคร่งครัด: 
+                    1. สรุปข่าวนี้ให้สั้น กระชับ จับใจความสำคัญว่ากระทบนักลงทุนอย่างไร 
+                    2. พิมพ์แค่เนื้อหาข่าวที่สรุปแล้วอย่างเดียว ห้ามใส่ลิงก์ ห้ามมีคำเกริ่นนำ
+                    3. ต้องตอบเป็นภาษาไทยเท่านั้น
+                    """
                     
-                    from database import get_connection
-                    conn = get_connection()
-                    cur = conn.cursor()
-                    cur.execute("SELECT user_id FROM users WHERE role = 'vip'")
-                    vip_users = cur.fetchall()
-                    
-                    count = 0
-                    for vip in vip_users:
-                        user_id = vip[0]
-                        try:
-                            bot_instance.send_message(user_id, news_message, parse_mode='Markdown')
-                            count += 1
-                            time.sleep(0.5) 
-                        except Exception as e:
-                            pass
-                            
-                    cur.close()
-                    conn.close()
-                    
-                    if count > 0:
-                        print(f"✅ ส่งสรุปข่าวไทยให้ VIP สำเร็จ {count} คน: {title}")
-                    
-                    sent_vip_news.add(title)
-                    break
-                    
-                except Exception as ai_e:
-                    print(f"❌ AI Summary Error: {ai_e}")
-                    
-    except Exception as e:
-        print(f"⚠️ Error fetching Thai VIP news: {e}")
+                    try:
+                        ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+                        summary = ai_check.text.strip()
+                        
+                        news_message = f"{source['tag']}\n\n{summary}"
+                        
+                        from database import get_connection
+                        conn = get_connection()
+                        cur = conn.cursor()
+                        cur.execute("SELECT user_id FROM users WHERE role = 'vip'")
+                        vip_users = cur.fetchall()
+                        
+                        count = 0
+                        for vip in vip_users:
+                            user_id = vip[0]
+                            try:
+                                bot_instance.send_message(user_id, news_message, parse_mode='Markdown')
+                                count += 1
+                                time.sleep(0.5) 
+                            except Exception:
+                                pass
+                                
+                        cur.close()
+                        conn.close()
+                        
+                        if count > 0:
+                            print(f"✅ ส่งสรุปข่าว {source['tag']} ให้ VIP สำเร็จ {count} คน: {title}")
+                        
+                        sent_vip_news.add(title)
+                        # ส่งแค่ 1 ข่าวต่อ 1 โซน เพื่อกันสแปม
+                        break
+                        
+                    except Exception as ai_e:
+                        print(f"❌ AI Summary Error: {ai_e}")
+                        
+        except Exception as e:
+            print(f"⚠️ Error fetching {source['tag']}: {e}")
 
 if __name__ == "__main__":
     init_db()
-    print("🚀 Apexify Alert System with Real-Time Global VIP News is Running...")
+    print("🚀 Apexify Alert System (Global & Thai News) is Running...")
     
     while True:
         check_and_broadcast_vip_news(bot)
