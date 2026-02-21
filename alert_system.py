@@ -8,6 +8,12 @@ from technical_tools import calculate_technical_indicators
 from database import get_all_active_symbols, get_users_watching, init_db
 import json
 
+# 🌟 เพิ่ม Import สำหรับดึงข่าวและตั้งเวลา
+from curl_cffi import requests as cffi_requests
+from bs4 import BeautifulSoup
+from apscheduler.schedulers.background import BackgroundScheduler
+import pytz
+
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -177,13 +183,33 @@ def check_market_conditions():
         except Exception as e:
             print(f"⚠️ Error checking {symbol}: {e}")
 
-if __name__ == "__main__":
-    init_db()
-    print("🚀 Apexify Alert System with News Hunter & Personal Watchlist is Running...")
-    while True:
-        check_market_conditions()
-        time.sleep(300) # ตรวจสอบทุกๆ 5 นาที
-                def broadcast_news_to_vips(bot):
+# ==========================================
+# ระบบดึงข่าวทั่วไปสำหรับสมาชิก VIP (Apex Wealth Master)
+# ==========================================
+def fetch_vip_general_news():
+    """ดึงข่าวภาพรวมตลาดหุ้นและการลงทุนจากหลายสำนักข่าวแบบหลบ Anti-Bot"""
+    url = "https://news.google.com/rss/search?q=ตลาดหุ้น+OR+เศรษฐกิจ+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
+    
+    try:
+        response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
+        soup = BeautifulSoup(response.content, "html.parser")
+        
+        items = soup.find_all("item")[:5] # ดึงมา 5 ข่าวล่าสุด
+        if not items:
+            return None
+            
+        news_text = "🌟 <b>สรุปข่าวสำคัญประจำวัน (VIP)</b> 🌟\n\n"
+        for item in items:
+            title = item.title.text
+            link = item.link.text
+            news_text += f"📰 <b>{title}</b>\n🔗 <a href='{link}'>อ่านข่าวนี้</a>\n\n"
+            
+        return news_text
+    except Exception as e:
+        print(f"⚠️ Error fetching VIP news: {e}")
+        return None
+
+def broadcast_news_to_vips(bot_instance):
     """ส่งข่าวให้ผู้ใช้ระดับ VIP ทุกคนในระบบ"""
     news_message = fetch_vip_general_news()
     if not news_message:
@@ -203,10 +229,9 @@ if __name__ == "__main__":
         for vip in vip_users:
             user_id = vip[0]
             try:
-                # disable_web_page_preview=True เพื่อไม่ให้ลิงก์ข่าวกางออกมาเกะกะหน้าจอ
-                bot.send_message(user_id, news_message, parse_mode='HTML', disable_web_page_preview=True)
+                bot_instance.send_message(user_id, news_message, parse_mode='HTML', disable_web_page_preview=True)
                 count += 1
-                time.sleep(0.5) # ป้องกัน Telegram บล็อกฐานส่งรัวเกินไป (Anti-Flood Limit)
+                time.sleep(0.5) 
             except Exception as e:
                 print(f"⚠️ ไม่สามารถส่งข่าวให้ VIP {user_id} ได้: {e}")
                 
@@ -215,3 +240,25 @@ if __name__ == "__main__":
         print(f"✅ ส่งข่าวให้ VIP สำเร็จจำนวน {count} คน")
     except Exception as e:
         print(f"⚠️ Database Error in broadcast_news_to_vips: {e}")
+
+if __name__ == "__main__":
+    init_db()
+    
+    # ==========================================
+    # ส่วนตั้งค่า Scheduler (ระบบตั้งเวลา)
+    # ==========================================
+    # ตั้ง Timezone เป็นไทย เพื่อให้เวลาเป๊ะ
+    scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Bangkok'))
+    
+    # ส่งข่าวทั่วไปให้ VIP ทุกเช้าเวลา 08:30 น. (args=[bot] เพื่อให้มันรู้จักบอทตัวหลัก)
+    scheduler.add_job(broadcast_news_to_vips, 'cron', hour=8, minute=30, args=[bot])
+    
+    # สั่งให้ Scheduler เริ่มทำงานอยู่เบื้องหลัง
+    scheduler.start()
+    
+    print("🚀 Apexify Alert System with News Hunter & VIP Alerts is Running...")
+    
+    # ลูปทำงานหลัก
+    while True:
+        check_market_conditions()
+        time.sleep(300) # ตรวจสอบทุกๆ 5 นาที
