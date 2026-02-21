@@ -5,10 +5,10 @@ from google import genai
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
 from technical_tools import calculate_technical_indicators
 
-# 🌟 Import ระบบฐานข้อมูลทั้งหมด
 from database import get_all_active_symbols, get_users_watching, init_db, check_subscription, get_connection, log_alert
 import json
-import xml.etree.ElementTree as ET # 🌟 ใช้ตัวอ่าน XML ที่เสถียรที่สุด
+import xml.etree.ElementTree as ET 
+from curl_cffi import requests as cffi_requests # 🌟 เพิ่มไลบรารีปลอมตัวเพื่อหลบการบล็อก
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)
@@ -17,33 +17,18 @@ last_alert_state = {}
 last_news_title = {}
 sent_pro_news = set()
 
-# ==========================================
-# 🌟 ฟังก์ชันส่งแจ้งเตือน (ส่งให้เฉพาะ PRO)
-# ==========================================
 def send_alert_to_users(symbol, message, alert_type="tech"):
-    """
-    alert_type: "tech" (กราฟ RSI/EMA), "news" (ข่าวด่วนรายตัว)
-    🌟 สิทธิพิเศษนี้สงวนไว้ให้ระดับ PRO เท่านั้น
-    """
+    """ส่งแจ้งเตือนให้ลูกค้าระดับ PRO เท่านั้น"""
     users = get_users_watching(symbol)
     for user_id in users:
         role = check_subscription(user_id)
-        
-        # 👑 กรองความสำคัญ: ให้เฉพาะระดับ PRO (Platinum) เท่านั้น
-        if role != 'pro':
-            continue
-            
+        if role != 'pro': continue
         try:
             full_msg = f"🚨 **APEXIFY ALERT: {symbol}** 🚨\n\n{message}"
             bot.send_message(user_id, full_msg, parse_mode="Markdown")
-            print(f"✅ Sent {alert_type} alert for {symbol} to User {user_id} (PRO)")
             time.sleep(0.5) 
-        except Exception as e:
-            print(f"❌ Failed to send to {user_id}: {e}")
+        except Exception: pass
 
-# ==========================================
-# 🌟 ระบบสแกนข่าวหุ้นรายตัว (AI แปลและวิเคราะห์ผลกระทบ)
-# ==========================================
 def check_hot_news(symbol):
     try:
         is_thai_stock = symbol.endswith('.BK')
@@ -51,13 +36,13 @@ def check_hot_news(symbol):
         
         if is_thai_stock:
             url = f"https://news.google.com/rss/search?q={search_term}+หุ้น&hl=th&gl=TH&ceid=TH:th"
-            news_type = "พาดหัวข่าวไทย"
+            news_type = "🇹🇭 พาดหัวข่าวไทย"
         else:
             url = f"https://news.google.com/rss/search?q={search_term}+stock&hl=en-US&gl=US&ceid=US:en"
-            news_type = "พาดหัวข่าว Global"
+            news_type = "🌍 พาดหัวข่าว Global"
 
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        response = requests.get(url, headers=headers, timeout=10)
+        # 🌟 ปลอมตัวเป็น Chrome
+        response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
         root = ET.fromstring(response.content)
         items = root.findall('.//item')
         
@@ -72,7 +57,6 @@ def check_hot_news(symbol):
             if not title: return
             if symbol in last_news_title and last_news_title[symbol] == title: return
 
-            # 🌟 ให้ AI แปลและวิเคราะห์ผลกระทบเป็นภาษาไทย
             prompt = f"""
             ในฐานะนักวิเคราะห์การเงินระดับโลก โปรดอ่านพาดหัวข่าวนี้: "{title}"
             และวิเคราะห์ผลกระทบต่อหุ้น {symbol} โดยตอบกลับในรูปแบบ JSON เท่านั้น ดังนี้:
@@ -106,27 +90,16 @@ def check_hot_news(symbol):
                     send_alert_to_users(symbol, msg, alert_type="news")
                     last_news_title[symbol] = title
                     
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError: pass
+    except Exception: pass
 
-    except Exception as e:
-        pass
-
-# ==========================================
-# 🌟 ระบบแจ้งเตือนกราฟเทคนิค
-# ==========================================
 def check_market_conditions():
     active_symbols = get_all_active_symbols()
-    if not active_symbols:
-        print(f"[{time.strftime('%H:%M:%S')}] 💤 ไม่มีหุ้นใน Watchlist...")
-        return
-
-    print(f"🔍 [{time.strftime('%H:%M:%S')}] Scanning {len(active_symbols)} symbols...")
+    if not active_symbols: return
     
     for symbol in active_symbols:
         try:
             check_hot_news(symbol)
-
             tech_data, _, error = calculate_technical_indicators(symbol, generate_chart=False)
             if error or not tech_data: continue
 
@@ -140,7 +113,6 @@ def check_market_conditions():
             if symbol not in last_alert_state:
                 last_alert_state[symbol] = {'rsi': 'normal', 'cross': 'normal', 'breakout': 'normal'}
 
-            # --- RSI ---
             rsi_condition = 'normal'
             if current_rsi < 30:
                 rsi_condition = 'oversold'
@@ -156,7 +128,6 @@ def check_market_conditions():
             elif rsi_condition == 'normal':
                 last_alert_state[symbol]['rsi'] = 'normal'
 
-            # --- EMA Cross ---
             cross_condition = 'normal'
             if ema50 > ema200 and (ema50 / ema200) < 1.01:
                 cross_condition = 'golden_cross'
@@ -170,7 +141,6 @@ def check_market_conditions():
                 log_alert(symbol, f"EMA_{cross_condition.upper()}", price) 
                 last_alert_state[symbol]['cross'] = cross_condition
 
-            # --- Breakout ---
             breakout_condition = 'normal'
             if price > resistance:
                 breakout_condition = 'break_res'
@@ -187,48 +157,45 @@ def check_market_conditions():
                 last_alert_state[symbol]['breakout'] = 'normal'
 
             time.sleep(2)
+        except Exception: pass
 
-        except Exception as e:
-            pass
-
-# ==========================================
-# 🌟 ระบบบรอดแคสต์ข่าวด่วนภาพรวมตลาด (ให้เฉพาะ PRO)
-# ==========================================
 def check_and_broadcast_pro_news(bot_instance):
-    """เช็คข่าวด่วน 2 โซน แล้วให้ AI แปลไทย/สรุป ส่งให้ลูกค้า PRO เท่านั้น"""
+    """🌟 ดึงข่าวด่วน ไทย 3 โลก 3 ให้ AI แปลและส่งให้ PRO แบบ Real-time"""
     news_sources = [
-        {"tag": "🇹🇭 **Thai Market News (PRO Exclusive)** 🇹🇭", "url": "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+ตลาดหลักทรัพย์+OR+การลงทุน+OR+หุ้น&hl=th&gl=TH&ceid=TH:th"},
-        {"tag": "🌍 **Global Market News (PRO Exclusive)** 🌍", "url": "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+investing&hl=en-US&gl=US&ceid=US:en"}
+        {"tag": "🇹🇭 **ข่าวเด่นฝั่งไทย (PRO Exclusive)**", "emoji": "📌", "url": "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+ตลาดหลักทรัพย์+OR+การลงทุน+OR+หุ้น&hl=th&gl=TH&ceid=TH:th"},
+        {"tag": "🌍 **ข่าวเด่นต่างประเทศ (PRO Exclusive)**", "emoji": "🚀", "url": "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+investing&hl=en-US&gl=US&ceid=US:en"}
     ]
     
     for source in news_sources:
         try:
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            response = requests.get(source["url"], headers=headers, timeout=15)
+            # 🌟 ใช้ cffi_requests ปลอมตัวเป็น Chrome
+            response = cffi_requests.get(source["url"], impersonate="chrome110", timeout=15)
             root = ET.fromstring(response.content)
-            items = root.findall('.//item')[:2] 
+            # 🌟 ดึงมา 3 ข่าวตามที่ขอ
+            items = root.findall('.//item')[:3] 
             
             for item in items:
                 title_elem = item.find('title')
+                link_elem = item.find('link')
                 if title_elem is None: continue
                 title = title_elem.text
+                link = link_elem.text if link_elem is not None else ""
                 
                 if title not in sent_pro_news:
                     prompt = f"""
-                    คุณคือนักวิเคราะห์ข่าวการเงินระดับเชี่ยวชาญ 
-                    นี่คือพาดหัวข่าวเศรษฐกิจและการลงทุนล่าสุด (อาจเป็นภาษาไทยหรืออังกฤษ): "{title}"
+                    คุณคือนักวิเคราะห์ข่าวการเงินระดับโลก
+                    ข่าวล่าสุด: "{title}"
                     
-                    1. แปลข่าวและสรุปให้สั้น กระชับ จับใจความสำคัญว่ากระทบนักลงทุนอย่างไร (ตอบเป็นภาษาไทยเท่านั้น)
-                    2. พิมพ์แค่เนื้อหาข่าวที่สรุปแล้วอย่างเดียว ห้ามใส่ลิงก์
+                    1. แปลข่าวและสรุปสั้นๆ ว่ากระทบนักลงทุนอย่างไร (ตอบภาษาไทยเท่านั้น)
+                    2. พิมพ์แค่สรุป ห้ามใส่ลิงก์
                     """
                     try:
                         ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                         summary = ai_check.text.strip()
-                        news_message = f"{source['tag']}\n\n📰 **พาดหัวข่าว:** {title}\n🤖 **AI แปลและวิเคราะห์:** {summary}"
+                        news_message = f"{source['tag']}\n\n📰 {source['emoji']} **พาดหัวข่าว:** [{title}]({link})\n\n🤖 **AI แปลและวิเคราะห์:** {summary}"
                         
                         conn = get_connection()
                         cur = conn.cursor()
-                        # 👑 ดึงเฉพาะลูกค้า PRO
                         cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
                         pro_users = cur.fetchall()
                         
@@ -237,21 +204,17 @@ def check_and_broadcast_pro_news(bot_instance):
                             user_id = pro[0]
                             if check_subscription(user_id) == 'pro':
                                 try:
-                                    bot_instance.send_message(user_id, news_message, parse_mode='Markdown')
+                                    bot_instance.send_message(user_id, news_message, parse_mode='Markdown', disable_web_page_preview=True)
                                     count += 1
                                     time.sleep(0.5) 
-                                except Exception:
-                                    pass
+                                except Exception: pass
                                     
                         cur.close()
                         conn.close()
-                        if count > 0: print(f"✅ ส่งสรุปข่าว {source['tag']} ให้ PRO สำเร็จ {count} คน")
+                        if count > 0: print(f"✅ ส่งข่าวให้ PRO สำเร็จ {count} คน")
                         sent_pro_news.add(title)
-                        break
-                    except Exception as ai_e:
-                        pass
-        except Exception as e:
-            pass
+                    except Exception: pass
+        except Exception: pass
 
 if __name__ == "__main__":
     init_db()
