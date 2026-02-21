@@ -292,7 +292,7 @@ def handle_performance(message):
             bot.edit_message_text("❌ ยังไม่มีประวัติการแจ้งเตือนในระบบครับ", message.chat.id, status_msg.message_id)
             return
 
-        report_text = "🎯 **สรุปผลงานความแม่นยำ AI (ล่าสุด)** 🎯\n\n"
+        report_text = "🎯 **สรุปผลงานความแม่นยำ Apexify (ล่าสุด)** 🎯\n\n"
         win_count, total_count = 0, 0
 
         for row in logs:
@@ -333,7 +333,7 @@ def handle_payment_slip_check(message):
     user_id = str(message.chat.id)
     if not is_allowed(user_id): return
     role = check_subscription(user_id)
-    progress_msg = bot.reply_to(message, "🧾 AI กำลังตรวจสอบสลิปโอนเงิน...")
+    progress_msg = bot.reply_to(message, "🧾 Apexify กำลังตรวจสอบสลิปโอนเงิน...")
         
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
@@ -346,7 +346,7 @@ def handle_payment_slip_check(message):
             ref_no = result.get('ref_no', '').strip()
             
             if not ref_no or ref_no == "" or ref_no.lower() == "none":
-                bot.edit_message_text("⚠️ AI อ่าน 'เลขที่อ้างอิง' บนสลิปไม่ชัดเจน โปรดถ่ายให้เห็นชัดๆ ครับ", message.chat.id, progress_msg.message_id)
+                bot.edit_message_text("⚠️ Apexify อ่าน 'เลขที่อ้างอิง' บนสลิปไม่ชัดเจน โปรดถ่ายให้เห็นชัดๆ ครับ", message.chat.id, progress_msg.message_id)
                 return
             if check_slip_used(ref_no):
                 bot.edit_message_text("❌ **สลิปนี้ถูกใช้งานไปแล้ว!**\nไม่อนุญาตให้ใช้สลิปซ้ำครับ", message.chat.id, progress_msg.message_id, parse_mode="Markdown")
@@ -380,10 +380,10 @@ def handle_payment_slip_check(message):
         else:
             bot.edit_message_text("❌ รูปนี้ไม่ใช่สลิปโอนเงินที่ถูกต้องครับ", message.chat.id, progress_msg.message_id)
     except Exception as e:
-        bot.edit_message_text("⚠️ AI ไม่สามารถอ่านสลิปได้ โปรดถ่ายให้ชัดเจนอีกครั้ง", message.chat.id, progress_msg.message_id)
+        bot.edit_message_text("⚠️ Apexify ไม่สามารถอ่านสลิปได้ โปรดถ่ายให้ชัดเจนอีกครั้ง", message.chat.id, progress_msg.message_id)
 
 # ==========================================
-# 🌟 ระบบปุ่มกด Inline (เพิ่ม AI Screener และอัปเดตคำอธิบาย VIP/PRO)
+# 🌟 ระบบปุ่มกด Inline (เพิ่ม Apexify Screener และอัปเดตคำอธิบาย VIP/PRO)
 # ==========================================
 @bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('menu_') or call.data.startswith('hub_'))
 def inline_callbacks(call):
@@ -407,10 +407,10 @@ def inline_callbacks(call):
                 "• โควต้าวิเคราะห์กราฟ **ไม่จำกัด!**\n"
                 "• สร้าง Watchlist **สูงสุด 10 ตัว**\n"
                 "• สแกนหุ้นใน Watchlist รวดเดียวจบ\n"
-                "• AI ฟันธงจุดเข้าซื้อ/ขายละเอียด\n\n"
+                "• Apexify ฟันธงจุดเข้าซื้อ/ขายละเอียด\n\n"
                 
                 "👑 **3. ระดับ PRO (499.-/เดือน หรือ 4,990.-/ปี) [แนะนำ!]:**\n"
-                "• **[NEW] 🔥 AI สแกนหุ้นเด่น (Screener)** คัดตัวเข้าตามาให้ทุกวัน\n"
+                "• **[NEW] 🔥 Apexify สแกนหุ้นเด่น (Screener)** คัดตัวเข้าตามาให้ทุกวัน\n"
                 "• **[NEW] 🌅 Morning Briefing** สรุปทิศทางตลาดส่งให้ทุกเช้า\n"
                 "• **[NEW] 📅 แจ้งเตือนปันผล (XD)** ล่วงหน้า 3 วัน\n"
                 "• 🔔 ตั้งเตือนราคาส่วนตัว (Custom Price Alerts)\n"
@@ -537,14 +537,14 @@ def inline_callbacks(call):
         except Exception as e:
             bot.send_message(user_id, f"❌ Error: {e}")
 
-    # 🌟 ฟีเจอร์ใหม่: AI Auto-Screener (PRO Exclusive)
+    # 🌟 ฟีเจอร์ใหม่: Apexify Auto-Screener (PRO Exclusive)
     elif call.data == 'hub_screener':
         try:
             if role != 'pro' and user_id != ADMIN_ID:
                 bot.send_message(user_id, "🔒 **ฟีเจอร์ระดับพรีเมียม (PRO Exclusive)**\nสแกนหุ้นเด่นอัตโนมัติสงวนสิทธิ์ให้ลูกค้าระดับ PRO เท่านั้นครับ 👑", parse_mode="Markdown")
                 return
             
-            scan_msg = bot.send_message(user_id, "⏳ **AI กำลังสแกนหาหุ้นเด่น...**\n*(ค้นหาจากกลุ่ม SET50 และ US Tech ที่เพิ่งเกิด Golden Cross หรือ RSI ตกเข้าโซน Oversold)*")
+            scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหาหุ้นเด่น...**\n*(ค้นหาจากกลุ่ม SET50 และ US Tech ที่เพิ่งเกิด Golden Cross หรือ RSI ตกเข้าโซน Oversold)*")
             
             # ลิสต์หุ้นยอดฮิตเพื่อให้สแกนได้เร็ว (กัน Timeout)
             scan_list = ['PTT.BK', 'AOT.BK', 'ADVANC.BK', 'CPALL.BK', 'DELTA.BK', 'GULF.BK', 'KBANK.BK', 'SCB.BK', 'BDMS.BK', 'BBL.BK', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'GOOGL']
@@ -571,9 +571,9 @@ def inline_callbacks(call):
                     pass
             
             if found_stocks:
-                result_msg = "🔥 **หุ้นเด่นน่าเก็บประจำวัน (AI Screener)** 🔥\n\n" + "\n\n".join(found_stocks)
+                result_msg = "🔥 **หุ้นเด่นน่าเก็บประจำวัน (Apexify Screener)** 🔥\n\n" + "\n\n".join(found_stocks)
             else:
-                result_msg = "🔥 **หุ้นเด่นน่าเก็บประจำวัน** 🔥\n\nขณะนี้ยังไม่พบหุ้นที่เข้าเกณฑ์ Golden Cross หรือ Oversold แบบชัดเจนครับ\n*(AI แนะนำให้จับตาดูตลาด หรือถือเงินสดรอดูสถานการณ์)*"
+                result_msg = "🔥 **หุ้นเด่นน่าเก็บประจำวัน** 🔥\n\nขณะนี้ยังไม่พบหุ้นที่เข้าเกณฑ์ Golden Cross หรือ Oversold แบบชัดเจนครับ\n*(Apexify แนะนำให้จับตาดูตลาด หรือถือเงินสดรอดูสถานการณ์)*"
                 
             bot.edit_message_text(result_msg, user_id, scan_msg.message_id, parse_mode="Markdown")
         except Exception as e:

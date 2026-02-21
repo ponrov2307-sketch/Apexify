@@ -67,9 +67,9 @@ def generate_apexify_report(tech_data, role='free'):
     report += f"• 🟢 **แนวรับสำคัญ:** `{support:,.2f}`\n"
     report += f"• 🔴 **แนวต้านสำคัญ:** `{resistance:,.2f}`\n"
 
-    # --- 4. ส่วนของ AI Analysis เฉพาะลูกค้า VIP / PRO ---
+    # --- 4. ส่วนของ Apexify Analysis เฉพาะลูกค้า VIP / PRO ---
     if role in ['vip', 'pro']:
-        report += "\n🧠 **[ 4. บทวิเคราะห์จาก Apexify AI ]**\n"
+        report += "\n🧠 **[ 4. บทวิเคราะห์จาก Apexify Apexify ]**\n"
         
         # PRO ได้สิทธิวิเคราะห์ลึกกว่าระดับ VIP
         if role == 'pro':
@@ -89,7 +89,7 @@ def generate_apexify_report(tech_data, role='free'):
             ai_response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             report += f"💡 *{ai_response.text.strip()}*"
         except Exception as e:
-            report += "💡 *ระบบ AI กำลังประมวลผลหนัก กรุณาลองใหม่อีกครั้งครับ*"
+            report += "💡 *ระบบ Apexify กำลังประมวลผลหนัก กรุณาลองใหม่อีกครั้งครับ*"
             
     return report
 

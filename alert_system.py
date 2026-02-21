@@ -87,7 +87,7 @@ def check_hot_news(symbol):
                     
                     msg = (
                         f"🗞 **ข่าวด่วน:** {title}\n"
-                        f"🤖 **มุมมอง AI:** {emoji_status}\n"
+                        f"🤖 **มุมมอง Apexify:** {emoji_status}\n"
                         f"💡 **วิเคราะห์:** {reason}\n\n"
                         f"🔗 [อ่านข่าวเต็มคลิกที่นี่]({link})"
                     )
@@ -196,12 +196,12 @@ def check_and_broadcast_pro_news(bot_instance):
                     prompt = f"""
                     คุณคือนักวิเคราะห์การเงิน 
                     สรุปข่าวนี้ให้สั้นและจับใจความได้: "{title}"
-                    เพิ่มมุมมอง AI และวิเคราะห์สั้นๆ (ไม่เกิน 2 บรรทัด) เป็นภาษาไทย ห้ามยาวเด็ดขาด ห้ามใส่ลิงก์
+                    เพิ่มมุมมอง Apexify และวิเคราะห์สั้นๆ (ไม่เกิน 2 บรรทัด) เป็นภาษาไทย ห้ามยาวเด็ดขาด ห้ามใส่ลิงก์
                     """
                     try:
                         ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                         summary = ai_check.text.strip()
-                        combined_msg += f"📰 [{title}]({link})\n🤖 **AI วิเคราะห์:** {summary}\n\n"
+                        combined_msg += f"📰 [{title}]({link})\n🤖 **Apexify วิเคราะห์:** {summary}\n\n"
                         sent_pro_news.add(title) 
                         new_news_found = True
                     except Exception: pass
@@ -282,7 +282,7 @@ def check_custom_price_alerts():
                 deactivate_price_alert(a_id)
 
 # ==========================================
-# 🌟 ฟีเจอร์ใหม่: Morning AI Briefing (08:30 น.)
+# 🌟 ฟีเจอร์ใหม่: Morning Apexify Briefing (08:30 น.)
 # ==========================================
 def send_morning_briefing(bot_instance):
     try:
@@ -303,7 +303,7 @@ def send_morning_briefing(bot_instance):
                 f"📊 **สรุปตลาดโลกเมื่อคืน:**\n"
                 f"• S&P 500: {sp500_close:,.2f}\n"
                 f"• Bitcoin: {btc_close:,.2f}\n\n"
-                f"🤖 **มุมมอง AI วันนี้:**\n{summary}\n\n"
+                f"🤖 **มุมมอง Apexify วันนี้:**\n{summary}\n\n"
                 f"🔥 *ขอให้พอร์ตเขียวๆ ตลอดวันครับ!*"
             )
             
