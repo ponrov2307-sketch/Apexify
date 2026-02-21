@@ -17,7 +17,7 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 last_alert_state = {}
 last_news_title = {}
-sent_vip_news = set() # 🌟 เพิ่มตัวแปรเก็บข่าว VIP ที่เคยส่งแล้ว ป้องกันการสแปมข่าวซ้ำ
+sent_vip_news = set() 
 
 def send_alert_to_users(symbol, message):
     """ส่งข้อความหาทุกคนที่มีหุ้นตัวนี้ในลิสต์"""
@@ -33,75 +33,69 @@ def send_alert_to_users(symbol, message):
 
 def check_hot_news(symbol):
     try:
-        url = f"https://query2.finance.yahoo.com/v1/finance/search?q={symbol}&newsCount=1"
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        res = requests.get(url, headers=headers, timeout=5)
+        # ตัด .BK ออกเพื่อให้ค้นหาข่าวในไทยเจอ (เช่น PTT.BK -> PTT)
+        search_term = symbol.replace('.BK', '')
+        # เปลี่ยนเป็น Google News Thailand
+        url = f"https://news.google.com/rss/search?q={search_term}+หุ้น&hl=th&gl=TH&ceid=TH:th"
         
-        if res.status_code == 200:
-            data = res.json()
-            news = data.get('news', [])
+        response = cffi_requests.get(url, impersonate="chrome110", timeout=10)
+        soup = BeautifulSoup(response.content, "html.parser")
+        
+        items = soup.find_all("item")
+        if items:
+            title = items[0].title.text
+            # ดึงลิงก์ข่าว
+            link_tag = items[0].find('link')
+            link = link_tag.next_sibling.strip() if link_tag and link_tag.next_sibling else f"https://news.google.com/search?q={search_term}+หุ้น"
+
+            if not title:
+                return
+
+            # ถ้าเป็นข่าวเดิมที่เคยแจ้งเตือนไปแล้วให้ข้ามไป
+            if symbol in last_news_title and last_news_title[symbol] == title:
+                return
+
+            prompt = f"""
+            ในฐานะนักวิเคราะห์การเงินระดับโลก โปรดอ่านพาดหัวข่าวนี้: "{title}"
+            และวิเคราะห์ผลกระทบต่อหุ้น {symbol} โดยตอบกลับในรูปแบบ JSON เท่านั้น ดังนี้:
+            {{
+                "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
+                "severity": "HIGH" หรือ "MEDIUM" หรือ "LOW",
+                "reason": "คำอธิบายสั้นๆ 1-2 บรรทัดว่าทำไมข่าวนี้ถึงกระทบต่อราคาหุ้น"
+            }}
+            """
             
-            if news:
-                title = news[0].get('title', '')
-                link = news[0].get('link', '#')
-
-                if not title:
-                    return
-
-                # ถ้าเป็นข่าวเดิมที่เคยแจ้งเตือนไปแล้วให้ข้ามไป
-                if symbol in last_news_title and last_news_title[symbol] == title:
-                    return
-
-                # --- อัปเกรด Prompt ให้ AI วิเคราะห์ทิศทางและความรุนแรง ---
-                prompt = f"""
-                ในฐานะนักวิเคราะห์การเงินระดับโลก โปรดอ่านพาดหัวข่าวนี้: "{title}"
-                และวิเคราะห์ผลกระทบต่อหุ้น {symbol} โดยตอบกลับในรูปแบบ JSON เท่านั้น ดังนี้:
-                {{
-                    "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
-                    "severity": "HIGH" หรือ "MEDIUM" หรือ "LOW",
-                    "reason": "คำอธิบายสั้นๆ 1-2 บรรทัดว่าทำไมข่าวนี้ถึงกระทบต่อราคาหุ้น"
-                }}
-                """
-                
-                ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-                
-                # คลีนข้อมูลและแปลงเป็น JSON
-                result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
-                
-                try:
-                    analysis = json.loads(result_text)
+            ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+            result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
+            
+            try:
+                analysis = json.loads(result_text)
+                if analysis.get('severity') == 'HIGH':
+                    sentiment = analysis.get('sentiment', 'NEUTRAL')
+                    reason = analysis.get('reason', 'ไม่มีคำอธิบายเพิ่มเติม')
                     
-                    # ถ้าระดับความรุนแรงเป็น HIGH ให้ยิงแจ้งเตือนทันที
-                    if analysis.get('severity') == 'HIGH':
-                        sentiment = analysis.get('sentiment', 'NEUTRAL')
-                        reason = analysis.get('reason', 'ไม่มีคำอธิบายเพิ่มเติม')
-                        
-                        # เลือก Emoji ให้เข้ากับทิศทางตลาด
-                        if sentiment == "BULLISH":
-                            emoji_status = "🚀 BULLISH (ข่าวดี/เชิงบวกอย่างมาก)"
-                        elif sentiment == "BEARISH":
-                            emoji_status = "🩸 BEARISH (ข่าวร้าย/เชิงลบอย่างมาก)"
-                        else:
-                            emoji_status = "⚪️ NEUTRAL (ส่งผลกระทบแต่ยังไม่แน่ชัด)"
-                        
-                        msg = (
-                            f"🚨 **BREAKING NEWS ALERT!** 🚨\n\n"
-                            f"📌 **หุ้น:** #{symbol}\n"
-                            f"🗞 **พาดหัวข่าว:** {title}\n\n"
-                            f"🤖 **AI สแกนข่าวด่วน:**\n"
-                            f"ทิศทางแนวโน้ม: {emoji_status}\n"
-                            f"💡 **เหตุผล:** {reason}\n\n"
-                            f"🔗 [อ่านข่าวฉบับเต็มคลิกที่นี่]({link})"
-                        )
-                        
-                        # ส่งแจ้งเตือนหาทุกคนที่ตั้ง Watchlist หุ้นตัวนี้ไว้
-                        send_alert_to_users(symbol, msg)
-                        
-                        # บันทึกข่าวนี้ไว้ จะได้ไม่แจ้งเตือนซ้ำ
-                        last_news_title[symbol] = title
-                        
-                except json.JSONDecodeError:
-                    print(f"❌ JSON Parse Error สำหรับข่าว {symbol}")
+                    if sentiment == "BULLISH":
+                        emoji_status = "🚀 BULLISH (ข่าวดี/เชิงบวกอย่างมาก)"
+                    elif sentiment == "BEARISH":
+                        emoji_status = "🩸 BEARISH (ข่าวร้าย/เชิงลบอย่างมาก)"
+                    else:
+                        emoji_status = "⚪️ NEUTRAL (ส่งผลกระทบแต่ยังไม่แน่ชัด)"
+                    
+                    msg = (
+                        f"🚨 **BREAKING NEWS ALERT!** 🚨\n\n"
+                        f"📌 **หุ้น:** #{symbol}\n"
+                        f"🗞 **พาดหัวข่าวไทย:** {title}\n\n"
+                        f"🤖 **AI สแกนข่าวด่วน:**\n"
+                        f"ทิศทางแนวโน้ม: {emoji_status}\n"
+                        f"💡 **เหตุผล:** {reason}\n\n"
+                        f"🔗 [อ่านข่าวฉบับเต็มคลิกที่นี่]({link})"
+                    )
+                    
+                    send_alert_to_users(symbol, msg)
+                    last_news_title[symbol] = title
+                    
+            except json.JSONDecodeError:
+                print(f"❌ JSON Parse Error สำหรับข่าว {symbol}")
 
     except Exception as e:
         print(f"⚠️ News Error {symbol}: {e}")
@@ -181,19 +175,14 @@ def check_market_conditions():
         except Exception as e:
             print(f"⚠️ Error checking {symbol}: {e}")
 
-# ==========================================
-# ระบบเช็คข่าว VIP ระดับโลก (Global News) ทำงานทุกๆ 5 นาที
-# ==========================================
 def check_and_broadcast_vip_news(bot_instance):
-    """เช็คข่าวด่วนระดับโลก (ภาษาอังกฤษ) โยนให้ AI แปลและสรุปเป็นภาษาไทยแล้วส่งทันที"""
-    # 🌟 เปลี่ยน URL เป็นข่าว US/Global (ภาษาอังกฤษ)
-    url = "https://news.google.com/rss/search?q=stock+market+OR+economy+OR+investing+OR+finance&hl=en-US&gl=US&ceid=US:en"
+    """เช็คข่าวด่วนเศรษฐกิจ/ตลาดหุ้นไทย แล้วให้ AI สรุปส่งให้ VIP"""
+    url = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+ตลาดหลักทรัพย์+OR+การลงทุน+OR+หุ้น&hl=th&gl=TH&ceid=TH:th"
     
     try:
         response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
         soup = BeautifulSoup(response.content, "html.parser")
         
-        # ดึงมาเช็ค 3 ข่าวล่าสุด
         items = soup.find_all("item")[:3]
         if not items:
             return
@@ -201,25 +190,22 @@ def check_and_broadcast_vip_news(bot_instance):
         for item in items:
             title = item.title.text
             
-            # ถ้าเป็นข่าวใหม่ที่ยังไม่เคยส่งให้ VIP
             if title not in sent_vip_news:
-                # 🌟 โยนให้ AI แปลและสรุปเป็นภาษาไทยอย่างเดียว ไม่เอาลิงก์
                 prompt = f"""
-                คุณคือนักวิเคราะห์ข่าวการเงินระดับโลก 
-                นี่คือพาดหัวข่าวด่วนต่างประเทศ (ภาษาอังกฤษ): "{title}"
+                คุณคือนักวิเคราะห์ข่าวการเงินระดับเชี่ยวชาญ 
+                นี่คือพาดหัวข่าวเศรษฐกิจและการลงทุนล่าสุด: "{title}"
                 
                 คำสั่งอย่างเคร่งครัด: 
-                1. แปลและสรุปข่าวนี้เป็น "ภาษาไทย" ให้สั้น กระชับ เข้าใจง่าย 
-                2. พิมพ์แค่เนื้อหาข่าวที่สรุปแล้วอย่างเดียว ห้ามใส่ลิงก์ ห้ามมีคำเกริ่นนำ
+                1. สรุปข่าวนี้ให้สั้น กระชับ จับใจความสำคัญว่ากระทบนักลงทุนอย่างไร 
+                2. พิมพ์แค่เนื้อหาข่าวที่สรุปแล้วอย่างเดียว ห้ามใส่ลิงก์ มีคำเกริ่นนำ มีอีโมจิเพิ่มความน่าสนใจ
                 """
                 
                 try:
                     ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                     summary = ai_check.text.strip()
                     
-                    news_message = f"🌎 **Global News Alert (VIP)** 🌎\n\n{summary}"
+                    news_message = f"🇹🇭 **Thai Market News (VIP)** 🇹🇭\n\n{summary}"
                     
-                    # ดึงรายชื่อ VIP จากฐานข้อมูล
                     from database import get_connection
                     conn = get_connection()
                     cur = conn.cursor()
@@ -234,36 +220,28 @@ def check_and_broadcast_vip_news(bot_instance):
                             count += 1
                             time.sleep(0.5) 
                         except Exception as e:
-                            print(f"⚠️ ไม่สามารถส่งข่าวให้ VIP {user_id} ได้: {e}")
+                            pass
                             
                     cur.close()
                     conn.close()
                     
                     if count > 0:
-                        print(f"✅ ส่งสรุปข่าว Global ให้ VIP สำเร็จ {count} คน: {title}")
+                        print(f"✅ ส่งสรุปข่าวไทยให้ VIP สำเร็จ {count} คน: {title}")
                     
-                    # บันทึกไว้ในหน่วยความจำว่าข่าวนี้ส่งไปแล้ว 
                     sent_vip_news.add(title)
-                    
-                    # ส่งแค่ 1 ข่าวต่อรอบเพื่อไม่ให้แชทลูกค้าเด้งรัวเกินไป
                     break
                     
                 except Exception as ai_e:
                     print(f"❌ AI Summary Error: {ai_e}")
                     
     except Exception as e:
-        print(f"⚠️ Error fetching Global VIP news: {e}")
+        print(f"⚠️ Error fetching Thai VIP news: {e}")
 
 if __name__ == "__main__":
     init_db()
     print("🚀 Apexify Alert System with Real-Time Global VIP News is Running...")
     
-    # ลูปทำงานหลัก
     while True:
-        # 1. เช็คและส่งข่าว Global VIP อัปเดตล่าสุด
         check_and_broadcast_vip_news(bot)
-        
-        # 2. เช็คกราฟและแจ้งเตือนหุ้นใน Watchlist
         check_market_conditions()
-        
-        time.sleep(300) # ตรวจสอบทุกๆ 5 นาที
+        time.sleep(300) 
