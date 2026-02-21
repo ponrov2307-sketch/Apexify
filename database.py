@@ -15,9 +15,10 @@ def init_db():
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT, role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0)''')
-    # 🌟 ตารางใหม่สำหรับเก็บโค้ดโปรโมชั่น
+    
+    # 🌟 อัปเดตโครงสร้างตารางโค้ด รองรับการใช้หลายคน
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes 
-                 (code TEXT PRIMARY KEY, days INTEGER, is_used BOOLEAN DEFAULT FALSE, used_by TEXT)''')
+                 (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '')''')
     conn.commit()
     conn.close()
     init_watchlist_db() 
@@ -152,12 +153,12 @@ def get_all_users():
     conn.close()
     return [row[0] for row in result]
 
-# --- 🌟 ระบบจัดการโค้ดโปรโมชั่น 🌟 ---
-def add_promo_code(code, days):
+# --- 🌟 ระบบจัดการโค้ดโปรโมชั่น (แบบ 1 โค้ดใช้ได้หลายคน) 🌟 ---
+def add_promo_code(code, days, max_uses):
     conn = get_connection()
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO promo_codes (code, days, is_used) VALUES (%s, %s, FALSE)", (code, days))
+        c.execute("INSERT INTO promo_codes (code, days, max_uses, current_uses, used_by) VALUES (%s, %s, %s, 0, '')", (code, days, max_uses))
         conn.commit()
         return True
     except psycopg2.IntegrityError:
@@ -169,20 +170,32 @@ def add_promo_code(code, days):
 def redeem_code(user_id, code):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT days, is_used FROM promo_codes WHERE code=%s", (code,))
+    c.execute("SELECT days, max_uses, current_uses, used_by FROM promo_codes WHERE code=%s", (code,))
     result = c.fetchone()
+    
     if result:
-        days, is_used = result
-        if not is_used:
-            # อัปเดตสถานะว่าใช้แล้ว
-            c.execute("UPDATE promo_codes SET is_used=TRUE, used_by=%s WHERE code=%s", (str(user_id), code))
-            conn.commit()
+        days, max_uses, current_uses, used_by = result
+        used_by_list = used_by.split(',') if used_by else []
+        
+        # 1. เช็กว่าคนนี้เคยใช้โค้ดนี้ไปแล้วหรือยัง
+        if str(user_id) in used_by_list:
             conn.close()
+            return False, "already_used_by_you", None
+            
+        # 2. เช็กว่าโควต้าโค้ดนี้เต็มหรือยัง
+        if current_uses < max_uses:
+            new_used_by = used_by + f"{user_id},"
+            # อัปเดตยอดคนใช้ และรายชื่อคนใช้
+            c.execute("UPDATE promo_codes SET current_uses = current_uses + 1, used_by=%s WHERE code=%s", (new_used_by, code))
+            conn.commit()
+            
             # เติมวัน VIP ทันที
             expiry = add_vip(user_id, days)
+            conn.close()
             return True, days, expiry
         else:
             conn.close()
-            return False, "used", None
+            return False, "fully_used", None
+            
     conn.close()
     return False, "invalid", None
