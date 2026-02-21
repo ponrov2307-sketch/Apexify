@@ -12,7 +12,7 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID
-# 🌟 Import ฟังก์ชันแบน และ Anti-Spam จาก database
+# 🌟 Import ฟังก์ชันทั้งหมดจาก database
 from database import (get_all_users, init_db, register_user, check_subscription, add_subscription, 
                       get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, 
                       remove_watch_db, add_promo_code, redeem_code, get_user_stats, 
@@ -92,7 +92,7 @@ def send_welcome(message):
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
 
 # ==========================================
-# 🌟 ระบบคำสั่งแอดมิน (Ban / Unban / Gencode)
+# 🌟 ระบบคำสั่งแอดมิน 
 # ==========================================
 @bot.message_handler(commands=['ban'])
 def handle_ban(message):
@@ -221,6 +221,78 @@ def handle_stats(message):
     except Exception as e:
         bot.reply_to(message, f"❌ เกิดข้อผิดพลาดในการดึงสถิติ: {e}")
 
+# ==========================================
+# 🌟 ระบบคำนวณความแม่นยำ AI (เอาไว้ทำคอนเทนต์)
+# ==========================================
+@bot.message_handler(commands=['performance'])
+def handle_performance(message):
+    if str(message.chat.id) != ADMIN_ID: return
+    
+    status_msg = bot.reply_to(message, "⏳ กำลังดึงประวัติและคำนวณผลกำไร/ขาดทุน โปรดรอสักครู่...")
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+        # ดึง 15 สัญญาณล่าสุดมาเช็ค
+        c.execute("SELECT symbol, alert_type, price_at_alert, timestamp FROM alert_logs ORDER BY id DESC LIMIT 15")
+        logs = c.fetchall()
+        conn.close()
+
+        if not logs:
+            bot.edit_message_text("❌ ยังไม่มีประวัติการแจ้งเตือนในระบบครับ ระบบจะเริ่มจดจำเมื่อมีสัญญาณออก", message.chat.id, status_msg.message_id)
+            return
+
+        report_text = "🎯 **สรุปผลงานความแม่นยำ AI (ล่าสุด)** 🎯\n\n"
+        win_count = 0
+        total_count = 0
+
+        for row in logs:
+            symbol, alert_type, start_price, timestamp = row
+            try:
+                # ดึงราคาปัจจุบัน
+                clean_symbol = symbol
+                if "." in clean_symbol and not clean_symbol.endswith(".BK"):
+                    clean_symbol = clean_symbol.replace(".", "-")
+                
+                ticker = yf.Ticker(clean_symbol)
+                hist = ticker.history(period="1d")
+                if hist.empty: continue
+                
+                current_price = float(hist['Close'].iloc[-1])
+                diff_pct = ((current_price - start_price) / start_price) * 100
+                
+                # เช็คว่าเข้าทางไหน: ขึ้น(Call/Buy) หรือ ลง(Put/Sell)
+                is_win = False
+                if any(x in alert_type.upper() for x in ["OVERSOLD", "GOLDEN_CROSS", "BREAK_RES"]):
+                    if diff_pct > 0: is_win = True
+                elif any(x in alert_type.upper() for x in ["OVERBOUGHT", "DEATH_CROSS", "BREAK_SUP"]):
+                    if diff_pct < 0: is_win = True
+                    diff_pct = -diff_pct # สลับเป็นค่าบวกโชว์กำไรฝั่ง Short
+                    
+                if is_win: win_count += 1
+                total_count += 1
+                
+                emoji = "✅" if is_win else "❌"
+                short_type = alert_type.replace('_', ' ')
+                
+                report_text += f"{emoji} **{symbol}** ({short_type})\n"
+                report_text += f"   เตือน: {start_price:.2f} ➡️ ปัจจุบัน: {current_price:.2f} ({diff_pct:+.2f}%)\n\n"
+                
+            except Exception:
+                continue
+        
+        if total_count > 0:
+            win_rate = (win_count / total_count) * 100
+            report_text += f"🏆 **อัตราชนะรวม (Win Rate):** {win_rate:.2f}% ({win_count}/{total_count})"
+        else:
+            report_text += "ไม่สามารถคำนวณราคาปัจจุบันได้"
+
+        bot.edit_message_text(report_text, message.chat.id, status_msg.message_id, parse_mode="Markdown")
+        
+    except Exception as e:
+        bot.edit_message_text(f"❌ Error: {e}", message.chat.id, status_msg.message_id)
+
+
 @bot.message_handler(content_types=['photo'])
 def handle_payment_slip_check(message):
     user_id = str(message.chat.id)
@@ -228,7 +300,6 @@ def handle_payment_slip_check(message):
     
     role = check_subscription(user_id)
     
-    # 🌟 เปลี่ยนจากบล็อก PRO เป็นอนุญาตให้ส่งสลิปเพื่อ "ต่ออายุล่วงหน้า" ได้
     if role == 'pro':
         progress_msg = bot.reply_to(message, "🧾 AI กำลังตรวจสอบยอดเงินเพื่อ **ต่ออายุแพ็กเกจ PRO ล่วงหน้า**...")
     elif role == 'vip':
@@ -246,7 +317,6 @@ def handle_payment_slip_check(message):
             amount = float(result.get('amount', 0))
             ref_no = result.get('ref_no', '').strip()
             
-            # 🌟 ป้องกันการส่งสลิปซ้ำ
             if not ref_no or ref_no == "" or ref_no.lower() == "none":
                 bot.edit_message_text("⚠️ AI อ่าน 'เลขที่อ้างอิง' บนสลิปไม่ชัดเจน โปรดถ่ายให้เห็นเลขที่อ้างอิงชัดๆ ครับ", message.chat.id, progress_msg.message_id)
                 return
@@ -256,7 +326,6 @@ def handle_payment_slip_check(message):
                 bot.send_message(ADMIN_ID, f"🚨 **แจ้งเตือนทุจริต!**\nUser `{user_id}` พยายามส่งสลิปซ้ำ! (เลขที่อ้างอิง: `{ref_no}`)", parse_mode="Markdown")
                 return
 
-            # ระบบคำนวณแพ็กเกจ (รองรับการทบวัน)
             if amount == 4990:
                 expiry = add_subscription(user_id, 'pro', 365)
                 msg_text = f"🎉 **ชำระเงิน/ต่ออายุสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"
@@ -282,7 +351,6 @@ def handle_payment_slip_check(message):
                 bot.send_photo(ADMIN_ID, message.photo[-1].file_id)
                 return
 
-            # 🌟 บันทึกเลขสลิปลงฐานข้อมูลหลังใช้สำเร็จ ป้องกันคนอื่นเอาไปใช้ซ้ำ
             mark_slip_used(ref_no, user_id)
             
             bot.delete_message(message.chat.id, progress_msg.message_id)
@@ -482,7 +550,9 @@ def handle_main(message):
             "4️⃣ **ดูสถิติและรายได้:**\n"
             "👉 `/stats`\n\n"
             "5️⃣ **แบน / ปลดแบนคนป่วน:**\n"
-            "👉 `/ban [รหัสผู้ใช้]` หรือ `/unban [รหัสผู้ใช้]`"
+            "👉 `/ban [รหัสผู้ใช้]` หรือ `/unban [รหัสผู้ใช้]`\n\n"
+            "6️⃣ **ตรวจสอบความแม่นยำ AI:**\n"
+            "👉 `/performance`"
         )
         bot.reply_to(message, admin_text, parse_mode="Markdown")
         return
