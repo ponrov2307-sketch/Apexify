@@ -1,4 +1,5 @@
 import time
+from datetime import datetime, timedelta
 import telebot
 import requests 
 from google import genai
@@ -9,6 +10,7 @@ from database import (get_all_active_symbols, get_users_watching, init_db, check
                       get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert)
 import json
 import xml.etree.ElementTree as ET 
+import yfinance as yf
 from curl_cffi import requests as cffi_requests 
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
@@ -16,7 +18,8 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 last_alert_state = {}
 sent_pro_news = set()
-sent_stock_news_history = {} # 🌟 เก็บประวัติข่าวรายตัว ป้องกันการส่งข่าวเดิมซ้ำเด็ดขาด
+sent_stock_news_history = {} 
+sent_xd_alerts = set() # 🌟 ป้องกันการเตือน XD ซ้ำ
 
 def send_alert_to_users(symbol, message, alert_type="tech"):
     users = get_users_watching(symbol)
@@ -30,7 +33,7 @@ def send_alert_to_users(symbol, message, alert_type="tech"):
         except Exception: pass
 
 # ==========================================
-# 🌟 ระบบสแกนข่าวหุ้นรายตัว (แจ้งเตือนเฉพาะข่าวด่วนจริงๆ)
+# 🌟 ระบบสแกนข่าวหุ้นรายตัว (เฉพาะข่าวด่วนจริงๆ)
 # ==========================================
 def check_hot_news(symbol):
     try:
@@ -56,13 +59,11 @@ def check_hot_news(symbol):
 
             if not title: return
             
-            # 🌟 เช็คว่าข่าวนี้เคยส่งไปหรือยัง (ถ้าเคยแล้วข้ามทันที)
             if symbol not in sent_stock_news_history:
                 sent_stock_news_history[symbol] = set()
             if title in sent_stock_news_history[symbol]:
                 return
 
-            # 🌟 บังคับ AI ให้ตอบ HIGH เฉพาะข่าวด่วนจริงๆ และสรุปให้สั้นที่สุด
             prompt = f"""
             วิเคราะห์ผลกระทบต่อหุ้น {symbol} จากพาดหัวข่าวนี้: "{title}"
             ตอบกลับในรูปแบบ JSON เท่านั้น โดยพิจารณาอย่างเข้มงวด:
@@ -78,7 +79,6 @@ def check_hot_news(symbol):
             
             try:
                 analysis = json.loads(result_text)
-                # 🌟 ส่งแจ้งเตือนเฉพาะข่าวที่เป็น High (ข่าวด่วนจริงๆ)
                 if analysis.get('severity') == 'HIGH':
                     sentiment = analysis.get('sentiment', 'NEUTRAL')
                     reason = analysis.get('reason', 'ไม่มีคำอธิบายเพิ่มเติม')
@@ -93,9 +93,8 @@ def check_hot_news(symbol):
                     )
                     
                     send_alert_to_users(symbol, msg, alert_type="news")
-                    sent_stock_news_history[symbol].add(title) # บันทึกไว้ว่าส่งแล้ว
+                    sent_stock_news_history[symbol].add(title) 
                     
-                    # เคลียร์ความจำป้องกันเซิร์ฟเวอร์หน่วง
                     if len(sent_stock_news_history[symbol]) > 50:
                         sent_stock_news_history[symbol].clear()
                         
@@ -193,7 +192,6 @@ def check_and_broadcast_pro_news(bot_instance):
                 title = title_elem.text.strip()
                 link = link_elem.text if link_elem is not None else ""
                 
-                # 🌟 เช็คว่าข่าวนี้เคยสรุปส่งไปในรอบ 4 ชม. ที่แล้วหรือไม่ ถ้าเคยแล้ว "ข้ามเลย"
                 if title not in sent_pro_news:
                     prompt = f"""
                     คุณคือนักวิเคราะห์การเงิน 
@@ -204,11 +202,10 @@ def check_and_broadcast_pro_news(bot_instance):
                         ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                         summary = ai_check.text.strip()
                         combined_msg += f"📰 [{title}]({link})\n🤖 **AI วิเคราะห์:** {summary}\n\n"
-                        sent_pro_news.add(title) # บันทึกเพื่อไม่ให้ส่งซ้ำในรอบหน้า
+                        sent_pro_news.add(title) 
                         new_news_found = True
                     except Exception: pass
             
-            # 🌟 ส่งข้อความก็ต่อเมื่อ "มีข่าวใหม่ที่ยังไม่เคยส่งเท่านั้น"
             if new_news_found:
                 conn = get_connection()
                 cur = conn.cursor()
@@ -229,7 +226,6 @@ def check_and_broadcast_pro_news(bot_instance):
                 conn.close()
                 if count > 0: print(f"✅ ส่ง {source['tag']} ข่าวใหม่ให้ PRO สำเร็จ {count} คน")
                 
-                # กัน memory เต็ม
                 if len(sent_pro_news) > 1000:
                     sent_pro_news.clear()
         except Exception: pass
@@ -285,22 +281,117 @@ def check_custom_price_alerts():
             else:
                 deactivate_price_alert(a_id)
 
+# ==========================================
+# 🌟 ฟีเจอร์ใหม่: Morning AI Briefing (08:30 น.)
+# ==========================================
+def send_morning_briefing(bot_instance):
+    try:
+        # ดึงดัชนีต่างประเทศเมื่อคืนเพื่อวิเคราะห์แนวโน้ม
+        sp500 = yf.Ticker('^GSPC').history(period='1d')
+        btc = yf.Ticker('BTC-USD').history(period='1d')
+        
+        if not sp500.empty and not btc.empty:
+            sp500_close = sp500['Close'].iloc[-1]
+            btc_close = btc['Close'].iloc[-1]
+            
+            prompt = f"ทำตัวเป็นนักวิเคราะห์ สรุปแนวโน้มตลาดเช้านี้สั้นๆ (อิงจาก S&P500 ปิดที่ {sp500_close:.2f} และ Crypto {btc_close:.2f}) ให้กำลังใจนักลงทุน ไม่เกิน 3 บรรทัด"
+            ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+            summary = ai_check.text.strip()
+            
+            msg = (
+                f"🌅 **Apexify Morning Briefing** 🌅\n\n"
+                f"📊 **สรุปตลาดโลกเมื่อคืน:**\n"
+                f"• S&P 500: {sp500_close:,.2f}\n"
+                f"• Bitcoin: {btc_close:,.2f}\n\n"
+                f"🤖 **มุมมอง AI วันนี้:**\n{summary}\n\n"
+                f"🔥 *ขอให้พอร์ตเขียวๆ ตลอดวันครับ!*"
+            )
+            
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
+            pro_users = cur.fetchall()
+            
+            count = 0
+            for pro in pro_users:
+                if check_subscription(pro[0]) == 'pro':
+                    try:
+                        bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
+                        count += 1
+                        time.sleep(0.5)
+                    except Exception: pass
+                    
+            cur.close()
+            conn.close()
+            if count > 0: print(f"✅ ส่ง Morning Briefing สำเร็จ {count} คน")
+    except Exception as e:
+        print("Morning Briefing Error:", e)
+
+# ==========================================
+# 🌟 ฟีเจอร์ใหม่: Dividend & XD Alerts (เตือนก่อน 3 วัน)
+# ==========================================
+def check_xd_alerts():
+    active_symbols = get_all_active_symbols()
+    if not active_symbols: return
+    
+    now = time.time()
+    for symbol in active_symbols:
+        try:
+            clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(".BK") else symbol
+            ticker = yf.Ticker(clean_symbol)
+            ex_div_date = ticker.info.get('exDividendDate')
+            
+            if ex_div_date:
+                days_until_xd = (ex_div_date - now) / 86400 # 86400 วินาที = 1 วัน
+                
+                # ถ้าเหลือเวลา 0-3 วัน ให้เตือน!
+                if 0 < days_until_xd <= 3:
+                    alert_key = f"{symbol}_{ex_div_date}"
+                    if alert_key not in sent_xd_alerts:
+                        # แปลง timestamp เป็นวันที่อ่านง่ายๆ
+                        xd_dt = datetime.utcfromtimestamp(ex_div_date).strftime('%d/%m/%Y')
+                        msg = (
+                            f"📅 **XD ALERT: {symbol}** 📅\n\n"
+                            f"หุ้นตัวนี้กำลังจะขึ้นเครื่องหมาย XD (จ่ายปันผล) ในวันที่ **{xd_dt}**\n"
+                            f"*(เหลือเวลาอีกประมาณ {int(days_until_xd)} วัน)*\n\n"
+                            f"👉 สายปันผลเตรียมตัว สายเก็งกำไรระวังราคาเปิดกระโดดลงนะครับ!"
+                        )
+                        send_alert_to_users(symbol, msg, alert_type="xd")
+                        sent_xd_alerts.add(alert_key)
+        except Exception: pass
+
 if __name__ == "__main__":
     init_db()
     print("🚀 Apexify Alert System (PRO Exclusive) is Running...")
     
-    # 🌟 ทำให้บอทส่งข่าวทันทีที่เปิดเครื่อง 1 ครั้ง ก่อนเริ่มนับถอยหลัง 4 ชั่วโมง
+    # 🌟 ตั้งค่าเริ่มต้น
     last_global_news_time = time.time() - 14400 
+    last_morning_briefing_date = None
+    last_xd_check_date = None
     
     while True:
         current_time = time.time()
+        # เวลาปัจจุบันแบบ UTC+7 (เวลาประเทศไทย)
+        thai_time = datetime.utcnow() + timedelta(hours=7)
+        current_date_str = thai_time.strftime("%Y-%m-%d")
         
-        # 🌟 ล็อกเวลา: ข่าวเด่นมัดรวมจะส่งทุกๆ 4 ชั่วโมงเป๊ะๆ (14400 วินาที)
+        # 🌅 ส่ง Morning Briefing (เมื่อถึงเวลา 08:30 น. ของทุกวัน)
+        if thai_time.hour == 8 and thai_time.minute >= 30:
+            if last_morning_briefing_date != current_date_str:
+                send_morning_briefing(bot)
+                last_morning_briefing_date = current_date_str
+                
+        # 📅 เช็ค XD Alerts (เช็คแค่วันละ 1 ครั้งพอ ไม่ให้ระบบหนัก)
+        if last_xd_check_date != current_date_str:
+            check_xd_alerts()
+            last_xd_check_date = current_date_str
+        
+        # 🌟 เช็คข่าวมัดรวม (ทุก 4 ชม.)
         if current_time - last_global_news_time >= 14400:
             check_and_broadcast_pro_news(bot)
-            last_global_news_time = time.time() # รีเซ็ตเวลาเพื่อรอนับใหม่ 4 ชม.
+            last_global_news_time = time.time() 
             
-        # 🌟 เช็คกราฟเทคนิคและข่าวด่วนรายตัว (ทุก 5 นาที)
+        # 🌟 เช็คกราฟเทคนิค (ทุก 5 นาที)
         check_market_conditions()
         
         # 🌟 เช็คราคาเป้าหมายส่วนตัว (ทุก 5 นาที)
