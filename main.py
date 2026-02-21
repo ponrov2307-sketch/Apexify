@@ -59,6 +59,9 @@ def is_allowed(user_id):
 def generate_random_code(length=6):
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
+# ==========================================
+# 🌟 เปลี่ยนแปลงปุ่ม Start ให้น้อยลงและดูคลีนขึ้น
+# ==========================================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     user_id = str(message.chat.id)
@@ -66,11 +69,10 @@ def send_welcome(message):
     
     register_user(user_id)
     
-    # 🌟 ลดปุ่มให้เหลือน้อยที่สุด ดูสะอาดตา
+    # 🌟 ลดปุ่มคีย์บอร์ดล่างให้เหลือแค่ 3 ปุ่มหลัก!
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    markup.add(KeyboardButton("📊 วิเคราะห์หุ้น"), KeyboardButton("🚀 สแกน (VIP)"))
-    markup.add(KeyboardButton("🌍 สภาวะตลาด"), KeyboardButton("📰 ข่าวด่วน"))
-    markup.add(KeyboardButton("📋 Watchlist"), KeyboardButton("⚙️ บัญชี / VIP"))
+    markup.add(KeyboardButton("📊 วิเคราะห์หุ้น"), KeyboardButton("📱 เปิดเมนูหลัก"))
+    markup.add(KeyboardButton("💎 บัญชี / VIP"))
     
     if user_id == ADMIN_ID:
         markup.add(KeyboardButton("👑 แผงควบคุมแอดมิน"))
@@ -80,7 +82,8 @@ def send_welcome(message):
         "🎁 **คุณได้รับสิทธิ์ทดลองใช้งานฟรี 10 ครั้ง!**\n"
         "พิมพ์ชื่อหุ้นที่ต้องการวิเคราะห์ส่งมาได้เลยครับ:\n"
         "🇺🇸 หุ้นต่างประเทศ: `AAPL`, `TSLA`, `NVDA`\n"
-        "🇹🇭 หุ้นไทย (ต้องมี .BK): `PTT.BK`, `AOT.BK`, `TRUE.BK`"
+        "🇹🇭 หุ้นไทย (ต้องมี .BK): `PTT.BK`, `AOT.BK`, `TRUE.BK`\n\n"
+        "👇 *กดปุ่มด้านล่างเพื่อเลือกใช้งานฟีเจอร์ต่างๆ*"
     )
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
 
@@ -163,19 +166,6 @@ def handle_add_role(message):
             bot.reply_to(message, f"✅ อัปเกรด `{target_user}` เป็น {role.upper()} แล้ว\nหมดอายุ: {expiry}")
         except:
             bot.reply_to(message, "❌ รูปแบบ: /addrole [user_id] [vip/pro] [days]")
-
-def handle_watchlist_cmd(message):
-    user_id = str(message.chat.id)
-    if not is_allowed(user_id): return
-    my_list = get_user_watch(user_id)
-    if not my_list:
-        bot.reply_to(message, "📋 Watchlist ของคุณว่างเปล่า\nพิมพ์ชื่อหุ้นแล้วกด ⭐ เพิ่มเข้า Watchlist ใต้กราฟได้เลยครับ")
-        return
-    markup = InlineKeyboardMarkup()
-    for symbol in my_list:
-        markup.add(InlineKeyboardButton(f"❌ ลบ {symbol}", callback_data=f"delwatch_{symbol}"))
-    msg = "📋 **จัดการ Watchlist ของคุณ:**\n(กดปุ่มด้านล่างเพื่อลบหุ้นที่ไม่ต้องการแจ้งเตือน)"
-    bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
 
 @bot.message_handler(commands=['broadcast'])
 def handle_broadcast(message):
@@ -349,15 +339,17 @@ def handle_payment_slip_check(message):
         bot.send_message(ADMIN_ID, f"🚨 Error ตรวจสลิป User: `{user_id}`\n❌ {e}")
         bot.send_photo(ADMIN_ID, message.photo[-1].file_id)
 
-# 🌟 จัดการปุ่มกดย่อย (ตั้งค่า/บัญชี)
-@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('menu_'))
+# ==========================================
+# 🌟 ระบบปุ่มกด Inline แบบใหม่ทั้งหมด (The Hub)
+# ==========================================
+@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('menu_') or call.data.startswith('hub_'))
 def inline_callbacks(call):
     user_id = str(call.message.chat.id)
     if not is_allowed(user_id): return
     role = check_subscription(user_id)
     bot.answer_callback_query(call.id)
     
-    # เมนูการเงิน/ตั้งค่า
+    # 🌟 เมนูตั้งค่า/บัญชี (บัญชี / VIP)
     if call.data == 'menu_vip':
         pay_text = (
             "💎 **อัปเกรดบัญชี (VIP / PRO)**\n"
@@ -388,7 +380,102 @@ def inline_callbacks(call):
         )
         bot.send_message(user_id, tutorial, parse_mode="Markdown")
         
-    # เมนู Watchlist
+    # 🌟 เมนูรวมฟีเจอร์ต่างๆ (The Hub)
+    elif call.data == 'hub_market':
+        load_msg = bot.send_message(user_id, "🌍 กำลังดึงข้อมูลสภาวะตลาดโลก...")
+        try:
+            fg_index = get_fear_and_greed_index()
+            indices = {"SET (ไทย)": "^SET.BK", "S&P 500 (สหรัฐ)": "^GSPC", "Bitcoin (คริปโต)": "BTC-USD"}
+            market_text = ""
+            for name, sym in indices.items():
+                data = yf.Ticker(sym).history(period="5d")
+                if len(data) >= 2:
+                    close_today = data['Close'].iloc[-1]
+                    close_yest = data['Close'].iloc[-2]
+                    pct_change = ((close_today - close_yest) / close_yest) * 100
+                    emoji = "🟢" if pct_change >= 0 else "🔴"
+                    market_text += f"• {name}: {close_today:,.2f} ({pct_change:+.2f}%) {emoji}\n"
+                else:
+                    market_text += f"• {name}: ⚠️ ดึงข้อมูลไม่ได้\n"
+            msg = f"🌍 **สรุปสภาวะตลาด (Market Overview)**\n\n🧭 **Fear & Greed Index:**\n{fg_index}\n\n📊 **ดัชนีสำคัญวันนี้:**\n{market_text}"
+            bot.edit_message_text(msg, user_id, load_msg.message_id, parse_mode="Markdown")
+        except Exception:
+            bot.edit_message_text(f"❌ ดึงข้อมูลตลาดล้มเหลว", user_id, load_msg.message_id)
+            
+    elif call.data == 'hub_news':
+        load_msg = bot.send_message(user_id, "📰 กำลังรวบรวมข่าวด่วนจากสำนักข่าวชั้นนำทั่วโลก...")
+        try:
+            url_th = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
+            res_th = cffi_requests.get(url_th, impersonate="chrome110", timeout=15)
+            root_th = ET.fromstring(res_th.content)
+            items_th = root_th.findall('.//item')[:3]
+
+            url_en = "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+investing&hl=en-US&gl=US&ceid=US:en"
+            res_en = cffi_requests.get(url_en, impersonate="chrome110", timeout=15)
+            root_en = ET.fromstring(res_en.content)
+            items_en = root_en.findall('.//item')[:3]
+            
+            news_text = "🌐 **สรุปข่าวด่วนตลาดลงทุน (อัปเดตล่าสุด)** 🌐\n\n"
+            news_text += "🇹🇭 **3 ข่าวเด่นฝั่งไทย:**\n"
+            emojis_th = ["🔥", "📌", "📢"]
+            for i, item in enumerate(items_th):
+                title_elem = item.find('title')
+                link_elem = item.find('link')
+                title = title_elem.text if title_elem is not None else "ไม่มีหัวข้อ"
+                link = link_elem.text if link_elem is not None else ""
+                news_text += f"{emojis_th[i]} [{title}]({link})\n\n"
+
+            news_text += "🌍 **3 ข่าวเด่นฝั่งต่างประเทศ:**\n"
+            emojis_en = ["💵", "🚀", "📈"]
+            for i, item in enumerate(items_en):
+                title_elem = item.find('title')
+                link_elem = item.find('link')
+                title = title_elem.text if title_elem is not None else "ไม่มีหัวข้อ"
+                link = link_elem.text if link_elem is not None else ""
+                news_text += f"{emojis_en[i]} [{title}]({link})\n\n"
+                
+            bot.edit_message_text(news_text, user_id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
+        except Exception:
+            bot.edit_message_text(f"❌ ดึงข้อมูลข่าวล้มเหลว กรุณาลองใหม่", user_id, load_msg.message_id)
+            
+    elif call.data == 'hub_watchlist':
+        my_list = get_user_watch(user_id)
+        if not my_list:
+            bot.send_message(user_id, "📋 Watchlist ของคุณว่างเปล่า\nพิมพ์ชื่อหุ้นแล้วกด ⭐ เพิ่มเข้า Watchlist ใต้กราฟได้เลยครับ")
+            return
+        markup = InlineKeyboardMarkup()
+        for symbol in my_list:
+            markup.add(InlineKeyboardButton(f"❌ ลบ {symbol}", callback_data=f"delwatch_{symbol}"))
+        bot.send_message(user_id, "📋 **จัดการ Watchlist ของคุณ:**", parse_mode="Markdown", reply_markup=markup)
+        
+    elif call.data == 'hub_scan':
+        if user_id != ADMIN_ID and role == 'free':
+            bot.send_message(user_id, "🔒 ฟีเจอร์สแกนหุ้นสงวนสิทธิ์เฉพาะ **VIP / PRO Member** ครับ\nระบบจะสแกนกราฟเทคนิคหุ้นทั้งหมดใน Watchlist อัตโนมัติ ช่วยประหยัดเวลาสุดๆ!")
+            return
+        my_list = get_user_watch(user_id)
+        if not my_list:
+            bot.send_message(user_id, "📋 Watchlist ของคุณว่างเปล่า โปรดเพิ่มหุ้นก่อนครับ")
+            return
+        scan_msg = bot.send_message(user_id, f"🚀 กำลังสแกนหุ้น {len(my_list)} ตัว...")
+        scan_result = "🚀 **รายงานสแกน Watchlist**\n\n"
+        for sym in my_list:
+            try:
+                tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
+                if err or not tech_data:
+                    scan_result += f"• **{sym}**: ⚠️ ข้อมูลไม่สมบูรณ์\n"
+                    continue
+                ema_short = "🟢 ขาขึ้น" if tech_data['ema20'] > tech_data['ema50'] else "🔴 ขาลง"
+                cross = "✨ Golden Cross!" if tech_data['ema50'] > tech_data['ema200'] else "ธรรมดา"
+                rsi = tech_data['rsi']
+                rsi_txt = "🔥 ตึงไป (Overbought)" if rsi > 70 else "🎯 น่าสะสม (Oversold)" if rsi < 30 else "⚪️ กลางๆ"
+                scan_result += f"📌 **{sym}** ({tech_data['price']:.2f})\n   เทรนด์: {ema_short} | RSI: {rsi_txt}\n"
+                if "Golden" in cross or rsi < 30:
+                    scan_result += f"   👉 **สัญญาณ:** {cross}\n"
+                scan_result += "\n"
+            except Exception: pass
+        bot.edit_message_text(scan_result, user_id, scan_msg.message_id, parse_mode="Markdown")
+
+    # 🌟 เมนูเพิ่ม/ลด Watchlist เดิม
     elif call.data.startswith('addwatch_'):
         symbol = call.data.split('_')[1]
         current_watch = len(get_user_watch(user_id))
@@ -408,6 +495,9 @@ def inline_callbacks(call):
         remove_watch_db(user_id, symbol)
         bot.edit_message_text(f"🗑️ ลบ **{symbol}** ออกจาก Watchlist เรียบร้อยแล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id)
 
+# ==========================================
+# 🌟 ตัวรับข้อความหลัก (Main Handler)
+# ==========================================
 @bot.message_handler(func=lambda message: True)
 def handle_main(message):
     user_id = str(message.chat.id)
@@ -419,10 +509,24 @@ def handle_main(message):
     if text == "📊 วิเคราะห์หุ้น":
         bot.reply_to(message, "ส่งชื่อหุ้นมาได้เลยครับ (หุ้นไทยอย่าลืมใส่ .BK ต่อท้ายนะ)")
         return
-    elif text == "📋 Watchlist":
-        handle_watchlist_cmd(message)
+        
+    # 🌟 กดปุ่มเมนูหลัก (Hub) แล้วเด้ง Inline Menu สวยๆ
+    elif text == "📱 เปิดเมนูหลัก":
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("🌍 สภาวะตลาดโลก", callback_data="hub_market"),
+            InlineKeyboardButton("📰 ข่าวด่วนลงทุน", callback_data="hub_news")
+        )
+        markup.add(
+            InlineKeyboardButton("📋 จัดการ Watchlist", callback_data="hub_watchlist"),
+            InlineKeyboardButton("🚀 สแกนหุ้น (VIP)", callback_data="hub_scan")
+        )
+        msg = "📱 **Apexify Hub (เมนูหลัก)**\nเลือกฟีเจอร์ที่คุณต้องการใช้งานได้เลยครับ:"
+        bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
         return
-    elif text == "⚙️ บัญชี / VIP":
+        
+    # 🌟 ปุ่มบัญชี/VIP ก็เป็น Hub สำหรับการเงิน
+    elif text == "💎 บัญชี / VIP":
         profile = get_user_profile(user_id)
         if profile:
             _, expiry, usage, reg_date = profile
@@ -456,95 +560,7 @@ def handle_main(message):
         else:
             bot.reply_to(message, "❌ ไม่พบข้อมูลบัญชี พิมพ์ /start เพื่อลงทะเบียนใหม่")
         return
-    elif text == "🌍 สภาวะตลาด":
-        load_msg = bot.reply_to(message, "🌍 กำลังดึงข้อมูลสภาวะตลาดโลก...")
-        try:
-            fg_index = get_fear_and_greed_index()
-            indices = {"SET (ไทย)": "^SET.BK", "S&P 500 (สหรัฐ)": "^GSPC", "Bitcoin (คริปโต)": "BTC-USD"}
-            market_text = ""
-            for name, sym in indices.items():
-                data = yf.Ticker(sym).history(period="5d")
-                if len(data) >= 2:
-                    close_today = data['Close'].iloc[-1]
-                    close_yest = data['Close'].iloc[-2]
-                    pct_change = ((close_today - close_yest) / close_yest) * 100
-                    emoji = "🟢" if pct_change >= 0 else "🔴"
-                    market_text += f"• {name}: {close_today:,.2f} ({pct_change:+.2f}%) {emoji}\n"
-                else:
-                    market_text += f"• {name}: ⚠️ ดึงข้อมูลไม่ได้\n"
-            msg = f"🌍 **สรุปสภาวะตลาด (Market Overview)**\n\n🧭 **Fear & Greed Index:**\n{fg_index}\n\n📊 **ดัชนีสำคัญวันนี้:**\n{market_text}"
-            bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
-        except Exception as e:
-            bot.edit_message_text(f"❌ ดึงข้อมูลตลาดล้มเหลว", message.chat.id, load_msg.message_id)
-        return
-    elif text == "📰 ข่าวด่วน":
-        load_msg = bot.reply_to(message, "📰 กำลังรวบรวมข่าวด่วนจากสำนักข่าวชั้นนำทั่วโลก...")
-        try:
-            url_th = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
-            res_th = cffi_requests.get(url_th, impersonate="chrome110", timeout=15)
-            root_th = ET.fromstring(res_th.content)
-            items_th = root_th.findall('.//item')[:3]
-
-            url_en = "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+investing&hl=en-US&gl=US&ceid=US:en"
-            res_en = cffi_requests.get(url_en, impersonate="chrome110", timeout=15)
-            root_en = ET.fromstring(res_en.content)
-            items_en = root_en.findall('.//item')[:3]
-            
-            news_text = "🌐 **สรุปข่าวด่วนตลาดลงทุน (อัปเดตล่าสุด)** 🌐\n\n"
-            
-            news_text += "🇹🇭 **3 ข่าวเด่นฝั่งไทย:**\n"
-            emojis_th = ["🔥", "📌", "📢"]
-            for i, item in enumerate(items_th):
-                title_elem = item.find('title')
-                link_elem = item.find('link')
-                title = title_elem.text if title_elem is not None else "ไม่มีหัวข้อ"
-                link = link_elem.text if link_elem is not None else ""
-                news_text += f"{emojis_th[i]} [{title}]({link})\n\n"
-
-            news_text += "🌍 **3 ข่าวเด่นฝั่งต่างประเทศ:**\n"
-            emojis_en = ["💵", "🚀", "📈"]
-            for i, item in enumerate(items_en):
-                title_elem = item.find('title')
-                link_elem = item.find('link')
-                title = title_elem.text if title_elem is not None else "ไม่มีหัวข้อ"
-                link = link_elem.text if link_elem is not None else ""
-                news_text += f"{emojis_en[i]} [{title}]({link})\n\n"
-                
-            bot.edit_message_text(news_text, message.chat.id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
-            
-        except Exception as e:
-            bot.edit_message_text(f"❌ ดึงข้อมูลข่าวล้มเหลว อาจเกิดจากเครือข่ายขัดข้อง กรุณาลองใหม่", message.chat.id, load_msg.message_id)
-        return
-
-    elif text == "🚀 สแกน (VIP)":
-        if user_id != ADMIN_ID and role == 'free':
-            bot.reply_to(message, "🔒 ฟีเจอร์สแกนหุ้นสงวนสิทธิ์เฉพาะ **VIP / PRO Member** ครับ\nระบบจะสแกนกราฟเทคนิคหุ้นทั้งหมดใน Watchlist อัตโนมัติ ช่วยประหยัดเวลาสุดๆ!")
-            return
-        my_list = get_user_watch(user_id)
-        if not my_list:
-            bot.reply_to(message, "📋 Watchlist ของคุณว่างเปล่า โปรดเพิ่มหุ้นก่อนครับ")
-            return
-        scan_msg = bot.reply_to(message, f"🚀 กำลังสแกนหุ้น {len(my_list)} ตัว...")
-        scan_result = "🚀 **รายงานสแกน Watchlist**\n\n"
-        for sym in my_list:
-            try:
-                tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
-                if err or not tech_data:
-                    scan_result += f"• **{sym}**: ⚠️ ข้อมูลไม่สมบูรณ์\n"
-                    continue
-                ema_short = "🟢 ขาขึ้น" if tech_data['ema20'] > tech_data['ema50'] else "🔴 ขาลง"
-                cross = "✨ Golden Cross!" if tech_data['ema50'] > tech_data['ema200'] else "ธรรมดา"
-                rsi = tech_data['rsi']
-                rsi_txt = "🔥 ตึงไป (Overbought)" if rsi > 70 else "🎯 น่าสะสม (Oversold)" if rsi < 30 else "⚪️ กลางๆ"
-                scan_result += f"📌 **{sym}** ({tech_data['price']:.2f})\n"
-                scan_result += f"   เทรนด์: {ema_short} | RSI: {rsi_txt}\n"
-                if "Golden" in cross or rsi < 30:
-                    scan_result += f"   👉 **สัญญาณ:** {cross}\n"
-                scan_result += "\n"
-            except Exception:
-                pass
-        bot.edit_message_text(scan_result, message.chat.id, scan_msg.message_id, parse_mode="Markdown")
-        return
+        
     elif text == "👑 แผงควบคุมแอดมิน":
         if user_id != ADMIN_ID: return
         admin_text = (
@@ -572,7 +588,7 @@ def handle_main(message):
 
     usage = get_usage(user_id)
     if user_id != ADMIN_ID and role == 'free' and usage >= 10:
-        bot.reply_to(message, "🔒 โควต้าฟรีหมดแล้ว กดเข้าเมนู [⚙️ บัญชี / VIP] เพื่อสมัครใช้งานต่อครับ!")
+        bot.reply_to(message, "🔒 โควต้าฟรีหมดแล้ว กดเข้าเมนู [💎 บัญชี / VIP] เพื่อสมัครใช้งานต่อครับ!")
         return
 
     load_msg = bot.reply_to(message, f"🔍 กำลังวิเคราะห์ {symbol}...")
