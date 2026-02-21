@@ -7,11 +7,16 @@ import yfinance as yf
 import requests
 import random
 import string
+import time
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID
-from database import get_all_users, init_db, register_user, check_subscription, add_subscription, get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, remove_watch_db, add_promo_code, redeem_code, get_user_stats, check_slip_used, mark_slip_used
+# 🌟 Import ฟังก์ชันแบน และ Anti-Spam จาก database
+from database import (get_all_users, init_db, register_user, check_subscription, add_subscription, 
+                      get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, 
+                      remove_watch_db, add_promo_code, redeem_code, get_user_stats, 
+                      check_slip_used, mark_slip_used, ban_user, unban_user, is_user_banned)
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
 
@@ -21,12 +26,50 @@ from bs4 import BeautifulSoup
 telebot.logger.setLevel(logging.DEBUG)
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
+# ==========================================
+# 🌟 ระบบ Anti-Spam ดักจับคนป่วนรัวข้อความ
+# ==========================================
+user_message_tracking = {}
+spam_alerted = set()
+
+def is_allowed(user_id):
+    """ฟังก์ชันเช็กว่ายูสเซอร์นี้ถูกแบน หรือส่งข้อความรัวเกินไปหรือไม่"""
+    if user_id == ADMIN_ID:
+        return True # แอดมินรันคำสั่งได้รัวๆ ไม่โดนบล็อก
+        
+    if is_user_banned(user_id):
+        return False # ถ้าโดนแบน บอทจะเมินข้อความทันที
+        
+    now = time.time()
+    if user_id not in user_message_tracking:
+        user_message_tracking[user_id] = []
+        
+    # เก็บเฉพาะข้อความที่ส่งมาใน 10 วินาทีล่าสุด
+    user_message_tracking[user_id] = [t for t in user_message_tracking[user_id] if now - t < 10]
+    user_message_tracking[user_id].append(now)
+    
+    # ถ้าส่งเกิน 5 ข้อความใน 10 วินาที -> มองว่าเป็น Spam
+    if len(user_message_tracking[user_id]) > 5:
+        if user_id not in spam_alerted:
+            # ฟ้องแอดมิน
+            bot.send_message(ADMIN_ID, f"🚨 **แจ้งเตือนสแปม:** User `{user_id}` พยายามส่งข้อความรัวๆ ระบบได้ระงับการตอบกลับชั่วคราว\n👉 พิมพ์ `/ban {user_id}` เพื่อแบนถาวร", parse_mode="Markdown")
+            spam_alerted.add(user_id)
+        return False
+        
+    # ถ้าหยุดป่วนแล้ว ค่อยเคลียร์ชื่อออกจากการเฝ้าระวัง
+    if len(user_message_tracking[user_id]) <= 5 and user_id in spam_alerted:
+        spam_alerted.remove(user_id)
+        
+    return True
+
 def generate_random_code(length=6):
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
+    
     register_user(user_id)
     
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
@@ -47,6 +90,29 @@ def send_welcome(message):
         "🇹🇭 หุ้นไทย (ต้องมี .BK): `PTT.BK`, `AOT.BK`, `TRUE.BK`"
     )
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
+
+# ==========================================
+# 🌟 ระบบคำสั่งแอดมิน (Ban / Unban / Gencode)
+# ==========================================
+@bot.message_handler(commands=['ban'])
+def handle_ban(message):
+    if str(message.chat.id) != ADMIN_ID: return
+    try:
+        target_user = message.text.split()[1]
+        ban_user(target_user)
+        bot.reply_to(message, f"🚫 **แบนสำเร็จ:** เตะ User `{target_user}` ออกจากระบบถาวรแล้ว!", parse_mode="Markdown")
+    except:
+        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: `/ban [รหัสผู้ใช้]`", parse_mode="Markdown")
+
+@bot.message_handler(commands=['unban'])
+def handle_unban(message):
+    if str(message.chat.id) != ADMIN_ID: return
+    try:
+        target_user = message.text.split()[1]
+        unban_user(target_user)
+        bot.reply_to(message, f"✅ **ปลดแบนสำเร็จ:** ให้โอกาส User `{target_user}` กลับมาใช้งานได้แล้ว", parse_mode="Markdown")
+    except:
+        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: `/unban [รหัสผู้ใช้]`", parse_mode="Markdown")
 
 @bot.message_handler(commands=['gencode'])
 def handle_gencode(message):
@@ -73,6 +139,7 @@ def handle_gencode(message):
 @bot.message_handler(commands=['redeem'])
 def handle_redeem(message):
     user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
     args = message.text.split()
     if len(args) < 2:
         bot.reply_to(message, "❌ รูปแบบคำสั่งไม่ถูกต้อง พิมพ์: `/redeem [โค้ดของคุณ]`", parse_mode="Markdown")
@@ -107,6 +174,7 @@ def handle_add_role(message):
 @bot.message_handler(commands=['watchlist'])
 def handle_watchlist_cmd(message):
     user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
     my_list = get_user_watch(user_id)
     if not my_list:
         bot.reply_to(message, "📋 Watchlist ของคุณว่างเปล่า\nพิมพ์ชื่อหุ้นแล้วกด ⭐ เพิ่มเข้า Watchlist ใต้กราฟได้เลยครับ")
@@ -156,13 +224,18 @@ def handle_stats(message):
 @bot.message_handler(content_types=['photo'])
 def handle_payment_slip_check(message):
     user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
+    
     role = check_subscription(user_id)
     
+    # 🌟 เปลี่ยนจากบล็อก PRO เป็นอนุญาตให้ส่งสลิปเพื่อ "ต่ออายุล่วงหน้า" ได้
     if role == 'pro':
-        bot.reply_to(message, "👑 คุณเป็นลูกค้าระดับ PRO (Platinum) สูงสุดอยู่แล้วครับ!")
-        return
+        progress_msg = bot.reply_to(message, "🧾 AI กำลังตรวจสอบยอดเงินเพื่อ **ต่ออายุแพ็กเกจ PRO ล่วงหน้า**...")
+    elif role == 'vip':
+        progress_msg = bot.reply_to(message, "🧾 AI กำลังตรวจสอบยอดเงินเพื่อ **ต่ออายุ/อัปเกรดแพ็กเกจ**...")
+    else:
+        progress_msg = bot.reply_to(message, "🧾 AI กำลังตรวจสอบยอดเงินและป้องกันสลิปซ้ำ...")
         
-    progress_msg = bot.reply_to(message, "🧾 AI กำลังตรวจสอบยอดเงินและป้องกันสลิปซ้ำ...")
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
@@ -183,19 +256,19 @@ def handle_payment_slip_check(message):
                 bot.send_message(ADMIN_ID, f"🚨 **แจ้งเตือนทุจริต!**\nUser `{user_id}` พยายามส่งสลิปซ้ำ! (เลขที่อ้างอิง: `{ref_no}`)", parse_mode="Markdown")
                 return
 
-            # ระบบคำนวณแพ็กเกจ
+            # ระบบคำนวณแพ็กเกจ (รองรับการทบวัน)
             if amount == 4990:
                 expiry = add_subscription(user_id, 'pro', 365)
-                msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรดเป็น **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"
+                msg_text = f"🎉 **ชำระเงิน/ต่ออายุสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"
             elif amount == 1990:
                 expiry = add_subscription(user_id, 'vip', 365)
-                msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรดเป็น **💎 VIP (รายปี)**\n⏰ หมดอายุ: {expiry}"
+                msg_text = f"🎉 **ชำระเงิน/ต่ออายุสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายปี)**\n⏰ หมดอายุ: {expiry}"
             elif amount == 499:
                 expiry = add_subscription(user_id, 'pro', 30)
-                msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรดเป็น **👑 PRO (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
+                msg_text = f"🎉 **ชำระเงิน/ต่ออายุสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
             elif amount == 199:
                 expiry = add_subscription(user_id, 'vip', 30)
-                msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรดเป็น **💎 VIP (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
+                msg_text = f"🎉 **ชำระเงิน/ต่ออายุสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
             else:
                 bot.edit_message_text(
                     f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** (ระบบตรวจพบยอด {amount:,.2f} บาท)\n\n"
@@ -209,12 +282,12 @@ def handle_payment_slip_check(message):
                 bot.send_photo(ADMIN_ID, message.photo[-1].file_id)
                 return
 
-            # 🌟 บันทึกเลขสลิปลงฐานข้อมูลหลังใช้สำเร็จ
+            # 🌟 บันทึกเลขสลิปลงฐานข้อมูลหลังใช้สำเร็จ ป้องกันคนอื่นเอาไปใช้ซ้ำ
             mark_slip_used(ref_no, user_id)
             
             bot.delete_message(message.chat.id, progress_msg.message_id)
             bot.reply_to(message, msg_text, parse_mode="Markdown")
-            bot.send_message(ADMIN_ID, f"💰 เงินเข้า! User `{user_id}` โอน {amount} บาท (Ref: `{ref_no}`)")
+            bot.send_message(ADMIN_ID, f"💰 เงินเข้า/ต่ออายุ! User `{user_id}` โอน {amount} บาท (Ref: `{ref_no}`)")
         else:
             bot.edit_message_text("❌ รูปนี้ไม่ใช่สลิปโอนเงินที่ถูกต้องครับ", message.chat.id, progress_msg.message_id)
             
@@ -226,6 +299,7 @@ def handle_payment_slip_check(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_'))
 def inline_watchlist(call):
     user_id = str(call.message.chat.id)
+    if not is_allowed(user_id): return
     action, symbol = call.data.split('_')
     role = check_subscription(user_id)
     bot.answer_callback_query(call.id)
@@ -251,6 +325,8 @@ def inline_watchlist(call):
 @bot.message_handler(func=lambda message: True)
 def handle_main(message):
     user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
+    
     text = message.text.strip()
     role = check_subscription(user_id)
 
@@ -404,7 +480,9 @@ def handle_main(message):
             "3️⃣ **บรอดแคสต์:**\n"
             "👉 `/broadcast [ข้อความ]`\n\n"
             "4️⃣ **ดูสถิติและรายได้:**\n"
-            "👉 `/stats`"
+            "👉 `/stats`\n\n"
+            "5️⃣ **แบน / ปลดแบนคนป่วน:**\n"
+            "👉 `/ban [รหัสผู้ใช้]` หรือ `/unban [รหัสผู้ใช้]`"
         )
         bot.reply_to(message, admin_text, parse_mode="Markdown")
         return
