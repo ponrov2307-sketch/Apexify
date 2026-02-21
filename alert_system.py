@@ -5,7 +5,6 @@ from google import genai
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
 from technical_tools import calculate_technical_indicators
 
-# 🌟 Import ฟังก์ชันดึง/ปิด การตั้งเตือนราคาจากฐานข้อมูลเพิ่มเข้ามา
 from database import (get_all_active_symbols, get_users_watching, init_db, check_subscription, 
                       get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert)
 import json
@@ -16,8 +15,8 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 last_alert_state = {}
-last_news_title = {}
 sent_pro_news = set()
+sent_stock_news_history = {} # 🌟 เก็บประวัติข่าวรายตัว ป้องกันการส่งข่าวเดิมซ้ำเด็ดขาด
 
 def send_alert_to_users(symbol, message, alert_type="tech"):
     users = get_users_watching(symbol)
@@ -30,6 +29,9 @@ def send_alert_to_users(symbol, message, alert_type="tech"):
             time.sleep(0.5) 
         except Exception: pass
 
+# ==========================================
+# 🌟 ระบบสแกนข่าวหุ้นรายตัว (แจ้งเตือนเฉพาะข่าวด่วนจริงๆ)
+# ==========================================
 def check_hot_news(symbol):
     try:
         is_thai_stock = symbol.endswith('.BK')
@@ -49,19 +51,25 @@ def check_hot_news(symbol):
             link_elem = items[0].find('link')
             if title_elem is None: return
             
-            title = title_elem.text
+            title = title_elem.text.strip()
             link = link_elem.text if link_elem is not None else f"https://news.google.com/search?q={search_term}"
 
             if not title: return
-            if symbol in last_news_title and last_news_title[symbol] == title: return
+            
+            # 🌟 เช็คว่าข่าวนี้เคยส่งไปหรือยัง (ถ้าเคยแล้วข้ามทันที)
+            if symbol not in sent_stock_news_history:
+                sent_stock_news_history[symbol] = set()
+            if title in sent_stock_news_history[symbol]:
+                return
 
+            # 🌟 บังคับ AI ให้ตอบ HIGH เฉพาะข่าวด่วนจริงๆ และสรุปให้สั้นที่สุด
             prompt = f"""
             วิเคราะห์ผลกระทบต่อหุ้น {symbol} จากพาดหัวข่าวนี้: "{title}"
-            ตอบกลับในรูปแบบ JSON เท่านั้น:
+            ตอบกลับในรูปแบบ JSON เท่านั้น โดยพิจารณาอย่างเข้มงวด:
             {{
                 "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
-                "severity": "HIGH" หรือ "MEDIUM" หรือ "LOW",
-                "reason": "สรุปผลกระทบต่อนักลงทุนแบบสั้นและกระชับที่สุด (ไม่เกิน 2 บรรทัด) เป็นภาษาไทย"
+                "severity": "HIGH" (เฉพาะข่าวด่วนที่มีผลกระทบรุนแรงต่อราคาหุ้นจริงๆ เท่านั้น นอกนั้นให้ตอบ LOW),
+                "reason": "วิเคราะห์ผลกระทบสั้นๆ จับใจความ 1 ประโยค (ภาษาไทย)"
             }}
             """
             
@@ -70,6 +78,7 @@ def check_hot_news(symbol):
             
             try:
                 analysis = json.loads(result_text)
+                # 🌟 ส่งแจ้งเตือนเฉพาะข่าวที่เป็น High (ข่าวด่วนจริงๆ)
                 if analysis.get('severity') == 'HIGH':
                     sentiment = analysis.get('sentiment', 'NEUTRAL')
                     reason = analysis.get('reason', 'ไม่มีคำอธิบายเพิ่มเติม')
@@ -77,15 +86,19 @@ def check_hot_news(symbol):
                     emoji_status = "🚀 BULLISH (เชิงบวก)" if sentiment == "BULLISH" else "🩸 BEARISH (เชิงลบ)" if sentiment == "BEARISH" else "⚪️ NEUTRAL (ปกติ)"
                     
                     msg = (
-                        f"🗞 **ข่าว:** {title}\n"
+                        f"🗞 **ข่าวด่วน:** {title}\n"
                         f"🤖 **มุมมอง AI:** {emoji_status}\n"
                         f"💡 **วิเคราะห์:** {reason}\n\n"
                         f"🔗 [อ่านข่าวเต็มคลิกที่นี่]({link})"
                     )
                     
                     send_alert_to_users(symbol, msg, alert_type="news")
-                    last_news_title[symbol] = title
+                    sent_stock_news_history[symbol].add(title) # บันทึกไว้ว่าส่งแล้ว
                     
+                    # เคลียร์ความจำป้องกันเซิร์ฟเวอร์หน่วง
+                    if len(sent_stock_news_history[symbol]) > 50:
+                        sent_stock_news_history[symbol].clear()
+                        
             except json.JSONDecodeError: pass
     except Exception: pass
 
@@ -155,6 +168,9 @@ def check_market_conditions():
             time.sleep(2)
         except Exception: pass
 
+# ==========================================
+# 🌟 ระบบส่งข่าวด่วนมัดรวม 4 ชม. (ข่าวเด่น)
+# ==========================================
 def check_and_broadcast_pro_news(bot_instance):
     news_sources = [
         {"tag": "🇹🇭 **สรุปข่าวเด่นฝั่งไทย (PRO Exclusive)**", "url": "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+ตลาดหลักทรัพย์+OR+การลงทุน+OR+หุ้น&hl=th&gl=TH&ceid=TH:th"},
@@ -174,23 +190,25 @@ def check_and_broadcast_pro_news(bot_instance):
                 title_elem = item.find('title')
                 link_elem = item.find('link')
                 if title_elem is None: continue
-                title = title_elem.text
+                title = title_elem.text.strip()
                 link = link_elem.text if link_elem is not None else ""
                 
+                # 🌟 เช็คว่าข่าวนี้เคยสรุปส่งไปในรอบ 4 ชม. ที่แล้วหรือไม่ ถ้าเคยแล้ว "ข้ามเลย"
                 if title not in sent_pro_news:
                     prompt = f"""
                     คุณคือนักวิเคราะห์การเงิน 
-                    สรุปข่าวนี้ให้กระชับที่สุด: "{title}"
-                    เน้นใจความและผลกระทบ (ไม่เกิน 2 บรรทัด) เป็นภาษาไทยเท่านั้น ห้ามยาวเด็ดขาด ห้ามใส่ลิงก์
+                    สรุปข่าวนี้ให้สั้นและจับใจความได้: "{title}"
+                    เพิ่มมุมมอง AI และวิเคราะห์สั้นๆ (ไม่เกิน 2 บรรทัด) เป็นภาษาไทย ห้ามยาวเด็ดขาด ห้ามใส่ลิงก์
                     """
                     try:
                         ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                         summary = ai_check.text.strip()
-                        combined_msg += f"📰 [{title}]({link})\n💡 **สรุป:** {summary}\n\n"
-                        sent_pro_news.add(title)
+                        combined_msg += f"📰 [{title}]({link})\n🤖 **AI วิเคราะห์:** {summary}\n\n"
+                        sent_pro_news.add(title) # บันทึกเพื่อไม่ให้ส่งซ้ำในรอบหน้า
                         new_news_found = True
                     except Exception: pass
             
+            # 🌟 ส่งข้อความก็ต่อเมื่อ "มีข่าวใหม่ที่ยังไม่เคยส่งเท่านั้น"
             if new_news_found:
                 conn = get_connection()
                 cur = conn.cursor()
@@ -209,23 +227,25 @@ def check_and_broadcast_pro_news(bot_instance):
                             
                 cur.close()
                 conn.close()
-                if count > 0: print(f"✅ ส่ง {source['tag']} ให้ PRO สำเร็จ {count} คน")
+                if count > 0: print(f"✅ ส่ง {source['tag']} ข่าวใหม่ให้ PRO สำเร็จ {count} คน")
+                
+                # กัน memory เต็ม
+                if len(sent_pro_news) > 1000:
+                    sent_pro_news.clear()
         except Exception: pass
 
 # ==========================================
-# 🌟 ระบบเช็คตั้งเตือนราคาส่วนตัว (Custom Price Alerts)
+# 🌟 ระบบเช็คตั้งเตือนราคาส่วนตัว
 # ==========================================
 def check_custom_price_alerts():
     alerts = get_all_active_price_alerts()
     if not alerts: return
     
-    # ดึงรายชื่อหุ้นที่ต้องเช็คราคา (รวมไว้ไม่ให้เช็คซ้ำ)
     symbols_to_check = set([alert[2] for alert in alerts])
     current_prices = {}
     
     for sym in symbols_to_check:
         try:
-            # ดึงราคาปัจจุบันโดยไม่เจเนอเรตกราฟ
             tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
             if not err and tech_data:
                 current_prices[sym] = tech_data['price']
@@ -247,7 +267,6 @@ def check_custom_price_alerts():
             cond_text = "ร่วงลงมาแตะที่"
             
         if triggered:
-            # ตรวจสอบอีกรอบว่าเป็น PRO หรือไม่
             role = check_subscription(user_id)
             if role == 'pro' or str(user_id) == ADMIN_ID:
                 msg = (
@@ -259,32 +278,32 @@ def check_custom_price_alerts():
                 )
                 try:
                     bot.send_message(user_id, msg, parse_mode="Markdown")
-                    deactivate_price_alert(a_id) # ปิดการแจ้งเตือนหลังส่งเสร็จ
+                    deactivate_price_alert(a_id) 
                     time.sleep(0.5)
                 except Exception:
                     pass
             else:
-                # ถ้าหมดอายุ PRO แล้ว ให้ปิดการแจ้งเตือนทิ้งไปเลย
                 deactivate_price_alert(a_id)
 
 if __name__ == "__main__":
     init_db()
     print("🚀 Apexify Alert System (PRO Exclusive) is Running...")
     
-    last_global_news_time = 0
+    # 🌟 ทำให้บอทส่งข่าวทันทีที่เปิดเครื่อง 1 ครั้ง ก่อนเริ่มนับถอยหลัง 4 ชั่วโมง
+    last_global_news_time = time.time() - 14400 
     
     while True:
         current_time = time.time()
         
-        # 🌟 เช็คข่าวมัดรวม ทุกๆ 4 ชั่วโมง (14400 วินาที)
-        if current_time - last_global_news_time > 14400:
+        # 🌟 ล็อกเวลา: ข่าวเด่นมัดรวมจะส่งทุกๆ 4 ชั่วโมงเป๊ะๆ (14400 วินาที)
+        if current_time - last_global_news_time >= 14400:
             check_and_broadcast_pro_news(bot)
-            last_global_news_time = current_time
+            last_global_news_time = time.time() # รีเซ็ตเวลาเพื่อรอนับใหม่ 4 ชม.
             
-        # 🌟 เช็คกราฟเทคนิค (ทุก 5 นาที)
+        # 🌟 เช็คกราฟเทคนิคและข่าวด่วนรายตัว (ทุก 5 นาที)
         check_market_conditions()
         
-        # 🌟 เช็คราคาเป้าหมายส่วนตัว (ทุก 5 นาทีพร้อมกราฟ)
+        # 🌟 เช็คราคาเป้าหมายส่วนตัว (ทุก 5 นาที)
         check_custom_price_alerts()
         
         time.sleep(300)
