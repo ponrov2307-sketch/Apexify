@@ -73,17 +73,22 @@ def calculate_technical_indicators(symbol, generate_chart=True):
         try:
             clean_symbol = symbol.strip().upper()
             
-            # 1. จัดการหุ้นคลาส B (อเมริกา) (เช่น BRK.B แปลงเป็น BRK-B)
+                        # 1. จัดการหุ้นคลาส B (อเมริกา) (เช่น BRK.B แปลงเป็น BRK-B)
             if "." in clean_symbol and not clean_symbol.endswith(".BK"):
                 clean_symbol = clean_symbol.replace(".", "-")
             
-            # 2. ดึงข้อมูลจริง 1 ปี (ผู้ใช้ต้องใส่ .BK มาเองถ้าเป็นหุ้นไทย)
+            # 2. ดึงข้อมูลจริง 1 ปี
             ticker = yf.Ticker(clean_symbol)
             data = ticker.history(period="1y")
 
             if data.empty:
-                return None, None, f"❌ ไม่พบข้อมูลหุ้น '{symbol}' โปรดตรวจสอบตัวสะกด (หากเป็นหุ้นไทย อย่าลืมพิมพ์ .BK ต่อท้ายครับ)"
-            
+                return None, None, (
+                    f"❌ ไม่พบข้อมูลหุ้น '{symbol}'\n\n"
+                    f"💡 **คำแนะนำ:**\n"
+                    f"หากคุณต้องการวิเคราะห์ **หุ้นไทย** จะต้องพิมพ์ `.BK` ต่อท้ายเสมอครับ\n"
+                    f"(เช่น `PTT.BK`, `KBANK.BK`, `TRUE.BK`)\n"
+                    f"เพื่อป้องกันการดึงข้อมูลผิดพลาดไปซ้ำกับหุ้นต่างประเทศครับ"
+                )
             if len(data) < 20:
                 return None, None, f"❌ ข้อมูลหุ้น '{clean_symbol}' มีน้อยเกินไป ระบบไม่สามารถคำนวณกราฟได้"
 
