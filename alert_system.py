@@ -24,7 +24,7 @@ def send_alert_to_users(symbol, message, alert_type="tech"):
         if role != 'pro': continue
         try:
             full_msg = f"🚨 **APEXIFY ALERT: {symbol}** 🚨\n\n{message}"
-            bot.send_message(user_id, full_msg, parse_mode="Markdown")
+            bot.send_message(user_id, full_msg, parse_mode="Markdown", disable_web_page_preview=True)
             time.sleep(0.5) 
         except Exception: pass
 
@@ -35,10 +35,8 @@ def check_hot_news(symbol):
         
         if is_thai_stock:
             url = f"https://news.google.com/rss/search?q={search_term}+หุ้น&hl=th&gl=TH&ceid=TH:th"
-            news_type = "🇹🇭 พาดหัวข่าวไทย"
         else:
             url = f"https://news.google.com/rss/search?q={search_term}+stock&hl=en-US&gl=US&ceid=US:en"
-            news_type = "🌍 พาดหัวข่าว Global"
 
         response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
         root = ET.fromstring(response.content)
@@ -55,14 +53,14 @@ def check_hot_news(symbol):
             if not title: return
             if symbol in last_news_title and last_news_title[symbol] == title: return
 
-            # 🌟 บังคับ AI พูดสั้นลง
+            # 🌟 บังคับ AI พูดสั้นๆ แค่ 1-2 บรรทัด
             prompt = f"""
             วิเคราะห์ผลกระทบต่อหุ้น {symbol} จากพาดหัวข่าวนี้: "{title}"
             ตอบกลับในรูปแบบ JSON เท่านั้น:
             {{
                 "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
                 "severity": "HIGH" หรือ "MEDIUM" หรือ "LOW",
-                "reason": "สรุปสั้นกระชับที่สุด ไม่เกิน 1-2 ประโยค (ภาษาไทย)"
+                "reason": "สรุปผลกระทบต่อนักลงทุนแบบสั้นและกระชับที่สุด (ไม่เกิน 2 บรรทัด) เป็นภาษาไทย"
             }}
             """
             
@@ -75,14 +73,14 @@ def check_hot_news(symbol):
                     sentiment = analysis.get('sentiment', 'NEUTRAL')
                     reason = analysis.get('reason', 'ไม่มีคำอธิบายเพิ่มเติม')
                     
-                    emoji_status = "🚀 BULLISH" if sentiment == "BULLISH" else "🩸 BEARISH" if sentiment == "BEARISH" else "⚪️ NEUTRAL"
+                    emoji_status = "🚀 BULLISH (เชิงบวก)" if sentiment == "BULLISH" else "🩸 BEARISH (เชิงลบ)" if sentiment == "BEARISH" else "⚪️ NEUTRAL (ปกติ)"
                     
+                    # 🌟 จัดฟอร์แมตให้คลีน สั้น อ่านง่าย และมีลิงก์
                     msg = (
-                        f"📌 **หุ้น:** #{symbol}\n"
-                        f"🗞 **{news_type}:** {title}\n\n"
+                        f"🗞 **ข่าว:** {title}\n"
                         f"🤖 **มุมมอง AI:** {emoji_status}\n"
-                        f"💡 **ผลกระทบ:** {reason}\n\n"
-                        f"🔗 [อ่านข่าวเต็มคลิก]({link})"
+                        f"💡 **วิเคราะห์:** {reason}\n\n"
+                        f"🔗 [อ่านข่าวเต็มคลิกที่นี่]({link})"
                     )
                     
                     send_alert_to_users(symbol, msg, alert_type="news")
@@ -158,10 +156,10 @@ def check_market_conditions():
         except Exception: pass
 
 def check_and_broadcast_pro_news(bot_instance):
-    """🌟 ดึงข่าวด่วนให้ PRO (ปรับให้ AI สรุปสั้นๆ และเตือนน้อยลง)"""
+    """🌟 ดึงข่าว มัดรวมกัน แล้วส่งให้ PRO ทีเดียว เพื่อกันแชทรก"""
     news_sources = [
-        {"tag": "🇹🇭 **ข่าวเด่นฝั่งไทย (PRO Exclusive)**", "emoji": "📌", "url": "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+ตลาดหลักทรัพย์+OR+การลงทุน+OR+หุ้น&hl=th&gl=TH&ceid=TH:th"},
-        {"tag": "🌍 **ข่าวเด่นต่างประเทศ (PRO Exclusive)**", "emoji": "🚀", "url": "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+investing&hl=en-US&gl=US&ceid=US:en"}
+        {"tag": "🇹🇭 **สรุปข่าวเด่นฝั่งไทย (PRO Exclusive)**", "url": "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+ตลาดหลักทรัพย์+OR+การลงทุน+OR+หุ้น&hl=th&gl=TH&ceid=TH:th"},
+        {"tag": "🌍 **สรุปข่าวเด่นต่างประเทศ (PRO Exclusive)**", "url": "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+investing&hl=en-US&gl=US&ceid=US:en"}
     ]
     
     for source in news_sources:
@@ -169,6 +167,9 @@ def check_and_broadcast_pro_news(bot_instance):
             response = cffi_requests.get(source["url"], impersonate="chrome110", timeout=15)
             root = ET.fromstring(response.content)
             items = root.findall('.//item')[:3] 
+            
+            combined_msg = f"{source['tag']}\n\n"
+            new_news_found = False
             
             for item in items:
                 title_elem = item.find('title')
@@ -178,37 +179,40 @@ def check_and_broadcast_pro_news(bot_instance):
                 link = link_elem.text if link_elem is not None else ""
                 
                 if title not in sent_pro_news:
-                    # 🌟 บังคับ AI ให้แปลสั้นๆ แค่ 2 บรรทัด
+                    # 🌟 บังคับ AI แปลและสรุปสั้น 1-2 บรรทัด
                     prompt = f"""
                     คุณคือนักวิเคราะห์การเงิน 
-                    แปลและสรุปข่าวนี้: "{title}"
-                    สรุปผลกระทบต่อนักลงทุนแบบสั้นกระชับที่สุด (ไม่เกิน 2 บรรทัด) เป็นภาษาไทยเท่านั้น ห้ามใส่ลิงก์
+                    สรุปข่าวนี้ให้กระชับที่สุด: "{title}"
+                    เน้นใจความและผลกระทบ (ไม่เกิน 2 บรรทัด) เป็นภาษาไทยเท่านั้น ห้ามยาวเด็ดขาด ห้ามใส่ลิงก์
                     """
                     try:
                         ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                         summary = ai_check.text.strip()
-                        news_message = f"{source['tag']}\n\n📰 {source['emoji']} **พาดหัว:** [{title}]({link})\n🤖 **AI สรุป:** {summary}"
-                        
-                        conn = get_connection()
-                        cur = conn.cursor()
-                        cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
-                        pro_users = cur.fetchall()
-                        
-                        count = 0
-                        for pro in pro_users:
-                            user_id = pro[0]
-                            if check_subscription(user_id) == 'pro':
-                                try:
-                                    bot_instance.send_message(user_id, news_message, parse_mode='Markdown', disable_web_page_preview=True)
-                                    count += 1
-                                    time.sleep(0.5) 
-                                except Exception: pass
-                                    
-                        cur.close()
-                        conn.close()
-                        if count > 0: print(f"✅ ส่งข่าวให้ PRO สำเร็จ {count} คน")
+                        combined_msg += f"📰 [{title}]({link})\n💡 **สรุป:** {summary}\n\n"
                         sent_pro_news.add(title)
+                        new_news_found = True
                     except Exception: pass
+            
+            # 🌟 ถ้ามีข่าวใหม่ ค่อยส่ง "แบบมัดรวม" ไปทีเดียว
+            if new_news_found:
+                conn = get_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
+                pro_users = cur.fetchall()
+                
+                count = 0
+                for pro in pro_users:
+                    user_id = pro[0]
+                    if check_subscription(user_id) == 'pro':
+                        try:
+                            bot_instance.send_message(user_id, combined_msg.strip(), parse_mode='Markdown', disable_web_page_preview=True)
+                            count += 1
+                            time.sleep(0.5) 
+                        except Exception: pass
+                            
+                cur.close()
+                conn.close()
+                if count > 0: print(f"✅ ส่ง {source['tag']} ให้ PRO สำเร็จ {count} คน")
         except Exception: pass
 
 if __name__ == "__main__":
@@ -220,11 +224,11 @@ if __name__ == "__main__":
     while True:
         current_time = time.time()
         
-        # 🌟 แยกเวลา: ข่าว Global เช็คแค่ทุกๆ 2 ชั่วโมง (7200 วินาที)
-        if current_time - last_global_news_time > 7200:
+        # 🌟 แจ้งเตือนข่าวโลก/ไทยแบบมัดรวม: ทุกๆ 4 ชั่วโมง (14400 วินาที) ลดความรำคาญ
+        if current_time - last_global_news_time > 14400:
             check_and_broadcast_pro_news(bot)
             last_global_news_time = current_time
             
-        # 🌟 กราฟเทคนิคหุ้นรายตัว (RSI/EMA) ยังคงเช็คทุกๆ 5 นาทีเหมือนเดิม
+        # 🌟 กราฟเทคนิค (RSI/EMA/ข่าวด่วนรายตัว) ยังเช็คทุก 5 นาที เผื่อจังหวะสำคัญ
         check_market_conditions()
         time.sleep(300)
