@@ -296,27 +296,27 @@ def log_alert(symbol, alert_type, price):
         conn.rollback()
     finally:
         conn.close()
-        # ==========================================
+# ==========================================
 # 🌟 ระบบชวนเพื่อน (Referral System)
 # ==========================================
 def init_new_features_db():
-    """สร้างตารางใหม่สำหรับฟีเจอร์ตั้งเตือนราคาและระบบชวนเพื่อน (ไม่กระทบข้อมูลเดิม)"""
+    """สร้างตารางใหม่สำหรับ PostgreSQL"""
     conn = get_connection()
     c = conn.cursor()
-    # ตารางตั้งเตือนราคา
+    # เปลี่ยน AUTOINCREMENT เป็น SERIAL
     c.execute('''CREATE TABLE IF NOT EXISTS user_price_alerts
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 (id SERIAL PRIMARY KEY,
                   user_id TEXT,
                   symbol TEXT,
                   target_price REAL,
                   condition TEXT, 
                   is_active INTEGER DEFAULT 1)''')
-    # ตารางชวนเพื่อน
+    
     c.execute('''CREATE TABLE IF NOT EXISTS referrals
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 (id SERIAL PRIMARY KEY,
                   referrer_id TEXT,
                   referred_id TEXT UNIQUE,
-                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     conn.commit()
     conn.close()
 
@@ -325,25 +325,23 @@ def process_referral(referrer_id, new_user_id):
     conn = get_connection()
     c = conn.cursor()
     try:
-        # เช็คว่าคนถูกชวนเคยเข้าบอทมาก่อนหรือยัง (ถ้าเคยแล้ว จะไม่ได้โควต้า)
-        c.execute("SELECT id FROM users WHERE user_id = ?", (new_user_id,))
+        # ใช้ %s แทน ? สำหรับ PostgreSQL
+        c.execute("SELECT id FROM users WHERE user_id = %s", (new_user_id,))
         if c.fetchone(): 
             return False 
         
-        # บันทึกประวัติการชวน
-        c.execute("INSERT INTO referrals (referrer_id, referred_id) VALUES (?, ?)", (referrer_id, new_user_id))
+        c.execute("INSERT INTO referrals (referrer_id, referred_id) VALUES (%s, %s)", (referrer_id, new_user_id))
         
-        # แจกรางวัลคนชวน
-        c.execute("SELECT role, expiry_date FROM users WHERE user_id = ?", (referrer_id,))
+        c.execute("SELECT role, expiry_date FROM users WHERE user_id = %s", (referrer_id,))
         row = c.fetchone()
         if row:
             role = row[0]
             if role in ['vip', 'pro']:
-                # ลูกค้า VIP/PRO ได้โบนัสเพิ่มวันใช้งาน 1 วัน ต่อ 1 คน
-                c.execute("UPDATE users SET expiry_date = date(expiry_date, '+1 day') WHERE user_id = ?", (referrer_id,))
+                # บวกเวลา 1 วัน สำหรับ PostgreSQL
+                c.execute("UPDATE users SET expiry_date = expiry_date + INTERVAL '1 day' WHERE user_id = %s", (referrer_id,))
             else:
-                # สายฟรี ได้โบนัสเพิ่มโควต้าใช้งาน 3 ครั้ง ต่อ 1 คน (ลดค่า usage_count ลง 3)
-                c.execute("UPDATE users SET usage_count = MAX(0, usage_count - 3) WHERE user_id = ?", (referrer_id,))
+                # ใช้ GREATEST แทน MAX
+                c.execute("UPDATE users SET usage_count = GREATEST(0, usage_count - 3) WHERE user_id = %s", (referrer_id,))
         conn.commit()
         return True
     except Exception as e:
@@ -356,7 +354,7 @@ def get_referral_stats(user_id):
     """ดูว่าชวนเพื่อนไปแล้วกี่คน"""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (user_id,))
+    c.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = %s", (user_id,))
     count = c.fetchone()[0]
     conn.close()
     return count
@@ -365,19 +363,19 @@ def get_referral_stats(user_id):
 # 🌟 ระบบตั้งเตือนราคาส่วนตัว (Custom Price Alerts)
 # ==========================================
 def add_price_alert_db(user_id, symbol, target_price, condition):
-    """เพิ่มการตั้งเตือนราคา (condition: 'above' หรือ 'below')"""
+    """เพิ่มการตั้งเตือนราคา"""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("INSERT INTO user_price_alerts (user_id, symbol, target_price, condition) VALUES (?, ?, ?, ?)",
+    c.execute("INSERT INTO user_price_alerts (user_id, symbol, target_price, condition) VALUES (%s, %s, %s, %s)",
               (user_id, symbol, target_price, condition))
     conn.commit()
     conn.close()
 
 def get_user_price_alerts_db(user_id):
-    """ดึงรายการตั้งเตือนราคาที่ยังทำงานอยู่ของลูกค้ารายคน"""
+    """ดึงรายการตั้งเตือนราคา"""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT id, symbol, target_price, condition FROM user_price_alerts WHERE user_id = ? AND is_active = 1", (user_id,))
+    c.execute("SELECT id, symbol, target_price, condition FROM user_price_alerts WHERE user_id = %s AND is_active = 1", (user_id,))
     alerts = c.fetchall()
     conn.close()
     return alerts
@@ -386,12 +384,12 @@ def remove_price_alert_db(user_id, alert_id):
     """ลบการตั้งเตือนราคา"""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("UPDATE user_price_alerts SET is_active = 0 WHERE id = ? AND user_id = ?", (alert_id, user_id))
+    c.execute("UPDATE user_price_alerts SET is_active = 0 WHERE id = %s AND user_id = %s", (alert_id, user_id))
     conn.commit()
     conn.close()
 
 def get_all_active_price_alerts():
-    """ดึงการตั้งเตือนทั้งหมดของทุกคนที่ยังทำงานอยู่ เพื่อให้ระบบเบื้องหลัง (alert_system) คอยเช็คราคา"""
+    """ดึงการตั้งเตือนทั้งหมดให้ระบบ alert_system คอยเช็คราคา"""
     conn = get_connection()
     c = conn.cursor()
     c.execute("SELECT id, user_id, symbol, target_price, condition FROM user_price_alerts WHERE is_active = 1")
@@ -403,6 +401,6 @@ def deactivate_price_alert(alert_id):
     """ปิดการแจ้งเตือนเมื่อราคาถึงเป้าหมายแล้ว"""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("UPDATE user_price_alerts SET is_active = 0 WHERE id = ?", (alert_id,))
+    c.execute("UPDATE user_price_alerts SET is_active = 0 WHERE id = %s", (alert_id,))
     conn.commit()
     conn.close()
