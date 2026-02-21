@@ -8,7 +8,7 @@ from technical_tools import calculate_technical_indicators
 from database import get_all_active_symbols, get_users_watching, init_db, check_subscription, get_connection, log_alert
 import json
 import xml.etree.ElementTree as ET 
-from curl_cffi import requests as cffi_requests # 🌟 เพิ่มไลบรารีปลอมตัวเพื่อหลบการบล็อก
+from curl_cffi import requests as cffi_requests 
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)
@@ -18,7 +18,6 @@ last_news_title = {}
 sent_pro_news = set()
 
 def send_alert_to_users(symbol, message, alert_type="tech"):
-    """ส่งแจ้งเตือนให้ลูกค้าระดับ PRO เท่านั้น"""
     users = get_users_watching(symbol)
     for user_id in users:
         role = check_subscription(user_id)
@@ -41,7 +40,6 @@ def check_hot_news(symbol):
             url = f"https://news.google.com/rss/search?q={search_term}+stock&hl=en-US&gl=US&ceid=US:en"
             news_type = "🌍 พาดหัวข่าว Global"
 
-        # 🌟 ปลอมตัวเป็น Chrome
         response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
         root = ET.fromstring(response.content)
         items = root.findall('.//item')
@@ -57,13 +55,14 @@ def check_hot_news(symbol):
             if not title: return
             if symbol in last_news_title and last_news_title[symbol] == title: return
 
+            # 🌟 บังคับ AI พูดสั้นลง
             prompt = f"""
-            ในฐานะนักวิเคราะห์การเงินระดับโลก โปรดอ่านพาดหัวข่าวนี้: "{title}"
-            และวิเคราะห์ผลกระทบต่อหุ้น {symbol} โดยตอบกลับในรูปแบบ JSON เท่านั้น ดังนี้:
+            วิเคราะห์ผลกระทบต่อหุ้น {symbol} จากพาดหัวข่าวนี้: "{title}"
+            ตอบกลับในรูปแบบ JSON เท่านั้น:
             {{
                 "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
                 "severity": "HIGH" หรือ "MEDIUM" หรือ "LOW",
-                "reason": "แปลข่าวและอธิบายสั้นๆ 1-2 บรรทัดว่าทำไมข่าวนี้ถึงกระทบต่อราคาหุ้น (ตอบเป็นภาษาไทยเท่านั้น)"
+                "reason": "สรุปสั้นกระชับที่สุด ไม่เกิน 1-2 ประโยค (ภาษาไทย)"
             }}
             """
             
@@ -81,10 +80,9 @@ def check_hot_news(symbol):
                     msg = (
                         f"📌 **หุ้น:** #{symbol}\n"
                         f"🗞 **{news_type}:** {title}\n\n"
-                        f"🤖 **AI แปลและวิเคราะห์ด่วน:**\n"
-                        f"ทิศทางแนวโน้ม: {emoji_status}\n"
-                        f"💡 **เหตุผล:** {reason}\n\n"
-                        f"🔗 [อ่านข่าวฉบับเต็มคลิกที่นี่]({link})"
+                        f"🤖 **มุมมอง AI:** {emoji_status}\n"
+                        f"💡 **ผลกระทบ:** {reason}\n\n"
+                        f"🔗 [อ่านข่าวเต็มคลิก]({link})"
                     )
                     
                     send_alert_to_users(symbol, msg, alert_type="news")
@@ -160,7 +158,7 @@ def check_market_conditions():
         except Exception: pass
 
 def check_and_broadcast_pro_news(bot_instance):
-    """🌟 ดึงข่าวด่วน ไทย 3 โลก 3 ให้ AI แปลและส่งให้ PRO แบบ Real-time"""
+    """🌟 ดึงข่าวด่วนให้ PRO (ปรับให้ AI สรุปสั้นๆ และเตือนน้อยลง)"""
     news_sources = [
         {"tag": "🇹🇭 **ข่าวเด่นฝั่งไทย (PRO Exclusive)**", "emoji": "📌", "url": "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+ตลาดหลักทรัพย์+OR+การลงทุน+OR+หุ้น&hl=th&gl=TH&ceid=TH:th"},
         {"tag": "🌍 **ข่าวเด่นต่างประเทศ (PRO Exclusive)**", "emoji": "🚀", "url": "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+investing&hl=en-US&gl=US&ceid=US:en"}
@@ -168,10 +166,8 @@ def check_and_broadcast_pro_news(bot_instance):
     
     for source in news_sources:
         try:
-            # 🌟 ใช้ cffi_requests ปลอมตัวเป็น Chrome
             response = cffi_requests.get(source["url"], impersonate="chrome110", timeout=15)
             root = ET.fromstring(response.content)
-            # 🌟 ดึงมา 3 ข่าวตามที่ขอ
             items = root.findall('.//item')[:3] 
             
             for item in items:
@@ -182,17 +178,16 @@ def check_and_broadcast_pro_news(bot_instance):
                 link = link_elem.text if link_elem is not None else ""
                 
                 if title not in sent_pro_news:
+                    # 🌟 บังคับ AI ให้แปลสั้นๆ แค่ 2 บรรทัด
                     prompt = f"""
-                    คุณคือนักวิเคราะห์ข่าวการเงินระดับโลก
-                    ข่าวล่าสุด: "{title}"
-                    
-                    1. แปลข่าวและสรุปสั้นๆ ว่ากระทบนักลงทุนอย่างไร (ตอบภาษาไทยเท่านั้น)
-                    2. พิมพ์แค่สรุป ห้ามใส่ลิงก์
+                    คุณคือนักวิเคราะห์การเงิน 
+                    แปลและสรุปข่าวนี้: "{title}"
+                    สรุปผลกระทบต่อนักลงทุนแบบสั้นกระชับที่สุด (ไม่เกิน 2 บรรทัด) เป็นภาษาไทยเท่านั้น ห้ามใส่ลิงก์
                     """
                     try:
                         ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                         summary = ai_check.text.strip()
-                        news_message = f"{source['tag']}\n\n📰 {source['emoji']} **พาดหัวข่าว:** [{title}]({link})\n\n🤖 **AI แปลและวิเคราะห์:** {summary}"
+                        news_message = f"{source['tag']}\n\n📰 {source['emoji']} **พาดหัว:** [{title}]({link})\n🤖 **AI สรุป:** {summary}"
                         
                         conn = get_connection()
                         cur = conn.cursor()
@@ -219,7 +214,17 @@ def check_and_broadcast_pro_news(bot_instance):
 if __name__ == "__main__":
     init_db()
     print("🚀 Apexify Alert System (PRO Exclusive) is Running...")
+    
+    last_global_news_time = 0
+    
     while True:
-        check_and_broadcast_pro_news(bot)
+        current_time = time.time()
+        
+        # 🌟 แยกเวลา: ข่าว Global เช็คแค่ทุกๆ 2 ชั่วโมง (7200 วินาที)
+        if current_time - last_global_news_time > 7200:
+            check_and_broadcast_pro_news(bot)
+            last_global_news_time = current_time
+            
+        # 🌟 กราฟเทคนิคหุ้นรายตัว (RSI/EMA) ยังคงเช็คทุกๆ 5 นาทีเหมือนเดิม
         check_market_conditions()
         time.sleep(300)
