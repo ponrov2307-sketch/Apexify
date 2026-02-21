@@ -73,7 +73,7 @@ def calculate_technical_indicators(symbol, generate_chart=True):
         try:
             clean_symbol = symbol.strip().upper()
             
-                        # 1. จัดการหุ้นคลาส B (อเมริกา) (เช่น BRK.B แปลงเป็น BRK-B)
+            # 1. จัดการหุ้นคลาส B (อเมริกา) (เช่น BRK.B แปลงเป็น BRK-B)
             if "." in clean_symbol and not clean_symbol.endswith(".BK"):
                 clean_symbol = clean_symbol.replace(".", "-")
             
@@ -130,15 +130,22 @@ def calculate_technical_indicators(symbol, generate_chart=True):
                     mpf.make_addplot(data['EMA200'].tail(60), color='#d500f9', width=1.5),
                 ]
 
+                # 🌟 อัปเกรดความชัดเจนของกราฟ เพิ่มอธิบายเส้น และจัดสัดส่วน
+                chart_title = (
+                    f"\\nApexify Pro Chart: {clean_symbol}\\n"
+                    f"Indicators: EMA20 (Blue) | EMA50 (Orange) | EMA200 (Purple)"
+                )
+
                 mpf.plot(
                     data.tail(60),
                     type='candle',
                     style=s,
-                    title=f'\nApexify Pro Chart: {clean_symbol}',
+                    title=chart_title,
                     volume=True,
+                    panel_ratios=(4, 1), # แท่งเทียน 80% Volume 20%
                     addplot=add_plots,
-                    savefig=dict(fname=buf, dpi=80, bbox_inches='tight', pad_inches=0.1),
-                    figratio=(12, 8),
+                    savefig=dict(fname=buf, dpi=120, bbox_inches='tight', pad_inches=0.1), # เพิ่มความคมชัด
+                    figratio=(16, 9), # ทำให้กราฟเป็นแนวนอนกว้างขึ้น
                     figscale=1.2,
                     tight_layout=True
                 )
