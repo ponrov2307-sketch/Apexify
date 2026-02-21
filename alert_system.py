@@ -251,7 +251,7 @@ if __name__ == "__main__":
     scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Bangkok'))
     
     # ส่งข่าวทั่วไปให้ VIP ทุกเช้าเวลา 08:30 น. (args=[bot] เพื่อให้มันรู้จักบอทตัวหลัก)
-    scheduler.add_job(broadcast_news_to_vips, 'cron', hour=8, minute=30, args=[bot])
+    scheduler.add_job(broadcast_news_to_vips, 'cron', hour=10, minute=25, args=[bot])
     
     # สั่งให้ Scheduler เริ่มทำงานอยู่เบื้องหลัง
     scheduler.start()
