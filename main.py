@@ -8,6 +8,8 @@ import requests
 import random
 import string
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from curl_cffi import requests as cffi_requests
+from bs4 import BeautifulSoup
 
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID
@@ -276,34 +278,36 @@ def handle_main(message):
             msg = "❌ ไม่พบข้อมูลบัญชี พิมพ์ /start เพื่อลงทะเบียนใหม่"
         bot.reply_to(message, msg, parse_mode="Markdown")
         return
-    elif text == "🌍 สภาวะตลาด":
+        elif text == "🌍 สภาวะตลาด":
         load_msg = bot.reply_to(message, "🌍 กำลังดึงข้อมูลสภาวะตลาดโลก...")
         try:
             fg_index = get_fear_and_greed_index()
             indices = {"SET (ไทย)": "^SET.BK", "S&P 500 (สหรัฐ)": "^GSPC", "Bitcoin (คริปโต)": "BTC-USD"}
             market_text = ""
             for name, sym in indices.items():
-                data = yf.Ticker(sym).history(period="2d")
+                # 🌟 เปลี่ยนจาก 2d เป็น 5d ดึงเผื่อวันหยุดเพื่อกัน Error
+                data = yf.Ticker(sym).history(period="5d")
                 if len(data) >= 2:
                     close_today = data['Close'].iloc[-1]
                     close_yest = data['Close'].iloc[-2]
                     pct_change = ((close_today - close_yest) / close_yest) * 100
                     emoji = "🟢" if pct_change >= 0 else "🔴"
                     market_text += f"• {name}: {close_today:,.2f} ({pct_change:+.2f}%) {emoji}\n"
-                else:
+          else:
                     market_text += f"• {name}: ⚠️ ดึงข้อมูลไม่ได้\n"
             msg = f"🌍 **สรุปสภาวะตลาด (Market Overview)**\n\n🧭 **Fear & Greed Index:**\n{fg_index}\n\n📊 **ดัชนีสำคัญวันนี้:**\n{market_text}"
             bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
         except Exception as e:
             bot.edit_message_text(f"❌ ดึงข้อมูลตลาดล้มเหลว", message.chat.id, load_msg.message_id)
         return
-    elif text == "📰 ข่าวด่วนตลาดทุน":
+
+        elif text == "📰 ข่าวด่วนตลาดทุน":
         load_msg = bot.reply_to(message, "📰 กำลังรวบรวมข่าวด่วน...")
         try:
             url = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
-            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            # 🌟 ปลอมตัวเป็น Chrome เพื่อหลบ Anti-bot ของ Google
+            res = cffi_requests.get(url, impersonate="chrome110", timeout=15)
             if res.status_code == 200:
-                from bs4 import BeautifulSoup
                 soup = BeautifulSoup(res.content, "xml")
                 items = soup.find_all("item")[:3]
                 if items:
@@ -316,9 +320,12 @@ def handle_main(message):
                     bot.edit_message_text(news_text, message.chat.id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
                 else:
                     bot.edit_message_text("❌ ขณะนี้ไม่มีข่าวด่วนในระบบ", message.chat.id, load_msg.message_id)
-        except Exception:
-            bot.edit_message_text(f"❌ ดึงข้อมูลข่าวล้มเหลว", message.chat.id, load_msg.message_id)
+            else:
+                bot.edit_message_text("❌ ดึงข้อมูลข่าวล้มเหลว", message.chat.id, load_msg.message_id)
+        except Exception as e:
+            bot.edit_message_text("❌ ดึงข้อมูลข่าวล้มเหลว", message.chat.id, load_msg.message_id)
         return
+
     elif text == "🚀 สแกน Watchlist (VIP)":
         if user_id != ADMIN_ID and role == 'free':
             bot.reply_to(message, "🔒 ฟีเจอร์สแกนหุ้นสงวนสิทธิ์เฉพาะ **VIP / PRO Member** ครับ\nระบบจะสแกนกราฟเทคนิคหุ้นทั้งหมดใน Watchlist อัตโนมัติ ช่วยประหยัดเวลาสุดๆ!")
