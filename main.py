@@ -249,17 +249,22 @@ def handle_main(message):
     elif text == "📰 ข่าวด่วนตลาดทุน":
         load_msg = bot.reply_to(message, "📰 กำลังรวบรวมข่าวด่วนการลงทุนล่าสุด...")
         try:
-            url = "https://query2.finance.yahoo.com/v1/finance/search?q=finance&newsCount=3"
+            # ดึงจาก Google News ประเทศไทย
+            url = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
             res = requests.get(url, headers=headers, timeout=10)
+            
             if res.status_code == 200:
-                data = res.json()
-                news = data.get('news', [])
-                if news:
-                    news_text = "📰 **Top 3 ข่าวเด่นตลาดทุนวันนี้**\n\n"
-                    for i, n in enumerate(news[:3], 1):
-                        title = n.get('title', 'ไม่มีหัวข้อข่าว')
-                        link = n.get('link', '#')
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(res.content, "html.parser")
+                items = soup.find_all("item")[:3]
+                
+                if items:
+                    news_text = "📰 **Top 3 ข่าวเด่นเศรษฐกิจไทยวันนี้**\n\n"
+                    for i, item in enumerate(items, 1):
+                        title = item.title.text
+                        link_tag = item.find('link')
+                        link = link_tag.next_sibling.strip() if link_tag and link_tag.next_sibling else "https://news.google.com/"
                         news_text += f"{i}. [{title}]({link})\n\n"
                     bot.edit_message_text(news_text, message.chat.id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
                 else:
