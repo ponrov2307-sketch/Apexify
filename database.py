@@ -23,6 +23,10 @@ def init_db():
     # 🌟 ฐานข้อมูลเก็บสลิปที่ใช้แล้ว ป้องกันการส่งซ้ำ
     c.execute('''CREATE TABLE IF NOT EXISTS used_slips 
                  (ref_no TEXT PRIMARY KEY, user_id TEXT, date_used TEXT)''')
+
+    # 🌟 ตารางใหม่: เก็บประวัติสัญญาณเพื่อใช้วัดความแม่นยำ (Accuracy Log)
+    c.execute('''CREATE TABLE IF NOT EXISTS alert_logs 
+                 (id SERIAL PRIMARY KEY, symbol TEXT, alert_type TEXT, price_at_alert REAL, timestamp TEXT)''')
                  
     conn.commit()
     conn.close()
@@ -274,3 +278,21 @@ def is_user_banned(user_id):
     if result and result[0] == 'banned':
         return True
     return False
+
+# ==========================================
+# 🌟 ฟังก์ชันจัดการประวัติสัญญาณ (Alert Logs) - ใช้สรุปความแม่นยำ
+# ==========================================
+def log_alert(symbol, alert_type, price):
+    """บันทึกสัญญาณที่ส่งออกไปเพื่อใช้วัดผลความแม่นยำภายหลัง"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        c.execute("INSERT INTO alert_logs (symbol, alert_type, price_at_alert, timestamp) VALUES (%s, %s, %s, %s)",
+                  (str(symbol), str(alert_type), float(price), now_str))
+        conn.commit()
+    except psycopg2.Error as e:
+        print(f"❌ Error logging alert: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
