@@ -244,3 +244,33 @@ def mark_slip_used(ref_no, user_id):
         return False
     finally:
         conn.close()
+
+# ==========================================
+# 🌟 ฟังก์ชันจัดการแบนผู้ใช้ (Blacklist)
+# ==========================================
+def ban_user(user_id):
+    """แบนผู้ใช้โดยเปลี่ยน status เป็น 'banned'"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("UPDATE users SET status='banned' WHERE user_id=%s", (str(user_id),))
+    conn.commit()
+    conn.close()
+
+def unban_user(user_id):
+    """ปลดแบนผู้ใช้โดยเปลี่ยน status กลับเป็น 'active'"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("UPDATE users SET status='active' WHERE user_id=%s", (str(user_id),))
+    conn.commit()
+    conn.close()
+
+def is_user_banned(user_id):
+    """ตรวจสอบว่าผู้ใช้นี้ถูกแบนหรือไม่"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT status FROM users WHERE user_id=%s", (str(user_id),))
+    result = c.fetchone()
+    conn.close()
+    if result and result[0] == 'banned':
+        return True
+    return False
