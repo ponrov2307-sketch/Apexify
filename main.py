@@ -11,11 +11,10 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID
-from database import get_all_users, init_db, register_user, check_subscription, add_subscription, get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, remove_watch_db, add_promo_code, redeem_code, get_user_stats
+from database import get_all_users, init_db, register_user, check_subscription, add_subscription, get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, remove_watch_db, add_promo_code, redeem_code, get_user_stats, check_slip_used, mark_slip_used
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
 
-# สำหรับดึงข่าวหลบ Anti-bot
 from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
 
@@ -163,7 +162,7 @@ def handle_payment_slip_check(message):
         bot.reply_to(message, "👑 คุณเป็นลูกค้าระดับ PRO (Platinum) สูงสุดอยู่แล้วครับ!")
         return
         
-    progress_msg = bot.reply_to(message, "🧾 AI กำลังตรวจสอบยอดเงินในสลิป...")
+    progress_msg = bot.reply_to(message, "🧾 AI กำลังตรวจสอบยอดเงินและป้องกันสลิปซ้ำ...")
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
@@ -172,8 +171,19 @@ def handle_payment_slip_check(message):
         
         if result.get('is_slip'):
             amount = float(result.get('amount', 0))
+            ref_no = result.get('ref_no', '').strip()
             
-            # ระบบคำนวณแพ็กเกจ (Strict Mode)
+            # 🌟 ป้องกันการส่งสลิปซ้ำ
+            if not ref_no or ref_no == "" or ref_no.lower() == "none":
+                bot.edit_message_text("⚠️ AI อ่าน 'เลขที่อ้างอิง' บนสลิปไม่ชัดเจน โปรดถ่ายให้เห็นเลขที่อ้างอิงชัดๆ ครับ", message.chat.id, progress_msg.message_id)
+                return
+                
+            if check_slip_used(ref_no):
+                bot.edit_message_text("❌ **สลิปนี้ถูกใช้งานไปแล้ว!**\nไม่อนุญาตให้ใช้สลิปซ้ำเพื่อเติมวันครับ หากมีข้อสงสัยโปรดติดต่อแอดมิน", message.chat.id, progress_msg.message_id, parse_mode="Markdown")
+                bot.send_message(ADMIN_ID, f"🚨 **แจ้งเตือนทุจริต!**\nUser `{user_id}` พยายามส่งสลิปซ้ำ! (เลขที่อ้างอิง: `{ref_no}`)", parse_mode="Markdown")
+                return
+
+            # ระบบคำนวณแพ็กเกจ
             if amount == 4990:
                 expiry = add_subscription(user_id, 'pro', 365)
                 msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรดเป็น **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"
@@ -199,9 +209,12 @@ def handle_payment_slip_check(message):
                 bot.send_photo(ADMIN_ID, message.photo[-1].file_id)
                 return
 
+            # 🌟 บันทึกเลขสลิปลงฐานข้อมูลหลังใช้สำเร็จ
+            mark_slip_used(ref_no, user_id)
+            
             bot.delete_message(message.chat.id, progress_msg.message_id)
             bot.reply_to(message, msg_text, parse_mode="Markdown")
-            bot.send_message(ADMIN_ID, f"💰 เงินเข้า! User `{user_id}` โอน {amount} บาท (ได้แพ็กเกจแล้ว)")
+            bot.send_message(ADMIN_ID, f"💰 เงินเข้า! User `{user_id}` โอน {amount} บาท (Ref: `{ref_no}`)")
         else:
             bot.edit_message_text("❌ รูปนี้ไม่ใช่สลิปโอนเงินที่ถูกต้องครับ", message.chat.id, progress_msg.message_id)
             
