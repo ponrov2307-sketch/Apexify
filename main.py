@@ -50,20 +50,20 @@ def handle_gencode(message):
     try:
         args = message.text.split()
         days = int(args[1])
-        count = int(args[2])
-        codes = []
-        for _ in range(count):
-            code = f"VIP{days}-" + generate_random_code(6)
-            if add_promo_code(code, days):
-                codes.append(code)
+        max_uses = int(args[2]) # เปลี่ยนจาก จำนวนโค้ด เป็น จำนวนคนที่ใช้ได้
         
-        msg = f"✅ สร้างโค้ด VIP {days} วัน จำนวน {len(codes)} โค้ดสำเร็จ:\n\n"
-        msg += "\n".join([f"`{c}`" for c in codes]) 
-        msg += "\n\n*(ส่งให้ลูกค้ากด Copy และพิมพ์ /redeem ตามด้วยโค้ดได้เลย)*"
-        
-        bot.reply_to(message, msg, parse_mode="Markdown")
+        code = f"VIP{days}-" + generate_random_code(6)
+        if add_promo_code(code, days, max_uses):
+            msg = (
+                f"✅ **สร้างโค้ด VIP สำเร็จ!**\n\n"
+                f"🎟 **โค้ด:** `{code}`\n"
+                f"⏰ **เพิ่มวัน VIP:** {days} วัน\n"
+                f"👥 **จำนวนสิทธิ์:** ใช้ได้ {max_uses} คน\n\n"
+                f"*(ส่งให้ลูกค้ากด Copy และพิมพ์ /redeem ตามด้วยโค้ดได้เลย)*"
+            )
+            bot.reply_to(message, msg, parse_mode="Markdown")
     except Exception as e:
-        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: /gencode [จำนวนวัน] [จำนวนโค้ด]\nเช่น /gencode 3 10")
+        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: /gencode [จำนวนวัน] [จำนวนคนที่ใช้ได้]\nเช่น `/gencode 30 10` (โค้ด 30 วัน ใช้ได้ 10 คน)", parse_mode="Markdown")
 
 @bot.message_handler(commands=['redeem'])
 def handle_redeem(message):
@@ -79,8 +79,10 @@ def handle_redeem(message):
     if success:
         bot.reply_to(message, f"🎉 **ยินดีด้วย!** เติมโค้ดสำเร็จ\nคุณได้รับสิทธิ์ VIP พรีเมียมถึงวันที่: `{expiry}`\n\nสามารถใช้ระบบสแกนหุ้นและ AI ฟันธงได้ทันทีครับ 🚀", parse_mode="Markdown")
         increment_usage(user_id) 
-    elif reason == "used":
-        bot.reply_to(message, "❌ โค้ดนี้ถูกใช้งานไปแล้วครับ")
+    elif reason == "already_used_by_you":
+        bot.reply_to(message, "⚠️ คุณเคยใช้โค้ดโปรโมชั่นนี้ไปแล้วครับ (1 คน ใช้ได้ 1 ครั้ง)")
+    elif reason == "fully_used":
+        bot.reply_to(message, "❌ น่าเสียดาย! สิทธิ์ของโค้ดนี้ถูกใช้งานครบตามจำนวนแล้วครับ")
     else:
         bot.reply_to(message, "❌ โค้ดไม่ถูกต้อง หรือไม่มีในระบบ")
 
@@ -323,8 +325,8 @@ def handle_main(message):
             "👉 `/addvip [รหัสผู้ใช้] [จำนวนวัน]`\n"
             "*(เช่น `/addvip 123456789 30`)*\n\n"
             "2️⃣ **สร้างโค้ดโปรโมชั่น (แจก VIP ฟรี):**\n"
-            "👉 `/gencode [จำนวนวัน] [จำนวนโค้ด]`\n"
-            "*(เช่น `/gencode 3 10` เพื่อสร้างโค้ด 3 วัน จำนวน 10 อัน)*\n\n"
+            "👉 `/gencode [จำนวนวัน] [จำนวนคนที่ใช้ได้]`\n"
+            "*(เช่น `/gencode 30 10` เพื่อสร้างโค้ด 30 วัน ใช้ได้ 10 คน)*\n\n"
             "3️⃣ **บรอดแคสต์ส่งข้อความหาทุกคน:**\n"
             "👉 `/broadcast [ข้อความที่ต้องการส่ง]`\n"
             "*(เช่น `/broadcast แจ้งเตือน! ระบบอัปเดตใหม่`)*"
@@ -360,13 +362,10 @@ def handle_main(message):
 
     bot.delete_message(message.chat.id, load_msg.message_id)
     
-    # 🌟 แก้อาการ Caption ยาวเกิน 1024 ตัวอักษร
     if len(report) > 1000:
-        # ถ้ายาวเกิน ให้ส่งรูปกราฟไปก่อน แล้วค่อยส่งข้อความตามไป
         bot.send_photo(message.chat.id, chart)
         bot.send_message(message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
     else:
-        # ถ้ายาวไม่เกิน ก็ส่งรูปแนบข้อความตามปกติ
         bot.send_photo(message.chat.id, chart, caption=report, parse_mode="Markdown", reply_markup=markup)
 
 if __name__ == "__main__":
