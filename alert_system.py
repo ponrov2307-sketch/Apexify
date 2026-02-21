@@ -5,47 +5,45 @@ from google import genai
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
 from technical_tools import calculate_technical_indicators
 
-# 🌟 Import ระบบ log_alert เข้ามาใช้งาน
+# 🌟 Import ระบบฐานข้อมูลทั้งหมด
 from database import get_all_active_symbols, get_users_watching, init_db, check_subscription, get_connection, log_alert
 import json
-
-from curl_cffi import requests as cffi_requests
-from bs4 import BeautifulSoup
+import xml.etree.ElementTree as ET # 🌟 ใช้ตัวอ่าน XML ที่เสถียรที่สุด
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 last_alert_state = {}
 last_news_title = {}
-sent_vip_news = set()
+sent_pro_news = set()
 
-# 🌟 ฟังก์ชันส่งแจ้งเตือน ที่ฉลาดพอจะกรองระดับลูกค้า VIP / PRO
+# ==========================================
+# 🌟 ฟังก์ชันส่งแจ้งเตือน (ส่งให้เฉพาะ PRO)
+# ==========================================
 def send_alert_to_users(symbol, message, alert_type="tech"):
     """
-    alert_type: 
-    - "tech" (กราฟ RSI/EMA) ส่งให้ PRO เท่านั้น
-    - "news" (ข่าวด่วน) ส่งให้ทั้ง VIP และ PRO
+    alert_type: "tech" (กราฟ RSI/EMA), "news" (ข่าวด่วนรายตัว)
+    🌟 สิทธิพิเศษนี้สงวนไว้ให้ระดับ PRO เท่านั้น
     """
     users = get_users_watching(symbol)
     for user_id in users:
         role = check_subscription(user_id)
         
-        # 👑 กรองความสำคัญ: Technical Alert ให้เฉพาะระดับ PRO
-        if alert_type == "tech" and role != 'pro':
-            continue
-            
-        # 💎 กรองความสำคัญ: News Alert ให้ VIP และ PRO
-        if alert_type == "news" and role not in ['vip', 'pro']:
+        # 👑 กรองความสำคัญ: ให้เฉพาะระดับ PRO (Platinum) เท่านั้น
+        if role != 'pro':
             continue
             
         try:
             full_msg = f"🚨 **APEXIFY ALERT: {symbol}** 🚨\n\n{message}"
             bot.send_message(user_id, full_msg, parse_mode="Markdown")
-            print(f"✅ Sent {alert_type} alert for {symbol} to User {user_id} ({role.upper()})")
+            print(f"✅ Sent {alert_type} alert for {symbol} to User {user_id} (PRO)")
             time.sleep(0.5) 
         except Exception as e:
             print(f"❌ Failed to send to {user_id}: {e}")
 
+# ==========================================
+# 🌟 ระบบสแกนข่าวหุ้นรายตัว (AI แปลและวิเคราะห์ผลกระทบ)
+# ==========================================
 def check_hot_news(symbol):
     try:
         is_thai_stock = symbol.endswith('.BK')
@@ -58,25 +56,30 @@ def check_hot_news(symbol):
             url = f"https://news.google.com/rss/search?q={search_term}+stock&hl=en-US&gl=US&ceid=US:en"
             news_type = "พาดหัวข่าว Global"
 
-        response = cffi_requests.get(url, impersonate="chrome110", timeout=10)
-        soup = BeautifulSoup(response.content, "xml")
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        response = requests.get(url, headers=headers, timeout=10)
+        root = ET.fromstring(response.content)
+        items = root.findall('.//item')
         
-        items = soup.find_all("item")
         if items:
-            title = items[0].title.text
-            link_tag = items[0].find('link')
-            link = link_tag.next_sibling.strip() if link_tag and link_tag.next_sibling else f"https://news.google.com/search?q={search_term}"
+            title_elem = items[0].find('title')
+            link_elem = items[0].find('link')
+            if title_elem is None: return
+            
+            title = title_elem.text
+            link = link_elem.text if link_elem is not None else f"https://news.google.com/search?q={search_term}"
 
             if not title: return
             if symbol in last_news_title and last_news_title[symbol] == title: return
 
+            # 🌟 ให้ AI แปลและวิเคราะห์ผลกระทบเป็นภาษาไทย
             prompt = f"""
             ในฐานะนักวิเคราะห์การเงินระดับโลก โปรดอ่านพาดหัวข่าวนี้: "{title}"
             และวิเคราะห์ผลกระทบต่อหุ้น {symbol} โดยตอบกลับในรูปแบบ JSON เท่านั้น ดังนี้:
             {{
                 "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
                 "severity": "HIGH" หรือ "MEDIUM" หรือ "LOW",
-                "reason": "คำอธิบายสั้นๆ 1-2 บรรทัดว่าทำไมข่าวนี้ถึงกระทบต่อราคาหุ้น (ตอบเป็นภาษาไทย)"
+                "reason": "แปลข่าวและอธิบายสั้นๆ 1-2 บรรทัดว่าทำไมข่าวนี้ถึงกระทบต่อราคาหุ้น (ตอบเป็นภาษาไทยเท่านั้น)"
             }}
             """
             
@@ -94,7 +97,7 @@ def check_hot_news(symbol):
                     msg = (
                         f"📌 **หุ้น:** #{symbol}\n"
                         f"🗞 **{news_type}:** {title}\n\n"
-                        f"🤖 **AI สแกนข่าวด่วน:**\n"
+                        f"🤖 **AI แปลและวิเคราะห์ด่วน:**\n"
                         f"ทิศทางแนวโน้ม: {emoji_status}\n"
                         f"💡 **เหตุผล:** {reason}\n\n"
                         f"🔗 [อ่านข่าวฉบับเต็มคลิกที่นี่]({link})"
@@ -107,8 +110,11 @@ def check_hot_news(symbol):
                 pass
 
     except Exception as e:
-        print(f"⚠️ News Error {symbol}: {e}")
+        pass
 
+# ==========================================
+# 🌟 ระบบแจ้งเตือนกราฟเทคนิค
+# ==========================================
 def check_market_conditions():
     active_symbols = get_all_active_symbols()
     if not active_symbols:
@@ -145,7 +151,7 @@ def check_market_conditions():
 
             if rsi_condition != 'normal' and rsi_condition != last_alert_state[symbol]['rsi']:
                 send_alert_to_users(symbol, msg, alert_type="tech")
-                log_alert(symbol, f"RSI_{rsi_condition.upper()}", price) # 🌟 จดบันทึกราคาและสัญญาณ
+                log_alert(symbol, f"RSI_{rsi_condition.upper()}", price) 
                 last_alert_state[symbol]['rsi'] = rsi_condition
             elif rsi_condition == 'normal':
                 last_alert_state[symbol]['rsi'] = 'normal'
@@ -161,7 +167,7 @@ def check_market_conditions():
 
             if cross_condition != 'normal' and cross_condition != last_alert_state[symbol]['cross']:
                 send_alert_to_users(symbol, msg, alert_type="tech")
-                log_alert(symbol, f"EMA_{cross_condition.upper()}", price) # 🌟 จดบันทึกราคาและสัญญาณ
+                log_alert(symbol, f"EMA_{cross_condition.upper()}", price) 
                 last_alert_state[symbol]['cross'] = cross_condition
 
             # --- Breakout ---
@@ -175,7 +181,7 @@ def check_market_conditions():
 
             if breakout_condition != 'normal' and breakout_condition != last_alert_state[symbol]['breakout']:
                 send_alert_to_users(symbol, msg, alert_type="tech")
-                log_alert(symbol, f"BREAKOUT_{breakout_condition.upper()}", price) # 🌟 จดบันทึกราคาและสัญญาณ
+                log_alert(symbol, f"BREAKOUT_{breakout_condition.upper()}", price) 
                 last_alert_state[symbol]['breakout'] = breakout_condition
             elif breakout_condition == 'normal':
                 last_alert_state[symbol]['breakout'] = 'normal'
@@ -185,44 +191,51 @@ def check_market_conditions():
         except Exception as e:
             pass
 
-def check_and_broadcast_vip_news(bot_instance):
-    """เช็คข่าวด่วน 2 โซน แล้วส่งให้ลูกค้า VIP และ PRO"""
+# ==========================================
+# 🌟 ระบบบรอดแคสต์ข่าวด่วนภาพรวมตลาด (ให้เฉพาะ PRO)
+# ==========================================
+def check_and_broadcast_pro_news(bot_instance):
+    """เช็คข่าวด่วน 2 โซน แล้วให้ AI แปลไทย/สรุป ส่งให้ลูกค้า PRO เท่านั้น"""
     news_sources = [
-        {"tag": "🇹🇭 **Thai Market News (VIP)** 🇹🇭", "url": "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+ตลาดหลักทรัพย์+OR+การลงทุน+OR+หุ้น&hl=th&gl=TH&ceid=TH:th"},
-        {"tag": "🌍 **Global Market News (VIP)** 🌍", "url": "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+investing&hl=en-US&gl=US&ceid=US:en"}
+        {"tag": "🇹🇭 **Thai Market News (PRO Exclusive)** 🇹🇭", "url": "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+ตลาดหลักทรัพย์+OR+การลงทุน+OR+หุ้น&hl=th&gl=TH&ceid=TH:th"},
+        {"tag": "🌍 **Global Market News (PRO Exclusive)** 🌍", "url": "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+investing&hl=en-US&gl=US&ceid=US:en"}
     ]
     
     for source in news_sources:
         try:
-            response = cffi_requests.get(source["url"], impersonate="chrome110", timeout=15)
-            soup = BeautifulSoup(response.content, "xml")
-            items = soup.find_all("item")[:2] 
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            response = requests.get(source["url"], headers=headers, timeout=15)
+            root = ET.fromstring(response.content)
+            items = root.findall('.//item')[:2] 
             
             for item in items:
-                title = item.title.text
-                if title not in sent_vip_news:
+                title_elem = item.find('title')
+                if title_elem is None: continue
+                title = title_elem.text
+                
+                if title not in sent_pro_news:
                     prompt = f"""
                     คุณคือนักวิเคราะห์ข่าวการเงินระดับเชี่ยวชาญ 
-                    นี่คือพาดหัวข่าวเศรษฐกิจและการลงทุนล่าสุด: "{title}"
+                    นี่คือพาดหัวข่าวเศรษฐกิจและการลงทุนล่าสุด (อาจเป็นภาษาไทยหรืออังกฤษ): "{title}"
                     
-                    1. สรุปข่าวนี้ให้สั้น กระชับ จับใจความสำคัญว่ากระทบนักลงทุนอย่างไร 
+                    1. แปลข่าวและสรุปให้สั้น กระชับ จับใจความสำคัญว่ากระทบนักลงทุนอย่างไร (ตอบเป็นภาษาไทยเท่านั้น)
                     2. พิมพ์แค่เนื้อหาข่าวที่สรุปแล้วอย่างเดียว ห้ามใส่ลิงก์
-                    3. ตอบเป็นภาษาไทยเท่านั้น
                     """
                     try:
                         ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                         summary = ai_check.text.strip()
-                        news_message = f"{source['tag']}\n\n{summary}"
+                        news_message = f"{source['tag']}\n\n📰 **พาดหัวข่าว:** {title}\n🤖 **AI แปลและวิเคราะห์:** {summary}"
                         
                         conn = get_connection()
                         cur = conn.cursor()
-                        cur.execute("SELECT user_id FROM users WHERE role IN ('vip', 'pro')")
-                        vip_users = cur.fetchall()
+                        # 👑 ดึงเฉพาะลูกค้า PRO
+                        cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
+                        pro_users = cur.fetchall()
                         
                         count = 0
-                        for vip in vip_users:
-                            user_id = vip[0]
-                            if check_subscription(user_id) in ['vip', 'pro']:
+                        for pro in pro_users:
+                            user_id = pro[0]
+                            if check_subscription(user_id) == 'pro':
                                 try:
                                     bot_instance.send_message(user_id, news_message, parse_mode='Markdown')
                                     count += 1
@@ -232,8 +245,8 @@ def check_and_broadcast_vip_news(bot_instance):
                                     
                         cur.close()
                         conn.close()
-                        if count > 0: print(f"✅ ส่งสรุปข่าว {source['tag']} ให้ VIP/PRO สำเร็จ {count} คน: {title}")
-                        sent_vip_news.add(title)
+                        if count > 0: print(f"✅ ส่งสรุปข่าว {source['tag']} ให้ PRO สำเร็จ {count} คน")
+                        sent_pro_news.add(title)
                         break
                     except Exception as ai_e:
                         pass
@@ -242,8 +255,8 @@ def check_and_broadcast_vip_news(bot_instance):
 
 if __name__ == "__main__":
     init_db()
-    print("🚀 Apexify Alert System (PRO & VIP) is Running...")
+    print("🚀 Apexify Alert System (PRO Exclusive) is Running...")
     while True:
-        check_and_broadcast_vip_news(bot)
+        check_and_broadcast_pro_news(bot)
         check_market_conditions()
         time.sleep(300)
