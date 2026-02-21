@@ -383,7 +383,7 @@ def handle_payment_slip_check(message):
         bot.edit_message_text("⚠️ AI ไม่สามารถอ่านสลิปได้ โปรดถ่ายให้ชัดเจนอีกครั้ง", message.chat.id, progress_msg.message_id)
 
 # ==========================================
-# 🌟 ระบบปุ่มกด Inline (ใส่ Try-Except ดัก Error ทุกปุ่ม)
+# 🌟 ระบบปุ่มกด Inline (เพิ่ม AI Screener และอัปเดตคำอธิบาย VIP/PRO)
 # ==========================================
 @bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('menu_') or call.data.startswith('hub_'))
 def inline_callbacks(call):
@@ -392,7 +392,7 @@ def inline_callbacks(call):
     role = check_subscription(user_id)
     bot.answer_callback_query(call.id)
     
-    # 🌟 เมนูอธิบายแพ็กเกจ
+    # 🌟 เมนูอธิบายแพ็กเกจ (ปรับคำอธิบายให้ลูกค้าอยากจ่าย 499.- มากที่สุด)
     if call.data == 'menu_vip':
         try:
             pay_text = (
@@ -401,25 +401,24 @@ def inline_callbacks(call):
                 
                 "🆓 **1. ระดับ Free Trial (สายฟรี):**\n"
                 "• โควต้าวิเคราะห์กราฟ 10 ครั้ง\n"
-                "• สร้าง Watchlist สูงสุด 3 ตัว\n"
-                "• 🤝 ชวนเพื่อน: รับโควต้าวิเคราะห์เพิ่ม 3 ครั้ง/คน\n\n"
+                "• สร้าง Watchlist สูงสุด 3 ตัว\n\n"
                 
                 "💎 **2. ระดับ VIP (199.-/เดือน หรือ 1,990.-/ปี):**\n"
                 "• โควต้าวิเคราะห์กราฟ **ไม่จำกัด!**\n"
                 "• สร้าง Watchlist **สูงสุด 10 ตัว**\n"
-                "• กดสแกนหุ้นใน Watchlist รวดเดียวจบ\n"
-                "• AI ฟันธงจุดเข้าซื้อ/ขายละเอียด\n"
-                "• 🤝 ชวนเพื่อน: รับวันใช้งาน VIP เพิ่มฟรี 1 วัน/คน\n\n"
+                "• สแกนหุ้นใน Watchlist รวดเดียวจบ\n"
+                "• AI ฟันธงจุดเข้าซื้อ/ขายละเอียด\n\n"
                 
                 "👑 **3. ระดับ PRO (499.-/เดือน หรือ 4,990.-/ปี) [แนะนำ!]:**\n"
-                "• **[Exclusive] 🔔 ตั้งเตือนราคาส่วนตัว (Custom Alerts)**\n"
-                "• **[Exclusive] 📰 แจ้งเตือนข่าวด่วนโลก/ไทย** แปลไทยอัตโนมัติ\n"
-                "• **[Exclusive] 📈 แจ้งเตือนสัญญาณกราฟ 24 ชม.**\n"
-                "• สร้าง Watchlist **ไม่จำกัดจำนวน!**\n"
-                "• AI เชิงลึกระดับ Senior วิเคราะห์ลึกถึงกลยุทธ์\n"
-                "• 🤝 ชวนเพื่อน: รับวันใช้งาน PRO เพิ่มฟรี 1 วัน/คน\n\n"
+                "• **[NEW] 🔥 AI สแกนหุ้นเด่น (Screener)** คัดตัวเข้าตามาให้ทุกวัน\n"
+                "• **[NEW] 🌅 Morning Briefing** สรุปทิศทางตลาดส่งให้ทุกเช้า\n"
+                "• **[NEW] 📅 แจ้งเตือนปันผล (XD)** ล่วงหน้า 3 วัน\n"
+                "• 🔔 ตั้งเตือนราคาส่วนตัว (Custom Price Alerts)\n"
+                "• 📰 แจ้งเตือนข่าวด่วนโลก/ไทย (แปลไทยอัตโนมัติ)\n"
+                "• 📈 แจ้งเตือนสัญญาณกราฟ (Golden Cross, RSI) 24 ชม.\n"
+                "• สร้าง Watchlist **ไม่จำกัดจำนวน!**\n\n"
                 
-                "✅ *โอนเงินแล้วส่งรูปสลิปในแชทนี้ ระบบจะอัปเกรดอัตโนมัติครับ!*"
+                "✅ *โอนเงินแล้วส่งรูปสลิปในแชทนี้ ระบบจะอัปเกรดให้อัตโนมัติครับ!*"
             )
             bot.send_message(user_id, pay_text, parse_mode="Markdown")
         except Exception as e:
@@ -428,7 +427,6 @@ def inline_callbacks(call):
     elif call.data == 'menu_code':
         bot.send_message(user_id, "🎟 **พิมพ์คำสั่ง:** `/redeem [โค้ดของคุณ]`", parse_mode="Markdown")
         
-    # 🌟 เมนูชวนเพื่อน (ใส่ Try-Except เพื่อดัก DB Error)
     elif call.data == 'menu_referral':
         try:
             ref_count = get_referral_stats(user_id)
@@ -539,7 +537,48 @@ def inline_callbacks(call):
         except Exception as e:
             bot.send_message(user_id, f"❌ Error: {e}")
 
-    # 🌟 เมนูตั้งเตือนราคา (ใส่ Try-Except เพื่อดัก DB Error)
+    # 🌟 ฟีเจอร์ใหม่: AI Auto-Screener (PRO Exclusive)
+    elif call.data == 'hub_screener':
+        try:
+            if role != 'pro' and user_id != ADMIN_ID:
+                bot.send_message(user_id, "🔒 **ฟีเจอร์ระดับพรีเมียม (PRO Exclusive)**\nสแกนหุ้นเด่นอัตโนมัติสงวนสิทธิ์ให้ลูกค้าระดับ PRO เท่านั้นครับ 👑", parse_mode="Markdown")
+                return
+            
+            scan_msg = bot.send_message(user_id, "⏳ **AI กำลังสแกนหาหุ้นเด่น...**\n*(ค้นหาจากกลุ่ม SET50 และ US Tech ที่เพิ่งเกิด Golden Cross หรือ RSI ตกเข้าโซน Oversold)*")
+            
+            # ลิสต์หุ้นยอดฮิตเพื่อให้สแกนได้เร็ว (กัน Timeout)
+            scan_list = ['PTT.BK', 'AOT.BK', 'ADVANC.BK', 'CPALL.BK', 'DELTA.BK', 'GULF.BK', 'KBANK.BK', 'SCB.BK', 'BDMS.BK', 'BBL.BK', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'GOOGL']
+            
+            found_stocks = []
+            for sym in scan_list:
+                try:
+                    tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
+                    if err or not tech_data: continue
+                    
+                    rsi = tech_data['rsi']
+                    ema50 = tech_data['ema50']
+                    ema200 = tech_data['ema200']
+                    price = tech_data['price']
+                    
+                    # เงื่อนไขคัดหุ้นเด่น: เพิ่งตัดขึ้น หรือเข้าเขตขายมากเกินไป
+                    is_golden = (ema50 > ema200) and (ema50 / ema200 < 1.02)
+                    is_oversold = rsi < 30
+                    
+                    if is_golden or is_oversold:
+                        reason = "✨ เพิ่งเกิด Golden Cross (เทรนด์เปลี่ยนเป็นขาขึ้น)" if is_golden else f"🎯 น่าสะสม (RSI ต่ำเพียง {rsi:.2f})"
+                        found_stocks.append(f"📌 **{sym}** (ราคา: {price:,.2f})\n   👉 {reason}")
+                except Exception:
+                    pass
+            
+            if found_stocks:
+                result_msg = "🔥 **หุ้นเด่นน่าเก็บประจำวัน (AI Screener)** 🔥\n\n" + "\n\n".join(found_stocks)
+            else:
+                result_msg = "🔥 **หุ้นเด่นน่าเก็บประจำวัน** 🔥\n\nขณะนี้ยังไม่พบหุ้นที่เข้าเกณฑ์ Golden Cross หรือ Oversold แบบชัดเจนครับ\n*(AI แนะนำให้จับตาดูตลาด หรือถือเงินสดรอดูสถานการณ์)*"
+                
+            bot.edit_message_text(result_msg, user_id, scan_msg.message_id, parse_mode="Markdown")
+        except Exception as e:
+            bot.edit_message_text(f"❌ ระบบสแกนขัดข้อง: {e}", user_id, scan_msg.message_id)
+
     elif call.data == 'hub_price_alert':
         try:
             if role != 'pro' and user_id != ADMIN_ID:
@@ -610,7 +649,11 @@ def handle_main(message):
             InlineKeyboardButton("📋 จัดการ Watchlist", callback_data="hub_watchlist"),
             InlineKeyboardButton("🚀 สแกนหุ้น (VIP)", callback_data="hub_scan")
         )
-        markup.add(InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert"))
+        # 🌟 เพิ่มปุ่มใหม่สุดอลังการสำหรับ PRO
+        markup.add(
+            InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert"),
+            InlineKeyboardButton("🔥 หุ้นเด่น (PRO)", callback_data="hub_screener")
+        )
         
         msg = "📱 **Apexify Hub (เมนูหลัก)**\nเลือกฟีเจอร์ที่คุณต้องการใช้งานได้เลยครับ:"
         bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
