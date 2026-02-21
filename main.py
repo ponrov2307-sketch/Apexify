@@ -278,7 +278,7 @@ def handle_main(message):
             msg = "❌ ไม่พบข้อมูลบัญชี พิมพ์ /start เพื่อลงทะเบียนใหม่"
         bot.reply_to(message, msg, parse_mode="Markdown")
         return
-        elif text == "🌍 สภาวะตลาด":
+    elif text == "🌍 สภาวะตลาด":
         load_msg = bot.reply_to(message, "🌍 กำลังดึงข้อมูลสภาวะตลาดโลก...")
         try:
             fg_index = get_fear_and_greed_index()
@@ -301,7 +301,7 @@ def handle_main(message):
             bot.edit_message_text(f"❌ ดึงข้อมูลตลาดล้มเหลว", message.chat.id, load_msg.message_id)
         return
 
-        elif text == "📰 ข่าวด่วนตลาดทุน":
+    elif text == "📰 ข่าวด่วนตลาดหุ้น":
         load_msg = bot.reply_to(message, "📰 กำลังรวบรวมข่าวด่วน...")
         try:
             url = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
