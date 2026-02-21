@@ -37,10 +37,12 @@ def send_welcome(message):
     if user_id == ADMIN_ID:
         markup.add(KeyboardButton("👑 แผงควบคุมแอดมิน"))
     
-    welcome_text = (
+        welcome_text = (
         "⚡️ ยินดีต้อนรับสู่ **Apexify** ระบบวิเคราะห์หุ้นอัจฉริยะ\n\n"
-        "🎁 **คุณได้รับสิทธิ์ทดลองใช้งานฟรี 10 ครั้ง!**\n"
-        "เลือกเมนูด้านล่าง หรือพิมพ์ชื่อหุ้น (เช่น AAPL, TSLA, PTT) เพื่อเริ่มใช้งานได้เลย"
+        "🎁 **คุณได้รับสิทธิ์ทดลองใช้งานฟรี 10 ครั้ง!**\n\n"
+        "พิมพ์ชื่อหุ้นที่ต้องการวิเคราะห์ส่งมาได้เลยครับ:\n"
+        "🇺🇸 หุ้นต่างประเทศ: `AAPL`, `TSLA`, `NVDA`\n"
+        "🇹🇭 หุ้นไทย (ต้องมี .BK): `PTT.BK`, `AOT.BK`, `TRUE.BK`"
     )
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
 
