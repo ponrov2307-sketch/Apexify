@@ -130,12 +130,13 @@ def calculate_technical_indicators(symbol, generate_chart=True):
                     mpf.make_addplot(data['EMA200'].tail(60), color='#d500f9', width=1.5),
                 ]
 
-                # 🌟 อัปเกรดความชัดเจนของกราฟ เพิ่มอธิบายเส้น และจัดสัดส่วน
+                # 🌟 อัปเดตหัวกราฟให้บอกสีเส้นต่างๆ รวมถึงแนวรับ-แนวต้าน
                 chart_title = (
                     f"\\nApexify Pro Chart: {clean_symbol}\\n"
-                    f"Indicators: EMA20 (Blue) | EMA50 (Orange) | EMA200 (Purple)"
+                    f"EMA: 20(Blue) 50(Orange) 200(Purple) | Res(Red) Sup(Green)"
                 )
 
+                # 🌟 เพิ่มคำสั่งตีเส้น hlines สำหรับแนวต้าน (สีแดง) และแนวรับ (สีเขียว)
                 mpf.plot(
                     data.tail(60),
                     type='candle',
@@ -144,6 +145,7 @@ def calculate_technical_indicators(symbol, generate_chart=True):
                     volume=True,
                     panel_ratios=(4, 1), # แท่งเทียน 80% Volume 20%
                     addplot=add_plots,
+                    hlines=dict(hlines=[resistance, support], colors=['#ff0000', '#00ff00'], linestyle='-.', linewidths=1.5),
                     savefig=dict(fname=buf, dpi=120, bbox_inches='tight', pad_inches=0.1), # เพิ่มความคมชัด
                     figratio=(16, 9), # ทำให้กราฟเป็นแนวนอนกว้างขึ้น
                     figscale=1.2,
