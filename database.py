@@ -197,8 +197,7 @@ def redeem_code(user_id, code):
             return False, "fully_used", None, None
             
     conn.close()
-    return False, "invalid", None, None
-    def get_user_stats():
+def get_user_stats():
     conn = get_connection()
     c = conn.cursor()
     c.execute("SELECT role, COUNT(*) FROM users GROUP BY role")
@@ -215,4 +214,5 @@ def redeem_code(user_id, code):
         total += count
         
     return stats, total
-
+    
+    
