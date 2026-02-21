@@ -12,7 +12,6 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID
-# 🌟 Import ฟังก์ชันทั้งหมดจาก database
 from database import (get_all_users, init_db, register_user, check_subscription, add_subscription, 
                       get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, 
                       remove_watch_db, add_promo_code, redeem_code, get_user_stats, 
@@ -26,26 +25,37 @@ from bs4 import BeautifulSoup
 telebot.logger.setLevel(logging.DEBUG)
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
+# ==========================================
+# 🌟 ระบบ Anti-Spam ดักจับคนป่วนรัวข้อความ
+# ==========================================
 user_message_tracking = {}
 spam_alerted = set()
 
 def is_allowed(user_id):
-    if user_id == ADMIN_ID: return True 
-    if is_user_banned(user_id): return False 
+    """ฟังก์ชันเช็กว่ายูสเซอร์นี้ถูกแบน หรือส่งข้อความรัวเกินไปหรือไม่"""
+    if user_id == ADMIN_ID:
+        return True # แอดมินรันคำสั่งได้รัวๆ ไม่โดนบล็อก
+        
+    if is_user_banned(user_id):
+        return False # ถ้าโดนแบน บอทจะเมินข้อความทันที
         
     now = time.time()
     if user_id not in user_message_tracking:
         user_message_tracking[user_id] = []
         
+    # เก็บเฉพาะข้อความที่ส่งมาใน 10 วินาทีล่าสุด
     user_message_tracking[user_id] = [t for t in user_message_tracking[user_id] if now - t < 10]
     user_message_tracking[user_id].append(now)
     
+    # ถ้าส่งเกิน 5 ข้อความใน 10 วินาที -> มองว่าเป็น Spam
     if len(user_message_tracking[user_id]) > 5:
         if user_id not in spam_alerted:
-            bot.send_message(ADMIN_ID, f"🚨 **แจ้งเตือนสแปม:** User `{user_id}` พยายามส่งข้อความรัวๆ\n👉 พิมพ์ `/ban {user_id}` เพื่อแบน", parse_mode="Markdown")
+            # ฟ้องแอดมิน
+            bot.send_message(ADMIN_ID, f"🚨 **แจ้งเตือนสแปม:** User `{user_id}` พยายามส่งข้อความรัวๆ ระบบได้ระงับการตอบกลับชั่วคราว\n👉 พิมพ์ `/ban {user_id}` เพื่อแบนถาวร", parse_mode="Markdown")
             spam_alerted.add(user_id)
         return False
         
+    # ถ้าหยุดป่วนแล้ว ค่อยเคลียร์ชื่อออกจากการเฝ้าระวัง
     if len(user_message_tracking[user_id]) <= 5 and user_id in spam_alerted:
         spam_alerted.remove(user_id)
         
@@ -80,6 +90,9 @@ def send_welcome(message):
     )
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
 
+# ==========================================
+# 🌟 ระบบคำสั่งแอดมิน 
+# ==========================================
 @bot.message_handler(commands=['ban'])
 def handle_ban(message):
     if str(message.chat.id) != ADMIN_ID: return
@@ -120,7 +133,7 @@ def handle_gencode(message):
             )
             bot.reply_to(message, msg, parse_mode="Markdown")
     except Exception as e:
-        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: /gencode [จำนวนวัน] [จำนวนคนที่ใช้ได้] [vip/pro]")
+        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: /gencode [จำนวนวัน] [จำนวนคนที่ใช้ได้] [vip/pro]\nเช่น `/gencode 30 10 pro`", parse_mode="Markdown")
 
 @bot.message_handler(commands=['redeem'])
 def handle_redeem(message):
@@ -128,19 +141,19 @@ def handle_redeem(message):
     if not is_allowed(user_id): return
     args = message.text.split()
     if len(args) < 2:
-        bot.reply_to(message, "❌ รูปแบบคำสั่งไม่ถูกต้อง พิมพ์: `/redeem [โค้ดของคุณ]`")
+        bot.reply_to(message, "❌ รูปแบบคำสั่งไม่ถูกต้อง พิมพ์: `/redeem [โค้ดของคุณ]`", parse_mode="Markdown")
         return
     
     code = args[1].strip().upper()
     success, days, expiry, role_type = redeem_code(user_id, code)
     
     if success:
-        bot.reply_to(message, f"🎉 **ยินดีด้วย!** เติมโค้ดสำเร็จ\nคุณได้รับการอัปเกรดเป็น **{role_type.upper()} Member** ถึงวันที่: `{expiry}`", parse_mode="Markdown")
+        bot.reply_to(message, f"🎉 **ยินดีด้วย!** เติมโค้ดสำเร็จ\nคุณได้รับการอัปเกรดเป็น **{role_type.upper()} Member** ถึงวันที่: `{expiry}`\n\nสามารถใช้งานฟีเจอร์ใหม่ได้ทันทีครับ 🚀", parse_mode="Markdown")
         increment_usage(user_id) 
     elif days == "already_used_by_you":
-        bot.reply_to(message, "⚠️ คุณเคยใช้โค้ดโปรโมชั่นนี้ไปแล้วครับ")
+        bot.reply_to(message, "⚠️ คุณเคยใช้โค้ดโปรโมชั่นนี้ไปแล้วครับ (1 คน ใช้ได้ 1 ครั้ง)")
     elif days == "fully_used":
-        bot.reply_to(message, "❌ สิทธิ์ของโค้ดนี้ถูกใช้งานครบตามจำนวนแล้วครับ")
+        bot.reply_to(message, "❌ น่าเสียดาย! สิทธิ์ของโค้ดนี้ถูกใช้งานครบตามจำนวนแล้วครับ")
     else:
         bot.reply_to(message, "❌ โค้ดไม่ถูกต้อง หรือไม่มีในระบบ")
 
@@ -163,12 +176,13 @@ def handle_watchlist_cmd(message):
     if not is_allowed(user_id): return
     my_list = get_user_watch(user_id)
     if not my_list:
-        bot.reply_to(message, "📋 Watchlist ของคุณว่างเปล่า")
+        bot.reply_to(message, "📋 Watchlist ของคุณว่างเปล่า\nพิมพ์ชื่อหุ้นแล้วกด ⭐ เพิ่มเข้า Watchlist ใต้กราฟได้เลยครับ")
         return
     markup = InlineKeyboardMarkup()
     for symbol in my_list:
         markup.add(InlineKeyboardButton(f"❌ ลบ {symbol}", callback_data=f"delwatch_{symbol}"))
-    bot.reply_to(message, "📋 **จัดการ Watchlist:**", parse_mode="Markdown", reply_markup=markup)
+    msg = "📋 **จัดการ Watchlist ของคุณ:**\n(กดปุ่มด้านล่างเพื่อลบหุ้นที่ไม่ต้องการแจ้งเตือน)"
+    bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
 
 @bot.message_handler(commands=['broadcast'])
 def handle_broadcast(message):
@@ -181,11 +195,11 @@ def handle_broadcast(message):
     bot.reply_to(message, f"⏳ กำลังส่งข้อความหาผู้ใช้ {len(users)} คน...")
     for uid in users:
         try:
-            bot.send_message(uid, f"📢 **ประกาศ:**\n\n{msg_text}", parse_mode="Markdown")
+            bot.send_message(uid, f"📢 **ประกาศจาก Apexify:**\n\n{msg_text}", parse_mode="Markdown")
             success += 1
         except Exception:
             fail += 1 
-    bot.reply_to(message, f"✅ สำเร็จ: {success} คน | ❌ ล้มเหลว: {fail} คน")
+    bot.reply_to(message, f"✅ บรอดแคสต์สำเร็จ: {success} คน\n❌ ล้มเหลว: {fail} คน")
 
 @bot.message_handler(commands=['stats'])
 def handle_stats(message):
@@ -194,40 +208,51 @@ def handle_stats(message):
         stats, total = get_user_stats()
         est_revenue = (stats.get('vip', 0) * 199) + (stats.get('pro', 0) * 499)
         msg = (
-            "📊 **สถิติการใช้งาน Apexify**\n\n"
+            "📊 **สถิติการใช้งาน Apexify** 📊\n\n"
             f"👥 **ผู้ใช้งานทั้งหมด:** {total} คน\n"
-            f"🆓 **สายฟรี:** {stats.get('free', 0)} คน\n"
-            f"💎 **VIP:** {stats.get('vip', 0)} คน\n"
-            f"👑 **PRO:** {stats.get('pro', 0)} คน\n\n"
-            f"💰 **รายได้ประเมิน:** {est_revenue:,.2f} บาท/เดือน"
+            f"🆓 **สายฟรี (Free Trial):** {stats.get('free', 0)} คน\n"
+            f"💎 **ระดับ VIP:** {stats.get('vip', 0)} คน\n"
+            f"👑 **ระดับ PRO:** {stats.get('pro', 0)} คน\n\n"
+            f"💰 **ประมาณการรายได้ขั้นต่ำ:** {est_revenue:,.2f} บาท/เดือน\n"
+            "*(หมายเหตุ: คำนวณอิงจากราคาแพ็กเกจรายเดือน)*"
         )
         bot.reply_to(message, msg, parse_mode="Markdown")
     except Exception as e:
-        bot.reply_to(message, f"❌ Error: {e}")
+        bot.reply_to(message, f"❌ เกิดข้อผิดพลาดในการดึงสถิติ: {e}")
 
+# ==========================================
+# 🌟 ระบบคำนวณความแม่นยำ AI (เอาไว้ทำคอนเทนต์)
+# ==========================================
 @bot.message_handler(commands=['performance'])
 def handle_performance(message):
     if str(message.chat.id) != ADMIN_ID: return
-    status_msg = bot.reply_to(message, "⏳ กำลังคำนวณความแม่นยำ AI...")
+    
+    status_msg = bot.reply_to(message, "⏳ กำลังดึงประวัติและคำนวณผลกำไร/ขาดทุน โปรดรอสักครู่...")
     try:
         from database import get_connection
         conn = get_connection()
         c = conn.cursor()
+        # ดึง 15 สัญญาณล่าสุดมาเช็ค
         c.execute("SELECT symbol, alert_type, price_at_alert, timestamp FROM alert_logs ORDER BY id DESC LIMIT 15")
         logs = c.fetchall()
         conn.close()
 
         if not logs:
-            bot.edit_message_text("❌ ยังไม่มีประวัติการแจ้งเตือน", message.chat.id, status_msg.message_id)
+            bot.edit_message_text("❌ ยังไม่มีประวัติการแจ้งเตือนในระบบครับ ระบบจะเริ่มจดจำเมื่อมีสัญญาณออก", message.chat.id, status_msg.message_id)
             return
 
-        report_text = "🎯 **ผลงานความแม่นยำ AI (ล่าสุด)** 🎯\n\n"
-        win_count, total_count = 0, 0
+        report_text = "🎯 **สรุปผลงานความแม่นยำ AI (ล่าสุด)** 🎯\n\n"
+        win_count = 0
+        total_count = 0
 
         for row in logs:
             symbol, alert_type, start_price, timestamp = row
             try:
-                clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(".BK") else symbol
+                # ดึงราคาปัจจุบัน
+                clean_symbol = symbol
+                if "." in clean_symbol and not clean_symbol.endswith(".BK"):
+                    clean_symbol = clean_symbol.replace(".", "-")
+                
                 ticker = yf.Ticker(clean_symbol)
                 hist = ticker.history(period="1d")
                 if hist.empty: continue
@@ -235,12 +260,13 @@ def handle_performance(message):
                 current_price = float(hist['Close'].iloc[-1])
                 diff_pct = ((current_price - start_price) / start_price) * 100
                 
+                # เช็คว่าเข้าทางไหน: ขึ้น(Call/Buy) หรือ ลง(Put/Sell)
                 is_win = False
                 if any(x in alert_type.upper() for x in ["OVERSOLD", "GOLDEN_CROSS", "BREAK_RES"]):
                     if diff_pct > 0: is_win = True
                 elif any(x in alert_type.upper() for x in ["OVERBOUGHT", "DEATH_CROSS", "BREAK_SUP"]):
                     if diff_pct < 0: is_win = True
-                    diff_pct = -diff_pct 
+                    diff_pct = -diff_pct # สลับเป็นค่าบวกโชว์กำไรฝั่ง Short
                     
                 if is_win: win_count += 1
                 total_count += 1
@@ -248,23 +274,37 @@ def handle_performance(message):
                 emoji = "✅" if is_win else "❌"
                 short_type = alert_type.replace('_', ' ')
                 
-                report_text += f"{emoji} **{symbol}** ({short_type})\n   เตือน: {start_price:.2f} ➡️ ปัจจุบัน: {current_price:.2f} ({diff_pct:+.2f}%)\n"
-            except Exception: continue
+                report_text += f"{emoji} **{symbol}** ({short_type})\n"
+                report_text += f"   เตือน: {start_price:.2f} ➡️ ปัจจุบัน: {current_price:.2f} ({diff_pct:+.2f}%)\n\n"
+                
+            except Exception:
+                continue
         
         if total_count > 0:
             win_rate = (win_count / total_count) * 100
-            report_text += f"\n🏆 **Win Rate:** {win_rate:.2f}% ({win_count}/{total_count})"
+            report_text += f"🏆 **อัตราชนะรวม (Win Rate):** {win_rate:.2f}% ({win_count}/{total_count})"
+        else:
+            report_text += "ไม่สามารถคำนวณราคาปัจจุบันได้"
+
         bot.edit_message_text(report_text, message.chat.id, status_msg.message_id, parse_mode="Markdown")
+        
     except Exception as e:
         bot.edit_message_text(f"❌ Error: {e}", message.chat.id, status_msg.message_id)
+
 
 @bot.message_handler(content_types=['photo'])
 def handle_payment_slip_check(message):
     user_id = str(message.chat.id)
     if not is_allowed(user_id): return
+    
     role = check_subscription(user_id)
     
-    progress_msg = bot.reply_to(message, "🧾 AI กำลังตรวจสอบสลิป...")
+    if role == 'pro':
+        progress_msg = bot.reply_to(message, "🧾 AI กำลังตรวจสอบยอดเงินเพื่อ **ต่ออายุแพ็กเกจ PRO ล่วงหน้า**...")
+    elif role == 'vip':
+        progress_msg = bot.reply_to(message, "🧾 AI กำลังตรวจสอบยอดเงินเพื่อ **ต่ออายุ/อัปเกรดแพ็กเกจ**...")
+    else:
+        progress_msg = bot.reply_to(message, "🧾 AI กำลังตรวจสอบยอดเงินและป้องกันสลิปซ้ำ...")
         
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
@@ -277,35 +317,51 @@ def handle_payment_slip_check(message):
             ref_no = result.get('ref_no', '').strip()
             
             if not ref_no or ref_no == "" or ref_no.lower() == "none":
-                bot.edit_message_text("⚠️ ควรถ่ายให้เห็นเลขที่อ้างอิงชัดๆ ครับ", message.chat.id, progress_msg.message_id)
+                bot.edit_message_text("⚠️ AI อ่าน 'เลขที่อ้างอิง' บนสลิปไม่ชัดเจน โปรดถ่ายให้เห็นเลขที่อ้างอิงชัดๆ ครับ", message.chat.id, progress_msg.message_id)
                 return
+                
             if check_slip_used(ref_no):
-                bot.edit_message_text("❌ **สลิปนี้ถูกใช้งานไปแล้ว!**", message.chat.id, progress_msg.message_id)
+                bot.edit_message_text("❌ **สลิปนี้ถูกใช้งานไปแล้ว!**\nไม่อนุญาตให้ใช้สลิปซ้ำเพื่อเติมวันครับ หากมีข้อสงสัยโปรดติดต่อแอดมิน", message.chat.id, progress_msg.message_id, parse_mode="Markdown")
+                bot.send_message(ADMIN_ID, f"🚨 **แจ้งเตือนทุจริต!**\nUser `{user_id}` พยายามส่งสลิปซ้ำ! (เลขที่อ้างอิง: `{ref_no}`)", parse_mode="Markdown")
                 return
 
             if amount == 4990:
                 expiry = add_subscription(user_id, 'pro', 365)
-                msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรด **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"
+                msg_text = f"🎉 **ชำระเงิน/ต่ออายุสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"
             elif amount == 1990:
                 expiry = add_subscription(user_id, 'vip', 365)
-                msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรด **💎 VIP (รายปี)**\n⏰ หมดอายุ: {expiry}"
+                msg_text = f"🎉 **ชำระเงิน/ต่ออายุสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายปี)**\n⏰ หมดอายุ: {expiry}"
             elif amount == 499:
                 expiry = add_subscription(user_id, 'pro', 30)
-                msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรด **👑 PRO (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
+                msg_text = f"🎉 **ชำระเงิน/ต่ออายุสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
             elif amount == 199:
                 expiry = add_subscription(user_id, 'vip', 30)
-                msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรด **💎 VIP (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
+                msg_text = f"🎉 **ชำระเงิน/ต่ออายุสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
             else:
-                bot.edit_message_text(f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** ({amount:,.2f} บาท)", message.chat.id, progress_msg.message_id)
+                bot.edit_message_text(
+                    f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** (ระบบตรวจพบยอด {amount:,.2f} บาท)\n\n"
+                    f"⚠️ **กรุณาโอนเงินให้ตรงกับราคาแพ็กเกจเป๊ะๆ เท่านั้น** (199, 499, 1990, หรือ 4990)\n\n"
+                    f"💬 *หากคุณโอนเงินมาแล้วแต่ยอดไม่ตรง กรุณาติดต่อแอดมินเพื่อปรับแก้ให้ครับ*", 
+                    message.chat.id, 
+                    progress_msg.message_id, 
+                    parse_mode="Markdown"
+                )
+                bot.send_message(ADMIN_ID, f"⚠️ **แจ้งเตือนยอดผิดปกติ!**\nUser `{user_id}` โอนเงิน {amount:,.2f} บาท ซึ่งไม่ตรงกับแพ็กเกจใดๆ โปรดตรวจสอบสลิปนี้ครับ", parse_mode="Markdown")
+                bot.send_photo(ADMIN_ID, message.photo[-1].file_id)
                 return
 
             mark_slip_used(ref_no, user_id)
+            
             bot.delete_message(message.chat.id, progress_msg.message_id)
             bot.reply_to(message, msg_text, parse_mode="Markdown")
+            bot.send_message(ADMIN_ID, f"💰 เงินเข้า/ต่ออายุ! User `{user_id}` โอน {amount} บาท (Ref: `{ref_no}`)")
         else:
-            bot.edit_message_text("❌ รูปนี้ไม่ใช่สลิปโอนเงินครับ", message.chat.id, progress_msg.message_id)
+            bot.edit_message_text("❌ รูปนี้ไม่ใช่สลิปโอนเงินที่ถูกต้องครับ", message.chat.id, progress_msg.message_id)
+            
     except Exception as e:
-        bot.edit_message_text("⚠️ AI อ่านสลิปไม่ได้ โปรดลองใหม่", message.chat.id, progress_msg.message_id)
+        bot.edit_message_text("⚠️ AI ไม่สามารถอ่านสลิปได้ โปรดถ่ายให้ชัดเจนอีกครั้ง หรือติดต่อแอดมิน", message.chat.id, progress_msg.message_id)
+        bot.send_message(ADMIN_ID, f"🚨 Error ตรวจสลิป User: `{user_id}`\n❌ {e}")
+        bot.send_photo(ADMIN_ID, message.photo[-1].file_id)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_'))
 def inline_watchlist(call):
@@ -318,18 +374,20 @@ def inline_watchlist(call):
     if action == 'addwatch':
         current_watch = len(get_user_watch(user_id))
         if role == 'free' and current_watch >= 3:
-            bot.send_message(user_id, "🔒 **จำกัด Watchlist 3 ตัว** โปรดอัปเกรด")
+            bot.send_message(user_id, "🔒 **ผู้ใช้ Free จำกัด Watchlist ได้ 3 ตัว**\nโปรดอัปเกรดเป็น VIP/PRO เพื่อเพิ่มจำนวนครับ", parse_mode="Markdown")
             return
         elif role == 'vip' and current_watch >= 10:
-            bot.send_message(user_id, "🔒 **จำกัด Watchlist 10 ตัว** โปรดอัปเกรดเป็น PRO")
+            bot.send_message(user_id, "🔒 **ผู้ใช้ VIP จำกัด Watchlist ได้ 10 ตัว**\nโปรดอัปเกรดเป็น PRO เพื่อปลดล็อกแบบ **ไม่จำกัด** ครับ!", parse_mode="Markdown")
             return
+            
         if add_watch(user_id, symbol):
-            bot.send_message(user_id, f"✅ เพิ่ม **{symbol}** แล้ว")
+            bot.send_message(user_id, f"✅ เพิ่ม **{symbol}** เข้า Watchlist แล้ว")
         else:
             bot.send_message(user_id, f"⚠️ มี **{symbol}** อยู่แล้ว")
+            
     elif action == 'delwatch':
         remove_watch_db(user_id, symbol)
-        bot.edit_message_text(f"🗑️ ลบ **{symbol}** แล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id)
+        bot.edit_message_text(f"🗑️ ลบ **{symbol}** ออกจาก Watchlist เรียบร้อยแล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id)
 
 @bot.message_handler(func=lambda message: True)
 def handle_main(message):
@@ -350,28 +408,49 @@ def handle_main(message):
             "💎 **อัปเกรดบัญชี (VIP / PRO)**\n"
             "💳 ธนาคารกสิกรไทย: `135-1-34469-1`\n"
             "ชื่อ: นาย เกียรติศักดิ์ วุฒิจันทร์\n\n"
-            "⭐ **VIP (199.-/เดือน)**: AI ฟันธง + ข่าวด่วน + Watchlist 10 ตัว\n"
-            "👑 **PRO (499.-/เดือน)**: กราฟ Realtime + Watchlist ไม่จำกัด\n"
-            "✅ *โอนยอดเงินตามแพ็กเกจ แล้วส่งสลิปมาในแชทนี้ได้เลยครับ*"
+            "⭐ **ระดับ VIP (Standard) - 199.-/เดือน (รายปี 1,990.-)**\n"
+            "• AI ฟันธงจุดเข้าซื้อ/ขาย (Buy/Hold/Sell)\n"
+            "• รับแจ้งเตือนข่าวเศรษฐกิจไทยและโลกระหว่างวัน\n"
+            "• สแกนหุ้นอัตโนมัติใน Watchlist (สูงสุด 10 ตัว)\n\n"
+            "👑 **ระดับ PRO (Platinum) - 499.-/เดือน (รายปี 4,990.-)**\n"
+            "• **[Exclusive]** แจ้งเตือนกราฟ Real-time 24 ชม. (RSI, จุดตัด EMA, Breakout แนวต้าน)\n"
+            "• **[Exclusive]** AI วิเคราะห์เชิงลึกระดับ Senior + บอกกลยุทธ์\n"
+            "• **[Exclusive]** ไม่จำกัดจำนวนหุ้นใน Watchlist!\n\n"
+            "✅ *โอนยอดเงินตามแพ็กเกจที่ต้องการ แล้วส่งรูปสลิปมาในแชทนี้ได้เลยครับ ระบบจะอัปเกรดให้ตรงระดับอัตโนมัติ!*"
         )
         bot.reply_to(message, pay_text, parse_mode="Markdown")
         return
     elif text == "🎁 เติมโค้ด VIP":
-        bot.reply_to(message, "🎟 พิมพ์คำสั่ง `/redeem [ตามด้วยโค้ดของคุณ]`", parse_mode="Markdown")
+        bot.reply_to(message, "🎟 **กรุณาส่งโค้ดโปรโมชั่นของคุณ**\nโดยพิมพ์คำสั่ง `/redeem ตามด้วยโค้ด`", parse_mode="Markdown")
         return
     elif text == "👤 บัญชีของฉัน":
         profile = get_user_profile(user_id)
         if profile:
             _, expiry, usage, reg_date = profile
             watch_count = len(get_user_watch(user_id))
-            status_text = "👑 PRO" if role == 'pro' else "💎 VIP" if role == 'vip' else "🆓 Free"
-            msg = f"👤 **ID:** `{user_id}`\n🏷 **สถานะ:** {status_text}\n⏰ **หมดอายุ:** {expiry or 'ไม่มี'}\n📋 **Watchlist:** {watch_count} ตัว"
+            
+            if role == 'pro': status_text = "👑 PRO (Platinum)"
+            elif role == 'vip': status_text = "💎 VIP (Standard)"
+            else: status_text = "🆓 Free Trial"
+            
+            expiry_text = expiry if expiry else "ไม่มีวันหมดอายุ"
+            quota_text = f"ไม่จำกัด" if role in ['vip', 'pro'] else f"{usage}/10 ครั้ง"
+            reg_text = reg_date[:10] if reg_date else "ไม่ทราบ"
+            
+            msg = (
+                f"👤 **ข้อมูลบัญชี (ID: `{user_id}`)**\n\n"
+                f"🏷 **สถานะ:** {status_text}\n"
+                f"📅 **วันที่เริ่มใช้งาน:** {reg_text}\n"
+                f"📈 **โควต้าวิเคราะห์:** {quota_text}\n"
+                f"⏰ **แพ็กเกจหมดอายุ:** {expiry_text}\n"
+                f"📋 **หุ้นใน Watchlist:** {watch_count} ตัว"
+            )
         else:
-            msg = "❌ ไม่พบข้อมูล"
+            msg = "❌ ไม่พบข้อมูลบัญชี พิมพ์ /start เพื่อลงทะเบียนใหม่"
         bot.reply_to(message, msg, parse_mode="Markdown")
         return
     elif text == "🌍 สภาวะตลาด":
-        load_msg = bot.reply_to(message, "🌍 กำลังดึงข้อมูล...")
+        load_msg = bot.reply_to(message, "🌍 กำลังดึงข้อมูลสภาวะตลาดโลก...")
         try:
             fg_index = get_fear_and_greed_index()
             indices = {"SET (ไทย)": "^SET.BK", "S&P 500 (สหรัฐ)": "^GSPC", "Bitcoin (คริปโต)": "BTC-USD"}
@@ -380,56 +459,101 @@ def handle_main(message):
                 data = yf.Ticker(sym).history(period="5d")
                 if len(data) >= 2:
                     close_today = data['Close'].iloc[-1]
-                    pct_change = ((close_today - data['Close'].iloc[-2]) / data['Close'].iloc[-2]) * 100
+                    close_yest = data['Close'].iloc[-2]
+                    pct_change = ((close_today - close_yest) / close_yest) * 100
                     emoji = "🟢" if pct_change >= 0 else "🔴"
                     market_text += f"• {name}: {close_today:,.2f} ({pct_change:+.2f}%) {emoji}\n"
-            msg = f"🌍 **สภาวะตลาด**\n🧭 **Fear & Greed:** {fg_index}\n📊 **ดัชนี:**\n{market_text}"
+                else:
+                    market_text += f"• {name}: ⚠️ ดึงข้อมูลไม่ได้\n"
+            msg = f"🌍 **สรุปสภาวะตลาด (Market Overview)**\n\n🧭 **Fear & Greed Index:**\n{fg_index}\n\n📊 **ดัชนีสำคัญวันนี้:**\n{market_text}"
             bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
-        except: bot.edit_message_text("❌ ดึงข้อมูลล้มเหลว", message.chat.id, load_msg.message_id)
+        except Exception as e:
+            bot.edit_message_text(f"❌ ดึงข้อมูลตลาดล้มเหลว", message.chat.id, load_msg.message_id)
         return
     elif text == "📰 ข่าวด่วนตลาดทุน":
-        load_msg = bot.reply_to(message, "📰 กำลังดึงข่าว...")
+        load_msg = bot.reply_to(message, "📰 กำลังรวบรวมข่าวด่วน...")
         try:
             url = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
             res = cffi_requests.get(url, impersonate="chrome110", timeout=15)
-            soup = BeautifulSoup(res.content, "xml")
-            items = soup.find_all("item")[:3]
-            news_text = "📰 **Top 3 ข่าวเด่นวันนี้**\n\n"
-            for i, item in enumerate(items, 1):
-                link_tag = item.find('link')
-                link = link_tag.next_sibling.strip() if link_tag and link_tag.next_sibling else ""
-                news_text += f"{i}. [{item.title.text}]({link})\n\n"
-            bot.edit_message_text(news_text, message.chat.id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
-        except: bot.edit_message_text("❌ ล้มเหลว", message.chat.id, load_msg.message_id)
+            if res.status_code == 200:
+                soup = BeautifulSoup(res.content, "xml")
+                items = soup.find_all("item")[:3]
+                if items:
+                    news_text = "📰 **Top 3 ข่าวเด่นเศรษฐกิจไทยวันนี้**\n\n"
+                    for i, item in enumerate(items, 1):
+                        title = item.title.text
+                        link_tag = item.find('link')
+                        link = link_tag.next_sibling.strip() if link_tag and link_tag.next_sibling else "https://news.google.com/"
+                        news_text += f"{i}. [{title}]({link})\n\n"
+                    bot.edit_message_text(news_text, message.chat.id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
+                else:
+                    bot.edit_message_text("❌ ขณะนี้ไม่มีข่าวด่วนในระบบ", message.chat.id, load_msg.message_id)
+            else:
+                bot.edit_message_text("❌ ดึงข้อมูลข่าวล้มเหลว", message.chat.id, load_msg.message_id)
+        except Exception as e:
+            bot.edit_message_text("❌ ดึงข้อมูลข่าวล้มเหลว", message.chat.id, load_msg.message_id)
         return
     elif text == "🚀 สแกน Watchlist (VIP)":
         if user_id != ADMIN_ID and role == 'free':
-            bot.reply_to(message, "🔒 สงวนสิทธิ์เฉพาะ **VIP / PRO**")
+            bot.reply_to(message, "🔒 ฟีเจอร์สแกนหุ้นสงวนสิทธิ์เฉพาะ **VIP / PRO Member** ครับ\nระบบจะสแกนกราฟเทคนิคหุ้นทั้งหมดใน Watchlist อัตโนมัติ ช่วยประหยัดเวลาสุดๆ!")
             return
         my_list = get_user_watch(user_id)
         if not my_list:
-            bot.reply_to(message, "📋 Watchlist ว่างเปล่า")
+            bot.reply_to(message, "📋 Watchlist ของคุณว่างเปล่า โปรดเพิ่มหุ้นก่อนครับ")
             return
-        scan_msg = bot.reply_to(message, f"🚀 สแกนหุ้น {len(my_list)} ตัว...")
-        scan_result = "🚀 **รายงานสแกน**\n\n"
+        scan_msg = bot.reply_to(message, f"🚀 กำลังสแกนหุ้น {len(my_list)} ตัว...")
+        scan_result = "🚀 **รายงานสแกน Watchlist**\n\n"
         for sym in my_list:
             try:
                 tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
-                if err or not tech_data: continue
+                if err or not tech_data:
+                    scan_result += f"• **{sym}**: ⚠️ ข้อมูลไม่สมบูรณ์\n"
+                    continue
                 ema_short = "🟢 ขาขึ้น" if tech_data['ema20'] > tech_data['ema50'] else "🔴 ขาลง"
                 cross = "✨ Golden Cross!" if tech_data['ema50'] > tech_data['ema200'] else "ธรรมดา"
                 rsi = tech_data['rsi']
-                rsi_txt = "🔥 Overbought" if rsi > 70 else "🎯 Oversold" if rsi < 30 else "⚪️ กลาง"
-                scan_result += f"📌 **{sym}** ({tech_data['price']:.2f})\n   เทรนด์: {ema_short} | RSI: {rsi_txt}\n"
-            except: pass
+                rsi_txt = "🔥 ตึงไป (Overbought)" if rsi > 70 else "🎯 น่าสะสม (Oversold)" if rsi < 30 else "⚪️ กลางๆ"
+                scan_result += f"📌 **{sym}** ({tech_data['price']:.2f})\n"
+                scan_result += f"   เทรนด์: {ema_short} | RSI: {rsi_txt}\n"
+                if "Golden" in cross or rsi < 30:
+                    scan_result += f"   👉 **สัญญาณ:** {cross}\n"
+                scan_result += "\n"
+            except Exception:
+                pass
         bot.edit_message_text(scan_result, message.chat.id, scan_msg.message_id, parse_mode="Markdown")
         return
     elif text == "📚 วิธีอ่านสัญญาณ":
-        bot.reply_to(message, "📚 **วิธีอ่านสัญญาณ:**\n- **RSI Overbought 🔴:** ราคาขึ้นแรงเกินไป ระวังโดนเทขาย\n- **RSI Oversold 🟢:** ราคาตกหนักเกินไป อาจมีเด้งกลับ\n- **Golden Cross 🟢:** จุดกลับตัวเป็นขาขึ้น\n- **Death Cross 🔴:** จุดกลับตัวเป็นขาลง", parse_mode="Markdown")
+        tutorial = (
+            "📚 **คู่มืออ่านสัญญาณ Apexify เบื้องต้น**\n\n"
+            "1️⃣ **RSI (ความร้อนแรง)**\n"
+            "• Overbought 🔴: ราคาขึ้นแรงเกินไป ระวังโดนเทขาย\n"
+            "• Oversold 🟢: ราคาตกหนักเกินไป อาจมีเด้งกลับ\n\n"
+            "2️⃣ **EMA Cross (จุดตัด)**\n"
+            "• Golden Cross 🟢: เส้นสั้นตัดขึ้นเส้นยาว (จังหวะซื้อ)\n"
+            "• Death Cross 🔴: เส้นสั้นตัดลงเส้นยาว (จังหวะขาย/หนี)\n"
+        )
+        bot.reply_to(message, tutorial, parse_mode="Markdown")
         return
     elif text == "👑 แผงควบคุมแอดมิน":
         if user_id != ADMIN_ID: return
-        bot.reply_to(message, "👑 **Admin Menu**\n👉 `/addrole`, `/gencode`, `/broadcast`, `/stats`, `/ban`, `/performance`", parse_mode="Markdown")
+        admin_text = (
+            "👑 **ระบบจัดการแอดมิน** 👑\n\n"
+            "1️⃣ **แอด VIP/PRO ให้ลูกค้า:**\n"
+            "👉 `/addrole [รหัสผู้ใช้] [vip/pro] [จำนวนวัน]`\n"
+            "*(เช่น `/addrole 123456 pro 30`)*\n\n"
+            "2️⃣ **สร้างโค้ดโปรโมชั่น:**\n"
+            "👉 `/gencode [จำนวนวัน] [จำนวนคนใช้ได้] [vip/pro]`\n"
+            "*(เช่น `/gencode 30 10 pro`)*\n\n"
+            "3️⃣ **บรอดแคสต์:**\n"
+            "👉 `/broadcast [ข้อความ]`\n\n"
+            "4️⃣ **ดูสถิติและรายได้:**\n"
+            "👉 `/stats`\n\n"
+            "5️⃣ **แบน / ปลดแบนคนป่วน:**\n"
+            "👉 `/ban [รหัสผู้ใช้]` หรือ `/unban [รหัสผู้ใช้]`\n\n"
+            "6️⃣ **ตรวจสอบความแม่นยำ AI:**\n"
+            "👉 `/performance`"
+        )
+        bot.reply_to(message, admin_text, parse_mode="Markdown")
         return
 
     symbol = text.upper()
@@ -437,7 +561,7 @@ def handle_main(message):
 
     usage = get_usage(user_id)
     if user_id != ADMIN_ID and role == 'free' and usage >= 10:
-        bot.reply_to(message, "🔒 โควต้าฟรีหมดแล้ว กด [💎 สมัคร VIP]")
+        bot.reply_to(message, "🔒 โควต้าฟรีหมดแล้ว กดปุ่ม [💎 สมัคร VIP] เพื่อใช้งานต่อแบบไม่จำกัด!")
         return
 
     load_msg = bot.reply_to(message, f"🔍 กำลังวิเคราะห์ {symbol}...")
@@ -457,7 +581,7 @@ def handle_main(message):
 
     correct_symbol = tech_data['symbol']
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(f"⭐ เพิ่ม {correct_symbol}", callback_data=f"addwatch_{correct_symbol}"))
+    markup.add(InlineKeyboardButton(f"⭐ เพิ่ม {correct_symbol} เข้า Watchlist", callback_data=f"addwatch_{correct_symbol}"))
 
     bot.delete_message(message.chat.id, load_msg.message_id)
     
@@ -465,17 +589,18 @@ def handle_main(message):
     if len(report) > 1000:
         bot.send_photo(message.chat.id, chart)
         try:
-            # ลองส่งแบบจัดหน้า (Markdown)
             bot.send_message(message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
         except Exception:
-            # ถ้า AI ใส่สัญลักษณ์แปลกๆ จนพัง ให้ส่งแบบข้อความธรรมดากันเหนียว
+            # ถ้า AI พิมพ์สัญลักษณ์แปลกๆ ทำให้ Markdown พัง ให้ส่งแบบข้อความธรรมดา
             bot.send_message(message.chat.id, report, reply_markup=markup)
     else:
         try:
             bot.send_photo(message.chat.id, chart, caption=report, parse_mode="Markdown", reply_markup=markup)
         except Exception:
-            chart.seek(0) # รีเซ็ตไฟล์รูป
-            bot.send_photo(message.chat.id, chart, caption=report, reply_markup=markup)
+            # ถ้ามีปัญหาความยาวหรือ Markdown ให้แยกส่งเป็น รูป 1 แชท และ ข้อความอีก 1 แชท
+            chart.seek(0) 
+            bot.send_photo(message.chat.id, chart)
+            bot.send_message(message.chat.id, report, reply_markup=markup)
 
 if __name__ == "__main__":
     init_db()
