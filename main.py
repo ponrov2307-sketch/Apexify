@@ -14,7 +14,7 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID
 
-# 🌟 Import ฟังก์ชันฐานข้อมูลทั้งหมด รวมถึงของใหม่ด้วย
+# 🌟 Import ฟังก์ชันฐานข้อมูลทั้งหมด
 from database import (get_all_users, init_db, register_user, check_subscription, add_subscription, 
                       get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, 
                       remove_watch_db, add_promo_code, redeem_code, get_user_stats, 
@@ -61,21 +61,22 @@ def generate_random_code(length=6):
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
 # ==========================================
-# 🌟 ระบบ Start & Referral (เชิญเพื่อนด้วยลิงก์)
+# 🌟 ระบบ Start & Referral
 # ==========================================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     user_id = str(message.chat.id)
     if not is_allowed(user_id): return
     
-    # 🌟 ตรวจสอบว่ามีการกดผ่านลิงก์ชวนเพื่อน (Deep Link) หรือไม่
     args = message.text.split()
     if len(args) > 1 and args[1].startswith('REF_'):
         referrer_id = args[1].replace('REF_', '')
         if referrer_id != user_id:
-            # ดำเนินการแจกรางวัลถ้าเป็นผู้ใช้ใหม่จริงๆ
-            if process_referral(referrer_id, user_id):
-                bot.send_message(referrer_id, "🎉 **ยินดีด้วย!** มีเพื่อนสมัครใช้งานผ่านลิงก์ของคุณ\nคุณได้รับโบนัสการใช้งานเรียบร้อยแล้ว! 🎁", parse_mode="Markdown")
+            try:
+                if process_referral(referrer_id, user_id):
+                    bot.send_message(referrer_id, "🎉 **ยินดีด้วย!** มีเพื่อนสมัครใช้งานผ่านลิงก์ของคุณ\nคุณได้รับโบนัสการใช้งานเรียบร้อยแล้ว! 🎁", parse_mode="Markdown")
+            except Exception as e:
+                print(f"Referral logic error: {e}")
     
     register_user(user_id)
     
@@ -97,7 +98,7 @@ def send_welcome(message):
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
 
 # ==========================================
-# 🌟 ระบบคำสั่งตั้งเตือนราคาส่วนตัว (PRO เท่านั้น)
+# 🌟 ระบบคำสั่งตั้งเตือนราคาส่วนตัว
 # ==========================================
 @bot.message_handler(commands=['setalert'])
 def handle_set_alert(message):
@@ -118,16 +119,15 @@ def handle_set_alert(message):
         symbol = args[1].upper()
         target_price = float(args[2])
         
-        load_msg = bot.reply_to(message, "⏳ กำลังตรวจสอบราคาปัจจุบัน...")
+        load_msg = bot.reply_to(message, f"⏳ กำลังตรวจสอบราคาปัจจุบันของ {symbol}...")
         tech_data, _, err = calculate_technical_indicators(symbol, generate_chart=False)
         
         if err or not tech_data:
-            bot.edit_message_text(f"❌ ไม่พบข้อมูลหุ้น {symbol}", message.chat.id, load_msg.message_id)
+            bot.edit_message_text(f"❌ ไม่พบข้อมูลหุ้น **{symbol}**\n\n💡 **คำแนะนำ:**\nหากเป็นหุ้นไทย กรุณาเติม `.BK` ต่อท้ายด้วยครับ เช่น `PTT.BK`, `KBANK.BK`", message.chat.id, load_msg.message_id, parse_mode="Markdown")
             return
             
         current_price = tech_data['price']
         
-        # ตรรกะ: ถ้าราคาเป้าหมายสูงกว่าราคาปัจจุบัน แสดงว่ารอมัน "ทะลุขึ้น" (above)
         condition = 'above' if target_price > current_price else 'below'
         cond_text = "ขึ้นไปแตะ" if condition == 'above' else "ร่วงลงมาแตะ"
         
@@ -136,9 +136,9 @@ def handle_set_alert(message):
         success_msg = (
             f"✅ **ตั้งเตือนสำเร็จ!** 🔔\n\n"
             f"📌 หุ้น: **{symbol}**\n"
-            f"💵 ราคาปัจจุบัน: {current_price:.2f}\n"
-            f"🎯 ระบบจะแจ้งเตือนเมื่อราคา **{cond_text} {target_price:.2f}**\n\n"
-            f"*(ระบบจะคอยเฝ้ากราฟแทนคุณตลอด 24 ชม.)*"
+            f"💵 ราคาปัจจุบัน: {current_price:,.2f}\n"
+            f"🎯 ระบบจะแจ้งเตือนเมื่อราคา **{cond_text} {target_price:,.2f}**\n\n"
+            f"*(ระบบจะคอยเฝ้ากราฟและอัปเดตราคาให้ทุกๆ 5 นาทีตลอด 24 ชม.)*"
         )
         bot.edit_message_text(success_msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
         
@@ -383,7 +383,7 @@ def handle_payment_slip_check(message):
         bot.edit_message_text("⚠️ AI ไม่สามารถอ่านสลิปได้ โปรดถ่ายให้ชัดเจนอีกครั้ง", message.chat.id, progress_msg.message_id)
 
 # ==========================================
-# 🌟 ระบบปุ่มกด Inline แบบใหม่ทั้งหมด
+# 🌟 ระบบปุ่มกด Inline (ใส่ Try-Except ดัก Error ทุกปุ่ม)
 # ==========================================
 @bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('menu_') or call.data.startswith('hub_'))
 def inline_callbacks(call):
@@ -392,53 +392,65 @@ def inline_callbacks(call):
     role = check_subscription(user_id)
     bot.answer_callback_query(call.id)
     
-    # 🌟 เมนูอธิบายแพ็กเกจ (ปรับโครงสร้างใหม่)
+    # 🌟 เมนูอธิบายแพ็กเกจ
     if call.data == 'menu_vip':
-        pay_text = (
-            "🚀 **แพ็กเกจการลงทุนกับ Apexify** 🚀\n"
-            "💳 กสิกรไทย: `135-1-34469-1` (นาย เกียรติศักดิ์ วุฒิจันทร์)\n\n"
+        try:
+            pay_text = (
+                "🚀 **แพ็กเกจการลงทุนกับ Apexify** 🚀\n"
+                "💳 กสิกรไทย: `135-1-34469-1` (นาย เกียรติศักดิ์ วุฒิจันทร์)\n\n"
+                
+                "🆓 **1. ระดับ Free Trial (สายฟรี):**\n"
+                "• โควต้าวิเคราะห์กราฟ 10 ครั้ง\n"
+                "• สร้าง Watchlist สูงสุด 3 ตัว\n"
+                "• 🤝 ชวนเพื่อน: รับโควต้าวิเคราะห์เพิ่ม 3 ครั้ง/คน\n\n"
+                
+                "💎 **2. ระดับ VIP (199.-/เดือน หรือ 1,990.-/ปี):**\n"
+                "• โควต้าวิเคราะห์กราฟ **ไม่จำกัด!**\n"
+                "• สร้าง Watchlist **สูงสุด 10 ตัว**\n"
+                "• กดสแกนหุ้นใน Watchlist รวดเดียวจบ\n"
+                "• AI ฟันธงจุดเข้าซื้อ/ขายละเอียด\n"
+                "• 🤝 ชวนเพื่อน: รับวันใช้งาน VIP เพิ่มฟรี 1 วัน/คน\n\n"
+                
+                "👑 **3. ระดับ PRO (499.-/เดือน หรือ 4,990.-/ปี) [แนะนำ!]:**\n"
+                "• **[Exclusive] 🔔 ตั้งเตือนราคาส่วนตัว (Custom Alerts)**\n"
+                "• **[Exclusive] 📰 แจ้งเตือนข่าวด่วนโลก/ไทย** แปลไทยอัตโนมัติ\n"
+                "• **[Exclusive] 📈 แจ้งเตือนสัญญาณกราฟ 24 ชม.**\n"
+                "• สร้าง Watchlist **ไม่จำกัดจำนวน!**\n"
+                "• AI เชิงลึกระดับ Senior วิเคราะห์ลึกถึงกลยุทธ์\n"
+                "• 🤝 ชวนเพื่อน: รับวันใช้งาน PRO เพิ่มฟรี 1 วัน/คน\n\n"
+                
+                "✅ *โอนเงินแล้วส่งรูปสลิปในแชทนี้ ระบบจะอัปเกรดอัตโนมัติครับ!*"
+            )
+            bot.send_message(user_id, pay_text, parse_mode="Markdown")
+        except Exception as e:
+            bot.send_message(user_id, f"❌ เกิดข้อผิดพลาดในการโหลดเมนู VIP: {e}")
             
-            "🆓 **สายฟรี (Free Trial):**\n"
-            "• โควต้าวิเคราะห์กราฟ 10 ครั้ง\n"
-            "• สร้าง Watchlist 3 ตัว\n\n"
-            
-            "💎 **ระดับ VIP (199.-/เดือน):**\n"
-            "• โควต้าวิเคราะห์กราฟ **ไม่จำกัด!**\n"
-            "• สร้าง Watchlist **สูงสุด 10 ตัว**\n"
-            "• กดสแกนหุ้นใน Watchlist รวดเดียวจบ\n"
-            "• AI ฟันธงจุดเข้าซื้อ/ขายละเอียด\n\n"
-            
-            "👑 **ระดับ PRO (499.-/เดือน) [แนะนำ!]:**\n"
-            "• **[NEW] 🔔 ตั้งเตือนราคาส่วนตัว (Custom Alerts)** ถึงปุ๊บเตือนปั๊บ!\n"
-            "• **[NEW] 📰 แจ้งเตือนข่าวด่วนโลก/ไทย** แปลไทยอัตโนมัติ (ทุก 4 ชม.)\n"
-            "• **[NEW] 📈 แจ้งเตือนสัญญาณกราฟ 24 ชม.** (Golden Cross, RSI)\n"
-            "• สร้าง Watchlist **ไม่จำกัดจำนวน!**\n\n"
-            
-            "✅ *โอนเงินแล้วส่งรูปสลิปในแชทนี้ ระบบจะอัปเกรดอัตโนมัติครับ!*"
-        )
-        bot.send_message(user_id, pay_text, parse_mode="Markdown")
-        
     elif call.data == 'menu_code':
         bot.send_message(user_id, "🎟 **พิมพ์คำสั่ง:** `/redeem [โค้ดของคุณ]`", parse_mode="Markdown")
         
+    # 🌟 เมนูชวนเพื่อน (ใส่ Try-Except เพื่อดัก DB Error)
     elif call.data == 'menu_referral':
-        ref_count = get_referral_stats(user_id)
-        bot_username = bot.get_me().username
-        ref_link = f"https://t.me/{bot_username}?start=REF_{user_id}"
-        msg = (
-            "🤝 **ชวนเพื่อนรับฟรี VIP/โควต้า!** 🤝\n\n"
-            "คัดลอกลิงก์ด้านล่างนี้ส่งให้เพื่อน หากเพื่อนสมัครใช้งานผ่านลิงก์ของคุณสำเร็จ รับรางวัลทันที:\n\n"
-            "🆓 สายฟรีชวนเพื่อน: **รับโควต้าวิเคราะห์เพิ่ม 3 ครั้ง/คน**\n"
-            "👑 VIP/PRO ชวนเพื่อน: **รับวันใช้งานเพิ่ม 1 วัน/คน**\n\n"
-            f"🔗 **ลิงก์ของคุณ:**\n`{ref_link}`\n\n"
-            f"📊 **สถิติของคุณ:** ชวนสำเร็จ {ref_count} คน"
-        )
-        bot.send_message(user_id, msg, parse_mode="Markdown")
-        
+        try:
+            ref_count = get_referral_stats(user_id)
+            bot_info = bot.get_me()
+            bot_username = bot_info.username
+            ref_link = f"https://t.me/{bot_username}?start=REF_{user_id}"
+            msg = (
+                "🤝 **ชวนเพื่อนรับฟรี VIP/โควต้า!** 🤝\n\n"
+                "คัดลอกลิงก์ด้านล่างนี้ส่งให้เพื่อน หากเพื่อนสมัครใช้งานผ่านลิงก์ของคุณสำเร็จ รับรางวัลทันที:\n\n"
+                "🆓 สายฟรีชวนเพื่อน: **รับโควต้าวิเคราะห์เพิ่ม 3 ครั้ง/คน**\n"
+                "👑 VIP/PRO ชวนเพื่อน: **รับวันใช้งานเพิ่ม 1 วัน/คน**\n\n"
+                f"🔗 **ลิงก์ของคุณ:**\n`{ref_link}`\n\n"
+                f"📊 **สถิติของคุณ:** ชวนสำเร็จ {ref_count} คน"
+            )
+            bot.send_message(user_id, msg, parse_mode="Markdown")
+        except Exception as e:
+            bot.send_message(user_id, f"❌ ระบบชวนเพื่อนขัดข้อง (ฐานข้อมูลอาจยังไม่อัปเดต)\nแจ้งเตือน: {e}")
+            
     # 🌟 เมนู The Hub
     elif call.data == 'hub_market':
-        load_msg = bot.send_message(user_id, "🌍 กำลังดึงข้อมูลสภาวะตลาดโลก...")
         try:
+            load_msg = bot.send_message(user_id, "🌍 กำลังดึงข้อมูลสภาวะตลาดโลก...")
             fg_index = get_fear_and_greed_index()
             indices = {"SET (ไทย)": "^SET.BK", "S&P 500 (สหรัฐ)": "^GSPC", "Bitcoin (คริปโต)": "BTC-USD"}
             market_text = ""
@@ -456,8 +468,8 @@ def inline_callbacks(call):
             bot.edit_message_text(f"❌ ล้มเหลว", user_id, load_msg.message_id)
             
     elif call.data == 'hub_news':
-        load_msg = bot.send_message(user_id, "📰 กำลังรวบรวมข่าวด่วน...")
         try:
+            load_msg = bot.send_message(user_id, "📰 กำลังรวบรวมข่าวด่วน...")
             url_th = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
             res_th = cffi_requests.get(url_th, impersonate="chrome110", timeout=15)
             root_th = ET.fromstring(res_th.content)
@@ -487,62 +499,72 @@ def inline_callbacks(call):
             bot.edit_message_text(f"❌ ดึงข้อมูลข่าวล้มเหลว", user_id, load_msg.message_id)
             
     elif call.data == 'hub_watchlist':
-        my_list = get_user_watch(user_id)
-        if not my_list:
-            bot.send_message(user_id, "📋 Watchlist ว่างเปล่า พิมพ์ชื่อหุ้นแล้วกด ⭐ ใต้กราฟครับ")
-            return
-        markup = InlineKeyboardMarkup()
-        for symbol in my_list:
-            markup.add(InlineKeyboardButton(f"❌ ลบ {symbol}", callback_data=f"delwatch_{symbol}"))
-        bot.send_message(user_id, "📋 **จัดการ Watchlist ของคุณ:**", parse_mode="Markdown", reply_markup=markup)
+        try:
+            my_list = get_user_watch(user_id)
+            if not my_list:
+                bot.send_message(user_id, "📋 Watchlist ว่างเปล่า พิมพ์ชื่อหุ้นแล้วกด ⭐ ใต้กราฟครับ")
+                return
+            markup = InlineKeyboardMarkup()
+            for symbol in my_list:
+                markup.add(InlineKeyboardButton(f"❌ ลบ {symbol}", callback_data=f"delwatch_{symbol}"))
+            bot.send_message(user_id, "📋 **จัดการ Watchlist ของคุณ:**", parse_mode="Markdown", reply_markup=markup)
+        except Exception as e:
+            bot.send_message(user_id, f"❌ Error: {e}")
         
     elif call.data == 'hub_scan':
-        if user_id != ADMIN_ID and role == 'free':
-            bot.send_message(user_id, "🔒 ฟีเจอร์สงวนสิทธิ์เฉพาะ **VIP / PRO**")
-            return
-        my_list = get_user_watch(user_id)
-        if not my_list:
-            bot.send_message(user_id, "📋 Watchlist ว่างเปล่า")
-            return
-        scan_msg = bot.send_message(user_id, f"🚀 กำลังสแกนหุ้น {len(my_list)} ตัว...")
-        scan_result = "🚀 **รายงานสแกน Watchlist**\n\n"
-        for sym in my_list:
-            try:
-                tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
-                if err or not tech_data: continue
-                ema_short = "🟢 ขาขึ้น" if tech_data['ema20'] > tech_data['ema50'] else "🔴 ขาลง"
-                cross = "✨ Golden Cross!" if tech_data['ema50'] > tech_data['ema200'] else "ธรรมดา"
-                rsi = tech_data['rsi']
-                rsi_txt = "🔥 ตึงไป (Overbought)" if rsi > 70 else "🎯 น่าสะสม (Oversold)" if rsi < 30 else "⚪️ กลางๆ"
-                scan_result += f"📌 **{sym}** ({tech_data['price']:.2f})\n   เทรนด์: {ema_short} | RSI: {rsi_txt}\n"
-                if "Golden" in cross or rsi < 30:
-                    scan_result += f"   👉 **สัญญาณ:** {cross}\n"
-                scan_result += "\n"
-            except Exception: pass
-        bot.edit_message_text(scan_result, user_id, scan_msg.message_id, parse_mode="Markdown")
+        try:
+            if user_id != ADMIN_ID and role == 'free':
+                bot.send_message(user_id, "🔒 ฟีเจอร์สงวนสิทธิ์เฉพาะ **VIP / PRO**")
+                return
+            my_list = get_user_watch(user_id)
+            if not my_list:
+                bot.send_message(user_id, "📋 Watchlist ว่างเปล่า")
+                return
+            scan_msg = bot.send_message(user_id, f"🚀 กำลังสแกนหุ้น {len(my_list)} ตัว...")
+            scan_result = "🚀 **รายงานสแกน Watchlist**\n\n"
+            for sym in my_list:
+                try:
+                    tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
+                    if err or not tech_data: continue
+                    ema_short = "🟢 ขาขึ้น" if tech_data['ema20'] > tech_data['ema50'] else "🔴 ขาลง"
+                    cross = "✨ Golden Cross!" if tech_data['ema50'] > tech_data['ema200'] else "ธรรมดา"
+                    rsi = tech_data['rsi']
+                    rsi_txt = "🔥 ตึงไป (Overbought)" if rsi > 70 else "🎯 น่าสะสม (Oversold)" if rsi < 30 else "⚪️ กลางๆ"
+                    scan_result += f"📌 **{sym}** ({tech_data['price']:.2f})\n   เทรนด์: {ema_short} | RSI: {rsi_txt}\n"
+                    if "Golden" in cross or rsi < 30:
+                        scan_result += f"   👉 **สัญญาณ:** {cross}\n"
+                    scan_result += "\n"
+                except Exception: pass
+            bot.edit_message_text(scan_result, user_id, scan_msg.message_id, parse_mode="Markdown")
+        except Exception as e:
+            bot.send_message(user_id, f"❌ Error: {e}")
 
+    # 🌟 เมนูตั้งเตือนราคา (ใส่ Try-Except เพื่อดัก DB Error)
     elif call.data == 'hub_price_alert':
-        if role != 'pro' and user_id != ADMIN_ID:
-            bot.send_message(user_id, "🔒 **ฟีเจอร์ระดับพรีเมียม (PRO Exclusive)**\nการตั้งเตือนราคาส่วนตัวสงวนสิทธิ์ให้ลูกค้าระดับ PRO เท่านั้นครับ 👑", parse_mode="Markdown")
-            return
-        alerts = get_user_price_alerts_db(user_id)
-        msg = "🔔 **จัดการตั้งเตือนราคาส่วนตัว**\n\n"
-        if not alerts:
-            msg += "คุณยังไม่มีการตั้งเตือนราคา\n\n"
-        else:
-            msg += "รายการที่กำลังเฝ้าดู:\n"
-            for alert in alerts:
-                a_id, sym, price, cond = alert
-                cond_text = "ทะลุขึ้นเป้าหมาย" if cond == 'above' else "ร่วงลงเป้าหมาย"
-                msg += f"• **ID {a_id}:** {sym} ({cond_text} {price:,.2f})\n"
-            msg += "\n"
-        
-        msg += (
-            "👉 **วิธีตั้งเตือนใหม่ (พิมพ์ในช่องแชท):**\n"
-            "`/setalert [ชื่อหุ้น] [ราคา]`\n*(เช่น /setalert PTT.BK 35)*\n\n"
-            "👉 **วิธียกเลิก:**\n`/delalert [ID]`"
-        )
-        bot.send_message(user_id, msg, parse_mode="Markdown")
+        try:
+            if role != 'pro' and user_id != ADMIN_ID:
+                bot.send_message(user_id, "🔒 **ฟีเจอร์ระดับพรีเมียม (PRO Exclusive)**\nการตั้งเตือนราคาส่วนตัวสงวนสิทธิ์ให้ลูกค้าระดับ PRO เท่านั้นครับ 👑", parse_mode="Markdown")
+                return
+            alerts = get_user_price_alerts_db(user_id)
+            msg = "🔔 **จัดการตั้งเตือนราคาส่วนตัว**\n\n"
+            if not alerts:
+                msg += "คุณยังไม่มีการตั้งเตือนราคา\n\n"
+            else:
+                msg += "รายการที่กำลังเฝ้าดู:\n"
+                for alert in alerts:
+                    a_id, sym, price, cond = alert
+                    cond_text = "ทะลุขึ้น" if cond == 'above' else "ร่วงลง"
+                    msg += f"• **ID {a_id}:** {sym} ({cond_text} {price:,.2f})\n"
+                msg += "\n"
+            
+            msg += (
+                "👉 **วิธีตั้งเตือนใหม่ (พิมพ์ในช่องแชท):**\n"
+                "`/setalert [ชื่อหุ้น] [ราคา]`\n*(เช่น /setalert PTT.BK 35)*\n\n"
+                "👉 **วิธียกเลิก:**\n`/delalert [ID]`\n*(เช่น /delalert 1)*"
+            )
+            bot.send_message(user_id, msg, parse_mode="Markdown")
+        except Exception as e:
+            bot.send_message(user_id, f"❌ ระบบตั้งเตือนราคาขัดข้อง (ฐานข้อมูลอาจยังไม่อัปเดต)\nแจ้งเตือน: {e}")
 
     elif call.data.startswith('addwatch_'):
         symbol = call.data.split('_')[1]
@@ -588,14 +610,13 @@ def handle_main(message):
             InlineKeyboardButton("📋 จัดการ Watchlist", callback_data="hub_watchlist"),
             InlineKeyboardButton("🚀 สแกนหุ้น (VIP)", callback_data="hub_scan")
         )
-        # 🌟 เพิ่มปุ่มใหม่ของ PRO
         markup.add(InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert"))
         
         msg = "📱 **Apexify Hub (เมนูหลัก)**\nเลือกฟีเจอร์ที่คุณต้องการใช้งานได้เลยครับ:"
         bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
         return
         
-    elif text == "💎 บัญชี / VIP":
+    elif text in ["💎 สมัคร VIP", "💎 บัญชี / VIP"]:
         profile = get_user_profile(user_id)
         if profile:
             _, expiry, usage, reg_date = profile
@@ -624,7 +645,6 @@ def handle_main(message):
                 InlineKeyboardButton("💎 สมัคร/ต่ออายุ VIP", callback_data="menu_vip"),
                 InlineKeyboardButton("🎁 เติมโค้ด", callback_data="menu_code")
             )
-            # 🌟 เพิ่มปุ่มชวนเพื่อน
             markup.add(InlineKeyboardButton("🤝 ชวนเพื่อนรับ VIP ฟรี", callback_data="menu_referral"))
             bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
         else:
@@ -682,7 +702,6 @@ def handle_main(message):
 
 if __name__ == "__main__":
     init_db()
-    # 🌟 สั่งสร้างตารางใหม่ (ตารางชวนเพื่อน & ตารางตั้งราคา) หากยังไม่มี
     try:
         init_new_features_db()
     except Exception as e:
