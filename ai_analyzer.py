@@ -5,7 +5,6 @@ import io
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# 🌟 รับค่า role เข้ามาเพื่อสั่ง AI ให้ทำงานตามระดับชั้น
 def generate_apexify_report(tech_data, role='free'):
     rsi_status = "Overbought 🔴" if tech_data['rsi'] > 70 else "Oversold 🟢" if tech_data['rsi'] < 30 else "กลาง ⚪️"
     macd_status = "สัญญาณบวก 🟢" if tech_data['macd'] > tech_data['macd_signal'] else "สัญญาณลบ 🔴"
@@ -68,13 +67,14 @@ def analyze_payment_slip(image_bytes):
     try:
         image = PIL.Image.open(io.BytesIO(image_bytes))
         prompt = """
-        คุณคือระบบตรวจสอบสลิปธนาคารอัตโนมัติ จงตรวจสอบรูปภาพนี้:
+        คุณคือระบบตรวจสอบสลิปธนาคารอัตโนมัติ จงตรวจสอบรูปภาพนี้อย่างละเอียด:
         1. นี่คือรูปสลิปโอนเงินธนาคาร (Bank Transfer Slip) ที่ถูกต้องใช่หรือไม่?
         2. ยอดเงินในสลิปคือเท่าไหร่? (มองหาตัวเลขจำนวนเงิน)
         3. วันที่โอนคือเมื่อไหร่?
+        4. เลขที่อ้างอิง (Reference No. / Transaction ID / เลขที่รายการ) ของสลิปนี้คืออะไร? (สำคัญมาก โปรดคัดลอกตัวเลขมาให้ถูกต้องทุกตัวอักษร)
         
         ตอบกลับมาในรูปแบบ JSON เท่านั้น ดังนี้:
-        {"is_slip": true/false, "amount": 299.00, "date": "DD/MM/YYYY"}
+        {"is_slip": true/false, "amount": 299.00, "date": "DD/MM/YYYY", "ref_no": "0123456789ABC"}
         ถ้าไม่ใช่สลิป ให้ตอบ {"is_slip": false}
         """
         response = client.models.generate_content(
