@@ -8,15 +8,16 @@ import requests
 import random
 import string
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from curl_cffi import requests as cffi_requests
-from bs4 import BeautifulSoup
 
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID
-# 🌟 อัปเดต Import ดึง check_subscription และ add_subscription แทนของเดิม
-from database import get_all_users, init_db, register_user, check_subscription, add_subscription, get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, remove_watch_db, add_promo_code, redeem_code
+from database import get_all_users, init_db, register_user, check_subscription, add_subscription, get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, remove_watch_db, add_promo_code, redeem_code, get_user_stats
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
+
+# สำหรับดึงข่าวหลบ Anti-bot
+from curl_cffi import requests as cffi_requests
+from bs4 import BeautifulSoup
 
 telebot.logger.setLevel(logging.DEBUG)
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
@@ -55,7 +56,7 @@ def handle_gencode(message):
         args = message.text.split()
         days = int(args[1])
         max_uses = int(args[2])
-        role_type = args[3].lower() if len(args) > 3 else 'vip' # 🌟 ระบุได้ว่าเป็นโค้ด VIP หรือ PRO
+        role_type = args[3].lower() if len(args) > 3 else 'vip'
         
         code = f"{role_type.upper()}{days}-" + generate_random_code(6)
         if add_promo_code(code, days, max_uses, role_type):
@@ -97,7 +98,7 @@ def handle_add_role(message):
         try:
             args = message.text.split()
             target_user = args[1]
-            role = args[2].lower() # 'vip' หรือ 'pro'
+            role = args[2].lower()
             days = int(args[3]) if len(args) > 3 else 30
             expiry = add_subscription(target_user, role, days)
             bot.reply_to(message, f"✅ อัปเกรด `{target_user}` เป็น {role.upper()} แล้ว\nหมดอายุ: {expiry}")
@@ -134,6 +135,25 @@ def handle_broadcast(message):
             fail += 1 
     bot.reply_to(message, f"✅ บรอดแคสต์สำเร็จ: {success} คน\n❌ ล้มเหลว: {fail} คน")
 
+@bot.message_handler(commands=['stats'])
+def handle_stats(message):
+    if str(message.chat.id) != ADMIN_ID: return
+    try:
+        stats, total = get_user_stats()
+        est_revenue = (stats.get('vip', 0) * 199) + (stats.get('pro', 0) * 499)
+        msg = (
+            "📊 **สถิติการใช้งาน Apexify** 📊\n\n"
+            f"👥 **ผู้ใช้งานทั้งหมด:** {total} คน\n"
+            f"🆓 **สายฟรี (Free Trial):** {stats.get('free', 0)} คน\n"
+            f"💎 **ระดับ VIP:** {stats.get('vip', 0)} คน\n"
+            f"👑 **ระดับ PRO:** {stats.get('pro', 0)} คน\n\n"
+            f"💰 **ประมาณการรายได้ขั้นต่ำ:** {est_revenue:,.2f} บาท/เดือน\n"
+            "*(หมายเหตุ: คำนวณอิงจากราคาแพ็กเกจรายเดือน)*"
+        )
+        bot.reply_to(message, msg, parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ เกิดข้อผิดพลาดในการดึงสถิติ: {e}")
+
 @bot.message_handler(content_types=['photo'])
 def handle_payment_slip_check(message):
     user_id = str(message.chat.id)
@@ -153,7 +173,7 @@ def handle_payment_slip_check(message):
         if result.get('is_slip'):
             amount = float(result.get('amount', 0))
             
-            # 🌟 ระบบคำนวณแพ็กเกจ (Strict Mode: ล็อกยอดเป๊ะๆ)
+            # ระบบคำนวณแพ็กเกจ (Strict Mode)
             if amount == 4990:
                 expiry = add_subscription(user_id, 'pro', 365)
                 msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรดเป็น **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"
@@ -167,7 +187,6 @@ def handle_payment_slip_check(message):
                 expiry = add_subscription(user_id, 'vip', 30)
                 msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรดเป็น **💎 VIP (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
             else:
-                # 🛑 กรณีโอนไม่ตรงเป๊ะ (ตีกลับลูกค้า + แจ้งแอดมิน)
                 bot.edit_message_text(
                     f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** (ระบบตรวจพบยอด {amount:,.2f} บาท)\n\n"
                     f"⚠️ **กรุณาโอนเงินให้ตรงกับราคาแพ็กเกจเป๊ะๆ เท่านั้น** (199, 499, 1990, หรือ 4990)\n\n"
@@ -176,7 +195,6 @@ def handle_payment_slip_check(message):
                     progress_msg.message_id, 
                     parse_mode="Markdown"
                 )
-                # ส่งแจ้งเตือนหาแอดมิน
                 bot.send_message(ADMIN_ID, f"⚠️ **แจ้งเตือนยอดผิดปกติ!**\nUser `{user_id}` โอนเงิน {amount:,.2f} บาท ซึ่งไม่ตรงกับแพ็กเกจใดๆ โปรดตรวจสอบสลิปนี้ครับ", parse_mode="Markdown")
                 bot.send_photo(ADMIN_ID, message.photo[-1].file_id)
                 return
@@ -192,7 +210,6 @@ def handle_payment_slip_check(message):
         bot.send_message(ADMIN_ID, f"🚨 Error ตรวจสลิป User: `{user_id}`\n❌ {e}")
         bot.send_photo(ADMIN_ID, message.photo[-1].file_id)
 
-
 @bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_'))
 def inline_watchlist(call):
     user_id = str(call.message.chat.id)
@@ -202,8 +219,6 @@ def inline_watchlist(call):
     
     if action == 'addwatch':
         current_watch = len(get_user_watch(user_id))
-        
-        # 🌟 โควต้า Watchlist ตามระดับชั้น
         if role == 'free' and current_watch >= 3:
             bot.send_message(user_id, "🔒 **ผู้ใช้ Free จำกัด Watchlist ได้ 3 ตัว**\nโปรดอัปเกรดเป็น VIP/PRO เพื่อเพิ่มจำนวนครับ", parse_mode="Markdown")
             return
@@ -285,7 +300,6 @@ def handle_main(message):
             indices = {"SET (ไทย)": "^SET.BK", "S&P 500 (สหรัฐ)": "^GSPC", "Bitcoin (คริปโต)": "BTC-USD"}
             market_text = ""
             for name, sym in indices.items():
-                # 🌟 เปลี่ยนจาก 2d เป็น 5d ดึงเผื่อวันหยุดเพื่อกัน Error
                 data = yf.Ticker(sym).history(period="5d")
                 if len(data) >= 2:
                     close_today = data['Close'].iloc[-1]
@@ -293,19 +307,17 @@ def handle_main(message):
                     pct_change = ((close_today - close_yest) / close_yest) * 100
                     emoji = "🟢" if pct_change >= 0 else "🔴"
                     market_text += f"• {name}: {close_today:,.2f} ({pct_change:+.2f}%) {emoji}\n"
-          else:
+                else:
                     market_text += f"• {name}: ⚠️ ดึงข้อมูลไม่ได้\n"
             msg = f"🌍 **สรุปสภาวะตลาด (Market Overview)**\n\n🧭 **Fear & Greed Index:**\n{fg_index}\n\n📊 **ดัชนีสำคัญวันนี้:**\n{market_text}"
             bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
         except Exception as e:
             bot.edit_message_text(f"❌ ดึงข้อมูลตลาดล้มเหลว", message.chat.id, load_msg.message_id)
         return
-
-    elif text == "📰 ข่าวด่วนตลาดหุ้น":
+    elif text == "📰 ข่าวด่วนตลาดทุน":
         load_msg = bot.reply_to(message, "📰 กำลังรวบรวมข่าวด่วน...")
         try:
             url = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
-            # 🌟 ปลอมตัวเป็น Chrome เพื่อหลบ Anti-bot ของ Google
             res = cffi_requests.get(url, impersonate="chrome110", timeout=15)
             if res.status_code == 200:
                 soup = BeautifulSoup(res.content, "xml")
@@ -325,7 +337,6 @@ def handle_main(message):
         except Exception as e:
             bot.edit_message_text("❌ ดึงข้อมูลข่าวล้มเหลว", message.chat.id, load_msg.message_id)
         return
-
     elif text == "🚀 สแกน Watchlist (VIP)":
         if user_id != ADMIN_ID and role == 'free':
             bot.reply_to(message, "🔒 ฟีเจอร์สแกนหุ้นสงวนสิทธิ์เฉพาะ **VIP / PRO Member** ครับ\nระบบจะสแกนกราฟเทคนิคหุ้นทั้งหมดใน Watchlist อัตโนมัติ ช่วยประหยัดเวลาสุดๆ!")
@@ -378,7 +389,9 @@ def handle_main(message):
             "👉 `/gencode [จำนวนวัน] [จำนวนคนใช้ได้] [vip/pro]`\n"
             "*(เช่น `/gencode 30 10 pro`)*\n\n"
             "3️⃣ **บรอดแคสต์:**\n"
-            "👉 `/broadcast [ข้อความ]`"
+            "👉 `/broadcast [ข้อความ]`\n\n"
+            "4️⃣ **ดูสถิติและรายได้:**\n"
+            "👉 `/stats`"
         )
         bot.reply_to(message, admin_text, parse_mode="Markdown")
         return
@@ -398,7 +411,6 @@ def handle_main(message):
         bot.edit_message_text(err, message.chat.id, load_msg.message_id)
         return
 
-    # 🌟 ส่ง role ไปให้ AI เพื่อเขียนคำตอบตามระดับ
     report = generate_apexify_report(tech_data, role=role)
     
     if user_id != ADMIN_ID and role == 'free':
