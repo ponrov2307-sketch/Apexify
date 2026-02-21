@@ -1,24 +1,23 @@
 import time
 import telebot
 import yfinance as yf
-import requests # 🌟 เพิ่ม requests
+import requests 
 from google import genai
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
 from technical_tools import calculate_technical_indicators
 from database import get_all_active_symbols, get_users_watching, init_db
 import json
 
-# 🌟 เพิ่ม Import สำหรับดึงข่าวและตั้งเวลา
+# 🌟 Import สำหรับดึงข่าว 
 from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
-from apscheduler.schedulers.background import BackgroundScheduler
-import pytz
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 last_alert_state = {}
 last_news_title = {}
+sent_vip_news = set() # 🌟 เพิ่มตัวแปรเก็บข่าว VIP ที่เคยส่งแล้ว ป้องกันการสแปมข่าวซ้ำ
 
 def send_alert_to_users(symbol, message):
     """ส่งข้อความหาทุกคนที่มีหุ้นตัวนี้ในลิสต์"""
@@ -34,7 +33,6 @@ def send_alert_to_users(symbol, message):
 
 def check_hot_news(symbol):
     try:
-        # 🌟 ใช้ Direct API ทะลวงข่าวจาก Yahoo โดยตรง เลิกพึ่งพา yfinance
         url = f"https://query2.finance.yahoo.com/v1/finance/search?q={symbol}&newsCount=1"
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         res = requests.get(url, headers=headers, timeout=5)
@@ -184,81 +182,88 @@ def check_market_conditions():
             print(f"⚠️ Error checking {symbol}: {e}")
 
 # ==========================================
-# ระบบดึงข่าวทั่วไปสำหรับสมาชิก VIP (Apex Wealth Master)
+# ระบบเช็คข่าว VIP ระดับโลก (Global News) ทำงานทุกๆ 5 นาที
 # ==========================================
-def fetch_vip_general_news():
-    """ดึงข่าวภาพรวมตลาดหุ้นและการลงทุนจากหลายสำนักข่าวแบบหลบ Anti-Bot"""
-    url = "https://news.google.com/rss/search?q=ตลาดหุ้น+OR+เศรษฐกิจ+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
+def check_and_broadcast_vip_news(bot_instance):
+    """เช็คข่าวด่วนระดับโลก (ภาษาอังกฤษ) โยนให้ AI แปลและสรุปเป็นภาษาไทยแล้วส่งทันที"""
+    # 🌟 เปลี่ยน URL เป็นข่าว US/Global (ภาษาอังกฤษ)
+    url = "https://news.google.com/rss/search?q=stock+market+OR+economy+OR+investing+OR+finance&hl=en-US&gl=US&ceid=US:en"
     
     try:
         response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
         soup = BeautifulSoup(response.content, "html.parser")
         
-        items = soup.find_all("item")[:5] # ดึงมา 5 ข่าวล่าสุด
+        # ดึงมาเช็ค 3 ข่าวล่าสุด
+        items = soup.find_all("item")[:3]
         if not items:
-            return None
+            return
             
-        news_text = "🌟 <b>สรุปข่าวสำคัญประจำวัน (VIP)</b> 🌟\n\n"
         for item in items:
             title = item.title.text
-            link = item.link.text
-            news_text += f"📰 <b>{title}</b>\n🔗 <a href='{link}'>อ่านข่าวนี้</a>\n\n"
             
-        return news_text
-    except Exception as e:
-        print(f"⚠️ Error fetching VIP news: {e}")
-        return None
-
-def broadcast_news_to_vips(bot_instance):
-    """ส่งข่าวให้ผู้ใช้ระดับ VIP ทุกคนในระบบ"""
-    news_message = fetch_vip_general_news()
-    if not news_message:
-        print("ไม่มีข่าวสารใหม่สำหรับ VIP ในรอบนี้")
-        return
-        
-    try:
-        from database import get_connection
-        conn = get_connection()
-        cur = conn.cursor()
-        
-        # ค้นหา VIP ทั้งหมดโดยใช้คอลัมน์ role
-        cur.execute("SELECT user_id FROM users WHERE role = 'vip'")
-        vip_users = cur.fetchall()
-        
-        count = 0
-        for vip in vip_users:
-            user_id = vip[0]
-            try:
-                bot_instance.send_message(user_id, news_message, parse_mode='HTML', disable_web_page_preview=True)
-                count += 1
-                time.sleep(0.5) 
-            except Exception as e:
-                print(f"⚠️ ไม่สามารถส่งข่าวให้ VIP {user_id} ได้: {e}")
+            # ถ้าเป็นข่าวใหม่ที่ยังไม่เคยส่งให้ VIP
+            if title not in sent_vip_news:
+                # 🌟 โยนให้ AI แปลและสรุปเป็นภาษาไทยอย่างเดียว ไม่เอาลิงก์
+                prompt = f"""
+                คุณคือนักวิเคราะห์ข่าวการเงินระดับโลก 
+                นี่คือพาดหัวข่าวด่วนต่างประเทศ (ภาษาอังกฤษ): "{title}"
                 
-        cur.close()
-        conn.close()
-        print(f"✅ ส่งข่าวให้ VIP สำเร็จจำนวน {count} คน")
+                คำสั่งอย่างเคร่งครัด: 
+                1. แปลและสรุปข่าวนี้เป็น "ภาษาไทย" ให้สั้น กระชับ เข้าใจง่าย 
+                2. พิมพ์แค่เนื้อหาข่าวที่สรุปแล้วอย่างเดียว ห้ามใส่ลิงก์ ห้ามมีคำเกริ่นนำ
+                """
+                
+                try:
+                    ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+                    summary = ai_check.text.strip()
+                    
+                    news_message = f"🌎 **Global News Alert (VIP)** 🌎\n\n{summary}"
+                    
+                    # ดึงรายชื่อ VIP จากฐานข้อมูล
+                    from database import get_connection
+                    conn = get_connection()
+                    cur = conn.cursor()
+                    cur.execute("SELECT user_id FROM users WHERE role = 'vip'")
+                    vip_users = cur.fetchall()
+                    
+                    count = 0
+                    for vip in vip_users:
+                        user_id = vip[0]
+                        try:
+                            bot_instance.send_message(user_id, news_message, parse_mode='Markdown')
+                            count += 1
+                            time.sleep(0.5) 
+                        except Exception as e:
+                            print(f"⚠️ ไม่สามารถส่งข่าวให้ VIP {user_id} ได้: {e}")
+                            
+                    cur.close()
+                    conn.close()
+                    
+                    if count > 0:
+                        print(f"✅ ส่งสรุปข่าว Global ให้ VIP สำเร็จ {count} คน: {title}")
+                    
+                    # บันทึกไว้ในหน่วยความจำว่าข่าวนี้ส่งไปแล้ว 
+                    sent_vip_news.add(title)
+                    
+                    # ส่งแค่ 1 ข่าวต่อรอบเพื่อไม่ให้แชทลูกค้าเด้งรัวเกินไป
+                    break
+                    
+                except Exception as ai_e:
+                    print(f"❌ AI Summary Error: {ai_e}")
+                    
     except Exception as e:
-        print(f"⚠️ Database Error in broadcast_news_to_vips: {e}")
+        print(f"⚠️ Error fetching Global VIP news: {e}")
 
 if __name__ == "__main__":
     init_db()
-    
-    # ==========================================
-    # ส่วนตั้งค่า Scheduler (ระบบตั้งเวลา)
-    # ==========================================
-    # ตั้ง Timezone เป็นไทย เพื่อให้เวลาเป๊ะ
-    scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Bangkok'))
-    
-    # ส่งข่าวทั่วไปให้ VIP ทุกเช้าเวลา 08:30 น. (args=[bot] เพื่อให้มันรู้จักบอทตัวหลัก)
-    scheduler.add_job(broadcast_news_to_vips, 'cron', hour=10, minute=25, args=[bot])
-    
-    # สั่งให้ Scheduler เริ่มทำงานอยู่เบื้องหลัง
-    scheduler.start()
-    
-    print("🚀 Apexify Alert System with News Hunter & VIP Alerts is Running...")
+    print("🚀 Apexify Alert System with Real-Time Global VIP News is Running...")
     
     # ลูปทำงานหลัก
     while True:
+        # 1. เช็คและส่งข่าว Global VIP อัปเดตล่าสุด
+        check_and_broadcast_vip_news(bot)
+        
+        # 2. เช็คกราฟและแจ้งเตือนหุ้นใน Watchlist
         check_market_conditions()
+        
         time.sleep(300) # ตรวจสอบทุกๆ 5 นาที
