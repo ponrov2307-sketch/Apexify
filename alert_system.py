@@ -183,39 +183,7 @@ if __name__ == "__main__":
     while True:
         check_market_conditions()
         time.sleep(300) # ตรวจสอบทุกๆ 5 นาที
-                # ==========================================
-# ระบบดึงข่าวทั่วไปสำหรับสมาชิก VIP (Apex Wealth Master)
-# ==========================================
-from curl_cffi import requests as cffi_requests
-from bs4 import BeautifulSoup
-import time
-
-def fetch_vip_general_news():
-    """ดึงข่าวภาพรวมตลาดหุ้นและการลงทุนจากหลายสำนักข่าวแบบหลบ Anti-Bot"""
-    # ดึงรวมข่าวสารตลาดหุ้นจาก Google News (รวมหลายสำนักข่าวในไทย)
-    url = "https://news.google.com/rss/search?q=ตลาดหุ้น+OR+เศรษฐกิจ+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
-    
-    try:
-        # ปลอมตัวเป็น Chrome เวอร์ชันล่าสุด ข้ามระบบบล็อกสบายๆ
-        response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
-        soup = BeautifulSoup(response.content, "html.parser")
-        
-        items = soup.find_all("item")[:5] # ดึงมา 5 ข่าวล่าสุด
-        if not items:
-            return None
-            
-        news_text = "🌟 <b>สรุปข่าวสำคัญประจำวัน (VIP)</b> 🌟\n\n"
-        for item in items:
-            title = item.title.text
-            link = item.link.text
-            news_text += f"📰 <b>{title}</b>\n🔗 <a href='{link}'>อ่านข่าวนี้</a>\n\n"
-            
-        return news_text
-    except Exception as e:
-        print(f"⚠️ Error fetching VIP news: {e}")
-        return None
-
-def broadcast_news_to_vips(bot):
+                def broadcast_news_to_vips(bot):
     """ส่งข่าวให้ผู้ใช้ระดับ VIP ทุกคนในระบบ"""
     news_message = fetch_vip_general_news()
     if not news_message:
@@ -223,12 +191,12 @@ def broadcast_news_to_vips(bot):
         return
         
     try:
-        from database import get_connection # อ้างอิงจากโครงสร้าง Apexify ของคุณ
+        from database import get_connection
         conn = get_connection()
         cur = conn.cursor()
         
-        # ค้นหา VIP ทั้งหมด (ปรับชื่อคอลัมน์ status ให้ตรงกับฐานข้อมูลของคุณ)
-        cur.execute("SELECT user_id FROM users WHERE status = 'vip'")
+        # ค้นหา VIP ทั้งหมดโดยใช้คอลัมน์ role
+        cur.execute("SELECT user_id FROM users WHERE role = 'vip'")
         vip_users = cur.fetchall()
         
         count = 0
