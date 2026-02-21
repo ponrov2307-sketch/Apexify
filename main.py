@@ -8,7 +8,7 @@ import requests
 import random
 import string
 import time
-import xml.etree.ElementTree as ET # 🌟 เพิ่มไลบรารีนี้สำหรับอ่านข่าวแบบใหม่ที่เสถียร 100%
+import xml.etree.ElementTree as ET 
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 from keep_alive import keep_alive 
@@ -20,6 +20,8 @@ from database import (get_all_users, init_db, register_user, check_subscription,
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
 
+from curl_cffi import requests as cffi_requests # 🌟 ใช้ตัวนี้เพื่อปลอมตัวหลบ Anti-Bot
+
 telebot.logger.setLevel(logging.DEBUG)
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
@@ -30,7 +32,6 @@ user_message_tracking = {}
 spam_alerted = set()
 
 def is_allowed(user_id):
-    """ฟังก์ชันเช็กว่ายูสเซอร์นี้ถูกแบน หรือส่งข้อความรัวเกินไปหรือไม่"""
     if user_id == ADMIN_ID:
         return True 
         
@@ -67,7 +68,8 @@ def send_welcome(message):
     
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(KeyboardButton("📊 วิเคราะห์หุ้น"), KeyboardButton("📋 Watchlist ของฉัน"))
-    markup.add(KeyboardButton("🌍 สภาวะตลาด"), KeyboardButton("📰 ข่าวด่วนตลาดทุน"))
+    # 🌟 เปลี่ยนชื่อปุ่มเป็น "ข่าวด่วนตลาดลงทุน"
+    markup.add(KeyboardButton("🌍 สภาวะตลาด"), KeyboardButton("📰 ข่าวด่วนตลาดลงทุน"))
     markup.add(KeyboardButton("🚀 สแกน Watchlist (VIP)"), KeyboardButton("👤 บัญชีของฉัน"))
     markup.add(KeyboardButton("📚 วิธีอ่านสัญญาณ"), KeyboardButton("💎 สมัคร VIP"))
     markup.add(KeyboardButton("🎁 เติมโค้ด VIP")) 
@@ -215,7 +217,7 @@ def handle_stats(message):
         bot.reply_to(message, f"❌ เกิดข้อผิดพลาดในการดึงสถิติ: {e}")
 
 # ==========================================
-# 🌟 ระบบคำนวณความแม่นยำ AI (เอาไว้ทำคอนเทนต์)
+# 🌟 ระบบคำนวณความแม่นยำ AI
 # ==========================================
 @bot.message_handler(commands=['performance'])
 def handle_performance(message):
@@ -231,7 +233,7 @@ def handle_performance(message):
         conn.close()
 
         if not logs:
-            bot.edit_message_text("❌ ยังไม่มีประวัติการแจ้งเตือนในระบบครับ ระบบจะเริ่มจดจำเมื่อมีสัญญาณออก", message.chat.id, status_msg.message_id)
+            bot.edit_message_text("❌ ยังไม่มีประวัติการแจ้งเตือนในระบบครับ", message.chat.id, status_msg.message_id)
             return
 
         report_text = "🎯 **สรุปผลงานความแม่นยำ AI (ล่าสุด)** 🎯\n\n"
@@ -281,7 +283,6 @@ def handle_performance(message):
         
     except Exception as e:
         bot.edit_message_text(f"❌ Error: {e}", message.chat.id, status_msg.message_id)
-
 
 @bot.message_handler(content_types=['photo'])
 def handle_payment_slip_check(message):
@@ -462,28 +463,45 @@ def handle_main(message):
             bot.edit_message_text(f"❌ ดึงข้อมูลตลาดล้มเหลว", message.chat.id, load_msg.message_id)
         return
 
-    # 🌟 อัปเดตระบบดึงข่าวด่วนให้ใช้ ElementTree เสถียร 100% ไม่ล้มเหลวแน่นอน
-    elif text == "📰 ข่าวด่วนตลาดทุน":
-        load_msg = bot.reply_to(message, "📰 กำลังรวบรวมข่าวด่วน...")
+    # 🌟 อัปเกรดปุ่มและระบบดึงข่าวแบบใหม่ (3 ไทย, 3 โลก + ปลอมตัว)
+    elif text == "📰 ข่าวด่วนตลาดลงทุน":
+        load_msg = bot.reply_to(message, "📰 กำลังรวบรวมข่าวด่วนจากสำนักข่าวชั้นนำทั่วโลก...")
         try:
-            url = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
-            res = requests.get(url, timeout=10)
-            root = ET.fromstring(res.content)
-            items = root.findall('.//item')[:3]
+            # ใช้ cffi_requests (curl_cffi) เพื่อปลอมตัวเป็นเบราว์เซอร์ Chrome 110 ป้องกันโดนบล็อก
+            url_th = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
+            res_th = cffi_requests.get(url_th, impersonate="chrome110", timeout=15)
+            root_th = ET.fromstring(res_th.content)
+            items_th = root_th.findall('.//item')[:3]
+
+            url_en = "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+investing&hl=en-US&gl=US&ceid=US:en"
+            res_en = cffi_requests.get(url_en, impersonate="chrome110", timeout=15)
+            root_en = ET.fromstring(res_en.content)
+            items_en = root_en.findall('.//item')[:3]
             
-            if items:
-                news_text = "📰 **Top 3 ข่าวเด่นเศรษฐกิจวันนี้**\n\n"
-                for i, item in enumerate(items, 1):
-                    title_elem = item.find('title')
-                    link_elem = item.find('link')
-                    title = title_elem.text if title_elem is not None else "ไม่มีหัวข้อ"
-                    link = link_elem.text if link_elem is not None else "https://news.google.com/"
-                    news_text += f"{i}. [{title}]({link})\n\n"
-                bot.edit_message_text(news_text, message.chat.id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
-            else:
-                bot.edit_message_text("❌ ขณะนี้ไม่มีข่าวด่วนในระบบ", message.chat.id, load_msg.message_id)
+            news_text = "🌐 **สรุปข่าวด่วนตลาดลงทุน (อัปเดตล่าสุด)** 🌐\n\n"
+            
+            news_text += "🇹🇭 **3 ข่าวเด่นฝั่งไทย:**\n"
+            emojis_th = ["🔥", "📌", "📢"]
+            for i, item in enumerate(items_th):
+                title_elem = item.find('title')
+                link_elem = item.find('link')
+                title = title_elem.text if title_elem is not None else "ไม่มีหัวข้อ"
+                link = link_elem.text if link_elem is not None else ""
+                news_text += f"{emojis_th[i]} [{title}]({link})\n\n"
+
+            news_text += "🌍 **3 ข่าวเด่นฝั่งต่างประเทศ:**\n"
+            emojis_en = ["💵", "🚀", "📈"]
+            for i, item in enumerate(items_en):
+                title_elem = item.find('title')
+                link_elem = item.find('link')
+                title = title_elem.text if title_elem is not None else "ไม่มีหัวข้อ"
+                link = link_elem.text if link_elem is not None else ""
+                news_text += f"{emojis_en[i]} [{title}]({link})\n\n"
+                
+            bot.edit_message_text(news_text, message.chat.id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
+            
         except Exception as e:
-            bot.edit_message_text(f"❌ ดึงข้อมูลข่าวล้มเหลว กรุณาลองใหม่ภายหลัง", message.chat.id, load_msg.message_id)
+            bot.edit_message_text(f"❌ ดึงข้อมูลข่าวล้มเหลว อาจเกิดจากเครือข่ายขัดข้อง กรุณาลองใหม่", message.chat.id, load_msg.message_id)
         return
 
     elif text == "🚀 สแกน Watchlist (VIP)":
