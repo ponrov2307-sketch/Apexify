@@ -150,21 +150,33 @@ def handle_payment_slip_check(message):
         
         if result.get('is_slip'):
             amount = float(result.get('amount', 0))
-            # 🌟 ระบบคำนวณแพ็กเกจจากยอดโอน
-            if amount >= 4990:
+            
+            # 🌟 ระบบคำนวณแพ็กเกจ (Strict Mode: ล็อกยอดเป๊ะๆ)
+            if amount == 4990:
                 expiry = add_subscription(user_id, 'pro', 365)
                 msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรดเป็น **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"
-            elif amount >= 1990:
+            elif amount == 1990:
                 expiry = add_subscription(user_id, 'vip', 365)
                 msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรดเป็น **💎 VIP (รายปี)**\n⏰ หมดอายุ: {expiry}"
-            elif amount >= 499:
+            elif amount == 499:
                 expiry = add_subscription(user_id, 'pro', 30)
                 msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรดเป็น **👑 PRO (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
-            elif amount >= 199:
+            elif amount == 199:
                 expiry = add_subscription(user_id, 'vip', 30)
                 msg_text = f"🎉 **ชำระเงินสำเร็จ!** อัปเกรดเป็น **💎 VIP (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
             else:
-                bot.edit_message_text("❌ ยอดเงินในสลิปไม่ถึงเกณฑ์ขั้นต่ำ (เริ่มต้น 199 บาท)", message.chat.id, progress_msg.message_id)
+                # 🛑 กรณีโอนไม่ตรงเป๊ะ (ตีกลับลูกค้า + แจ้งแอดมิน)
+                bot.edit_message_text(
+                    f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** (ระบบตรวจพบยอด {amount:,.2f} บาท)\n\n"
+                    f"⚠️ **กรุณาโอนเงินให้ตรงกับราคาแพ็กเกจเป๊ะๆ เท่านั้น** (199, 499, 1990, หรือ 4990)\n\n"
+                    f"💬 *หากคุณโอนเงินมาแล้วแต่ยอดไม่ตรง กรุณาติดต่อแอดมินเพื่อปรับแก้ให้ครับ*", 
+                    message.chat.id, 
+                    progress_msg.message_id, 
+                    parse_mode="Markdown"
+                )
+                # ส่งแจ้งเตือนหาแอดมิน
+                bot.send_message(ADMIN_ID, f"⚠️ **แจ้งเตือนยอดผิดปกติ!**\nUser `{user_id}` โอนเงิน {amount:,.2f} บาท ซึ่งไม่ตรงกับแพ็กเกจใดๆ โปรดตรวจสอบสลิปนี้ครับ", parse_mode="Markdown")
+                bot.send_photo(ADMIN_ID, message.photo[-1].file_id)
                 return
 
             bot.delete_message(message.chat.id, progress_msg.message_id)
@@ -177,6 +189,7 @@ def handle_payment_slip_check(message):
         bot.edit_message_text("⚠️ AI ไม่สามารถอ่านสลิปได้ โปรดถ่ายให้ชัดเจนอีกครั้ง หรือติดต่อแอดมิน", message.chat.id, progress_msg.message_id)
         bot.send_message(ADMIN_ID, f"🚨 Error ตรวจสลิป User: `{user_id}`\n❌ {e}")
         bot.send_photo(ADMIN_ID, message.photo[-1].file_id)
+
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_'))
 def inline_watchlist(call):
