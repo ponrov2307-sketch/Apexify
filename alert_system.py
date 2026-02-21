@@ -183,3 +183,67 @@ if __name__ == "__main__":
     while True:
         check_market_conditions()
         time.sleep(300) # ตรวจสอบทุกๆ 5 นาที
+                # ==========================================
+# ระบบดึงข่าวทั่วไปสำหรับสมาชิก VIP (Apex Wealth Master)
+# ==========================================
+from curl_cffi import requests as cffi_requests
+from bs4 import BeautifulSoup
+import time
+
+def fetch_vip_general_news():
+    """ดึงข่าวภาพรวมตลาดหุ้นและการลงทุนจากหลายสำนักข่าวแบบหลบ Anti-Bot"""
+    # ดึงรวมข่าวสารตลาดหุ้นจาก Google News (รวมหลายสำนักข่าวในไทย)
+    url = "https://news.google.com/rss/search?q=ตลาดหุ้น+OR+เศรษฐกิจ+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
+    
+    try:
+        # ปลอมตัวเป็น Chrome เวอร์ชันล่าสุด ข้ามระบบบล็อกสบายๆ
+        response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
+        soup = BeautifulSoup(response.content, "html.parser")
+        
+        items = soup.find_all("item")[:5] # ดึงมา 5 ข่าวล่าสุด
+        if not items:
+            return None
+            
+        news_text = "🌟 <b>สรุปข่าวสำคัญประจำวัน (VIP)</b> 🌟\n\n"
+        for item in items:
+            title = item.title.text
+            link = item.link.text
+            news_text += f"📰 <b>{title}</b>\n🔗 <a href='{link}'>อ่านข่าวนี้</a>\n\n"
+            
+        return news_text
+    except Exception as e:
+        print(f"⚠️ Error fetching VIP news: {e}")
+        return None
+
+def broadcast_news_to_vips(bot):
+    """ส่งข่าวให้ผู้ใช้ระดับ VIP ทุกคนในระบบ"""
+    news_message = fetch_vip_general_news()
+    if not news_message:
+        print("ไม่มีข่าวสารใหม่สำหรับ VIP ในรอบนี้")
+        return
+        
+    try:
+        from database import get_connection # อ้างอิงจากโครงสร้าง Apexify ของคุณ
+        conn = get_connection()
+        cur = conn.cursor()
+        
+        # ค้นหา VIP ทั้งหมด (ปรับชื่อคอลัมน์ status ให้ตรงกับฐานข้อมูลของคุณ)
+        cur.execute("SELECT user_id FROM users WHERE status = 'vip'")
+        vip_users = cur.fetchall()
+        
+        count = 0
+        for vip in vip_users:
+            user_id = vip[0]
+            try:
+                # disable_web_page_preview=True เพื่อไม่ให้ลิงก์ข่าวกางออกมาเกะกะหน้าจอ
+                bot.send_message(user_id, news_message, parse_mode='HTML', disable_web_page_preview=True)
+                count += 1
+                time.sleep(0.5) # ป้องกัน Telegram บล็อกฐานส่งรัวเกินไป (Anti-Flood Limit)
+            except Exception as e:
+                print(f"⚠️ ไม่สามารถส่งข่าวให้ VIP {user_id} ได้: {e}")
+                
+        cur.close()
+        conn.close()
+        print(f"✅ ส่งข่าวให้ VIP สำเร็จจำนวน {count} คน")
+    except Exception as e:
+        print(f"⚠️ Database Error in broadcast_news_to_vips: {e}")
