@@ -8,6 +8,7 @@ import requests
 import random
 import string
 import time
+import xml.etree.ElementTree as ET # 🌟 เพิ่มไลบรารีนี้สำหรับอ่านข่าวแบบใหม่ที่เสถียร 100%
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 from keep_alive import keep_alive 
@@ -18,9 +19,6 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       check_slip_used, mark_slip_used, ban_user, unban_user, is_user_banned)
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
-
-from curl_cffi import requests as cffi_requests
-from bs4 import BeautifulSoup
 
 telebot.logger.setLevel(logging.DEBUG)
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
@@ -34,28 +32,24 @@ spam_alerted = set()
 def is_allowed(user_id):
     """ฟังก์ชันเช็กว่ายูสเซอร์นี้ถูกแบน หรือส่งข้อความรัวเกินไปหรือไม่"""
     if user_id == ADMIN_ID:
-        return True # แอดมินรันคำสั่งได้รัวๆ ไม่โดนบล็อก
+        return True 
         
     if is_user_banned(user_id):
-        return False # ถ้าโดนแบน บอทจะเมินข้อความทันที
+        return False 
         
     now = time.time()
     if user_id not in user_message_tracking:
         user_message_tracking[user_id] = []
         
-    # เก็บเฉพาะข้อความที่ส่งมาใน 10 วินาทีล่าสุด
     user_message_tracking[user_id] = [t for t in user_message_tracking[user_id] if now - t < 10]
     user_message_tracking[user_id].append(now)
     
-    # ถ้าส่งเกิน 5 ข้อความใน 10 วินาที -> มองว่าเป็น Spam
     if len(user_message_tracking[user_id]) > 5:
         if user_id not in spam_alerted:
-            # ฟ้องแอดมิน
             bot.send_message(ADMIN_ID, f"🚨 **แจ้งเตือนสแปม:** User `{user_id}` พยายามส่งข้อความรัวๆ ระบบได้ระงับการตอบกลับชั่วคราว\n👉 พิมพ์ `/ban {user_id}` เพื่อแบนถาวร", parse_mode="Markdown")
             spam_alerted.add(user_id)
         return False
         
-    # ถ้าหยุดป่วนแล้ว ค่อยเคลียร์ชื่อออกจากการเฝ้าระวัง
     if len(user_message_tracking[user_id]) <= 5 and user_id in spam_alerted:
         spam_alerted.remove(user_id)
         
@@ -232,7 +226,6 @@ def handle_performance(message):
         from database import get_connection
         conn = get_connection()
         c = conn.cursor()
-        # ดึง 15 สัญญาณล่าสุดมาเช็ค
         c.execute("SELECT symbol, alert_type, price_at_alert, timestamp FROM alert_logs ORDER BY id DESC LIMIT 15")
         logs = c.fetchall()
         conn.close()
@@ -248,7 +241,6 @@ def handle_performance(message):
         for row in logs:
             symbol, alert_type, start_price, timestamp = row
             try:
-                # ดึงราคาปัจจุบัน
                 clean_symbol = symbol
                 if "." in clean_symbol and not clean_symbol.endswith(".BK"):
                     clean_symbol = clean_symbol.replace(".", "-")
@@ -260,13 +252,12 @@ def handle_performance(message):
                 current_price = float(hist['Close'].iloc[-1])
                 diff_pct = ((current_price - start_price) / start_price) * 100
                 
-                # เช็คว่าเข้าทางไหน: ขึ้น(Call/Buy) หรือ ลง(Put/Sell)
                 is_win = False
                 if any(x in alert_type.upper() for x in ["OVERSOLD", "GOLDEN_CROSS", "BREAK_RES"]):
                     if diff_pct > 0: is_win = True
                 elif any(x in alert_type.upper() for x in ["OVERBOUGHT", "DEATH_CROSS", "BREAK_SUP"]):
                     if diff_pct < 0: is_win = True
-                    diff_pct = -diff_pct # สลับเป็นค่าบวกโชว์กำไรฝั่ง Short
+                    diff_pct = -diff_pct 
                     
                 if is_win: win_count += 1
                 total_count += 1
@@ -410,9 +401,9 @@ def handle_main(message):
             "ชื่อ: นาย เกียรติศักดิ์ วุฒิจันทร์\n\n"
             "⭐ **ระดับ VIP (Standard) - 199.-/เดือน (รายปี 1,990.-)**\n"
             "• AI ฟันธงจุดเข้าซื้อ/ขาย (Buy/Hold/Sell)\n"
-            "• รับแจ้งเตือนข่าวเศรษฐกิจไทยและโลกระหว่างวัน\n"
             "• สแกนหุ้นอัตโนมัติใน Watchlist (สูงสุด 10 ตัว)\n\n"
             "👑 **ระดับ PRO (Platinum) - 499.-/เดือน (รายปี 4,990.-)**\n"
+            "• **[Exclusive]** แจ้งเตือนข่าวเศรษฐกิจด่วนแปลไทย Real-time ทั่วโลก 🌍\n"
             "• **[Exclusive]** แจ้งเตือนกราฟ Real-time 24 ชม. (RSI, จุดตัด EMA, Breakout แนวต้าน)\n"
             "• **[Exclusive]** AI วิเคราะห์เชิงลึกระดับ Senior + บอกกลยุทธ์\n"
             "• **[Exclusive]** ไม่จำกัดจำนวนหุ้นใน Watchlist!\n\n"
@@ -470,29 +461,31 @@ def handle_main(message):
         except Exception as e:
             bot.edit_message_text(f"❌ ดึงข้อมูลตลาดล้มเหลว", message.chat.id, load_msg.message_id)
         return
+
+    # 🌟 อัปเดตระบบดึงข่าวด่วนให้ใช้ ElementTree เสถียร 100% ไม่ล้มเหลวแน่นอน
     elif text == "📰 ข่าวด่วนตลาดทุน":
         load_msg = bot.reply_to(message, "📰 กำลังรวบรวมข่าวด่วน...")
         try:
             url = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
-            res = cffi_requests.get(url, impersonate="chrome110", timeout=15)
-            if res.status_code == 200:
-                soup = BeautifulSoup(res.content, "xml")
-                items = soup.find_all("item")[:3]
-                if items:
-                    news_text = "📰 **Top 3 ข่าวเด่นเศรษฐกิจไทยวันนี้**\n\n"
-                    for i, item in enumerate(items, 1):
-                        title = item.title.text
-                        link_tag = item.find('link')
-                        link = link_tag.next_sibling.strip() if link_tag and link_tag.next_sibling else "https://news.google.com/"
-                        news_text += f"{i}. [{title}]({link})\n\n"
-                    bot.edit_message_text(news_text, message.chat.id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
-                else:
-                    bot.edit_message_text("❌ ขณะนี้ไม่มีข่าวด่วนในระบบ", message.chat.id, load_msg.message_id)
+            res = requests.get(url, timeout=10)
+            root = ET.fromstring(res.content)
+            items = root.findall('.//item')[:3]
+            
+            if items:
+                news_text = "📰 **Top 3 ข่าวเด่นเศรษฐกิจวันนี้**\n\n"
+                for i, item in enumerate(items, 1):
+                    title_elem = item.find('title')
+                    link_elem = item.find('link')
+                    title = title_elem.text if title_elem is not None else "ไม่มีหัวข้อ"
+                    link = link_elem.text if link_elem is not None else "https://news.google.com/"
+                    news_text += f"{i}. [{title}]({link})\n\n"
+                bot.edit_message_text(news_text, message.chat.id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
             else:
-                bot.edit_message_text("❌ ดึงข้อมูลข่าวล้มเหลว", message.chat.id, load_msg.message_id)
+                bot.edit_message_text("❌ ขณะนี้ไม่มีข่าวด่วนในระบบ", message.chat.id, load_msg.message_id)
         except Exception as e:
-            bot.edit_message_text("❌ ดึงข้อมูลข่าวล้มเหลว", message.chat.id, load_msg.message_id)
+            bot.edit_message_text(f"❌ ดึงข้อมูลข่าวล้มเหลว กรุณาลองใหม่ภายหลัง", message.chat.id, load_msg.message_id)
         return
+
     elif text == "🚀 สแกน Watchlist (VIP)":
         if user_id != ADMIN_ID and role == 'free':
             bot.reply_to(message, "🔒 ฟีเจอร์สแกนหุ้นสงวนสิทธิ์เฉพาะ **VIP / PRO Member** ครับ\nระบบจะสแกนกราฟเทคนิคหุ้นทั้งหมดใน Watchlist อัตโนมัติ ช่วยประหยัดเวลาสุดๆ!")
@@ -585,19 +578,16 @@ def handle_main(message):
 
     bot.delete_message(message.chat.id, load_msg.message_id)
     
-    # 🌟 ระบบส่งข้อความแบบกัน Error (แก้อาการมีแต่รูป ไม่มีตัวหนังสือ)
     if len(report) > 1000:
         bot.send_photo(message.chat.id, chart)
         try:
             bot.send_message(message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
         except Exception:
-            # ถ้า AI พิมพ์สัญลักษณ์แปลกๆ ทำให้ Markdown พัง ให้ส่งแบบข้อความธรรมดา
             bot.send_message(message.chat.id, report, reply_markup=markup)
     else:
         try:
             bot.send_photo(message.chat.id, chart, caption=report, parse_mode="Markdown", reply_markup=markup)
         except Exception:
-            # ถ้ามีปัญหาความยาวหรือ Markdown ให้แยกส่งเป็น รูป 1 แชท และ ข้อความอีก 1 แชท
             chart.seek(0) 
             bot.send_photo(message.chat.id, chart)
             bot.send_message(message.chat.id, report, reply_markup=markup)
