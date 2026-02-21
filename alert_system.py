@@ -4,8 +4,9 @@ import requests
 from google import genai
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
 from technical_tools import calculate_technical_indicators
-# 🌟 Import ระบบเช็กบทบาทลูกค้า (Role) 
-from database import get_all_active_symbols, get_users_watching, init_db, check_subscription, get_connection
+
+# 🌟 Import ระบบ log_alert เข้ามาใช้งาน
+from database import get_all_active_symbols, get_users_watching, init_db, check_subscription, get_connection, log_alert
 import json
 
 from curl_cffi import requests as cffi_requests
@@ -99,7 +100,6 @@ def check_hot_news(symbol):
                         f"🔗 [อ่านข่าวฉบับเต็มคลิกที่นี่]({link})"
                     )
                     
-                    # 🌟 ส่งแบบ "news" (VIP และ PRO ได้รับ)
                     send_alert_to_users(symbol, msg, alert_type="news")
                     last_news_title[symbol] = title
                     
@@ -138,14 +138,14 @@ def check_market_conditions():
             rsi_condition = 'normal'
             if current_rsi < 30:
                 rsi_condition = 'oversold'
-                msg = f"🟢 **RSI OVERSOLD ({current_rsi:.2f})**\nราคาร่วงหนัก เข้าเขตขายมากเกินไป อาจมีเด้งรีบาวด์! (ราคา: {price:.2f})"
+                msg = f"🟢 **RSI OVERSOLD ({current_rsi:.2f})**\nราคาร่วงหนัก เข้าเขตขายมากเกินไป อาจมีเด้งรีบาวด์! (ราคาปัจจุบัน: {price:.2f})"
             elif current_rsi > 75:
                 rsi_condition = 'overbought'
-                msg = f"🔴 **RSI OVERBOUGHT ({current_rsi:.2f})**\nราคาพุ่งแรง เข้าเขตซื้อมากเกินไป ระวังแรงเทขาย! (ราคา: {price:.2f})"
+                msg = f"🔴 **RSI OVERBOUGHT ({current_rsi:.2f})**\nราคาพุ่งแรง เข้าเขตซื้อมากเกินไป ระวังแรงเทขาย! (ราคาปัจจุบัน: {price:.2f})"
 
             if rsi_condition != 'normal' and rsi_condition != last_alert_state[symbol]['rsi']:
-                # 🌟 ส่งแบบ "tech" (PRO ได้รับเท่านั้น)
                 send_alert_to_users(symbol, msg, alert_type="tech")
+                log_alert(symbol, f"RSI_{rsi_condition.upper()}", price) # 🌟 จดบันทึกราคาและสัญญาณ
                 last_alert_state[symbol]['rsi'] = rsi_condition
             elif rsi_condition == 'normal':
                 last_alert_state[symbol]['rsi'] = 'normal'
@@ -154,26 +154,28 @@ def check_market_conditions():
             cross_condition = 'normal'
             if ema50 > ema200 and (ema50 / ema200) < 1.01:
                 cross_condition = 'golden_cross'
-                msg = f"✨ **GOLDEN CROSS DETECTED** ✨\nเส้น EMA50 ตัดขึ้นเหนือ EMA200 สัญญาณกลับตัวเป็นขาขึ้นระยะยาว!"
+                msg = f"✨ **GOLDEN CROSS DETECTED** ✨\nเส้น EMA50 ตัดขึ้นเหนือ EMA200 สัญญาณกลับตัวเป็นขาขึ้นระยะยาว! (ราคาปัจจุบัน: {price:.2f})"
             elif ema50 < ema200 and (ema200 / ema50) < 1.01:
                 cross_condition = 'death_cross'
-                msg = f"💀 **DEATH CROSS DETECTED** 💀\nเส้น EMA50 ตัดลงต่ำกว่า EMA200 สัญญาณกลับตัวเป็นขาลงระยะยาว!"
+                msg = f"💀 **DEATH CROSS DETECTED** 💀\nเส้น EMA50 ตัดลงต่ำกว่า EMA200 สัญญาณกลับตัวเป็นขาลงระยะยาว! (ราคาปัจจุบัน: {price:.2f})"
 
             if cross_condition != 'normal' and cross_condition != last_alert_state[symbol]['cross']:
                 send_alert_to_users(symbol, msg, alert_type="tech")
+                log_alert(symbol, f"EMA_{cross_condition.upper()}", price) # 🌟 จดบันทึกราคาและสัญญาณ
                 last_alert_state[symbol]['cross'] = cross_condition
 
             # --- Breakout ---
             breakout_condition = 'normal'
             if price > resistance:
                 breakout_condition = 'break_res'
-                msg = f"🚀 **RESISTANCE BREAKOUT**\nราคาทะลุแนวต้านสำคัญที่ {resistance:.2f} ขึ้นไปได้แล้ว! จับตาดู Volume!"
+                msg = f"🚀 **RESISTANCE BREAKOUT**\nราคาทะลุแนวต้านสำคัญที่ {resistance:.2f} ขึ้นไปได้แล้ว! จับตาดู Volume! (ราคาปัจจุบัน: {price:.2f})"
             elif price < support:
                 breakout_condition = 'break_sup'
-                msg = f"🩸 **SUPPORT BROKEN**\nราคาหลุดแนวรับสำคัญที่ {support:.2f} ลงมาแล้ว! ระวังแรงเทขาย!"
+                msg = f"🩸 **SUPPORT BROKEN**\nราคาหลุดแนวรับสำคัญที่ {support:.2f} ลงมาแล้ว! ระวังแรงเทขาย! (ราคาปัจจุบัน: {price:.2f})"
 
             if breakout_condition != 'normal' and breakout_condition != last_alert_state[symbol]['breakout']:
                 send_alert_to_users(symbol, msg, alert_type="tech")
+                log_alert(symbol, f"BREAKOUT_{breakout_condition.upper()}", price) # 🌟 จดบันทึกราคาและสัญญาณ
                 last_alert_state[symbol]['breakout'] = breakout_condition
             elif breakout_condition == 'normal':
                 last_alert_state[symbol]['breakout'] = 'normal'
@@ -212,7 +214,6 @@ def check_and_broadcast_vip_news(bot_instance):
                         summary = ai_check.text.strip()
                         news_message = f"{source['tag']}\n\n{summary}"
                         
-                        # 🌟 ดึงลูกค้าที่เป็น VIP และ PRO ทั้งหมด
                         conn = get_connection()
                         cur = conn.cursor()
                         cur.execute("SELECT user_id FROM users WHERE role IN ('vip', 'pro')")
@@ -221,7 +222,6 @@ def check_and_broadcast_vip_news(bot_instance):
                         count = 0
                         for vip in vip_users:
                             user_id = vip[0]
-                            # รีเช็กวันหมดอายุอีกครั้ง
                             if check_subscription(user_id) in ['vip', 'pro']:
                                 try:
                                     bot_instance.send_message(user_id, news_message, parse_mode='Markdown')
@@ -246,4 +246,4 @@ if __name__ == "__main__":
     while True:
         check_and_broadcast_vip_news(bot)
         check_market_conditions()
-        time.sleep(300) 
+        time.sleep(300)
