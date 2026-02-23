@@ -20,7 +20,7 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       remove_watch_db, add_promo_code, redeem_code, get_user_stats, 
                       check_slip_used, mark_slip_used, ban_user, unban_user, is_user_banned,
                       init_new_features_db, process_referral, get_referral_stats, 
-                      add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db)
+                      add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,get_connection)
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
 
