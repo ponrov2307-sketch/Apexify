@@ -475,7 +475,7 @@ def inline_callbacks(call):
     # 🌟 อัปเดตเมนูข่าวสารให้ครอบคลุมและดึงเฉพาะ 24 ชม.
     elif call.data == 'hub_news':
         try:
-            load_msg = bot.send_message(user_id, "📰 กำลังให้ AI ประมวลผลและสรุปข่าวด่วน...")
+            load_msg = bot.send_message(user_id, "📰 กำลังให้ 💎 APEXIFY ประมวลผลและสรุปข่าวด่วน...")
             
             urls = [
                 "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+ทองคำ+OR+คริปโต+OR+น้ำมัน+when:1d&hl=th&gl=TH&ceid=TH:th",
@@ -512,7 +512,7 @@ def inline_callbacks(call):
             """
             
             ai_response = ai_client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-            final_news = "🌐 **สรุปข่าวด่วนตลาดลงทุน (AI Digest)** 🌐\n\n" + ai_response.text.strip()
+            final_news = "🌐 **สรุปข่าวด่วนตลาดลงทุน (💎 APEXIFY Digest)** 🌐\n\n" + ai_response.text.strip()
             
             bot.edit_message_text(final_news, user_id, load_msg.message_id, parse_mode="Markdown")
         except Exception as e:
