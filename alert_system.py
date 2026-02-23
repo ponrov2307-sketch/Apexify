@@ -172,22 +172,37 @@ def check_market_conditions():
 # ==========================================
 def get_fresh_global_news():
     urls = [
+        # 1. แหล่งข่าว Google News (เจาะจง 24 ชม. ล่าสุด)
         "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+ทองคำ+OR+คริปโต+OR+น้ำมัน+when:1d&hl=th&gl=TH&ceid=TH:th",
-        "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+gold+OR+crypto+OR+oil+when:1d&hl=en-US&gl=US&ceid=US:en"
+        "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+gold+OR+crypto+OR+oil+when:1d&hl=en-US&gl=US&ceid=US:en",
+        
+        # 2. แหล่งข่าวสายตรง Investing.com (ตลาดหุ้น, คริปโต, สินทรัพย์โภคภัณฑ์)
+        "https://www.investing.com/rss/news_25.rss",        # ข่าวตลาดหุ้นโลก (Equities)
+        "https://www.investing.com/rss/news_301.rss",       # ข่าวคริปโต (Cryptocurrency)
+        "https://www.investing.com/rss/market_overview.rss" # ภาพรวมตลาดและเศรษฐกิจ (Market Overview)
     ]
     news_list = []
     for url in urls:
         try:
+            # ใช้ curl_cffi พรางตัวเป็น Chrome เพื่อทะลุบล็อกการดึงข่าว
             response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
             root = ET.fromstring(response.content)
-            # ดึงมาสำนักละ 15 ข่าวล่าสุด
+            
+            # ดึงมาสำนักละ 10-15 ข่าวล่าสุดมากองรวมกันให้ AI คัดอีกที
             for item in root.findall('.//item')[:15]: 
-                title = item.find('title').text.strip()
-                link = item.find('link').text
-                # คัดข่าวที่ยังไม่เคยส่งให้ PRO
-                if title not in sent_pro_news:
-                    news_list.append({"title": title, "link": link})
-        except Exception: pass
+                title_elem = item.find('title')
+                link_elem = item.find('link')
+                
+                if title_elem is not None and link_elem is not None:
+                    title = title_elem.text.strip()
+                    link = link_elem.text.strip()
+                    
+                    # คัดเฉพาะข่าวที่ยังไม่เคยส่งให้ลูกค้าระดับ PRO
+                    if title not in sent_pro_news:
+                        news_list.append({"title": title, "link": link})
+        except Exception: 
+            pass # ถ้าลิงก์ไหนเว็บล่ม ให้ข้ามไปดึงลิงก์อื่นแทน ระบบจะได้ไม่ค้าง
+            
     return news_list
 
 # ==========================================
