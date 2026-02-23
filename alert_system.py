@@ -17,9 +17,9 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 last_alert_state = {}
-sent_pro_news = set()
+sent_pro_news = set() # 🌟 เก็บประวัติข่าวที่เคยส่งไปแล้วเพื่อกันส่งซ้ำ
 sent_stock_news_history = {} 
-sent_xd_alerts = set() # 🌟 ป้องกันการเตือน XD ซ้ำ
+sent_xd_alerts = set()
 
 def send_alert_to_users(symbol, message, alert_type="tech"):
     users = get_users_watching(symbol)
@@ -41,9 +41,9 @@ def check_hot_news(symbol):
         search_term = symbol.replace('.BK', '')
         
         if is_thai_stock:
-            url = f"https://news.google.com/rss/search?q={search_term}+หุ้น&hl=th&gl=TH&ceid=TH:th"
+            url = f"https://news.google.com/rss/search?q={search_term}+หุ้น+when:1d&hl=th&gl=TH&ceid=TH:th"
         else:
-            url = f"https://news.google.com/rss/search?q={search_term}+stock&hl=en-US&gl=US&ceid=US:en"
+            url = f"https://news.google.com/rss/search?q={search_term}+stock+when:1d&hl=en-US&gl=US&ceid=US:en"
 
         response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
         root = ET.fromstring(response.content)
@@ -168,67 +168,161 @@ def check_market_conditions():
         except Exception: pass
 
 # ==========================================
-# 🌟 ระบบส่งข่าวด่วนมัดรวม 4 ชม. (ข่าวเด่น)
+# 🌟 ฟังก์ชันดึงข่าวรวมจากทุกสำนัก (เพื่อส่งให้ AI วิเคราะห์)
+# ==========================================
+def get_fresh_global_news():
+    urls = [
+        "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+ทองคำ+OR+คริปโต+OR+น้ำมัน+when:1d&hl=th&gl=TH&ceid=TH:th",
+        "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+gold+OR+crypto+OR+oil+when:1d&hl=en-US&gl=US&ceid=US:en"
+    ]
+    news_list = []
+    for url in urls:
+        try:
+            response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
+            root = ET.fromstring(response.content)
+            # ดึงมาสำนักละ 15 ข่าวล่าสุด
+            for item in root.findall('.//item')[:15]: 
+                title = item.find('title').text.strip()
+                link = item.find('link').text
+                # คัดข่าวที่ยังไม่เคยส่งให้ PRO
+                if title not in sent_pro_news:
+                    news_list.append({"title": title, "link": link})
+        except Exception: pass
+    return news_list
+
+# ==========================================
+# 🌟 ระบบส่งข่าวด่วนรายชั่วโมง (Flash News) คัดมา 1 ข่าวที่พีคสุด!
+# ==========================================
+def broadcast_hourly_urgent_news(bot_instance):
+    fresh_news = get_fresh_global_news()
+    if not fresh_news: return
+    
+    # ดึงเฉพาะพาดหัวข่าวไปให้ AI เลือก เพื่อประหยัด Token
+    titles = [n['title'] for n in fresh_news]
+    titles_str = "\n".join([f"- {t}" for t in titles])
+    
+    prompt = f"""
+    คุณคือนักวิเคราะห์การเงินระดับโลก 
+    นี่คือพาดหัวข่าวล่าสุดที่ดึงมาจากหลายสำนัก:
+    {titles_str}
+    
+    ให้ประเมินและเลือกข่าวที่ "สำคัญและด่วนที่สุด" เพียง 1 ข่าวเท่านั้น ที่มีผลกระทบสูงต่อตลาด (หุ้น, ทองคำ, คริปโต, หรือเศรษฐกิจ)
+    และเขียนสรุปใจความสำคัญพร้อมมุมมองวิเคราะห์ของคุณ (สั้นๆ กระชับ ไม่เกิน 3 บรรทัด) เป็นภาษาไทย
+    
+    ตอบกลับในรูปแบบ JSON เท่านั้น ห้ามมีข้อความอื่น:
+    {{
+        "original_title": "พาดหัวข่าวต้นฉบับที่เลือก",
+        "summary": "ข้อความสรุปและวิเคราะห์ของคุณ"
+    }}
+    """
+    try:
+        ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
+        analysis = json.loads(result_text)
+        
+        selected_title = analysis.get('original_title', '')
+        summary = analysis.get('summary', '')
+        
+        if selected_title and summary:
+            msg = (
+                f"🚨 **APEXIFY HOURLY FLASH NEWS** 🚨\n\n"
+                f"📌 **ประเด็นด่วนชั่วโมงนี้:**\n"
+                f"*{selected_title}*\n\n"
+                f"🤖 **มุมมอง AI:**\n{summary}"
+            )
+            
+            # บันทึกว่าส่งไปแล้วจะได้ไม่เอามาส่งในรอบ 4 ชม. อีก
+            sent_pro_news.add(selected_title)
+            
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
+            pro_users = cur.fetchall()
+            
+            count = 0
+            for pro in pro_users:
+                if check_subscription(pro[0]) == 'pro':
+                    try:
+                        bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
+                        count += 1
+                        time.sleep(0.5) 
+                    except Exception: pass
+            cur.close()
+            conn.close()
+            
+            # เคลียร์ประวัติถ้าเยอะเกินไป
+            if len(sent_pro_news) > 1000: sent_pro_news.clear()
+            if count > 0: print(f"✅ ส่ง Flash News (1 ชั่วโมง) สำเร็จ {count} คน")
+            
+    except Exception as e:
+        print("Hourly News Error:", e)
+
+# ==========================================
+# 🌟 ระบบส่งข่าวสรุปทุก 4 ชม. (Digest News) คัด 3 ข่าวสำคัญ
 # ==========================================
 def check_and_broadcast_pro_news(bot_instance):
-    news_sources = [
-        {"tag": "🇹🇭 **สรุปข่าวเด่นฝั่งไทย (PRO Exclusive)**", "url": "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+ตลาดหลักทรัพย์+OR+การลงทุน+OR+หุ้น&hl=th&gl=TH&ceid=TH:th"},
-        {"tag": "🌍 **สรุปข่าวเด่นต่างประเทศ (PRO Exclusive)**", "url": "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+investing&hl=en-US&gl=US&ceid=US:en"}
-    ]
+    fresh_news = get_fresh_global_news()
+    if not fresh_news: return
     
-    for source in news_sources:
-        try:
-            response = cffi_requests.get(source["url"], impersonate="chrome110", timeout=15)
-            root = ET.fromstring(response.content)
-            items = root.findall('.//item')[:3] 
+    news_map = {n['title']: n['link'] for n in fresh_news}
+    titles_str = "\n".join([f"- {t}" for t in news_map.keys()])
+    
+    prompt = f"""
+    คุณคือนักวิเคราะห์การเงิน 
+    นี่คือพาดหัวข่าวล่าสุดจากหลายสำนัก:
+    {titles_str}
+    
+    ให้ประเมินและเลือกข่าวที่ "สำคัญที่สุด" จำนวน 3 ข่าว ที่ควรให้นักลงทุนรู้ 
+    และเขียนสรุปแต่ละข่าวพร้อมมุมมองวิเคราะห์สั้นๆ (1-2 บรรทัด) เป็นภาษาไทย
+    
+    ตอบกลับในรูปแบบ JSON Array เท่านั้น ห้ามมีข้อความอื่น:
+    [
+        {{
+            "original_title": "พาดหัวข่าวต้นฉบับที่เลือก",
+            "summary": "ข้อความสรุปและวิเคราะห์ของคุณ"
+        }}
+    ]
+    """
+    try:
+        ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
+        analysis_list = json.loads(result_text)
+        
+        if not isinstance(analysis_list, list) or len(analysis_list) == 0:
+            return
             
-            combined_msg = f"{source['tag']}\n\n"
-            new_news_found = False
+        combined_msg = "🌍 **สรุปข่าวสำคัญรอบ 4 ชั่วโมง (Apexify Digest)** 🌍\n\n"
+        
+        for item in analysis_list:
+            title = item.get('original_title', '')
+            summary = item.get('summary', '')
+            link = news_map.get(title, '')
             
-            for item in items:
-                title_elem = item.find('title')
-                link_elem = item.find('link')
-                if title_elem is None: continue
-                title = title_elem.text.strip()
-                link = link_elem.text if link_elem is not None else ""
-                
-                if title not in sent_pro_news:
-                    prompt = f"""
-                    คุณคือนักวิเคราะห์การเงิน 
-                    สรุปข่าวนี้ให้สั้นและจับใจความได้: "{title}"
-                    เพิ่มมุมมอง Apexify และวิเคราะห์สั้นๆ (ไม่เกิน 2 บรรทัด) เป็นภาษาไทย ห้ามยาวเด็ดขาด ห้ามใส่ลิงก์
-                    """
-                    try:
-                        ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-                        summary = ai_check.text.strip()
-                        combined_msg += f"📰 [{title}]({link})\n🤖 **Apexify วิเคราะห์:** {summary}\n\n"
-                        sent_pro_news.add(title) 
-                        new_news_found = True
-                    except Exception: pass
-            
-            if new_news_found:
-                conn = get_connection()
-                cur = conn.cursor()
-                cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
-                pro_users = cur.fetchall()
-                
-                count = 0
-                for pro in pro_users:
-                    user_id = pro[0]
-                    if check_subscription(user_id) == 'pro':
-                        try:
-                            bot_instance.send_message(user_id, combined_msg.strip(), parse_mode='Markdown', disable_web_page_preview=True)
-                            count += 1
-                            time.sleep(0.5) 
-                        except Exception: pass
-                            
-                cur.close()
-                conn.close()
-                if count > 0: print(f"✅ ส่ง {source['tag']} ข่าวใหม่ให้ PRO สำเร็จ {count} คน")
-                
-                if len(sent_pro_news) > 1000:
-                    sent_pro_news.clear()
-        except Exception: pass
+            if title and summary:
+                combined_msg += f"📰 **{title}**\n🤖 **AI วิเคราะห์:** {summary}\n🔗 [อ่านรายละเอียด]({link})\n\n"
+                sent_pro_news.add(title)
+        
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
+        pro_users = cur.fetchall()
+        
+        count = 0
+        for pro in pro_users:
+            if check_subscription(pro[0]) == 'pro':
+                try:
+                    bot_instance.send_message(pro[0], combined_msg.strip(), parse_mode='Markdown', disable_web_page_preview=True)
+                    count += 1
+                    time.sleep(0.5) 
+                except Exception: pass
+        cur.close()
+        conn.close()
+        
+        if len(sent_pro_news) > 1000: sent_pro_news.clear()
+        if count > 0: print(f"✅ ส่ง Digest News (4 ชั่วโมง) สำเร็จ {count} คน")
+        
+    except Exception as e:
+        print("4-Hour News Error:", e)
 
 # ==========================================
 # 🌟 ระบบเช็คตั้งเตือนราคาส่วนตัว
@@ -270,7 +364,8 @@ def check_custom_price_alerts():
                     f"📌 หุ้น **{symbol}** ที่คุณตั้งเตือนไว้\n"
                     f"ตอนนี้ราคาได้ **{cond_text} {target_price:,.2f}** แล้วครับ!\n"
                     f"*(ราคาปัจจุบัน: {curr_price:,.2f})*\n\n"
-                    f"👉 ระบบทำการปิดการแจ้งเตือนรายการนี้แล้ว หากต้องการตั้งใหม่พิมพ์ `/setalert`"
+                    f"👉 ระบบทำการปิดการแจ้งเตือนรายการนี้แล้ว หากต้องการตั้งใหม่พิมพ์ `/setalert`\n\n"
+                    f"⚠️ **คำเตือน:** การลงทุนมีความเสี่ยง ข้อมูลนี้เป็นเพียงการแจ้งเตือนตามสถิติ โปรดพิจารณาก่อนตัดสินใจซื้อขาย"
                 )
                 try:
                     bot.send_message(user_id, msg, parse_mode="Markdown")
@@ -286,15 +381,16 @@ def check_custom_price_alerts():
 # ==========================================
 def send_morning_briefing(bot_instance):
     try:
-        # ดึงดัชนีต่างประเทศเมื่อคืนเพื่อวิเคราะห์แนวโน้ม
         sp500 = yf.Ticker('^GSPC').history(period='1d')
         btc = yf.Ticker('BTC-USD').history(period='1d')
+        gold = yf.Ticker('GC=F').history(period='1d') 
         
         if not sp500.empty and not btc.empty:
             sp500_close = sp500['Close'].iloc[-1]
             btc_close = btc['Close'].iloc[-1]
+            gold_close = gold['Close'].iloc[-1] if not gold.empty else 0
             
-            prompt = f"ทำตัวเป็นนักวิเคราะห์ สรุปแนวโน้มตลาดเช้านี้สั้นๆ (อิงจาก S&P500 ปิดที่ {sp500_close:.2f} และ Crypto {btc_close:.2f}) ให้กำลังใจนักลงทุน ไม่เกิน 3 บรรทัด"
+            prompt = f"ทำตัวเป็นนักวิเคราะห์ สรุปแนวโน้มตลาดเช้านี้สั้นๆ (อิงจาก S&P500 ปิดที่ {sp500_close:.2f}, Crypto {btc_close:.2f} และทองคำโลก {gold_close:.2f}) ให้กำลังใจนักลงทุน ไม่เกิน 3 บรรทัด"
             ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             summary = ai_check.text.strip()
             
@@ -302,9 +398,11 @@ def send_morning_briefing(bot_instance):
                 f"🌅 **Apexify Morning Briefing** 🌅\n\n"
                 f"📊 **สรุปตลาดโลกเมื่อคืน:**\n"
                 f"• S&P 500: {sp500_close:,.2f}\n"
-                f"• Bitcoin: {btc_close:,.2f}\n\n"
+                f"• Bitcoin: {btc_close:,.2f}\n"
+                f"• ทองคำโลก (Gold): {gold_close:,.2f}\n\n"
                 f"🤖 **มุมมอง Apexify วันนี้:**\n{summary}\n\n"
-                f"🔥 *ขอให้พอร์ตเขียวๆ ตลอดวันครับ!*"
+                f"🔥 *ขอให้พอร์ตเขียวๆ ตลอดวันครับ!*\n\n"
+                f"⚠️ **คำเตือน:** การลงทุนมีความเสี่ยง โปรดใช้วิจารณญาณในการตัดสินใจ"
             )
             
             conn = get_connection()
@@ -342,13 +440,11 @@ def check_xd_alerts():
             ex_div_date = ticker.info.get('exDividendDate')
             
             if ex_div_date:
-                days_until_xd = (ex_div_date - now) / 86400 # 86400 วินาที = 1 วัน
+                days_until_xd = (ex_div_date - now) / 86400 
                 
-                # ถ้าเหลือเวลา 0-3 วัน ให้เตือน!
                 if 0 < days_until_xd <= 3:
                     alert_key = f"{symbol}_{ex_div_date}"
                     if alert_key not in sent_xd_alerts:
-                        # แปลง timestamp เป็นวันที่อ่านง่ายๆ
                         xd_dt = datetime.utcfromtimestamp(ex_div_date).strftime('%d/%m/%Y')
                         msg = (
                             f"📅 **XD ALERT: {symbol}** 📅\n\n"
@@ -364,14 +460,14 @@ if __name__ == "__main__":
     init_db()
     print("🚀 Apexify Alert System (PRO Exclusive) is Running...")
     
-    # 🌟 ตั้งค่าเริ่มต้น
-    last_global_news_time = time.time() - 14400 
+    # 🌟 ตั้งเวลาให้ระบบรู้ว่าต้องส่งตอนไหน
+    last_hourly_news_time = time.time() - 3600  # พร้อมส่งข่าว 1 ชม. ทันที
+    last_global_news_time = time.time() - 14400 # พร้อมส่งข่าว 4 ชม. ทันที
     last_morning_briefing_date = None
     last_xd_check_date = None
     
     while True:
         current_time = time.time()
-        # เวลาปัจจุบันแบบ UTC+7 (เวลาประเทศไทย)
         thai_time = datetime.utcnow() + timedelta(hours=7)
         current_date_str = thai_time.strftime("%Y-%m-%d")
         
@@ -386,7 +482,12 @@ if __name__ == "__main__":
             check_xd_alerts()
             last_xd_check_date = current_date_str
         
-        # 🌟 เช็คข่าวมัดรวม (ทุก 4 ชม.)
+        # 🌟 แจ้งเตือนข่าว 1 ชั่วโมง (Flash News - ข่าวเดียว ไม่มีลิงก์)
+        if current_time - last_hourly_news_time >= 3600:
+            broadcast_hourly_urgent_news(bot)
+            last_hourly_news_time = time.time()
+        
+        # 🌟 แจ้งเตือนข่าว 4 ชั่วโมง (Digest News - มัดรวม 3 ข่าว มีลิงก์)
         if current_time - last_global_news_time >= 14400:
             check_and_broadcast_pro_news(bot)
             last_global_news_time = time.time() 
