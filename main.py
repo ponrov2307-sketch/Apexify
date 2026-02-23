@@ -254,10 +254,18 @@ def handle_broadcast(message):
     bot.reply_to(message, f"⏳ กำลังส่งข้อความหาผู้ใช้ {len(users)} คน...")
     for uid in users:
         try:
+            # ลองส่งแบบจัดหน้าตา (Markdown) ก่อน
             bot.send_message(uid, f"📢 **ประกาศจาก Apexify:**\n\n{msg_text}", parse_mode="Markdown")
             success += 1
+            time.sleep(0.1) # หน่วงเวลากัน Telegram แบน
         except Exception:
-            fail += 1 
+            try:
+                # ถ้าพังเพราะแอดมินส่งลิงก์หรือสัญลักษณ์แปลกๆ ให้ส่งแบบธรรมดาแทน (ไม้ตาย)
+                bot.send_message(uid, f"📢 ประกาศจาก Apexify:\n\n{msg_text}")
+                success += 1
+                time.sleep(0.1)
+            except Exception:
+                fail += 1 
     bot.reply_to(message, f"✅ บรอดแคสต์สำเร็จ: {success} คน\n❌ ล้มเหลว: {fail} คน")
 
 @bot.message_handler(commands=['stats'])
@@ -465,36 +473,51 @@ def inline_callbacks(call):
             bot.edit_message_text(f"❌ ล้มเหลว", user_id, load_msg.message_id)
             
     # 🌟 อัปเดตเมนูข่าวสารให้ครอบคลุมและดึงเฉพาะ 24 ชม.
-    elif call.data == 'hub_news':
+        elif call.data == 'hub_news':
         try:
-            load_msg = bot.send_message(user_id, "📰 กำลังรวบรวมข่าวด่วน (หุ้น, คริปโต, ทองคำ)...")
-            url_th = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+ทองคำ+OR+คริปโต+OR+น้ำมัน+when:1d&hl=th&gl=TH&ceid=TH:th"
-            res_th = cffi_requests.get(url_th, impersonate="chrome110", timeout=15)
-            root_th = ET.fromstring(res_th.content)
-            items_th = root_th.findall('.//item')[:3]
-
-            url_en = "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+gold+OR+crypto+OR+oil+when:1d&hl=en-US&gl=US&ceid=US:en"
-            res_en = cffi_requests.get(url_en, impersonate="chrome110", timeout=15)
-            root_en = ET.fromstring(res_en.content)
-            items_en = root_en.findall('.//item')[:3]
+            load_msg = bot.send_message(user_id, "📰 กำลังให้ AI ประมวลผลและสรุปข่าวด่วน...")
             
-            news_text = "🌐 **สรุปข่าวด่วนตลาดลงทุน (24 ชม. ล่าสุด)** 🌐\n\n🇹🇭 **ไทย:**\n"
-            emojis_th = ["🔥", "📌", "📢"]
-            for i, item in enumerate(items_th):
-                title = item.find('title').text
-                link = item.find('link').text
-                news_text += f"{emojis_th[i]} [{title}]({link})\n\n"
-
-            news_text += "🌍 **ต่างประเทศ:**\n"
-            emojis_en = ["💵", "🚀", "📈"]
-            for i, item in enumerate(items_en):
-                title = item.find('title').text
-                link = item.find('link').text
-                news_text += f"{emojis_en[i]} [{title}]({link})\n\n"
+            # ดึงพาดหัวข่าวจากสำนักข่าวต่างๆ มากองรวมกัน
+            urls = [
+                "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+ทองคำ+OR+คริปโต+OR+น้ำมัน+when:1d&hl=th&gl=TH&ceid=TH:th",
+                "https://www.investing.com/rss/news_25.rss",
+                "https://www.investing.com/rss/news_301.rss"
+            ]
+            all_titles = []
+            for url in urls:
+                try:
+                    res = cffi_requests.get(url, impersonate="chrome110", timeout=10)
+                    root = ET.fromstring(res.content)
+                    for item in root.findall('.//item')[:6]: 
+                        title_elem = item.find('title')
+                        if title_elem is not None:
+                            all_titles.append(title_elem.text)
+                except: pass
                 
-            bot.edit_message_text(news_text, user_id, load_msg.message_id, parse_mode="Markdown", disable_web_page_preview=True)
-        except Exception:
-            bot.edit_message_text(f"❌ ดึงข้อมูลข่าวล้มเหลว", user_id, load_msg.message_id)
+            titles_str = "\n".join([f"- {t}" for t in all_titles[:15]])
+            
+            # เรียกใช้ Gemini AI มาสรุปข่าว
+            from google import genai
+            from config import GEMINI_API_KEY
+            ai_client = genai.Client(api_key=GEMINI_API_KEY)
+            
+            prompt = f"""
+            คัดเลือกข่าวที่สำคัญและด่วนที่สุด 3 ข่าวจากหัวข้อเหล่านี้:
+            {titles_str}
+            
+            นำมาเขียนสรุปเนื้อหาข่าวแบบกระชับ ข่าวละ 4-5 บรรทัด (เป็นภาษาไทย)
+            ห้ามใส่ลิงก์ใดๆ ทั้งสิ้น บังคับใช้รูปแบบนี้เท่านั้น:
+            
+            🔥 **[พาดหัวข่าวที่คุณเลือก]**
+            📝 [สรุปเนื้อหาข่าว 4-5 บรรทัด อธิบายให้เข้าใจง่ายว่าเกิดอะไรขึ้น และกระทบตลาดยังไง]
+            """
+            
+            ai_response = ai_client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+            final_news = "🌐 **สรุปข่าวด่วนตลาดลงทุน (AI Digest)** 🌐\n\n" + ai_response.text.strip()
+            
+            bot.edit_message_text(final_news, user_id, load_msg.message_id, parse_mode="Markdown")
+        except Exception as e:
+            bot.edit_message_text(f"❌ ดึงข้อมูลข่าวล้มเหลว กรุณาลองใหม่", user_id, load_msg.message_id)
             
     elif call.data == 'hub_watchlist':
         try:
