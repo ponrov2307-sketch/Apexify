@@ -24,7 +24,21 @@ def generate_apexify_report(tech_data, role='free'):
     resistance = tech_data.get('resistance', 0)
     obv_trend = tech_data.get('obv_trend', 'คงที่')
     
-    # --- 2. แปลงค่าเป็นคำศัพท์สไตล์ Hedge Fund (ไม่ซ้ำใคร) ---
+    # --- คำนวณแนวรับใหม่ 3 ระดับ ---
+    first_support = ema20 if (ema20 > 0 and ema20 < price) else (price * 0.985)
+    
+    if price >= 100:
+        psycho_support = (int(price) // 10) * 10
+    elif price >= 10:
+        psycho_support = (int(price) // 5) * 5
+    elif price >= 1:
+        psycho_support = int(price)
+    else:
+        psycho_support = price * 0.9  # สำหรับเหรียญหรือหุ้นราคาต่ำ
+        
+    major_support = support # จุดต่ำสุดในรอบ 20 วัน
+    
+    # --- 2. แปลงค่าเป็นคำศัพท์สไตล์ Hedge Fund ---
     momentum = "🟢 ขาขึ้น (Bullish)" if price > ema20 else "🔴 ขาลง (Bearish)"
     
     if rsi > 70: rsi_status = "🔴 Overbought (ระวังโดนเท)"
@@ -55,7 +69,9 @@ def generate_apexify_report(tech_data, role='free'):
     report += f"• 💰 **Volume:** {obv_status}\n"
     
     report += "\n🎯 **[ Action Zones ]**\n"
-    report += f"• 🟢 **แนวรับแรก (Support):** `{support:,.2f}`\n"
+    report += f"• 🟢 **แนวรับแรก:** `{first_support:,.2f}`\n"
+    report += f"• 🧠 **แนวรับจิตวิทยา:** `{psycho_support:,.2f}`\n"
+    report += f"• 🛡️ **แนวรับสำคัญ:** `{major_support:,.2f}`\n"
     report += f"• 🔴 **แนวต้าน (Resistance):** `{resistance:,.2f}`\n"
     
     if lower_band != 0 and upper_band != 0:
@@ -70,13 +86,13 @@ def generate_apexify_report(tech_data, role='free'):
             ข้อมูล: RSI={rsi:.2f}, MACD={macd_status}, เทรนด์={ema_mid}, ระยะยาว={ema_long}
             แนวรับ {support} แนวต้าน {resistance}
             วิเคราะห์พฤติกรรมราคาเชิงลึก เขียนกลยุทธ์การเทรด (Trading Playbook) ความยาว 4-5 บรรทัด (ภาษาไทย)
-            บรรทัดสุดท้ายให้ฟันธงกลยุทธ์รูปแบบนี้เท่านั้น: **🎯 Action: [BUY / HOLD / SELL]**
+            บรรทัดสุดท้ายให้ฟันธงกลยุทธ์รูปแบบนี้เท่านั้น: **🎯 Action: [BUY / HOLD / SELL] เพราะ [ระบุเหตุผลสั้นๆ 1 ประโยค]**
             """
         else:
             prompt = f"""
             วิเคราะห์หุ้น {symbol} ราคา {price} RSI={rsi:.2f} เทรนด์คือ {ema_mid}
             อธิบายเหตุผลสั้นๆ ว่าน่าสนใจไหม ความยาว 3 บรรทัด (ภาษาไทย)
-            บรรทัดสุดท้ายฟันธง: **🎯 Action: [BUY / HOLD / SELL]**
+            บรรทัดสุดท้ายฟันธง: **🎯 Action: [BUY / HOLD / SELL] เพราะ [ระบุเหตุผลสั้นๆ 1 ประโยค]**
             """
             
         try:
