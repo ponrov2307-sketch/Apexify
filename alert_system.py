@@ -291,38 +291,39 @@ def check_and_broadcast_pro_news(bot_instance):
         if not isinstance(analysis_list, list) or len(analysis_list) == 0:
             return
             
-        combined_msg = "🌍 **สรุปข่าวสำคัญรอบ 4 ชั่วโมง (Apexify Digest)** 🌍\n\n"
-        
-        for item in analysis_list:
-            title = item.get('original_title', '')
-            summary = item.get('summary', '')
-            link = news_map.get(title, '')
-            
-            if title and summary:
-                combined_msg += f"📰 **{title}**\n🤖 **AI วิเคราะห์:** {summary}\n🔗 [อ่านรายละเอียด]({link})\n\n"
-                sent_pro_news.add(title)
-        
         conn = get_connection()
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
         pro_users = cur.fetchall()
         
         count = 0
-        for pro in pro_users:
-            if check_subscription(pro[0]) == 'pro':
-                try:
-                    bot_instance.send_message(pro[0], combined_msg.strip(), parse_mode='Markdown', disable_web_page_preview=True)
-                    count += 1
-                    time.sleep(0.5) 
-                except Exception: pass
+        # 🌟 วนลูปส่งข่าวแยกทีละกล่องข้อความ
+        for item in analysis_list:
+            title = item.get('original_title', '')
+            summary = item.get('summary', '')
+            link = news_map.get(title, '')
+            
+            if title and summary:
+                msg = f"📰 **APEX NEWS:**\n*{title}*\n\n🤖 **AI วิเคราะห์:**\n{summary}\n\n🔗 [อ่านรายละเอียด]({link})"
+                sent_pro_news.add(title)
+                
+                # ส่งให้ User แต่ละคน
+                for pro in pro_users:
+                    if check_subscription(pro[0]) == 'pro':
+                        try:
+                            bot_instance.send_message(pro[0], msg, parse_mode='Markdown', disable_web_page_preview=True)
+                            count += 1
+                            time.sleep(0.5) 
+                        except Exception: pass
+                        
         cur.close()
         conn.close()
         
         if len(sent_pro_news) > 1000: sent_pro_news.clear()
-        if count > 0: print(f"✅ ส่ง Digest News (4 ชั่วโมง) สำเร็จ {count} คน")
+        if count > 0: print(f"✅ ส่ง News สำเร็จ {count} ข้อความ")
         
     except Exception as e:
-        print("4-Hour News Error:", e)
+        print("News Broadcast Error:", e)
 
 # ==========================================
 # 🌟 ระบบเช็คตั้งเตือนราคาส่วนตัว
