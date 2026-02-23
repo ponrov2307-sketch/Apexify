@@ -79,7 +79,7 @@ def generate_apexify_report(tech_data, role='free'):
 
     # --- 4. ส่วนของ AI Trading Playbook ---
     if role in ['vip', 'pro']:
-        report += "\n🧠 **[ แผนการเทรดจาก AI ]**\n"
+        report += "\n🧠 **[ แผนการเทรดจาก 💎 APEXIFY ]**\n"
         if role == 'pro':
             # สั่งให้ AI แบ่งคำแนะนำเป็น 2 ระยะ และใช้คำพูดเป็นกันเอง
             prompt = f"""
