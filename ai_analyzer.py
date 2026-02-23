@@ -34,76 +34,79 @@ def generate_apexify_report(tech_data, role='free'):
     elif price >= 1:
         psycho_support = int(price)
     else:
-        psycho_support = price * 0.9  # สำหรับเหรียญหรือหุ้นราคาต่ำ
+        psycho_support = price * 0.9  
         
-    major_support = support # จุดต่ำสุดในรอบ 20 วัน
+    major_support = support 
     
-    # --- 2. แปลงค่าเป็นคำศัพท์สไตล์ Hedge Fund ---
+    # --- 2. แปลงค่าเป็นคำศัพท์ที่ดูเป็นกันเองขึ้น แต่ยังคงความโปร ---
     momentum = "🟢 ขาขึ้น (Bullish)" if price > ema20 else "🔴 ขาลง (Bearish)"
     
-    if rsi > 70: rsi_status = "🔴 Overbought (ระวังโดนเท)"
-    elif rsi < 30: rsi_status = "🟢 Oversold (โซนน่าเก็บ)"
-    else: rsi_status = "⚪️ Neutral (รอดูท่าที)"
+    if rsi > 70: rsi_status = "🔴 ตึงไปนิด (Overbought)"
+    elif rsi < 30: rsi_status = "🟢 โซนของถูก (Oversold)"
+    else: rsi_status = "⚪️ กลางๆ รอดูเชิง (Neutral)"
     
-    macd_status = "🟢 Positive (มีแรงส่ง)" if macd_line > signal_line else "🔴 Negative (แรงส่งแผ่ว)"
+    macd_status = "🟢 มีแรงส่ง (Positive)" if macd_line > signal_line else "🔴 แรงเริ่มแผ่ว (Negative)"
     ema_mid = "🟢 ขาขึ้น" if ema20 > ema50 else "🔴 ขาลง"
     
-    if ema50 > ema200 and (ema50/ema200 < 1.03): ema_long = "✨ Golden Cross (เตรียมบิน)"
-    elif ema50 < ema200 and (ema200/ema50 < 1.03): ema_long = "💀 Death Cross (ระวังหลุม)"
-    elif ema50 > ema200: ema_long = "🟢 ขาขึ้นระยะยาว"
-    else: ema_long = "🔴 ขาลงระยะยาว"
+    if ema50 > ema200 and (ema50/ema200 < 1.03): ema_long = "✨ Golden Cross (เตรียมบิน!)"
+    elif ema50 < ema200 and (ema200/ema50 < 1.03): ema_long = "💀 Death Cross (ระวังหลุม!)"
+    elif ema50 > ema200: ema_long = "🟢 เทรนด์ขาขึ้นยาวๆ"
+    else: ema_long = "🔴 เทรนด์ขาลงยาวๆ"
     
-    if "เพิ่ม" in obv_trend or "up" in obv_trend.lower(): obv_status = "📈 Smart Money ไหลเข้า"
-    elif "ลด" in obv_trend or "down" in obv_trend.lower(): obv_status = "📉 มีแรงรินขายออก"
-    else: obv_status = "➖ ทรงตัว"
+    if "เพิ่ม" in obv_trend or "up" in obv_trend.lower(): obv_status = "📈 มีคนแอบเก็บของ (Inflow)"
+    elif "ลด" in obv_trend or "down" in obv_trend.lower(): obv_status = "📉 ระวังแรงรินขาย (Outflow)"
+    else: obv_status = "➖ นิ่งๆ ทรงตัว"
     
-    # --- 3. UI รูปแบบใหม่: APEXIFY TERMINAL ---
-    report = f"💎 **APEXIFY TERMINAL: {symbol}**\n"
-    report += f"🏷 **Price:** `{price:,.2f}`\n"
+    # --- 3. UI รูปแบบใหม่: เป็นกันเอง อ่านง่าย ---
+    report = f"🤖 **Apexify สแกนหุ้น: {symbol}**\n"
+    report += f"🏷 **ราคาล่าสุด:** `{price:,.2f}`\n"
     report += "━" * 15 + "\n"
     
-    report += "📊 **[ X-Ray โมเมนตัม ]**\n"
-    report += f"• 🌊 **Trend:** {momentum}\n"
-    report += f"• 🌡️ **RSI:** {rsi_status} `({rsi:.2f})`\n"
-    report += f"• ⚡ **MACD:** {macd_status}\n"
-    report += f"• 💰 **Volume:** {obv_status}\n"
+    report += "📊 **[ สุขภาพหุ้นตอนนี้ ]**\n"
+    report += f"• 🌊 **เทรนด์หลัก:** {momentum}\n"
+    report += f"• 🌡️ **RSI (ความร้อนแรง):** {rsi_status} `({rsi:.2f})`\n"
+    report += f"• ⚡ **MACD (โมเมนตัม):** {macd_status}\n"
+    report += f"• 💰 **Volume (กระแสเงิน):** {obv_status}\n"
     
-    report += "\n🎯 **[ Action Zones ]**\n"
-    report += f"• 🟢 **แนวรับแรก:** `{first_support:,.2f}`\n"
-    report += f"• 🧠 **แนวรับจิตวิทยา:** `{psycho_support:,.2f}`\n"
-    report += f"• 🛡️ **แนวรับสำคัญ:** `{major_support:,.2f}`\n"
-    report += f"• 🔴 **แนวต้าน (Resistance):** `{resistance:,.2f}`\n"
+    report += "\n🎯 **[ โซนราคาที่ต้องจับตา ]**\n"
+    report += f"• 🟢 **แนวรับแรก (ถ้าย่อลงมา):** `{first_support:,.2f}`\n"
+    report += f"• 🧠 **แนวรับจิตวิทยา (ตัวเลขกลมๆ):** `{psycho_support:,.2f}`\n"
+    report += f"• 🛡️ **แนวรับสำคัญ (หลุดตรงนี้หนี):** `{major_support:,.2f}`\n"
+    report += f"• 🔴 **แนวต้าน (จุดวัดใจ):** `{resistance:,.2f}`\n"
     
     if lower_band != 0 and upper_band != 0:
         report += f"• 🟡 **กรอบแกว่งตัว (BB):** `{lower_band:,.2f} - {upper_band:,.2f}`\n"
 
     # --- 4. ส่วนของ AI Trading Playbook ---
     if role in ['vip', 'pro']:
-        report += "\n🧠 **[ AI Trading Playbook ]**\n"
+        report += "\n🧠 **[ แผนการเทรดจาก AI ]**\n"
         if role == 'pro':
+            # สั่งให้ AI แบ่งคำแนะนำเป็น 2 ระยะ และใช้คำพูดเป็นกันเอง
             prompt = f"""
-            คุณคือนักวิเคราะห์เทคนิคระดับ Hedge Fund วิเคราะห์หุ้น {symbol} ที่ราคา {price} 
+            คุณคือ AI ผู้ช่วยเทรดเดอร์ที่เป็นมิตรและเก่งกาจ วิเคราะห์หุ้น {symbol} ที่ราคา {price} 
             ข้อมูล: RSI={rsi:.2f}, MACD={macd_status}, เทรนด์={ema_mid}, ระยะยาว={ema_long}
             แนวรับ {support} แนวต้าน {resistance}
-            วิเคราะห์พฤติกรรมราคาเชิงลึก เขียนกลยุทธ์การเทรด (Trading Playbook) ความยาว 4-5 บรรทัด (ภาษาไทย)
-            บรรทัดสุดท้ายให้ฟันธงกลยุทธ์รูปแบบนี้เท่านั้น: **🎯 Action: [BUY / HOLD / SELL] เพราะ [ระบุเหตุผลสั้นๆ 1 ประโยค]**
+            ให้คำแนะนำด้วยภาษาที่เป็นกันเองเหมือนคุยกับเพื่อนเทรดเดอร์ แยกคำแนะนำเป็น 2 ระยะ:
+            1. 🏃‍♂️ สายเล่นสั้น (Short-term): ควรทำยังไง
+            2. 🧘‍♂️ สายถือยาว (Long-term): ทรงนี้ควรถือต่อหรือหนี
+            (ความยาวรวมไม่เกิน 5 บรรทัด)
+            บรรทัดสุดท้ายให้สรุปแบบฟันธงในรูปแบบนี้เท่านั้น: **🎯 สรุปให้เลย: [ซื้อ / ถือ / ขาย] เพราะ [เหตุผลสั้นๆ โดนใจ 1 ประโยค]**
             """
         else:
             prompt = f"""
-            วิเคราะห์หุ้น {symbol} ราคา {price} RSI={rsi:.2f} เทรนด์คือ {ema_mid}
-            อธิบายเหตุผลสั้นๆ ว่าน่าสนใจไหม ความยาว 3 บรรทัด (ภาษาไทย)
-            บรรทัดสุดท้ายฟันธง: **🎯 Action: [BUY / HOLD / SELL] เพราะ [ระบุเหตุผลสั้นๆ 1 ประโยค]**
+            คุณคือ AI ผู้ช่วยเทรดเดอร์ที่เป็นมิตร วิเคราะห์หุ้น {symbol} ราคา {price} RSI={rsi:.2f} เทรนด์คือ {ema_mid}
+            อธิบายสั้นๆ ด้วยภาษาเป็นกันเอง ว่าทรงนี้น่าเล่นไหม ความยาว 3 บรรทัด
+            บรรทัดสุดท้ายให้สรุปแบบฟันธง: **🎯 สรุปให้เลย: [ซื้อ / ถือ / ขาย] เพราะ [เหตุผลสั้นๆ 1 ประโยค]**
             """
             
         try:
             ai_response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             report += f"💡 *{ai_response.text.strip()}*"
         except Exception as e:
-            report += "💡 *ระบบกำลังประมวลผลหนาแน่น กรุณาลองใหม่อีกครั้ง*"
+            report += "💡 *ระบบกำลังคิดหนักเลยครับ ขอเวลาแป๊บ ลองกดใหม่นะ!*"
             
-    report += "\n\n⚠️ *คำเตือน: ข้อมูลเพื่อประกอบการตัดสินใจ ไม่ใช่การชี้ชวนลงทุน*"
+    report += "\n\n⚠️ *ย้ำกันนิด: การลงทุนมีความเสี่ยง ข้อมูลนี้ AI ช่วยสแกนให้เพื่อประกอบการตัดสินใจนะคร้าบ*"
     return report
-
 
 def analyze_payment_slip(file_path_or_bytes):
     prompt = '''
