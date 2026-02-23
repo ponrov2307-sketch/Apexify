@@ -473,11 +473,10 @@ def inline_callbacks(call):
             bot.edit_message_text(f"❌ ล้มเหลว", user_id, load_msg.message_id)
             
     # 🌟 อัปเดตเมนูข่าวสารให้ครอบคลุมและดึงเฉพาะ 24 ชม.
-        elif call.data == 'hub_news':
+    elif call.data == 'hub_news':
         try:
             load_msg = bot.send_message(user_id, "📰 กำลังให้ AI ประมวลผลและสรุปข่าวด่วน...")
             
-            # ดึงพาดหัวข่าวจากสำนักข่าวต่างๆ มากองรวมกัน
             urls = [
                 "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+ทองคำ+OR+คริปโต+OR+น้ำมัน+when:1d&hl=th&gl=TH&ceid=TH:th",
                 "https://www.investing.com/rss/news_25.rss",
@@ -488,7 +487,7 @@ def inline_callbacks(call):
                 try:
                     res = cffi_requests.get(url, impersonate="chrome110", timeout=10)
                     root = ET.fromstring(res.content)
-                    for item in root.findall('.//item')[:6]: 
+                    for item in root.findall('.//item')[:5]: 
                         title_elem = item.find('title')
                         if title_elem is not None:
                             all_titles.append(title_elem.text)
@@ -496,20 +495,20 @@ def inline_callbacks(call):
                 
             titles_str = "\n".join([f"- {t}" for t in all_titles[:15]])
             
-            # เรียกใช้ Gemini AI มาสรุปข่าว
             from google import genai
             from config import GEMINI_API_KEY
             ai_client = genai.Client(api_key=GEMINI_API_KEY)
             
+            # 🌟 บังคับ AI สรุป 3-4 บรรทัดและห้ามมีลิงก์
             prompt = f"""
             คัดเลือกข่าวที่สำคัญและด่วนที่สุด 3 ข่าวจากหัวข้อเหล่านี้:
             {titles_str}
             
-            นำมาเขียนสรุปเนื้อหาข่าวแบบกระชับ ข่าวละ 4-5 บรรทัด (เป็นภาษาไทย)
+            นำมาเขียนสรุปเนื้อหาข่าวแบบกระชับ ข่าวละ 3-4 บรรทัด (เป็นภาษาไทย)
             ห้ามใส่ลิงก์ใดๆ ทั้งสิ้น บังคับใช้รูปแบบนี้เท่านั้น:
             
             🔥 **[พาดหัวข่าวที่คุณเลือก]**
-            📝 [สรุปเนื้อหาข่าว 4-5 บรรทัด อธิบายให้เข้าใจง่ายว่าเกิดอะไรขึ้น และกระทบตลาดยังไง]
+            📝 [สรุปเนื้อหาข่าว 3-4 บรรทัด อธิบายให้เข้าใจง่ายว่าเกิดอะไรขึ้น และกระทบตลาดยังไง]
             """
             
             ai_response = ai_client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
@@ -661,6 +660,7 @@ def handle_main(message):
         
     elif text == "📱 เปิดเมนูหลัก":
         markup = InlineKeyboardMarkup(row_width=2)
+        # 🌟 ใส่ปุ่มให้ครบทั้ง 6 ฟีเจอร์ชูโรง
         markup.add(
             InlineKeyboardButton("🌍 สภาวะตลาดโลก", callback_data="hub_market"),
             InlineKeyboardButton("📰 ข่าวด่วนลงทุน", callback_data="hub_news")
