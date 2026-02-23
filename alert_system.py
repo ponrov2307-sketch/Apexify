@@ -266,27 +266,93 @@ def get_fresh_global_news():
             
     except Exception as e:
         print("Hourly News Error:", e)
+def get_fresh_global_news():
+    urls = [
+        "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+ทองคำ+OR+คริปโต+OR+น้ำมัน+when:1d&hl=th&gl=TH&ceid=TH:th",
+        "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+gold+OR+crypto+OR+oil+when:1d&hl=en-US&gl=US&ceid=US:en",
+        "https://www.investing.com/rss/news_25.rss",
+        "https://www.investing.com/rss/news_301.rss"
+    ]
+    news_list = []
+    for url in urls:
+        try:
+            response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
+            root = ET.fromstring(response.content)
+            for item in root.findall('.//item')[:15]: 
+                title_elem = item.find('title')
+                if title_elem is not None:
+                    title = title_elem.text.strip()
+                    if title not in sent_pro_news:
+                        news_list.append({"title": title})
+        except Exception: pass
+    return news_list
 
+def broadcast_hourly_urgent_news(bot_instance):
+    fresh_news = get_fresh_global_news()
+    if not fresh_news: return
+    
+    titles = [n['title'] for n in fresh_news]
+    titles_str = "\n".join([f"- {t}" for t in titles])
+    
+    prompt = f"""
+    คุณคือนักวิเคราะห์การเงินระดับโลก 
+    นี่คือพาดหัวข่าวล่าสุด:
+    {titles_str}
+    
+    เลือกข่าวที่ "ด่วนและสำคัญที่สุด" เพียง 1 ข่าว 
+    และสรุปเนื้อข่าว 3-4 บรรทัด (เป็นภาษาไทย) ห้ามใส่ลิงก์
+    
+    ตอบกลับในรูปแบบ JSON เท่านั้น:
+    {{
+        "original_title": "พาดหัวข่าวที่เลือก",
+        "summary": "สรุปเนื้อข่าว 3-4 บรรทัด"
+    }}
+    """
+    try:
+        ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
+        analysis = json.loads(result_text)
+        
+        title = analysis.get('original_title', '')
+        summary = analysis.get('summary', '')
+        
+        if title and summary:
+            msg = f"🚨 **ข่าวด่วนรอบชั่วโมง** 🚨\n\n📌 **{title}**\n\n📝 **สรุป:** {summary}"
+            sent_pro_news.add(title)
+            
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
+            for pro in cur.fetchall():
+                if check_subscription(pro[0]) == 'pro':
+                    try:
+                        bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
+                        time.sleep(0.5) 
+                    except Exception: pass
+            conn.close()
+    except Exception as e:
+        print("Hourly News Error:", e)
 def check_and_broadcast_pro_news(bot_instance):
     fresh_news = get_fresh_global_news()
     if not fresh_news: return
     
-    news_map = {n['title']: n['link'] for n in fresh_news}
-    titles_str = "\n".join([f"- {t}" for t in news_map.keys()])
+    titles = [n['title'] for n in fresh_news]
+    titles_str = "\n".join([f"- {t}" for t in titles])
     
     prompt = f"""
     คุณคือนักวิเคราะห์การเงิน 
-    นี่คือพาดหัวข่าวล่าสุดจากหลายสำนัก:
+    นี่คือพาดหัวข่าวล่าสุด:
     {titles_str}
     
-    ให้ประเมินและเลือกข่าวที่ "สำคัญที่สุด" จำนวน 3 ข่าว
-    และเขียนสรุปเนื้อข่าวสั้นๆ (1-2 บรรทัด) เป็นภาษาไทย
+    เลือกข่าวที่ "สำคัญที่สุด" 3 ข่าว 
+    สรุปเนื้อหาแต่ละข่าวแบบเจาะลึก 3-4 บรรทัด (ภาษาไทย)
+    ห้ามใส่ลิงก์ใดๆ ทั้งสิ้น
     
     ตอบกลับในรูปแบบ JSON Array เท่านั้น:
     [
         {{
             "original_title": "พาดหัวข่าวต้นฉบับที่เลือก",
-            "summary": "สรุปเนื้อข่าวสั้นๆ"
+            "summary": "สรุปเนื้อข่าว 3-4 บรรทัด"
         }}
     ]
     """
@@ -295,15 +361,13 @@ def check_and_broadcast_pro_news(bot_instance):
         result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
         analysis_list = json.loads(result_text)
         
-        if not isinstance(analysis_list, list) or len(analysis_list) == 0:
-            return
+        if not isinstance(analysis_list, list) or len(analysis_list) == 0: return
             
         conn = get_connection()
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
         pro_users = cur.fetchall()
         
-        count = 0
         for item in analysis_list:
             title = item.get('original_title', '')
             summary = item.get('summary', '')
@@ -316,16 +380,9 @@ def check_and_broadcast_pro_news(bot_instance):
                     if check_subscription(pro[0]) == 'pro':
                         try:
                             bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
-                            count += 1
                             time.sleep(0.5) 
                         except Exception: pass
-                        
-        cur.close()
         conn.close()
-        
-        if len(sent_pro_news) > 1000: sent_pro_news.clear()
-        if count > 0: print(f"✅ ส่ง News สำเร็จ {count} ข้อความ")
-        
     except Exception as e:
         print("News Broadcast Error:", e)
 
