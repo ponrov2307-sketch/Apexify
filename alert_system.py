@@ -523,7 +523,7 @@ if __name__ == "__main__":
     init_db()
     print("🚀 Apexify Alert System (PRO Exclusive) is Running...")
     
-    # 🌟 ตั้งเวลาให้ระบบรู้ว่าต้องส่งตอนไหน
+    # 🌟 ตั้งค่าเริ่มต้น
     last_hourly_news_time = time.time() - 3600  # พร้อมส่งข่าว 1 ชม. ทันที
     last_global_news_time = time.time() - 14400 # พร้อมส่งข่าว 4 ชม. ทันที
     last_morning_briefing_date = None
@@ -534,31 +534,29 @@ if __name__ == "__main__":
         thai_time = datetime.utcnow() + timedelta(hours=7)
         current_date_str = thai_time.strftime("%Y-%m-%d")
         
-        # 🌅 ส่ง Morning Briefing (เมื่อถึงเวลา 08:30 น. ของทุกวัน)
+        # 🌅 ส่ง Morning Briefing (08:30 น.)
         if thai_time.hour == 8 and thai_time.minute >= 30:
             if last_morning_briefing_date != current_date_str:
                 send_morning_briefing(bot)
                 last_morning_briefing_date = current_date_str
                 
-        # 📅 เช็ค XD Alerts (เช็คแค่วันละ 1 ครั้งพอ ไม่ให้ระบบหนัก)
+        # 📅 เช็ค XD Alerts
         if last_xd_check_date != current_date_str:
             check_xd_alerts()
             last_xd_check_date = current_date_str
-        
-        # 🌟 แจ้งเตือนข่าว 1 ชั่วโมง (Flash News - ข่าวเดียว ไม่มีลิงก์)
+
+        # 🌟 แจ้งเตือนข่าว 1 ชั่วโมง (Flash News)
         if current_time - last_hourly_news_time >= 3600:
             broadcast_hourly_urgent_news(bot)
             last_hourly_news_time = time.time()
         
-        # 🌟 แจ้งเตือนข่าว 4 ชั่วโมง (Digest News - มัดรวม 3 ข่าว มีลิงก์)
+        # 🌟 แจ้งเตือนข่าว 4 ชั่วโมง (Digest News)
         if current_time - last_global_news_time >= 14400:
             check_and_broadcast_pro_news(bot)
             last_global_news_time = time.time() 
             
-        # 🌟 เช็คกราฟเทคนิค (ทุก 5 นาที)
+        # 🌟 เช็คกราฟเทคนิค & ตั้งเตือนราคา (ทุก 5 นาที)
         check_market_conditions()
-        
-        # 🌟 เช็คราคาเป้าหมายส่วนตัว (ทุก 5 นาที)
         check_custom_price_alerts()
         
         time.sleep(300)
