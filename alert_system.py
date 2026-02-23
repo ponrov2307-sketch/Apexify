@@ -192,12 +192,10 @@ def get_fresh_global_news():
 
 # ==========================================
 # 🌟 ระบบส่งข่าวด่วนรายชั่วโมง (Flash News) คัดมา 1 ข่าวที่พีคสุด!
-# ==========================================
-def broadcast_hourly_urgent_news(bot_instance):
+# =======================================def broadcast_hourly_urgent_news(bot_instance):
     fresh_news = get_fresh_global_news()
     if not fresh_news: return
     
-    # ดึงเฉพาะพาดหัวข่าวไปให้ AI เลือก เพื่อประหยัด Token
     titles = [n['title'] for n in fresh_news]
     titles_str = "\n".join([f"- {t}" for t in titles])
     
@@ -206,13 +204,13 @@ def broadcast_hourly_urgent_news(bot_instance):
     นี่คือพาดหัวข่าวล่าสุดที่ดึงมาจากหลายสำนัก:
     {titles_str}
     
-    ให้ประเมินและเลือกข่าวที่ "สำคัญและด่วนที่สุด" เพียง 1 ข่าวเท่านั้น ที่มีผลกระทบสูงต่อตลาด (หุ้น, ทองคำ, คริปโต, หรือเศรษฐกิจ)
-    และเขียนสรุปใจความสำคัญพร้อมมุมมองวิเคราะห์ของคุณ (สั้นๆ กระชับ ไม่เกิน 3 บรรทัด) เป็นภาษาไทย
+    ให้ประเมินและเลือกข่าวที่ "สำคัญและด่วนที่สุด" เพียง 1 ข่าวเท่านั้น
+    และเขียนสรุปเนื้อข่าวสั้นๆ (1-2 บรรทัด) เป็นภาษาไทย
     
-    ตอบกลับในรูปแบบ JSON เท่านั้น ห้ามมีข้อความอื่น:
+    ตอบกลับในรูปแบบ JSON เท่านั้น:
     {{
         "original_title": "พาดหัวข่าวต้นฉบับที่เลือก",
-        "summary": "ข้อความสรุปและวิเคราะห์ของคุณ"
+        "summary": "สรุปเนื้อข่าวสั้นๆ"
     }}
     """
     try:
@@ -225,13 +223,11 @@ def broadcast_hourly_urgent_news(bot_instance):
         
         if selected_title and summary:
             msg = (
-                f"🚨 **APEXIFY HOURLY FLASH NEWS** 🚨\n\n"
-                f"📌 **ประเด็นด่วนชั่วโมงนี้:**\n"
-                f"*{selected_title}*\n\n"
-                f"🤖 **มุมมอง AI:**\n{summary}"
+                f"🚨 **ข่าวด่วนรอบชั่วโมง** 🚨\n\n"
+                f"📌 **{selected_title}**\n\n"
+                f"📝 **สรุป:** {summary}"
             )
             
-            # บันทึกว่าส่งไปแล้วจะได้ไม่เอามาส่งในรอบ 4 ชม. อีก
             sent_pro_news.add(selected_title)
             
             conn = get_connection()
@@ -250,16 +246,12 @@ def broadcast_hourly_urgent_news(bot_instance):
             cur.close()
             conn.close()
             
-            # เคลียร์ประวัติถ้าเยอะเกินไป
             if len(sent_pro_news) > 1000: sent_pro_news.clear()
-            if count > 0: print(f"✅ ส่ง Flash News (1 ชั่วโมง) สำเร็จ {count} คน")
+            if count > 0: print(f"✅ ส่ง Flash News สำเร็จ {count} คน")
             
     except Exception as e:
         print("Hourly News Error:", e)
 
-# ==========================================
-# 🌟 ระบบส่งข่าวสรุปทุก 4 ชม. (Digest News) คัด 3 ข่าวสำคัญ
-# ==========================================
 def check_and_broadcast_pro_news(bot_instance):
     fresh_news = get_fresh_global_news()
     if not fresh_news: return
@@ -272,14 +264,14 @@ def check_and_broadcast_pro_news(bot_instance):
     นี่คือพาดหัวข่าวล่าสุดจากหลายสำนัก:
     {titles_str}
     
-    ให้ประเมินและเลือกข่าวที่ "สำคัญที่สุด" จำนวน 3 ข่าว ที่ควรให้นักลงทุนรู้ 
-    และเขียนสรุปแต่ละข่าวพร้อมมุมมองวิเคราะห์สั้นๆ (1-2 บรรทัด) เป็นภาษาไทย
+    ให้ประเมินและเลือกข่าวที่ "สำคัญที่สุด" จำนวน 3 ข่าว
+    และเขียนสรุปเนื้อข่าวสั้นๆ (1-2 บรรทัด) เป็นภาษาไทย
     
-    ตอบกลับในรูปแบบ JSON Array เท่านั้น ห้ามมีข้อความอื่น:
+    ตอบกลับในรูปแบบ JSON Array เท่านั้น:
     [
         {{
             "original_title": "พาดหัวข่าวต้นฉบับที่เลือก",
-            "summary": "ข้อความสรุปและวิเคราะห์ของคุณ"
+            "summary": "สรุปเนื้อข่าวสั้นๆ"
         }}
     ]
     """
@@ -297,21 +289,18 @@ def check_and_broadcast_pro_news(bot_instance):
         pro_users = cur.fetchall()
         
         count = 0
-        # 🌟 วนลูปส่งข่าวแยกทีละกล่องข้อความ
         for item in analysis_list:
             title = item.get('original_title', '')
             summary = item.get('summary', '')
-            link = news_map.get(title, '')
             
             if title and summary:
-                msg = f"📰 **APEX NEWS:**\n*{title}*\n\n🤖 **AI วิเคราะห์:**\n{summary}\n\n🔗 [อ่านรายละเอียด]({link})"
+                msg = f"📰 **APEX NEWS:**\n*{title}*\n\n📝 **สรุป:**\n{summary}"
                 sent_pro_news.add(title)
                 
-                # ส่งให้ User แต่ละคน
                 for pro in pro_users:
                     if check_subscription(pro[0]) == 'pro':
                         try:
-                            bot_instance.send_message(pro[0], msg, parse_mode='Markdown', disable_web_page_preview=True)
+                            bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
                             count += 1
                             time.sleep(0.5) 
                         except Exception: pass
@@ -324,6 +313,7 @@ def check_and_broadcast_pro_news(bot_instance):
         
     except Exception as e:
         print("News Broadcast Error:", e)
+
 
 # ==========================================
 # 🌟 ระบบเช็คตั้งเตือนราคาส่วนตัว
