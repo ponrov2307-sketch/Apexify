@@ -14,13 +14,14 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID
 
-# 🌟 Import ฟังก์ชันฐานข้อมูลทั้งหมด
+# 🌟 Import ฟังก์ชันฐานข้อมูลทั้งหมด (เพิ่ม get_connection แก้ Error)
 from database import (get_all_users, init_db, register_user, check_subscription, add_subscription, 
                       get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, 
                       remove_watch_db, add_promo_code, redeem_code, get_user_stats, 
                       check_slip_used, mark_slip_used, ban_user, unban_user, is_user_banned,
                       init_new_features_db, process_referral, get_referral_stats, 
-                      add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,get_connection)
+                      add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,
+                      get_connection)
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
 
@@ -383,7 +384,7 @@ def handle_payment_slip_check(message):
         bot.edit_message_text("⚠️ Apexify ไม่สามารถอ่านสลิปได้ โปรดถ่ายให้ชัดเจนอีกครั้ง", message.chat.id, progress_msg.message_id)
 
 # ==========================================
-# 🌟 ระบบปุ่มกด Inline (เพิ่ม Apexify Screener และอัปเดตคำอธิบาย VIP/PRO)
+# 🌟 ระบบปุ่มกด Inline
 # ==========================================
 @bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('menu_') or call.data.startswith('hub_'))
 def inline_callbacks(call):
@@ -392,7 +393,6 @@ def inline_callbacks(call):
     role = check_subscription(user_id)
     bot.answer_callback_query(call.id)
     
-    # 🌟 เมนูอธิบายแพ็กเกจ (ปรับคำอธิบายให้ลูกค้าอยากจ่าย 499.- มากที่สุด)
     if call.data == 'menu_vip':
         try:
             pay_text = (
@@ -445,7 +445,6 @@ def inline_callbacks(call):
         except Exception as e:
             bot.send_message(user_id, f"❌ ระบบชวนเพื่อนขัดข้อง (ฐานข้อมูลอาจยังไม่อัปเดต)\nแจ้งเตือน: {e}")
             
-    # 🌟 เมนู The Hub
     elif call.data == 'hub_market':
         try:
             load_msg = bot.send_message(user_id, "🌍 กำลังดึงข้อมูลสภาวะตลาดโลก...")
@@ -465,20 +464,21 @@ def inline_callbacks(call):
         except Exception:
             bot.edit_message_text(f"❌ ล้มเหลว", user_id, load_msg.message_id)
             
+    # 🌟 อัปเดตเมนูข่าวสารให้ครอบคลุมและดึงเฉพาะ 24 ชม.
     elif call.data == 'hub_news':
         try:
-            load_msg = bot.send_message(user_id, "📰 กำลังรวบรวมข่าวด่วน...")
-            url_th = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+การลงทุน&hl=th&gl=TH&ceid=TH:th"
+            load_msg = bot.send_message(user_id, "📰 กำลังรวบรวมข่าวด่วน (หุ้น, คริปโต, ทองคำ)...")
+            url_th = "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+ทองคำ+OR+คริปโต+OR+น้ำมัน+when:1d&hl=th&gl=TH&ceid=TH:th"
             res_th = cffi_requests.get(url_th, impersonate="chrome110", timeout=15)
             root_th = ET.fromstring(res_th.content)
             items_th = root_th.findall('.//item')[:3]
 
-            url_en = "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+investing&hl=en-US&gl=US&ceid=US:en"
+            url_en = "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+gold+OR+crypto+OR+oil+when:1d&hl=en-US&gl=US&ceid=US:en"
             res_en = cffi_requests.get(url_en, impersonate="chrome110", timeout=15)
             root_en = ET.fromstring(res_en.content)
             items_en = root_en.findall('.//item')[:3]
             
-            news_text = "🌐 **สรุปข่าวด่วนตลาดลงทุน** 🌐\n\n🇹🇭 **ไทย:**\n"
+            news_text = "🌐 **สรุปข่าวด่วนตลาดลงทุน (24 ชม. ล่าสุด)** 🌐\n\n🇹🇭 **ไทย:**\n"
             emojis_th = ["🔥", "📌", "📢"]
             for i, item in enumerate(items_th):
                 title = item.find('title').text
@@ -537,7 +537,6 @@ def inline_callbacks(call):
         except Exception as e:
             bot.send_message(user_id, f"❌ Error: {e}")
 
-    # 🌟 ฟีเจอร์ใหม่: Apexify Auto-Screener (PRO Exclusive)
     elif call.data == 'hub_screener':
         try:
             if role != 'pro' and user_id != ADMIN_ID:
@@ -546,7 +545,6 @@ def inline_callbacks(call):
             
             scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหาหุ้นเด่น...**\n*(ค้นหาจากกลุ่ม SET50 และ US Tech ที่เพิ่งเกิด Golden Cross หรือ RSI ตกเข้าโซน Oversold)*")
             
-            # ลิสต์หุ้นยอดฮิตเพื่อให้สแกนได้เร็ว (กัน Timeout)
             scan_list = ['PTT.BK', 'AOT.BK', 'ADVANC.BK', 'CPALL.BK', 'DELTA.BK', 'GULF.BK', 'KBANK.BK', 'SCB.BK', 'BDMS.BK', 'BBL.BK', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'GOOGL']
             
             found_stocks = []
@@ -560,7 +558,6 @@ def inline_callbacks(call):
                     ema200 = tech_data['ema200']
                     price = tech_data['price']
                     
-                    # เงื่อนไขคัดหุ้นเด่น: เพิ่งตัดขึ้น หรือเข้าเขตขายมากเกินไป
                     is_golden = (ema50 > ema200) and (ema50 / ema200 < 1.02)
                     is_oversold = rsi < 30
                     
@@ -649,7 +646,6 @@ def handle_main(message):
             InlineKeyboardButton("📋 จัดการ Watchlist", callback_data="hub_watchlist"),
             InlineKeyboardButton("🚀 สแกนหุ้น (VIP)", callback_data="hub_scan")
         )
-        # 🌟 เพิ่มปุ่มใหม่สุดอลังการสำหรับ PRO
         markup.add(
             InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert"),
             InlineKeyboardButton("🔥 หุ้นเด่น (PRO)", callback_data="hub_screener")
