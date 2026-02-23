@@ -105,7 +105,7 @@ def generate_apexify_report(tech_data, role='free'):
         except Exception as e:
             report += "💡 *ระบบกำลังคิดหนักเลยครับ ขอเวลาแป๊บ ลองกดใหม่นะ!*"
             
-    report += "\n\n⚠️ *ย้ำกันนิด: การลงทุนมีความเสี่ยง ข้อมูลนี้ AI ช่วยสแกนให้เพื่อประกอบการตัดสินใจนะคร้าบ*"
+    report += "\n\n⚠️ *ย้ำกันนิด: การลงทุนมีความเสี่ยง ข้อมูลนี้ 💎 APEXIFY ช่วยสแกนให้เพื่อประกอบการตัดสินใจนะคร้าบ*"
     return report
 
 def analyze_payment_slip(file_path_or_bytes):
