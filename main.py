@@ -10,7 +10,7 @@ import string
 import time
 import xml.etree.ElementTree as ET 
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-
+MAINTENANCE_MODE = False
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID
 
