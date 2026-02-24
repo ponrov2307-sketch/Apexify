@@ -28,7 +28,7 @@ from technical_tools import calculate_technical_indicators, get_fear_and_greed_i
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
 
 from curl_cffi import requests as cffi_requests
-user_command_history = {}
+
 telebot.logger.setLevel(logging.DEBUG)
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
@@ -36,6 +36,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 # 🌟 ระบบ Anti-Spam ดักจับคนป่วนรัวข้อความ
 # ==========================================
 user_message_tracking = {}
+user_command_history = {}
 spam_alerted = set()
 
 def is_allowed(user_id):
