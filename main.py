@@ -879,8 +879,8 @@ def inline_callbacks(call):
                 "• `/earnings [ชื่อหุ้น]` : สั่ง AI วิเคราะห์งบการเงินล่าสุด"
             )
             bot.send_message(user_id, guide, parse_mode="Markdown")
-            @bot.message_handler(commands=['earnings'])
-        def handle_earnings(message):
+@bot.message_handler(commands=['earnings'])
+def handle_earnings(message):
     user_id = str(message.chat.id)
     if not is_allowed(user_id): return
     
