@@ -574,7 +574,7 @@ def handle_payment_slip_check(message):
 # ==========================================
 # 🌟 ระบบปุ่มกด Inline
 # ==========================================
-@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('menu_') or call.data.startswith('hub_'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('menu_') or call.data.startswith('hub_')or call.data.startswith('admin_'))
 def inline_callbacks(call):
     user_id = str(call.message.chat.id)
     if not is_allowed(user_id): return
@@ -902,34 +902,40 @@ def handle_main(message):
         
     elif text == "👑 แผงควบคุมแอดมิน":
         if user_id != ADMIN_ID: return
-        admin_text = """
-👑 **Apexify Admin Master Control**
-━━━━━━━━━━━━━━━━━━
-🛠 **Server & System (จัดการระบบ)**
-• `/maintenance` : เปิด/ปิดโหมดปรับปรุงระบบ (Admin Only)
-• `/system_health` : เช็คสถานะ RAM / CPU / Disk 💻
-• `/performance` : ดูสถิติการทำงานของระบบ
-• `/force_backup` : สำรองข้อมูลฐานข้อมูล .db ทันที 📦
+        
+        # --- สร้างปุ่มกด Inline Keyboard สำหรับ Admin ---
+        markup = InlineKeyboardMarkup(row_width=2)
+        
+        # แถว 1: จัดการระบบ
+        markup.add(
+            InlineKeyboardButton("🛠 เปิด/ปิด Maintenance", callback_data="admin_maintenance"),
+            InlineKeyboardButton("💻 สถานะเซิร์ฟเวอร์", callback_data="admin_health")
+        )
+        # แถว 2: สถิติและประเมินผล
+        markup.add(
+            InlineKeyboardButton("📊 สถิติผู้ใช้งาน", callback_data="admin_stats"),
+            InlineKeyboardButton("🎯 ผลงานความแม่นยำ", callback_data="admin_perf")
+        )
+        # แถว 3: จัดการสมาชิกและข้อมูล
+        markup.add(
+            InlineKeyboardButton("👑 รายชื่อ PRO/VIP", callback_data="admin_users_pro"),
+            InlineKeyboardButton("📦 Backup ฐานข้อมูล", callback_data="admin_backup")
+        )
+        # แถว 4: ควิซประจำวัน
+        markup.add(
+            InlineKeyboardButton("🎮 เล่น Daily Quiz", callback_data="admin_quiz")
+        )
+        # แถว 5: คู่มือสำหรับคำสั่งที่ต้องพิมพ์ข้อมูลต่อท้าย (เช่น ใส่ ID, ใส่จำนวนวัน)
+        markup.add(
+            InlineKeyboardButton("📖 คู่มือจัดการสมาชิก & โค้ด", callback_data="admin_guide_user")
+        )
+        # แถว 6: คู่มือสำหรับส่งข้อความ/ข่าว
+        markup.add(
+            InlineKeyboardButton("📣 คู่มือบรอดแคสต์ & ข่าว", callback_data="admin_guide_msg")
+        )
 
-👥 **User & Subscription (จัดการสมาชิก)**
-• `/users_pro` : รายชื่อสมาชิก VIP และ PRO ทั้งหมด 💎
-• `/user_history [ID]` : ส่อง 10 คำสั่งล่าสุดของ User รายคน 🕵️‍♂️
-• `/addrole [ID] [Role]` : ปรับระดับสมาชิกโดยตรง
-• `/gencode [Role] [Days]` : สร้างโค้ดโปรโมชั่น VIP/PRO
-• `/stats` : ดูสถิติผู้ใช้งานโดยรวมทั้งหมด
-• `/ban [ID]` / `/unban [ID]` : ระงับหรือคืนสิทธิ์ผู้ใช้งาน 🚫
-
-📣 **Broadcast & Testing (กระจายข่าว/ทดสอบ)**
-• `/broadcast [Text]` : ส่งข้อความประกาศหา User ทุกคน 📣
-• `/force_news [flash/digest]` : สั่ง AI ยิงข่าวด่วนทันที ⚡
-• `/mock_alert [Type]` : ทดสอบแจ้งเตือน (whale, dump, xd, golden)
-• `/earnings [Stock]` : สั่ง AI วิเคราะห์งบการเงินล่าสุด 📊
-
-🎮 **Daily Features**
-• `/quiz` : จัดการหรือร่วมสนุกควิซทายใจตลาดประจำวัน
-━━━━━━━━━━━━━━━━━━
-"""
-        bot.reply_to(message, admin_text, parse_mode="Markdown")
+        admin_text = "👑 **Apexify Admin Master Control**\nเลือกระบบที่คุณต้องการจัดการจากปุ่มด้านล่างได้เลยครับ:"
+        bot.reply_to(message, admin_text, parse_mode="Markdown", reply_markup=markup)
         return
 
     symbol = text.upper()
