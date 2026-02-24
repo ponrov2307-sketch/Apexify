@@ -574,7 +574,7 @@ def handle_payment_slip_check(message):
 # ==========================================
 # 🌟 ระบบปุ่มกด Inline
 # ==========================================
-@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('menu_') or call.data.startswith('hub_')or call.data.startswith('admin_'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_'))
 def inline_callbacks(call):
     user_id = str(call.message.chat.id)
     if not is_allowed(user_id): return
@@ -822,61 +822,7 @@ def inline_callbacks(call):
         symbol = call.data.split('_')[1]
         remove_watch_db(user_id, symbol)
         bot.edit_message_text(f"🗑️ ลบ **{symbol}** แล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id)
-    # ==========================================
-    # 🌟 ส่วนรับคำสั่งจากปุ่มแผงควบคุมแอดมิน
-    # ==========================================
-    elif call.data.startswith('admin_'):
-        if user_id != ADMIN_ID:
-            bot.answer_callback_query(call.id, "⛔ ไม่อนุญาตให้ใช้งาน", show_alert=True)
-            return
-            
-        bot.answer_callback_query(call.id) # ปิดสถานะโหลดของปุ่ม
-            
-        # สร้าง Mock Message เพื่อหลอกระบบให้เรียกใช้ฟังก์ชันเดิมได้โดยไม่ต้องแก้โค้ดหลัก
-        class MockMessage:
-            def __init__(self, chat_id, text=""):
-                self.chat = type('obj', (object,), {'id': chat_id})
-                self.text = text
-                
-        mock_msg = MockMessage(int(user_id))
-
-        # โยงปุ่มเข้ากับฟังก์ชันต่างๆ ที่คุณเขียนไว้แล้ว
-        if call.data == 'admin_maintenance':
-            handle_maintenance(mock_msg)
-        elif call.data == 'admin_health':
-            handle_system_health(mock_msg)
-        elif call.data == 'admin_stats':
-            handle_stats(mock_msg)
-        elif call.data == 'admin_perf':
-            handle_performance(mock_msg)
-        elif call.data == 'admin_users_pro':
-            handle_users_pro(mock_msg)
-        elif call.data == 'admin_backup':
-            handle_force_backup(mock_msg)
-        elif call.data == 'admin_quiz':
-            handle_quiz(mock_msg)
-            
-        # 💡 แสดงคู่มือสำหรับคำสั่งที่แอดมินต้องพิมพ์ข้อมูลตามหลัง (เช่น ใส่ ID, ใส่ข้อความ)
-        elif call.data == 'admin_guide_user':
-            guide = (
-                "📖 **คู่มือจัดการสมาชิก (คัดลอกคำสั่งไปพิมพ์ในแชทได้เลย)**\n\n"
-                "• `/user_history [ID]` : ส่อง 10 คำสั่งล่าสุดของ User\n"
-                "• `/addrole [ID] [Role] [Days]` : ปรับระดับ/เพิ่มวันสมาชิก\n"
-                "• `/gencode [Days] [Uses] [Role]` : สร้างโค้ดโปรโมชั่น\n"
-                "• `/ban [ID]` หรือ `/unban [ID]` : ระงับ/คืนสิทธิ์ผู้ใช้งาน"
-            )
-            bot.send_message(user_id, guide, parse_mode="Markdown")
-            
-        elif call.data == 'admin_guide_msg':
-            guide = (
-                "📣 **คู่มือบรอดแคสต์และทดสอบระบบ (คัดลอกคำสั่งไปพิมพ์ในแชทได้เลย)**\n\n"
-                "• `/broadcast [ข้อความที่ต้องการส่ง]` : แจ้งเตือน User ทุกคน\n"
-                "• `/force_news flash` : ยิงข่าวด่วนที่สุด 1 ข่าว\n"
-                "• `/force_news digest` : ยิงสรุปข่าวเจาะลึก 3 ข่าว\n"
-                "• `/mock_alert [whale/dump/xd/golden]` : ทดสอบรูปแบบการแจ้งเตือน\n"
-                "• `/earnings [ชื่อหุ้น]` : สั่ง AI วิเคราะห์งบการเงินล่าสุด"
-            )
-            bot.send_message(user_id, guide, parse_mode="Markdown")
+   
 # ==========================================
 # 🌟 ตัวรับข้อความหลัก (Main Handler)
 # ==========================================
