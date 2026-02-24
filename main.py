@@ -957,33 +957,26 @@ def handle_main(message):
     elif text == "👑 แผงควบคุมแอดมิน":
         if user_id != ADMIN_ID: return
         
-        # --- สร้างปุ่มกด Inline Keyboard สำหรับ Admin ---
         markup = InlineKeyboardMarkup(row_width=2)
         
-        # แถว 1: จัดการระบบ
         markup.add(
             InlineKeyboardButton("🛠 เปิด/ปิด Maintenance", callback_data="admin_maintenance"),
             InlineKeyboardButton("💻 สถานะเซิร์ฟเวอร์", callback_data="admin_health")
         )
-        # แถว 2: สถิติและประเมินผล
         markup.add(
             InlineKeyboardButton("📊 สถิติผู้ใช้งาน", callback_data="admin_stats"),
             InlineKeyboardButton("🎯 ผลงานความแม่นยำ", callback_data="admin_perf")
         )
-        # แถว 3: จัดการสมาชิกและข้อมูล
         markup.add(
             InlineKeyboardButton("👑 รายชื่อ PRO/VIP", callback_data="admin_users_pro"),
             InlineKeyboardButton("📦 Backup ฐานข้อมูล", callback_data="admin_backup")
         )
-        # แถว 4: ควิซประจำวัน
         markup.add(
             InlineKeyboardButton("🎮 เล่น Daily Quiz", callback_data="admin_quiz")
         )
-        # แถว 5: คู่มือสำหรับคำสั่งที่ต้องพิมพ์ข้อมูลต่อท้าย (เช่น ใส่ ID, ใส่จำนวนวัน)
         markup.add(
             InlineKeyboardButton("📖 คู่มือจัดการสมาชิก & โค้ด", callback_data="admin_guide_user")
         )
-        # แถว 6: คู่มือสำหรับส่งข้อความ/ข่าว
         markup.add(
             InlineKeyboardButton("📣 คู่มือบรอดแคสต์ & ข่าว", callback_data="admin_guide_msg")
         )
