@@ -26,7 +26,8 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       get_connection)
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
-
+import psutil
+from alert_system import broadcast_hourly_urgent_news, check_and_broadcast_pro_news
 from curl_cffi import requests as cffi_requests
 
 telebot.logger.setLevel(logging.DEBUG)
@@ -107,6 +108,136 @@ def handle_force_backup(message):
         
     except Exception as e:
         bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการ Backup: {e}", message.chat.id, load_msg.message_id)
+@bot.message_handler(commands=['system_health'])
+def handle_system_health(message):
+    if str(message.chat.id) != ADMIN_ID: return
+    
+    load_msg = bot.reply_to(message, "⏳ กำลังดึงข้อมูลสถานะเซิร์ฟเวอร์...")
+    try:
+        cpu_usage = psutil.cpu_percent(interval=1)
+        ram = psutil.virtual_memory()
+        ram_total = ram.total / (1024**3)
+        ram_used = ram.used / (1024**3)
+        ram_percent = ram.percent
+        disk = psutil.disk_usage('/')
+        disk_percent = disk.percent
+        
+        uptime = time.time() - psutil.boot_time()
+        uptime_hours = uptime // 3600
+        
+        msg = (
+            "💻 **สถานะเซิร์ฟเวอร์ (System Health)** 💻\n\n"
+            f"🧠 **CPU Usage:** {cpu_usage}%\n"
+            f"💽 **RAM Usage:** {ram_used:.2f} GB / {ram_total:.2f} GB ({ram_percent}%)\n"
+            f"💾 **Disk Space:** {disk_percent}% ใช้ไป\n"
+            f"⏱ **Server Uptime:** {int(uptime_hours)} ชั่วโมง\n\n"
+            f"✅ ระบบทำงานปกติ ลื่นไหลไม่มีสะดุดครับ!"
+        )
+        bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
+    except Exception as e:
+        bot.edit_message_text(f"❌ ไม่สามารถดึงข้อมูลระบบได้: {e}\n(คำแนะนำ: ต้องรัน `pip install psutil` บนเซิร์ฟเวอร์ด้วยครับ)", message.chat.id, load_msg.message_id)
+
+@bot.message_handler(commands=['users_pro'])
+def handle_users_pro(message):
+    if str(message.chat.id) != ADMIN_ID: return
+    
+    load_msg = bot.reply_to(message, "⏳ กำลังดึงรายชื่อลูกค้า PRO และ VIP...")
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT user_id, role, expiry_date FROM users WHERE role IN ('pro', 'vip') ORDER BY role DESC, expiry_date ASC")
+        users_list = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        if not users_list:
+            bot.edit_message_text("❌ ยังไม่มีลูกค้า VIP หรือ PRO ในระบบ", message.chat.id, load_msg.message_id)
+            return
+            
+        report = "👑 **รายชื่อลูกค้า VIP / PRO ทั้งหมด** 👑\n\n"
+        count = 1
+        for uid, role, expiry in users_list:
+            role_icon = "👑" if role == 'pro' else "💎"
+            is_active = check_subscription(uid)
+            status_icon = "✅" if is_active in ['pro', 'vip'] else "❌ (หมดอายุ)"
+            
+            report += f"{count}. {role_icon} `{uid}` | หมดอายุ: {expiry[:10]} {status_icon}\n"
+            count += 1
+            
+            # ป้องกันข้อความยาวเกินลิมิตของ Telegram (ประมาณ 4000 ตัวอักษร)
+            if len(report) > 3500:
+                report += "\n... (ยังมีต่อ แต่ข้อความยาวเกินไป)"
+                break
+                
+        bot.edit_message_text(report, message.chat.id, load_msg.message_id, parse_mode="Markdown")
+    except Exception as e:
+        bot.edit_message_text(f"❌ เกิดข้อผิดพลาด: {e}", message.chat.id, load_msg.message_id)
+
+@bot.message_handler(commands=['force_news'])
+def handle_force_news(message):
+    if str(message.chat.id) != ADMIN_ID: return
+    
+    args = message.text.split()
+    news_type = args[1].lower() if len(args) > 1 else 'flash'
+    
+    load_msg = bot.reply_to(message, f"🚨 กำลังสั่งให้ AI ดึงข่าวด่วนแบบ `{news_type.upper()}` และบรอดแคสต์ทันที...")
+    try:
+        if news_type == 'flash':
+            broadcast_hourly_urgent_news(bot)
+            bot.edit_message_text("✅ บรอดแคสต์ Flash News ข่าวเดียวเด่นๆ สำเร็จ!", message.chat.id, load_msg.message_id)
+        elif news_type == 'digest':
+            check_and_broadcast_pro_news(bot)
+            bot.edit_message_text("✅ บรอดแคสต์ Digest News (แบบ 3 ข่าว) สำเร็จ!", message.chat.id, load_msg.message_id)
+        else:
+            bot.edit_message_text("❌ ประเภทข่าวไม่ถูกต้อง พิมพ์ `/force_news flash` หรือ `/force_news digest`", message.chat.id, load_msg.message_id)
+    except Exception as e:
+        bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข่าว: {e}", message.chat.id, load_msg.message_id)
+
+@bot.message_handler(commands=['user_history'])
+def handle_user_history(message):
+    if str(message.chat.id) != ADMIN_ID: return
+    
+    args = message.text.split()
+    if len(args) != 2:
+        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: `/user_history [รหัสผู้ใช้]`", parse_mode="Markdown")
+        return
+        
+    target_id = args[1]
+    history = user_command_history.get(target_id, [])
+    
+    if not history:
+        bot.reply_to(message, f"❌ ไม่พบประวัติการใช้งานล่าสุดของ `{target_id}` ในหน่วยความจำ\n*(อาจจะยังไม่ได้พิมพ์อะไรเข้ามา หรือเซิร์ฟเวอร์เพิ่งรีสตาร์ท)*", parse_mode="Markdown")
+        return
+        
+    report = f"🕵️‍♂️ **ประวัติคำสั่งล่าสุดของ `{target_id}`**\n\n"
+    for i, cmd in enumerate(history[-10:], 1): # ดึงมาแค่ 10 อันล่าสุดก็พอ
+        report += f"{i}. `{cmd}`\n"
+        
+    bot.reply_to(message, report, parse_mode="Markdown")
+
+@bot.message_handler(commands=['mock_alert'])
+def handle_mock_alert(message):
+    if str(message.chat.id) != ADMIN_ID: return
+    
+    args = message.text.split()
+    alert_type = args[1].lower() if len(args) > 1 else 'whale'
+    
+    try:
+        if alert_type == 'whale':
+            msg = f"🐳 **WHALE ALERT (มีวาฬเข้า!)** 🐳\nหุ้น **PTT.BK** มีวอลุ่มซื้อพุ่งกระฉูดกว่าค่าเฉลี่ย 350% จับตาดูให้ดี!\n(ราคาปัจจุบัน: 35.50)"
+        elif alert_type == 'dump':
+            msg = f"🩸 **WHALE DUMP (วาฬเทขาย!)** 🩸\nหุ้น **DELTA.BK** โดนสาดวอลุ่มขายทิ้งหนักกว่าค่าเฉลี่ย 400% ระวังแรงฉุด!\n(ราคาปัจจุบัน: 75.00)"
+        elif alert_type == 'golden':
+            msg = f"✨ **GOLDEN CROSS DETECTED** ✨\nเส้น EMA50 ตัดขึ้นเหนือ EMA200 สัญญาณกลับตัวเป็นขาขึ้นระยะยาว! (ราคาปัจจุบัน: 120.00)"
+        elif alert_type == 'xd':
+            msg = f"📅 **XD ALERT: ADVANC.BK** 📅\n\nหุ้นตัวนี้กำลังจะขึ้นเครื่องหมาย XD (จ่ายปันผล) ในวันที่ **28/02/2026**\n*(เหลือเวลาอีกประมาณ 3 วัน)*\n\n👉 สายปันผลเตรียมตัว สายเก็งกำไรระวังราคาเปิดกระโดดลงนะครับ!"
+        else:
+            bot.reply_to(message, "❌ ไม่รู้จักประเภท Alert. พิมพ์ลองเทสต์แบบนี้ครับ:\n`/mock_alert whale`\n`/mock_alert dump`\n`/mock_alert golden`\n`/mock_alert xd`", parse_mode="Markdown")
+            return
+            
+        bot.send_message(ADMIN_ID, f"🧪 **[MOCK TEST]** ส่งทดสอบข้อความแจ้งเตือนเข้าแชทคุณสำเร็จ:\n\n{msg}", parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ เกิดข้อผิดพลาด: {e}")        
 def generate_random_code(length=6):
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
@@ -702,6 +833,14 @@ def handle_main(message):
     
     text = message.text.strip()
     role = check_subscription(user_id)
+    
+    # 🌟 [เพิ่มใหม่] แอบเก็บประวัติการพิมพ์ 50 ข้อความล่าสุดไว้ใน RAM เซิร์ฟเวอร์
+    global user_command_history
+    if user_id not in user_command_history:
+        user_command_history[user_id] = []
+    user_command_history[user_id].append(text)
+    if len(user_command_history[user_id]) > 50: 
+        user_command_history[user_id].pop(0) # ลบอันเก่าสุดทิ้ง
 
     if text == "📊 วิเคราะห์หุ้น":
         bot.reply_to(message, "ส่งชื่อหุ้นมาได้เลยครับ (หุ้นไทยอย่าลืมใส่ .BK ต่อท้ายนะ)")
@@ -709,7 +848,6 @@ def handle_main(message):
         
     elif text == "📱 เปิดเมนูหลัก":
         markup = InlineKeyboardMarkup(row_width=2)
-        # 🌟 ใส่ปุ่มให้ครบทั้ง 6 ฟีเจอร์ชูโรง
         markup.add(
             InlineKeyboardButton("🌍 สภาวะตลาดโลก", callback_data="hub_market"),
             InlineKeyboardButton("📰 ข่าวด่วนลงทุน", callback_data="hub_news")
@@ -764,7 +902,7 @@ def handle_main(message):
         
     elif text == "👑 แผงควบคุมแอดมิน":
         if user_id != ADMIN_ID: return
-        admin_text = "👑 **ระบบจัดการแอดมิน**\n👉 `/addrole`, `/gencode`, `/broadcast`, `/stats`, `/ban`, `/unban`, `/performance`, `/maintenance`,/`force_update`, `/"
+        admin_text = "👑 **ระบบจัดการแอดมิน**\n👉 `/addrole`, `/gencode`, `/broadcast`, `/stats`, `/ban`, `/unban`, `/performance`\n👉 **[คำสั่งใหม่]** `/users_pro`, `/system_health`, `/force_news`, `/user_history`, `/mock_alert`"
         bot.reply_to(message, admin_text, parse_mode="Markdown")
         return
 
