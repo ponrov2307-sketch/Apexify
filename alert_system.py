@@ -448,12 +448,22 @@ def send_morning_briefing(bot_instance):
         btc = yf.Ticker('BTC-USD').history(period='1d')
         gold = yf.Ticker('GC=F').history(period='1d') 
         
+        # 🌟 เพิ่ม: ดึงข่าวข้ามคืนมาเสริมความฉลาดให้ AI
+        fresh_news = get_fresh_global_news()
+        news_titles = "\n".join([f"- {n['title']}" for n in fresh_news[:5]]) if fresh_news else "ไม่มีข่าวเด่น"
+        
         if not sp500.empty and not btc.empty:
             sp500_close = sp500['Close'].iloc[-1]
             btc_close = btc['Close'].iloc[-1]
             gold_close = gold['Close'].iloc[-1] if not gold.empty else 0
             
-            prompt = f"ทำตัวเป็นนักวิเคราะห์ สรุปแนวโน้มตลาดเช้านี้สั้นๆ (อิงจาก S&P500 ปิดที่ {sp500_close:.2f}, Crypto {btc_close:.2f} และทองคำโลก {gold_close:.2f}) ให้กำลังใจนักลงทุน ไม่เกิน 3 บรรทัด"
+            # 🌟 อัปเดต Prompt ให้ AI วิเคราะห์จากข่าวด้วย
+            prompt = f"""
+            ทำตัวเป็นนักวิเคราะห์ สรุปแนวโน้มตลาดเช้านี้ (อิงจาก S&P500 ปิดที่ {sp500_close:.2f}, Crypto {btc_close:.2f}, ทองคำ {gold_close:.2f})
+            และประเมินทิศทางจากข่าวข้ามคืนเหล่านี้:
+            {news_titles}
+            ให้กำลังใจและชี้เป้าทิศทางตลาดสั้นๆ แบบฟันธง ความยาวไม่เกิน 4 บรรทัด
+            """
             ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             summary = ai_check.text.strip()
             
@@ -465,7 +475,7 @@ def send_morning_briefing(bot_instance):
                 f"• ทองคำโลก (Gold): {gold_close:,.2f}\n\n"
                 f"🤖 **มุมมอง Apexify วันนี้:**\n{summary}\n\n"
                 f"🔥 *ขอให้พอร์ตเขียวๆ ตลอดวันครับ!*\n\n"
-                f"⚠️ **คำเตือน:** การลงทุนมีความเสี่ยง โปรดใช้วิจารณญาณในการตัดสินใจ"
+                f"⚠️ **คำเตือน:** การลงทุนมีความเสี่ยง โปรดใช้วิจารณญาณ"
             )
             
             conn = get_connection()

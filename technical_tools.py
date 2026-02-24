@@ -104,6 +104,9 @@ def calculate_technical_indicators(symbol, generate_chart=True):
             tech_data = {
                 'symbol': clean_symbol,
                 'price': float(latest['Close']),
+                'volume': float(latest['Volume']), # 🌟 เพิ่มตรงนี้
+                'avg_volume': float(data['Volume'].rolling(window=20).mean().iloc[-1]), # 🌟 เพิ่มตรงนี้
+                # ... (ตัวแปรเดิมอื่นๆ ปล่อยไว้เหมือนเดิม)
                 'rsi': float(latest['RSI']),
                 'macd': float(latest['MACD']),
                 'macd_signal': float(latest['Signal_Line']),
