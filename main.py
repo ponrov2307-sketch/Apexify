@@ -763,7 +763,7 @@ def handle_main(message):
         
     elif text == "👑 แผงควบคุมแอดมิน":
         if user_id != ADMIN_ID: return
-        admin_text = "👑 **ระบบจัดการแอดมิน**\n👉 `/addrole`, `/gencode`, `/broadcast`, `/stats`, `/ban`, `/unban`, `/performance`"
+        admin_text = "👑 **ระบบจัดการแอดมิน**\n👉 `/addrole`, `/gencode`, `/broadcast`, `/stats`, `/ban`, `/unban`, `/performance`, `/maintenance"
         bot.reply_to(message, admin_text, parse_mode="Markdown")
         return
 
