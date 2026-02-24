@@ -101,12 +101,16 @@ def calculate_technical_indicators(symbol, generate_chart=True):
             support = float(recent20['Low'].min())
             resistance = float(recent20['High'].max())
             
+            # 🌟 [เพิ่มใหม่] คำนวณ Volume Profile (โซนคนติดดอย/กระจุกตัว) จากข้อมูล 60 วันย้อนหลัง
+            recent60 = data.tail(60)
+            price_bins = pd.cut(recent60['Close'], bins=10)
+            vol_profile = recent60.groupby(price_bins, observed=False)['Volume'].sum()
+            poc_bin = vol_profile.idxmax() # ช่วงราคาที่มีคนซื้อขายเยอะสุด
+            poc_price = poc_bin.mid # ราคาตรงกลางของโซนนั้น
+            
             tech_data = {
                 'symbol': clean_symbol,
                 'price': float(latest['Close']),
-                'volume': float(latest['Volume']), # 🌟 เพิ่มตรงนี้
-                'avg_volume': float(data['Volume'].rolling(window=20).mean().iloc[-1]), # 🌟 เพิ่มตรงนี้
-                # ... (ตัวแปรเดิมอื่นๆ ปล่อยไว้เหมือนเดิม)
                 'rsi': float(latest['RSI']),
                 'macd': float(latest['MACD']),
                 'macd_signal': float(latest['Signal_Line']),
@@ -117,8 +121,11 @@ def calculate_technical_indicators(symbol, generate_chart=True):
                 'bb_lower': float(latest['BB_Lower']),
                 'support': support,
                 'resistance': resistance,
+                'poc_price': float(poc_price), # 🌟 ส่งค่าราคากระจุกตัวไปให้ AI วิเคราะห์
                 'obv_trend': "เพิ่มขึ้น 📈" if latest['OBV'] > prev['OBV'] else "ลดลง 📉",
-                'fear_greed': get_fear_and_greed_index()
+                'fear_greed': get_fear_and_greed_index(),
+                'volume': float(latest['Volume']), 
+                'avg_volume': float(data['Volume'].rolling(window=20).mean().iloc[-1])
             }
 
             if generate_chart:
@@ -133,24 +140,24 @@ def calculate_technical_indicators(symbol, generate_chart=True):
                     mpf.make_addplot(data['EMA200'].tail(60), color='#d500f9', width=1.5),
                 ]
 
-                # 🌟 อัปเดตหัวกราฟให้บอกสีเส้นต่างๆ รวมถึงแนวรับ-แนวต้าน
+                # 🌟 อัปเดตหัวกราฟให้บอกสีเส้นใหม่
                 chart_title = (
                     f"\\nApexify Pro Chart: {clean_symbol}\\n"
-                    f"EMA: 20(Blue) 50(Orange) 200(Purple) | Res(Red) Sup(Green)"
+                    f"EMA: 20(Blue) 50(Orange) 200(Purple) | Res(Red) Sup(Green) | POC(Yellow)"
                 )
 
-                # 🌟 เพิ่มคำสั่งตีเส้น hlines สำหรับแนวต้าน (สีแดง) และแนวรับ (สีเขียว)
+                # 🌟 เพิ่มคำสั่งตีเส้น hlines สำหรับโซนคนติดดอย (สีเหลือง #ffff00)
                 mpf.plot(
                     data.tail(60),
                     type='candle',
                     style=s,
                     title=chart_title,
                     volume=True,
-                    panel_ratios=(4, 1), # แท่งเทียน 80% Volume 20%
+                    panel_ratios=(4, 1), 
                     addplot=add_plots,
-                    hlines=dict(hlines=[resistance, support], colors=['#ff0000', '#00ff00'], linestyle='-.', linewidths=1.5),
-                    savefig=dict(fname=buf, dpi=120, bbox_inches='tight', pad_inches=0.1), # เพิ่มความคมชัด
-                    figratio=(16, 9), # ทำให้กราฟเป็นแนวนอนกว้างขึ้น
+                    hlines=dict(hlines=[resistance, support, float(poc_price)], colors=['#ff0000', '#00ff00', '#ffff00'], linestyle='-.', linewidths=1.5),
+                    savefig=dict(fname=buf, dpi=120, bbox_inches='tight', pad_inches=0.1), 
+                    figratio=(16, 9), 
                     figscale=1.2,
                     tight_layout=True
                 )

@@ -948,7 +948,60 @@ def handle_main(message):
             chart.seek(0) 
             bot.send_photo(message.chat.id, chart)
             bot.send_message(message.chat.id, report, reply_markup=markup)
-
+    @bot.message_handler(commands=['earnings'])
+def handle_earnings(message):
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
+    
+    args = message.text.split()
+    if len(args) != 2:
+        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: `/earnings [ชื่อหุ้น]`\n(หุ้นไทยเติม .BK ด้วย เช่น `/earnings PTT.BK`)", parse_mode="Markdown")
+        return
+        
+    symbol = args[1].upper()
+    load_msg = bot.reply_to(message, f"⏳ กำลังให้ AI แกะงบการเงินล่าสุดของ {symbol}...", parse_mode="Markdown")
+    
+    try:
+        from google import genai
+        from config import GEMINI_API_KEY
+        ai_client = genai.Client(api_key=GEMINI_API_KEY)
+        
+        clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(".BK") else symbol
+        ticker = yf.Ticker(clean_symbol)
+        
+        earnings = ticker.earnings_dates
+        if earnings is None or earnings.empty:
+            bot.edit_message_text(f"❌ ไม่พบข้อมูลการประกาศงบการเงินของ {symbol}", message.chat.id, load_msg.message_id)
+            return
+            
+        latest_earnings = earnings.iloc[0]
+        eps_estimate = latest_earnings.get('EPS Estimate', 'N/A')
+        eps_actual = latest_earnings.get('Reported EPS', 'N/A')
+        surprise = latest_earnings.get('Surprise(%)', 0)
+        
+        prompt = f"""
+        วิเคราะห์งบการเงินล่าสุดของหุ้น {symbol}
+        คาดการณ์ EPS: {eps_estimate}
+        EPS จริงที่ทำได้: {eps_actual}
+        Surprise: {surprise * 100:.2f}%
+        
+        เขียนสรุปสั้นๆ 3-4 บรรทัดด้วยภาษาเป็นกันเอง ว่างบออกมาดีกว่าหรือแย่กว่าที่คาดการณ์ และส่งผลบวก/ลบกับราคาหุ้นอย่างไร
+        """
+        
+        ai_check = ai_client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        summary = ai_check.text.strip()
+        
+        msg = (
+            f"📊 **สรุปงบการเงินฉบับ AI (Earnings Flash)** 📊\n\n"
+            f"📌 **หุ้น:** {symbol}\n"
+            f"🎯 **กำไรต่อหุ้น (EPS) คาดการณ์:** {eps_estimate}\n"
+            f"✅ **กำไรต่อหุ้น (EPS) ทำได้จริง:** {eps_actual}\n"
+            f"😲 **เซอร์ไพรส์ตลาด:** {surprise * 100:.2f}%\n\n"
+            f"🤖 **มุมมอง Apexify:**\n{summary}"
+        )
+        bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
+    except Exception as e:
+        bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูลงบการเงิน: {e}", message.chat.id, load_msg.message_id)
 if __name__ == "__main__":
     init_db()
     try:

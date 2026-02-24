@@ -24,6 +24,8 @@ def generate_apexify_report(tech_data, role='free'):
     resistance = tech_data.get('resistance', 0)
     obv_trend = tech_data.get('obv_trend', 'คงที่')
     
+    poc_price = tech_data.get('poc_price', 0) # 🌟 [เพิ่มใหม่] ดึงราคาโซนคนติดดอย
+    
     # --- คำนวณแนวรับใหม่ 3 ระดับ ---
     first_support = ema20 if (ema20 > 0 and ema20 < price) else (price * 0.985)
     
@@ -74,6 +76,9 @@ def generate_apexify_report(tech_data, role='free'):
     report += f"• 🛡️ **แนวรับสำคัญ (หลุดตรงนี้หนี):** `{major_support:,.2f}`\n"
     report += f"• 🔴 **แนวต้าน (จุดวัดใจ):** `{resistance:,.2f}`\n"
     
+    if poc_price > 0: # 🌟 [เพิ่มใหม่] แสดงโซนคนติดดอย
+        report += f"• 🟡 **โซนคนกระจุกตัว (POC):** `{poc_price:,.2f}` *(จุดสำคัญ)*\n"
+    
     if lower_band != 0 and upper_band != 0:
         report += f"• 🟡 **กรอบแกว่งตัว (BB):** `{lower_band:,.2f} - {upper_band:,.2f}`\n"
 
@@ -81,11 +86,11 @@ def generate_apexify_report(tech_data, role='free'):
     if role in ['vip', 'pro']:
         report += "\n🧠 **[ แผนการเทรดจาก 💎 APEXIFY ]**\n"
         if role == 'pro':
-            # สั่งให้ AI แบ่งคำแนะนำเป็น 2 ระยะ และใช้คำพูดเป็นกันเอง
+            # 🌟 [เพิ่มใหม่] ส่งค่า POC ให้ AI นำไปประกอบการวิเคราะห์จุดซื้อ/ขาย
             prompt = f"""
             คุณคือ AI ผู้ช่วยเทรดเดอร์ที่เป็นมิตรและเก่งกาจ วิเคราะห์หุ้น {symbol} ที่ราคา {price} 
             ข้อมูล: RSI={rsi:.2f}, MACD={macd_status}, เทรนด์={ema_mid}, ระยะยาว={ema_long}
-            แนวรับ {support} แนวต้าน {resistance}
+            แนวรับ {support} แนวต้าน {resistance} และโซนราคาที่มีคนติดดอย/กระจุกตัวเยอะที่สุด (POC) คือ {poc_price}
             ให้คำแนะนำด้วยภาษาที่เป็นกันเองเหมือนคุยกับเพื่อนเทรดเดอร์ แยกคำแนะนำเป็น 2 ระยะ:
             1. 🏃‍♂️ สายเล่นสั้น (Short-term): ควรทำยังไง
             2. 🧘‍♂️ สายถือยาว (Long-term): ทรงนี้ควรถือต่อหรือหนี
