@@ -832,12 +832,15 @@ def inline_callbacks(call):
             
         bot.answer_callback_query(call.id)
             
+       # สร้าง Mock Message เพื่อหลอกระบบให้เรียกใช้ฟังก์ชันเดิมได้
         class MockMessage:
-            def __init__(self, chat_id, text=""):
+            def __init__(self, chat_id, msg_id, text=""):
                 self.chat = type('obj', (object,), {'id': chat_id})
+                self.message_id = msg_id  # 🌟 เพิ่มข้อมูลตรงนี้
                 self.text = text
                 
-        mock_msg = MockMessage(int(user_id))
+        # ใส่ call.message.message_id เข้าไปด้วย
+        mock_msg = MockMessage(int(user_id), call.message.message_id)
 
         if call.data == 'admin_maintenance':
             handle_maintenance(mock_msg)
