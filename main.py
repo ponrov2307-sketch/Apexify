@@ -13,7 +13,9 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 MAINTENANCE_MODE = False
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID
-
+import zipfile
+import os
+from datetime import datetime
 # 🌟 Import ฟังก์ชันฐานข้อมูลทั้งหมด (เพิ่ม get_connection แก้ Error)
 from database import (get_all_users, init_db, register_user, check_subscription, add_subscription, 
                       get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, 
@@ -37,8 +39,17 @@ user_message_tracking = {}
 spam_alerted = set()
 
 def is_allowed(user_id):
+    global MAINTENANCE_MODE
     if user_id == ADMIN_ID: return True 
     if is_user_banned(user_id): return False 
+    
+    # 🌟 ดักโหมดปิดปรับปรุงระบบ (แอดมินจะรอดผ่าน if user_id == ADMIN_ID ด้านบนมาแล้ว)
+    if MAINTENANCE_MODE:
+        try:
+            bot.send_message(user_id, "🛠 **ระบบกำลังปิดปรับปรุง (Maintenance Mode)**\n\nทีมงาน Apexify กำลังอัปเกรดระบบให้ดียิ่งขึ้น กรุณารอสักครู่ครับ... 🚀", parse_mode="Markdown")
+        except:
+            pass
+        return False
         
     now = time.time()
     if user_id not in user_message_tracking:
@@ -58,6 +69,43 @@ def is_allowed(user_id):
         
     return True
 
+# 🌟 เพิ่ม def สำหรับคำสั่ง /maintenance ไว้ในกลุ่ม @bot.message_handler(commands=...)
+@bot.message_handler(commands=['maintenance'])
+def handle_maintenance(message):
+    if str(message.chat.id) != ADMIN_ID: return
+    global MAINTENANCE_MODE
+    MAINTENANCE_MODE = not MAINTENANCE_MODE
+    status = "🔴 เปิด (ผู้ใช้ทั่วไปใช้งานไม่ได้, แอดมินใช้ได้ปกติ)" if MAINTENANCE_MODE else "🟢 ปิด (ระบบเปิดใช้งานปกติทุกคน)"
+    bot.reply_to(message, f"🛠 **สถานะ Maintenance Mode:** {status}", parse_mode="Markdown")
+@bot.message_handler(commands=['force_backup'])
+def handle_force_backup(message):
+    if str(message.chat.id) != ADMIN_ID: return
+    
+    load_msg = bot.reply_to(message, "⏳ กำลังบีบอัดฐานข้อมูล `apexify.db` โปรดรอสักครู่...", parse_mode="Markdown")
+    
+    try:
+        db_filename = "apexify.db"
+        if not os.path.exists(db_filename):
+            bot.edit_message_text("❌ ไม่พบไฟล์ฐานข้อมูล (ระบบอาจจะเชื่อมต่อกับ Cloud Database อยู่)", message.chat.id, load_msg.message_id)
+            return
+            
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        zip_filename = f"apexify_backup_{timestamp}.zip"
+        
+        # สร้างไฟล์ Zip (บีบอัดไฟล์ db ให้เล็กลง)
+        with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            zipf.write(db_filename)
+        
+        # ส่งไฟล์เข้าแชทแอดมิน
+        with open(zip_filename, 'rb') as doc:
+            bot.send_document(message.chat.id, doc, caption=f"📦 **Backup ฐานข้อมูลสำเร็จ!**\n📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # ลบไฟล์ zip ทิ้งหลังจากส่งเสร็จเพื่อไม่ให้รกพื้นที่เซิร์ฟเวอร์
+        os.remove(zip_filename)
+        bot.delete_message(message.chat.id, load_msg.message_id)
+        
+    except Exception as e:
+        bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการ Backup: {e}", message.chat.id, load_msg.message_id)
 def generate_random_code(length=6):
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
