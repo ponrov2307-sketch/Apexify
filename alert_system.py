@@ -117,6 +117,9 @@ def check_market_conditions():
             price = tech_data['price']
             resistance = tech_data['resistance']
             support = tech_data['support']
+            # 🌟 ดึงค่า Volume ที่เราเพิ่งเพิ่มมา
+            volume = tech_data.get('volume', 0)
+            avg_volume = tech_data.get('avg_volume', 1)    
             
             if symbol not in last_alert_state:
                 last_alert_state[symbol] = {'rsi': 'normal', 'cross': 'normal', 'breakout': 'normal'}
@@ -163,6 +166,22 @@ def check_market_conditions():
                 last_alert_state[symbol]['breakout'] = breakout_condition
             elif breakout_condition == 'normal':
                 last_alert_state[symbol]['breakout'] = 'normal'
+
+            # 🌟 [เพิ่มใหม่] เงื่อนไข Whale Alert (วอลุ่มพุ่ง 3 เท่า)
+            whale_condition = 'normal'
+            if volume > (avg_volume * 3) and price > tech_data['ema20']: 
+                whale_condition = 'buy_spike'
+                msg = f"🐳 **WHALE ALERT (มีวาฬเข้า!)** 🐳\nหุ้น **{symbol}** มีวอลุ่มซื้อพุ่งกระฉูดกว่าค่าเฉลี่ย {int(volume/avg_volume * 100)}% จับตาดูให้ดี!\n(ราคาปัจจุบัน: {price:.2f})"
+            elif volume > (avg_volume * 3) and price < tech_data['ema20']:
+                whale_condition = 'sell_spike'
+                msg = f"🩸 **WHALE DUMP (วาฬเทขาย!)** 🩸\nหุ้น **{symbol}** โดนสาดวอลุ่มขายทิ้งหนักกว่าค่าเฉลี่ย {int(volume/avg_volume * 100)}% ระวังแรงฉุด!\n(ราคาปัจจุบัน: {price:.2f})"
+
+            if whale_condition != 'normal' and whale_condition != last_alert_state[symbol].get('whale', 'normal'):
+                send_alert_to_users(symbol, msg, alert_type="whale")
+                log_alert(symbol, f"WHALE_{whale_condition.upper()}", price) 
+                last_alert_state[symbol]['whale'] = whale_condition
+            elif whale_condition == 'normal':
+                last_alert_state[symbol]['whale'] = 'normal'
 
             time.sleep(2)
         except Exception: pass
