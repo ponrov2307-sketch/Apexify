@@ -525,6 +525,8 @@ def check_xd_alerts():
     if not active_symbols: return
     
     now = time.time()
+    upcoming_xds = [] # 🌟 เก็บรวบรวมไว้ส่งทีเดียว
+    
     for symbol in active_symbols:
         try:
             clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(".BK") else symbol
@@ -534,19 +536,31 @@ def check_xd_alerts():
             if ex_div_date:
                 days_until_xd = (ex_div_date - now) / 86400 
                 
-                if 0 < days_until_xd <= 3:
+                # 🌟 เตือนล่วงหน้า 1 สัปดาห์ (7 วัน) ไปเลย
+                if 0 < days_until_xd <= 7:
                     alert_key = f"{symbol}_{ex_div_date}"
                     if alert_key not in sent_xd_alerts:
                         xd_dt = datetime.utcfromtimestamp(ex_div_date).strftime('%d/%m/%Y')
-                        msg = (
-                            f"📅 **XD ALERT: {symbol}** 📅\n\n"
-                            f"หุ้นตัวนี้กำลังจะขึ้นเครื่องหมาย XD (จ่ายปันผล) ในวันที่ **{xd_dt}**\n"
-                            f"*(เหลือเวลาอีกประมาณ {int(days_until_xd)} วัน)*\n\n"
-                            f"👉 สายปันผลเตรียมตัว สายเก็งกำไรระวังราคาเปิดกระโดดลงนะครับ!"
-                        )
-                        send_alert_to_users(symbol, msg, alert_type="xd")
+                        upcoming_xds.append(f"📌 **{symbol}** ➡️ XD วันที่ {xd_dt} (อีก {int(days_until_xd)} วัน)")
                         sent_xd_alerts.add(alert_key)
         except Exception: pass
+        
+    # 🌟 ถ้ารวบรวมได้ ค่อยบรอดแคสต์ให้สาย PRO รวดเดียว
+    if upcoming_xds:
+        msg = "📅 **ปฏิทินเตือนหุ้นปันผล (XD Alert) สัปดาห์นี้** 📅\n\n" + "\n".join(upcoming_xds) + "\n\n👉 สายปันผลเตรียมตัว สายเก็งกำไรระวังราคาเปิดกระโดดลงนะครับ!"
+        
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
+        pro_users = cur.fetchall()
+        for pro in pro_users:
+            if check_subscription(pro[0]) == 'pro':
+                try:
+                    bot.send_message(pro[0], msg, parse_mode='Markdown')
+                    time.sleep(0.5)
+                except Exception: pass
+        cur.close()
+        conn.close()
 
 if __name__ == "__main__":
     init_db()
