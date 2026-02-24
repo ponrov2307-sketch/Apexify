@@ -902,7 +902,33 @@ def handle_main(message):
         
     elif text == "👑 แผงควบคุมแอดมิน":
         if user_id != ADMIN_ID: return
-        admin_text = "👑 **ระบบจัดการแอดมิน**\n👉 `/addrole`, `/gencode`, `/broadcast`, `/stats`, `/ban`, `/unban`, `/performance`\n👉 **[คำสั่งใหม่]** `/users_pro`, `/system_health`, `/force_news`, `/user_history`, `/mock_alert`"
+        admin_text = """
+👑 **Apexify Admin Master Control**
+━━━━━━━━━━━━━━━━━━
+🛠 **Server & System (จัดการระบบ)**
+• `/maintenance` : เปิด/ปิดโหมดปรับปรุงระบบ (Admin Only)
+• `/system_health` : เช็คสถานะ RAM / CPU / Disk 💻
+• `/performance` : ดูสถิติการทำงานของระบบ
+• `/force_backup` : สำรองข้อมูลฐานข้อมูล .db ทันที 📦
+
+👥 **User & Subscription (จัดการสมาชิก)**
+• `/users_pro` : รายชื่อสมาชิก VIP และ PRO ทั้งหมด 💎
+• `/user_history [ID]` : ส่อง 10 คำสั่งล่าสุดของ User รายคน 🕵️‍♂️
+• `/addrole [ID] [Role]` : ปรับระดับสมาชิกโดยตรง
+• `/gencode [Role] [Days]` : สร้างโค้ดโปรโมชั่น VIP/PRO
+• `/stats` : ดูสถิติผู้ใช้งานโดยรวมทั้งหมด
+• `/ban [ID]` / `/unban [ID]` : ระงับหรือคืนสิทธิ์ผู้ใช้งาน 🚫
+
+📣 **Broadcast & Testing (กระจายข่าว/ทดสอบ)**
+• `/broadcast [Text]` : ส่งข้อความประกาศหา User ทุกคน 📣
+• `/force_news [flash/digest]` : สั่ง AI ยิงข่าวด่วนทันที ⚡
+• `/mock_alert [Type]` : ทดสอบแจ้งเตือน (whale, dump, xd, golden)
+• `/earnings [Stock]` : สั่ง AI วิเคราะห์งบการเงินล่าสุด 📊
+
+🎮 **Daily Features**
+• `/quiz` : จัดการหรือร่วมสนุกควิซทายใจตลาดประจำวัน
+━━━━━━━━━━━━━━━━━━
+"""
         bot.reply_to(message, admin_text, parse_mode="Markdown")
         return
 
