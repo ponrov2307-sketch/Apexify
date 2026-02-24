@@ -28,7 +28,7 @@ from technical_tools import calculate_technical_indicators, get_fear_and_greed_i
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
 
 from curl_cffi import requests as cffi_requests
-
+user_command_history = {}
 telebot.logger.setLevel(logging.DEBUG)
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
@@ -763,7 +763,7 @@ def handle_main(message):
         
     elif text == "👑 แผงควบคุมแอดมิน":
         if user_id != ADMIN_ID: return
-        admin_text = "👑 **ระบบจัดการแอดมิน**\n👉 `/addrole`, `/gencode`, `/broadcast`, `/stats`, `/ban`, `/unban`, `/performance`, `/maintenance"
+        admin_text = "👑 **ระบบจัดการแอดมิน**\n👉 `/addrole`, `/gencode`, `/broadcast`, `/stats`, `/ban`, `/unban`, `/performance`, `/maintenance`,/`force_update`, `/"
         bot.reply_to(message, admin_text, parse_mode="Markdown")
         return
 
