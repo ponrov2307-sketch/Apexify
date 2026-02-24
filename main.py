@@ -1,3 +1,5 @@
+from email.mime import message
+
 import telebot
 import logging
 import json
@@ -877,6 +879,112 @@ def inline_callbacks(call):
                 "• `/earnings [ชื่อหุ้น]` : สั่ง AI วิเคราะห์งบการเงินล่าสุด"
             )
             bot.send_message(user_id, guide, parse_mode="Markdown")
+            @bot.message_handler(commands=['earnings'])
+        def handle_earnings(message):
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
+    
+    args = message.text.split()
+    if len(args) != 2:
+        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: `/earnings [ชื่อหุ้น]`\n(หุ้นไทยเติม .BK ด้วย เช่น `/earnings PTT.BK`)", parse_mode="Markdown")
+        return
+        
+    symbol = args[1].upper()
+    load_msg = bot.reply_to(message, f"⏳ กำลังให้ AI แกะงบการเงินล่าสุดของ {symbol}...", parse_mode="Markdown")
+    
+    try:
+        from google import genai
+        from config import GEMINI_API_KEY
+        ai_client = genai.Client(api_key=GEMINI_API_KEY)
+        
+        clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(".BK") else symbol
+        ticker = yf.Ticker(clean_symbol)
+        
+        earnings = ticker.earnings_dates
+        if earnings is None or earnings.empty:
+            bot.edit_message_text(f"❌ ไม่พบข้อมูลการประกาศงบการเงินของ {symbol}", message.chat.id, load_msg.message_id)
+            return
+            
+        latest_earnings = earnings.iloc[0]
+        eps_estimate = latest_earnings.get('EPS Estimate', 'N/A')
+        eps_actual = latest_earnings.get('Reported EPS', 'N/A')
+        surprise = latest_earnings.get('Surprise(%)', 0)
+        
+        prompt = f"""
+        วิเคราะห์งบการเงินล่าสุดของหุ้น {symbol}
+        คาดการณ์ EPS: {eps_estimate}
+        EPS จริงที่ทำได้: {eps_actual}
+        Surprise: {surprise * 100:.2f}%
+        
+        เขียนสรุปสั้นๆ 3-4 บรรทัดด้วยภาษาเป็นกันเอง ว่างบออกมาดีกว่าหรือแย่กว่าที่คาดการณ์ และส่งผลบวก/ลบกับราคาหุ้นอย่างไร
+        """
+        
+        ai_check = ai_client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        summary = ai_check.text.strip()
+        
+        msg = (
+            f"📊 **สรุปงบการเงินฉบับ AI (Earnings Flash)** 📊\n\n"
+            f"📌 **หุ้น:** {symbol}\n"
+            f"🎯 **กำไรต่อหุ้น (EPS) คาดการณ์:** {eps_estimate}\n"
+            f"✅ **กำไรต่อหุ้น (EPS) ทำได้จริง:** {eps_actual}\n"
+            f"😲 **เซอร์ไพรส์ตลาด:** {surprise * 100:.2f}%\n\n"
+            f"🤖 **มุมมอง Apexify:**\n{summary}"
+        )
+        bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
+    except Exception as e:
+        bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูลงบการเงิน: {e}", message.chat.id, load_msg.message_id) 
+# 🌟 ตัวแปรเก็บสถานะการตอบควิซ
+quiz_data = {
+    "question": "ถ้าเกิดสัญญาณ 'Golden Cross' (EMA50 ตัดขึ้นเหนือ EMA200) บ่งบอกถึงสภาวะตลาดแบบใด?",
+    "options": ["ตลาดกำลังเข้าสู่ขาลงระยะยาว", "ตลาดกำลังเข้าสู่ขาขึ้นระยะยาว", "ตลาดจะไซด์เวย์ไม่ไปไหน"],
+    "answer": 1
+}
+users_played_quiz = set()
+
+@bot.message_handler(commands=['quiz'])
+def handle_quiz(message):
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
+    
+    if user_id in users_played_quiz:
+        bot.reply_to(message, "⏳ วันนี้คุณร่วมสนุกกับควิซไปแล้วครับ พรุ่งนี้มาทายกันใหม่นะ!")
+        return
+        
+    markup = InlineKeyboardMarkup(row_width=1)
+    for i, opt in enumerate(quiz_data["options"]):
+        markup.add(InlineKeyboardButton(opt, callback_data=f"quiz_{i}"))
+        
+    msg = (
+        "🎮 **Daily Trading Quiz (ทายใจตลาด)** 🎮\n\n"
+        f"❓ **คำถามวันนี้:**\n{quiz_data['question']}\n\n"
+        "*(ลองตอบดูนะครับ ตอบผิดไม่เป็นไร ถือว่าได้ความรู้ไปใช้เทรดจริง!)*"
+    )
+    bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('quiz_'))
+def quiz_callback(call):
+    user_id = str(call.message.chat.id)
+    bot.answer_callback_query(call.id)
+    
+    if user_id in users_played_quiz:
+        bot.send_message(user_id, "⏳ คุณตอบคำถามของวันนี้ไปแล้วครับ รอเล่นคำถามใหม่พรุ่งนี้นะ!")
+        return
+        
+    users_played_quiz.add(user_id)
+    
+    chosen_idx = int(call.data.split('_')[1])
+    correct_idx = quiz_data["answer"]
+    
+    if chosen_idx == correct_idx:
+        bot.edit_message_text(
+            f"✅ **ถูกต้องครับ! เก่งมาก!** 🎉\n\nคำถาม: {quiz_data['question']}\nคำตอบ: {quiz_data['options'][correct_idx]}",
+            call.message.chat.id, call.message.message_id, parse_mode="Markdown"
+        )
+    else:
+        bot.edit_message_text(
+            f"❌ **ยังไม่ถูกน้าา** 😅\n\nคำถาม: {quiz_data['question']}\nคำตอบที่ถูกคือ: **{quiz_data['options'][correct_idx]}**\n\nไม่เป็นไรครับ เก็บความรู้ไว้ใช้เทรด พรุ่งนี้มาลุยกันใหม่!",
+            call.message.chat.id, call.message.message_id, parse_mode="Markdown"
+        )          
 # ==========================================
 # 🌟 ตัวรับข้อความหลัก (Main Handler)
 # ==========================================
@@ -1027,112 +1135,7 @@ def handle_main(message):
             chart.seek(0) 
             bot.send_photo(message.chat.id, chart)
             bot.send_message(message.chat.id, report, reply_markup=markup)
-@bot.message_handler(commands=['earnings'])
-def handle_earnings(message):
-    user_id = str(message.chat.id)
-    if not is_allowed(user_id): return
-    
-    args = message.text.split()
-    if len(args) != 2:
-        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: `/earnings [ชื่อหุ้น]`\n(หุ้นไทยเติม .BK ด้วย เช่น `/earnings PTT.BK`)", parse_mode="Markdown")
-        return
-        
-    symbol = args[1].upper()
-    load_msg = bot.reply_to(message, f"⏳ กำลังให้ AI แกะงบการเงินล่าสุดของ {symbol}...", parse_mode="Markdown")
-    
-    try:
-        from google import genai
-        from config import GEMINI_API_KEY
-        ai_client = genai.Client(api_key=GEMINI_API_KEY)
-        
-        clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(".BK") else symbol
-        ticker = yf.Ticker(clean_symbol)
-        
-        earnings = ticker.earnings_dates
-        if earnings is None or earnings.empty:
-            bot.edit_message_text(f"❌ ไม่พบข้อมูลการประกาศงบการเงินของ {symbol}", message.chat.id, load_msg.message_id)
-            return
-            
-        latest_earnings = earnings.iloc[0]
-        eps_estimate = latest_earnings.get('EPS Estimate', 'N/A')
-        eps_actual = latest_earnings.get('Reported EPS', 'N/A')
-        surprise = latest_earnings.get('Surprise(%)', 0)
-        
-        prompt = f"""
-        วิเคราะห์งบการเงินล่าสุดของหุ้น {symbol}
-        คาดการณ์ EPS: {eps_estimate}
-        EPS จริงที่ทำได้: {eps_actual}
-        Surprise: {surprise * 100:.2f}%
-        
-        เขียนสรุปสั้นๆ 3-4 บรรทัดด้วยภาษาเป็นกันเอง ว่างบออกมาดีกว่าหรือแย่กว่าที่คาดการณ์ และส่งผลบวก/ลบกับราคาหุ้นอย่างไร
-        """
-        
-        ai_check = ai_client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-        summary = ai_check.text.strip()
-        
-        msg = (
-            f"📊 **สรุปงบการเงินฉบับ AI (Earnings Flash)** 📊\n\n"
-            f"📌 **หุ้น:** {symbol}\n"
-            f"🎯 **กำไรต่อหุ้น (EPS) คาดการณ์:** {eps_estimate}\n"
-            f"✅ **กำไรต่อหุ้น (EPS) ทำได้จริง:** {eps_actual}\n"
-            f"😲 **เซอร์ไพรส์ตลาด:** {surprise * 100:.2f}%\n\n"
-            f"🤖 **มุมมอง Apexify:**\n{summary}"
-        )
-        bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
-    except Exception as e:
-        bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูลงบการเงิน: {e}", message.chat.id, load_msg.message_id) 
-# 🌟 ตัวแปรเก็บสถานะการตอบควิซ
-quiz_data = {
-    "question": "ถ้าเกิดสัญญาณ 'Golden Cross' (EMA50 ตัดขึ้นเหนือ EMA200) บ่งบอกถึงสภาวะตลาดแบบใด?",
-    "options": ["ตลาดกำลังเข้าสู่ขาลงระยะยาว", "ตลาดกำลังเข้าสู่ขาขึ้นระยะยาว", "ตลาดจะไซด์เวย์ไม่ไปไหน"],
-    "answer": 1
-}
-users_played_quiz = set()
 
-@bot.message_handler(commands=['quiz'])
-def handle_quiz(message):
-    user_id = str(message.chat.id)
-    if not is_allowed(user_id): return
-    
-    if user_id in users_played_quiz:
-        bot.reply_to(message, "⏳ วันนี้คุณร่วมสนุกกับควิซไปแล้วครับ พรุ่งนี้มาทายกันใหม่นะ!")
-        return
-        
-    markup = InlineKeyboardMarkup(row_width=1)
-    for i, opt in enumerate(quiz_data["options"]):
-        markup.add(InlineKeyboardButton(opt, callback_data=f"quiz_{i}"))
-        
-    msg = (
-        "🎮 **Daily Trading Quiz (ทายใจตลาด)** 🎮\n\n"
-        f"❓ **คำถามวันนี้:**\n{quiz_data['question']}\n\n"
-        "*(ลองตอบดูนะครับ ตอบผิดไม่เป็นไร ถือว่าได้ความรู้ไปใช้เทรดจริง!)*"
-    )
-    bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith('quiz_'))
-def quiz_callback(call):
-    user_id = str(call.message.chat.id)
-    bot.answer_callback_query(call.id)
-    
-    if user_id in users_played_quiz:
-        bot.send_message(user_id, "⏳ คุณตอบคำถามของวันนี้ไปแล้วครับ รอเล่นคำถามใหม่พรุ่งนี้นะ!")
-        return
-        
-    users_played_quiz.add(user_id)
-    
-    chosen_idx = int(call.data.split('_')[1])
-    correct_idx = quiz_data["answer"]
-    
-    if chosen_idx == correct_idx:
-        bot.edit_message_text(
-            f"✅ **ถูกต้องครับ! เก่งมาก!** 🎉\n\nคำถาม: {quiz_data['question']}\nคำตอบ: {quiz_data['options'][correct_idx]}",
-            call.message.chat.id, call.message.message_id, parse_mode="Markdown"
-        )
-    else:
-        bot.edit_message_text(
-            f"❌ **ยังไม่ถูกน้าา** 😅\n\nคำถาม: {quiz_data['question']}\nคำตอบที่ถูกคือ: **{quiz_data['options'][correct_idx]}**\n\nไม่เป็นไรครับ เก็บความรู้ไว้ใช้เทรด พรุ่งนี้มาลุยกันใหม่!",
-            call.message.chat.id, call.message.message_id, parse_mode="Markdown"
-        )          
 if __name__ == "__main__":
     init_db()
     try:
