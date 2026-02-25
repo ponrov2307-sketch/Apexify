@@ -489,7 +489,10 @@ def handle_performance(message):
         for row in logs:
             symbol, alert_type, start_price, timestamp = row
             try:
-                clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(".BK") else symbol
+            
+                # 🌟 อัปเดตให้รองรับตลาดหุ้นทั่วโลก
+                allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+                clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(allowed_suffixes) else symbol
                 ticker = yf.Ticker(clean_symbol)
                 hist = ticker.history(period="1d")
                 if hist.empty: continue
@@ -897,7 +900,9 @@ def handle_earnings(message):
         from config import GEMINI_API_KEY
         ai_client = genai.Client(api_key=GEMINI_API_KEY)
         
-        clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(".BK") else symbol
+        # 🌟 อัปเดตให้รองรับตลาดหุ้นทั่วโลก
+        allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+        clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(allowed_suffixes) else symbol
         ticker = yf.Ticker(clean_symbol)
         
         earnings = ticker.earnings_dates

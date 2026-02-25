@@ -529,7 +529,8 @@ def check_xd_alerts():
     
     for symbol in active_symbols:
         try:
-            clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(".BK") else symbol
+            allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+            clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(allowed_suffixes) else symbol
             ticker = yf.Ticker(clean_symbol)
             ex_div_date = ticker.info.get('exDividendDate')
             
