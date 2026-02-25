@@ -19,7 +19,7 @@ def auto_git_push():
         # 2. Commit พร้อมแนบเวลาปัจจุบัน
         commit_message = f"Apexify Auto Sync: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         subprocess.run(["git", "commit", "-m", commit_message], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
+        subprocess.run(["git", "pull", "--rebase", "origin", "main"], check=False)
         # 3. Push ขึ้น GitHub
         subprocess.run(["git", "push"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
