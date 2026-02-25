@@ -73,8 +73,12 @@ def calculate_technical_indicators(symbol, generate_chart=True):
         try:
             clean_symbol = symbol.strip().upper()
             
-            # 1. จัดการหุ้นคลาส B (อเมริกา) (เช่น BRK.B แปลงเป็น BRK-B)
-            if "." in clean_symbol and not clean_symbol.endswith(".BK,.AX"):
+            
+            # 1. จัดการหุ้นคลาส B (อเมริกา) และรองรับตลาดหุ้นทั่วโลก
+            # เพิ่มนามสกุลของตลาดหุ้นต่างๆ (ไทย, ออสเตรเลีย, ลอนดอน, ฮ่องกง, ญี่ปุ่น, เยอรมนี, สิงคโปร์ ฯลฯ)
+            allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+            
+            if "." in clean_symbol and not clean_symbol.endswith(allowed_suffixes):
                 clean_symbol = clean_symbol.replace(".", "-")
             
             # 2. ดึงข้อมูลจริง 1 ปี
