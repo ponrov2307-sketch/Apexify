@@ -74,7 +74,7 @@ def calculate_technical_indicators(symbol, generate_chart=True):
             clean_symbol = symbol.strip().upper()
             
             # 1. จัดการหุ้นคลาส B (อเมริกา) (เช่น BRK.B แปลงเป็น BRK-B)
-            if "." in clean_symbol and not clean_symbol.endswith(".BK"):
+            if "." in clean_symbol and not clean_symbol.endswith(".BK,.AX"):
                 clean_symbol = clean_symbol.replace(".", "-")
             
             # 2. ดึงข้อมูลจริง 1 ปี
