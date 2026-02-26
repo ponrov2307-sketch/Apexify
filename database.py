@@ -296,6 +296,7 @@ def log_alert(symbol, alert_type, price):
         conn.rollback()
     finally:
         conn.close()
+
 # ==========================================
 # 🌟 ระบบชวนเพื่อน (Referral System)
 # ==========================================
@@ -317,6 +318,17 @@ def init_new_features_db():
                   referrer_id TEXT,
                   referred_id TEXT UNIQUE,
                   timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+                  
+    # 🌟 [เพิ่มใหม่] สร้างตารางเก็บพอร์ตหุ้น Apex Wealth Master
+    c.execute('''CREATE TABLE IF NOT EXISTS portfolios 
+                 (id SERIAL PRIMARY KEY,
+                  user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+                  ticker TEXT NOT NULL,
+                  shares NUMERIC NOT NULL,
+                  avg_cost NUMERIC NOT NULL,
+                  asset_group TEXT DEFAULT 'ALL',
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+                  
     conn.commit()
     conn.close()
 
@@ -404,3 +416,33 @@ def deactivate_price_alert(alert_id):
     c.execute("UPDATE user_price_alerts SET is_active = 0 WHERE id = %s", (alert_id,))
     conn.commit()
     conn.close()
+
+# ==========================================
+# 🌟 [เพิ่มใหม่] ระบบจัดการพอร์ตลงทุน (Apex Wealth Master)
+# ==========================================
+def add_portfolio_stock(user_id, ticker, shares, avg_cost):
+    """บันทึกหุ้นเข้าพอร์ต"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("INSERT INTO portfolios (user_id, ticker, shares, avg_cost) VALUES (%s, %s, %s, %s)",
+              (str(user_id), ticker.upper(), float(shares), float(avg_cost)))
+    conn.commit()
+    conn.close()
+
+def get_user_portfolio(user_id):
+    """ดึงหุ้นทั้งหมดในพอร์ตของลูกค้ารายนั้น"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT ticker, shares, avg_cost FROM portfolios WHERE user_id = %s", (str(user_id),))
+    res = c.fetchall()
+    conn.close()
+    
+    # แปลงผลลัพธ์ให้ออกมาเป็น List of Dict (เพื่อให้ดึงค่าง่ายๆ)
+    portfolio = []
+    for row in res:
+        portfolio.append({
+            'ticker': row[0],
+            'shares': float(row[1]),
+            'avg_cost': float(row[2])
+        })
+    return portfolio

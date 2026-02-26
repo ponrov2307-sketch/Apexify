@@ -18,14 +18,14 @@ from config import TELEGRAM_TOKEN, ADMIN_ID
 import zipfile
 import os
 from datetime import datetime
-# 🌟 Import ฟังก์ชันฐานข้อมูลทั้งหมด (เพิ่ม get_connection แก้ Error)
+# 🌟 Import ฟังก์ชันฐานข้อมูลทั้งหมด รวมถึงระบบจัดการพอร์ต
 from database import (get_all_users, init_db, register_user, check_subscription, add_subscription, 
                       get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, 
                       remove_watch_db, add_promo_code, redeem_code, get_user_stats, 
                       check_slip_used, mark_slip_used, ban_user, unban_user, is_user_banned,
                       init_new_features_db, process_referral, get_referral_stats, 
                       add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,
-                      get_connection)
+                      get_connection, add_portfolio_stock, get_user_portfolio)
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
 import psutil
@@ -81,6 +81,7 @@ def handle_maintenance(message):
     MAINTENANCE_MODE = not MAINTENANCE_MODE
     status = "🔴 เปิด (ผู้ใช้ทั่วไปใช้งานไม่ได้, แอดมินใช้ได้ปกติ)" if MAINTENANCE_MODE else "🟢 ปิด (ระบบเปิดใช้งานปกติทุกคน)"
     bot.reply_to(message, f"🛠 **สถานะ Maintenance Mode:** {status}", parse_mode="Markdown")
+
 @bot.message_handler(commands=['force_backup'])
 def handle_force_backup(message):
     if str(message.chat.id) != ADMIN_ID: return
@@ -110,6 +111,7 @@ def handle_force_backup(message):
         
     except Exception as e:
         bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการ Backup: {e}", message.chat.id, load_msg.message_id)
+
 @bot.message_handler(commands=['system_health'])
 def handle_system_health(message):
     if str(message.chat.id) != ADMIN_ID: return
@@ -281,6 +283,99 @@ def send_welcome(message):
         "👇 *กดปุ่มด้านล่างเพื่อเลือกใช้งานฟีเจอร์ต่างๆ*"
     )
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
+
+# ==========================================
+# 🌟 ระบบบันทึกและดูพอร์ตลงทุน (Apex Wealth Master)
+# ==========================================
+@bot.message_handler(commands=['add'])
+def handle_add_stock(message):
+    """คำสั่งเพิ่มหุ้น เช่น /add AAPL 10 150"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
+    
+    try:
+        parts = message.text.split()
+        if len(parts) != 4:
+            bot.reply_to(message, "❌ รูปแบบผิด! กรุณาพิมพ์: `/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]`\nเช่น: `/add AAPL 10 150`", parse_mode='Markdown')
+            return
+        
+        ticker = parts[1].upper()
+        shares = float(parts[2])
+        cost = float(parts[3])
+        
+        # มั่นใจว่ามีรหัสในฐานข้อมูลก่อน
+        register_user(user_id)
+        
+        # บันทึกหุ้นลงฐานข้อมูล
+        add_portfolio_stock(user_id, ticker, shares, cost)
+        
+        bot.reply_to(message, f"✅ เพิ่มหุ้น **{ticker}** จำนวน {shares} หุ้น (ต้นทุน ${cost}) ลงในพอร์ตเรียบร้อยแล้ว!\nพิมพ์ `/portfolio` เพื่อดูพอร์ต หรือดูในหน้า Dashboard บนเว็บได้เลยครับ", parse_mode='Markdown')
+        
+    except ValueError:
+        bot.reply_to(message, "❌ จำนวนหุ้นและราคาต้องเป็นตัวเลขเท่านั้นครับ!")
+    except Exception as e:
+        bot.reply_to(message, f"❌ เกิดข้อผิดพลาด: {e}")
+
+@bot.message_handler(commands=['portfolio', 'port'])
+def handle_portfolio(message):
+    """คำสั่งเช็คพอร์ตผ่านแชท"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
+    
+    processing_msg = bot.reply_to(message, "⏳ กำลังดึงข้อมูลพอร์ตและราคาล่าสุดจากตลาด...")
+    try:
+        portfolio = get_user_portfolio(user_id)
+        if not portfolio:
+            bot.edit_message_text("📊 พอร์ตลงทุนของคุณยังว่างเปล่า\nพิมพ์ `/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]` เพื่อเพิ่มหุ้นเข้าพอร์ตครับ", chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='Markdown')
+            return
+        
+        total_invested = 0
+        current_value = 0
+        
+        msg = f"📈 **สรุปพอร์ตลงทุนของคุณ (Apex Wealth Master)**\n\n"
+        
+        for asset in portfolio:
+            ticker = asset['ticker']
+            shares = asset['shares']
+            avg_cost = asset['avg_cost']
+            
+            # ดึงราคาล่าสุดจาก Yahoo Finance
+            try:
+                allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+                clean_ticker = ticker.replace(".", "-") if "." in ticker and not ticker.endswith(allowed_suffixes) else ticker
+                live_price = float(yf.Ticker(clean_ticker).fast_info.last_price)
+            except Exception:
+                live_price = avg_cost # ถ้าดึงราคาไม่ได้ให้ใช้ต้นทุนแทนชั่วคราว
+            
+            invested = shares * avg_cost
+            current = shares * live_price
+            profit = current - invested
+            profit_pct = (profit / invested * 100) if invested > 0 else 0
+            
+            total_invested += invested
+            current_value += current
+            
+            # ตกแต่งข้อความ
+            icon = "🟢" if profit >= 0 else "🔴"
+            msg += f"{icon} **{ticker}**\n"
+            msg += f"   • จำนวน: {shares:,.4f} หุ้น\n"
+            msg += f"   • ทุนเฉลี่ย: {avg_cost:,.2f} | ล่าสุด: {live_price:,.2f}\n"
+            msg += f"   • กำไร: {profit:,.2f} ({profit_pct:,.2f}%)\n\n"
+        
+        total_profit = current_value - total_invested
+        total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
+        total_icon = "🟢" if total_profit >= 0 else "🔴"
+        
+        msg += f"====================\n"
+        msg += f"💰 **มูลค่าพอร์ตรวม (Net Worth):** {current_value:,.2f}\n"
+        msg += f"💵 **ต้นทุนรวม (Invested):** {total_invested:,.2f}\n"
+        msg += f"{total_icon} **กำไรรวม (Total Return):** {total_profit:,.2f} ({total_profit_pct:,.2f}%)\n"
+        
+        bot.edit_message_text(msg, chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='Markdown')
+        
+    except Exception as e:
+        bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูล: {e}", chat_id=message.chat.id, message_id=processing_msg.message_id)
+
 
 # ==========================================
 # 🌟 ระบบคำสั่งตั้งเตือนราคาส่วนตัว
@@ -659,7 +754,6 @@ def inline_callbacks(call):
         except Exception:
             bot.edit_message_text(f"❌ ล้มเหลว", user_id, load_msg.message_id)
             
-    # 🌟 อัปเดตเมนูข่าวสารให้ครอบคลุมและดึงเฉพาะ 24 ชม.
     elif call.data == 'hub_news':
         try:
             load_msg = bot.send_message(user_id, "📰 กำลังให้ 💎 APEXIFY ประมวลผลและสรุปข่าวด่วน...")
@@ -686,7 +780,6 @@ def inline_callbacks(call):
             from config import GEMINI_API_KEY
             ai_client = genai.Client(api_key=GEMINI_API_KEY)
             
-            # 🌟 บังคับ AI สรุป 3-4 บรรทัดและห้ามมีลิงก์
             prompt = f"""
             คัดเลือกข่าวที่สำคัญและด่วนที่สุด 3 ข่าวจากหัวข้อเหล่านี้:
             {titles_str}
@@ -717,6 +810,18 @@ def inline_callbacks(call):
             bot.send_message(user_id, "📋 **จัดการ Watchlist ของคุณ:**", parse_mode="Markdown", reply_markup=markup)
         except Exception as e:
             bot.send_message(user_id, f"❌ Error: {e}")
+
+    # 🌟 [เพิ่มใหม่] แจ้งเตือนวิธีดูพอร์ตลงทุนเมื่อกดจากเมนู
+    elif call.data == 'hub_portfolio':
+        msg = (
+            "📈 **การจัดการพอร์ตลงทุน (Apex Wealth Master)**\n\n"
+            "• **วิธีเพิ่มหุ้นเข้าพอร์ต:**\n"
+            "พิมพ์ `/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]`\n"
+            "*(เช่น `/add PTT.BK 100 32.50`)*\n\n"
+            "• **วิธีดูสรุปพอร์ตทั้งหมด:**\n"
+            "พิมพ์ `/portfolio` หรือ `/port` ในแชทได้เลยครับ!"
+        )
+        bot.send_message(user_id, msg, parse_mode="Markdown")
         
     elif call.data == 'hub_scan':
         try:
@@ -829,7 +934,8 @@ def inline_callbacks(call):
         symbol = call.data.split('_')[1]
         remove_watch_db(user_id, symbol)
         bot.edit_message_text(f"🗑️ ลบ **{symbol}** แล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id)
-     # ==========================================
+        
+    # ==========================================
     # 🌟 ส่วนรับคำสั่งจากปุ่มแผงควบคุมแอดมิน
     # ==========================================
     elif call.data.startswith('admin_'):
@@ -884,6 +990,7 @@ def inline_callbacks(call):
                 "• `/earnings [ชื่อหุ้น]` : สั่ง AI วิเคราะห์งบการเงินล่าสุด"
             )
             bot.send_message(user_id, guide, parse_mode="Markdown")
+
 @bot.message_handler(commands=['earnings'])
 def handle_earnings(message):
     user_id = str(message.chat.id)
@@ -902,7 +1009,6 @@ def handle_earnings(message):
         from config import GEMINI_API_KEY
         ai_client = genai.Client(api_key=GEMINI_API_KEY)
         
-        # 🌟 อัปเดตให้รองรับตลาดหุ้นทั่วโลก
         allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
         clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(allowed_suffixes) else symbol
         ticker = yf.Ticker(clean_symbol)
@@ -940,6 +1046,7 @@ def handle_earnings(message):
         bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
     except Exception as e:
         bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูลงบการเงิน: {e}", message.chat.id, load_msg.message_id) 
+
 # 🌟 ตัวแปรเก็บสถานะการตอบควิซ
 quiz_data = {
     "question": "ถ้าเกิดสัญญาณ 'Golden Cross' (EMA50 ตัดขึ้นเหนือ EMA200) บ่งบอกถึงสภาวะตลาดแบบใด?",
@@ -992,6 +1099,7 @@ def quiz_callback(call):
             f"❌ **ยังไม่ถูกน้าา** 😅\n\nคำถาม: {quiz_data['question']}\nคำตอบที่ถูกคือ: **{quiz_data['options'][correct_idx]}**\n\nไม่เป็นไรครับ เก็บความรู้ไว้ใช้เทรด พรุ่งนี้มาลุยกันใหม่!",
             call.message.chat.id, call.message.message_id, parse_mode="Markdown"
         )          
+
 # ==========================================
 # 🌟 ตัวรับข้อความหลัก (Main Handler)
 # ==========================================
@@ -1003,13 +1111,12 @@ def handle_main(message):
     text = message.text.strip()
     role = check_subscription(user_id)
     
-    # 🌟 [เพิ่มใหม่] แอบเก็บประวัติการพิมพ์ 50 ข้อความล่าสุดไว้ใน RAM เซิร์ฟเวอร์
     global user_command_history
     if user_id not in user_command_history:
         user_command_history[user_id] = []
     user_command_history[user_id].append(text)
     if len(user_command_history[user_id]) > 50: 
-        user_command_history[user_id].pop(0) # ลบอันเก่าสุดทิ้ง
+        user_command_history[user_id].pop(0) 
 
     if text == "📊 วิเคราะห์หุ้น":
         msg = (
@@ -1035,9 +1142,13 @@ def handle_main(message):
             InlineKeyboardButton("📋 จัดการ Watchlist", callback_data="hub_watchlist"),
             InlineKeyboardButton("🚀 สแกนหุ้น (VIP)", callback_data="hub_scan")
         )
+        # 🌟 เพิ่มปุ่มพอร์ตลงทุนเข้าเมนูหลัก
         markup.add(
-            InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert"),
+            InlineKeyboardButton("💼 ดูพอร์ตลงทุน", callback_data="hub_portfolio"),
             InlineKeyboardButton("🔥 หุ้นเด่น (PRO)", callback_data="hub_screener")
+        )
+        markup.add(
+            InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert")
         )
         
         msg = "📱 **Apexify Hub (เมนูหลัก)**\nเลือกฟีเจอร์ที่คุณต้องการใช้งานได้เลยครับ:"
