@@ -296,7 +296,6 @@ def log_alert(symbol, alert_type, price):
         conn.rollback()
     finally:
         conn.close()
-
 # ==========================================
 # 🌟 ระบบชวนเพื่อน (Referral System)
 # ==========================================
@@ -318,8 +317,7 @@ def init_new_features_db():
                   referrer_id TEXT,
                   referred_id TEXT UNIQUE,
                   timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-                  
-    # 🌟 [เพิ่มใหม่] สร้างตารางเก็บพอร์ตหุ้น Apex Wealth Master
+    # 🌟 [เพิ่มใหม่ตรงนี้] สร้างตารางเก็บพอร์ตหุ้น Apex Wealth Master
     c.execute('''CREATE TABLE IF NOT EXISTS portfolios 
                  (id SERIAL PRIMARY KEY,
                   user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
@@ -328,7 +326,6 @@ def init_new_features_db():
                   avg_cost NUMERIC NOT NULL,
                   asset_group TEXT DEFAULT 'ALL',
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-                  
     conn.commit()
     conn.close()
 
@@ -416,7 +413,23 @@ def deactivate_price_alert(alert_id):
     c.execute("UPDATE user_price_alerts SET is_active = 0 WHERE id = %s", (alert_id,))
     conn.commit()
     conn.close()
-
+# ==========================================
+# 🌟 ระบบ Auto-Downgrade (ลดขั้นคนหมดอายุอัตโนมัติ)
+# ==========================================
+def auto_downgrade_expired_users():
+    """ปรับสถานะคนที่หมดอายุให้กลับเป็นสายฟรีอัตโนมัติ"""
+    conn = get_connection()
+    c = conn.cursor()
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    try:
+        # สั่งเปลี่ยน role เป็น free สำหรับคนที่หมดอายุแล้ว
+        c.execute("UPDATE users SET role = 'free' WHERE role IN ('vip', 'pro') AND expiry_date < %s", (now_str,))
+        conn.commit()
+    except Exception as e:
+        print(f"❌ Auto-Downgrade Error: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
 # ==========================================
 # 🌟 [เพิ่มใหม่] ระบบจัดการพอร์ตลงทุน (Apex Wealth Master)
 # ==========================================
