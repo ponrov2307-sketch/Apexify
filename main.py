@@ -312,13 +312,18 @@ def handle_add_stock(message):
         shares = float(parts[2])
         cost = float(parts[3])
         
+        # 🌟 ดึงชื่อเพื่อบันทึกลง DB ด้วย
+        first_name = message.from_user.first_name or ""
+        last_name = message.from_user.last_name or ""
+        full_name = f"{first_name} {last_name}".strip() or message.from_user.username or f"User_{user_id[-4:]}"
+        
         # มั่นใจว่ามีรหัสในฐานข้อมูลก่อน
-        register_user(user_id)
+        register_user(user_id, full_name)
         
         # บันทึกหุ้นลงฐานข้อมูล
         add_portfolio_stock(user_id, ticker, shares, cost)
         
-        bot.reply_to(message, f"✅ เพิ่มหุ้น **{ticker}** จำนวน {shares} หุ้น (ต้นทุน ${cost}) ลงในพอร์ตเรียบร้อยแล้ว!\nพิมพ์ `/portfolio` เพื่อดูพอร์ต หรือดูในหน้า Dashboard บนเว็บได้เลยครับ", parse_mode='Markdown')
+        bot.reply_to(message, f"✅ เพิ่มหุ้น **{ticker}** จำนวน {shares} หุ้น (ต้นทุน ${cost}) ลงในพอร์ตเรียบร้อยแล้ว!\nพิมพ์ `/portfolio` หรือเปิดเมนูเพื่อดูพอร์ตในหน้า Web Dashboard ได้เลยครับ", parse_mode='Markdown')
         
     except ValueError:
         bot.reply_to(message, "❌ จำนวนหุ้นและราคาต้องเป็นตัวเลขเท่านั้นครับ!")
