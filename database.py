@@ -40,13 +40,25 @@ def init_watchlist_db():
     conn.commit()
     conn.close()
 
-def register_user(user_id):
+def register_user(user_id, username="Unknown"):
+    """ลงทะเบียนผู้ใช้ใหม่ พร้อมอัปเดตชื่อล่าสุด (ถ้ามี)"""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("INSERT INTO users (user_id, status, registered_date, role, usage_count) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (user_id) DO NOTHING", 
-              (str(user_id), 'active', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'free', 0))
-    conn.commit()
-    conn.close()
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    try:
+        # 🌟 ใช้ ON CONFLICT DO UPDATE เพื่อให้คนเก่าที่เคยกด /start ไปแล้ว ถ้ากดซ้ำ ชื่อจะถูกอัปเดตเข้า DB ทันที
+        c.execute("""
+            INSERT INTO users (user_id, status, registered_date, role, usage_count, username) 
+            VALUES (%s, %s, %s, %s, %s, %s) 
+            ON CONFLICT (user_id) 
+            DO UPDATE SET username = EXCLUDED.username
+        """, (str(user_id), 'active', now_str, 'free', 0, username))
+        conn.commit()
+    except Exception as e:
+        print(f"❌ Error registering user: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
 
 def add_subscription(user_id, role='vip', days=30):
     conn = get_connection()

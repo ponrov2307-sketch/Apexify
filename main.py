@@ -253,6 +253,14 @@ def send_welcome(message):
     user_id = str(message.chat.id)
     if not is_allowed(user_id): return
     
+    # 🌟 1. ดึงชื่อ Username หรือชื่อจริงจาก Telegram
+    first_name = message.from_user.first_name or ""
+    last_name = message.from_user.last_name or ""
+    full_name = f"{first_name} {last_name}".strip()
+    
+    if not full_name:
+        full_name = message.from_user.username or f"User_{user_id[-4:]}"
+    
     args = message.text.split()
     if len(args) > 1 and args[1].startswith('REF_'):
         referrer_id = args[1].replace('REF_', '')
@@ -263,7 +271,8 @@ def send_welcome(message):
             except Exception as e:
                 print(f"Referral logic error: {e}")
     
-    register_user(user_id)
+    # 🌟 2. ส่งชื่อเข้าไปเซฟใน Database
+    register_user(user_id, full_name)
     
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(KeyboardButton("📊 วิเคราะห์หุ้น"), KeyboardButton("📱 เปิดเมนูหลัก"))
@@ -273,7 +282,7 @@ def send_welcome(message):
         markup.add(KeyboardButton("👑 แผงควบคุมแอดมิน"))
     
     welcome_text = (
-        "⚡️ ยินดีต้อนรับสู่ **Apexify** ระบบวิเคราะห์หุ้นอัจฉริยะ\n\n"
+        f"⚡️ ยินดีต้อนรับคุณ **{full_name}** สู่ **Apexify** ระบบวิเคราะห์หุ้นอัจฉริยะ\n\n"
         "🎁 **รับสิทธิ์ทดลองใช้งานฟรี 10 ครั้ง!**\n"
         "พิมพ์ชื่อหุ้นที่ต้องการวิเคราะห์ส่งมาได้เลยครับ (รองรับทั่วโลก 🌍):\n"
         "🇺🇸 สหรัฐอเมริกา: `AAPL`, `TSLA`, `NVDA`\n"
