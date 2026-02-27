@@ -3,8 +3,6 @@ import PIL.Image
 import io
 from google import genai
 from config import GEMINI_API_KEY
-# 🌟 เพิ่ม import นี้ด้านบนสุดของไฟล์ alert_system.py ถ้ายังไม่มี
-import psycopg2
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 

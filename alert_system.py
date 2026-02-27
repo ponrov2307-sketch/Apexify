@@ -5,7 +5,7 @@ import requests
 from google import genai
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
 from technical_tools import calculate_technical_indicators
-
+import psycopg2
 from database import (get_all_active_symbols, get_users_watching, init_db, check_subscription, 
                       get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert)
 import json
