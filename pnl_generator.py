@@ -2,7 +2,7 @@ import io
 import os
 from PIL import Image, ImageDraw, ImageFont
 
-def generate_pnl_card(username, ticker, entry_price, current_price, pnl_font_path='RobotoBold.ttf'):
+def generate_pnl_card(username, ticker, entry_price, current_price, pnl_font_path='YesevaOne-Regular.ttf'):
     """สร้างภาพการ์ด PnL แบบ Trading Card ระดับ Pro"""
     
     # 📏 ตั้งค่าขนาดและการออกแบบ
