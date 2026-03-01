@@ -437,11 +437,19 @@ def handle_pnl_card(message):
         from pnl_generator import generate_pnl_card
         image_bytes = generate_pnl_card(username, ticker, entry_price, current_price)
         
+       # สร้างแคปชั่นพร้อมแนบลิงก์ Referral ของคนกด
+        pnl_caption = (
+            f"ตลาดจะผันผวนแค่ไหนก็ไม่หวั่น ถ้ามีผู้ช่วยส่วนตัวดีๆ 🤖✨ "
+            f"ผลประกอบการ <b>{ticker}</b> รอบนี้บวกมาสวยๆ ขอบคุณ <b>Apexify Trading AI</b> "
+            f"ที่ช่วยสแกนหาจุดเข้าและคอยเตือนตลอด 24 ชม. ใครอยากเทรดสบายขึ้นแบบนี้ มากดลองใช้ฟรีได้เลย! 👇\n\n"
+            f"🔗 ลิงก์บอท: https://t.me/Apexify_Trading_bot?start=REF_{user_id}"
+        )
+
         # ส่งรูปลงแชท
         bot.send_photo(
             message.chat.id, 
             photo=image_bytes, 
-            caption=f"🚀 ผลประกอบการ <b>{ticker}</b> ของคุณ!\nกด Share อวดเพื่อนได้เลย!",
+            caption=pnl_caption,
             parse_mode='HTML'
         )
         bot.delete_message(message.chat.id, wait_msg.message_id)
