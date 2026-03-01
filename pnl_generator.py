@@ -1,48 +1,86 @@
-from PIL import Image, ImageDraw, ImageFont
 import io
+import os
+from PIL import Image, ImageDraw, ImageFont
 
-def generate_pnl_card(username: str, ticker: str, entry_price: float, current_price: float) -> io.BytesIO:
-    """ฟังก์ชันวาดรูปการ์ด PnL สไตล์กระดานเทรด"""
+def generate_pnl_card(username, ticker, entry_price, current_price, pnl_font_path='RobotoBold.ttf'):
+    """สร้างภาพการ์ด PnL แบบ Trading Card ระดับ Pro"""
     
-    profit_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price > 0 else 0
-    is_profit = profit_pct >= 0
+    # 📏 ตั้งค่าขนาดและการออกแบบ
+    width, height = 1080, 720 # ขนาดแบบ Instagram Post
+    card_color_top = (10, 25, 47) # สีน้ำเงินเข้มที่สุด (Deep Navy)
+    card_color_bottom = (0, 0, 0) # สีดำ
+    text_color_main = (255, 255, 255) # สีขาว
+    color_profit = (0, 230, 118) # สีเขียวนีออน (Profit)
+    color_loss = (255, 23, 68) # สีแดงสว่าง (Loss)
     
-    main_color = "#32D74B" if is_profit else "#FF453A"
-    sign = "+" if is_profit else ""
+    # 🖼️ 1. สร้างภาพพื้นหลังแบบ Gradient
+    img = Image.new('RGB', (width, height), card_color_bottom)
+    draw = ImageDraw.Draw(img)
     
-    width, height = 1080, 1080
-    image = Image.new("RGB", (width, height), "#0B0E11")
-    draw = ImageDraw.Draw(image)
-    
-    draw.rectangle([(50, 50), (1030, 1030)], outline="#2B3139", width=4)
-    draw.rectangle([(40, 40), (1040, 1040)], outline=main_color, width=2)
+    # วาด Gradient ง่ายๆ (ไล่สีจากบนลงล่าง)
+    for y in range(height // 2):
+        r = int(card_color_top[0] + (card_color_bottom[0] - card_color_top[0]) * y / (height // 2))
+        g = int(card_color_top[1] + (card_color_bottom[1] - card_color_top[1]) * y / (height // 2))
+        b = int(card_color_top[2] + (card_color_bottom[2] - card_color_top[2]) * y / (height // 2))
+        draw.line((0, y, width, y), fill=(r, g, b))
 
+    # 🔤 2. โหลด Fonts (พร้อมระบบป้องกัน)
+    default_font_size = 40
     try:
-        font_huge = ImageFont.truetype("arialbd.ttf", 200)
-        font_title = ImageFont.truetype("arialbd.ttf", 80)
-        font_normal = ImageFont.truetype("arial.ttf", 50)
-        font_small = ImageFont.truetype("arial.ttf", 40)
-    except IOError:
-        font_huge = font_title = font_normal = font_small = ImageFont.load_default()
+        if not os.path.exists(pnl_font_path):
+            print(f"⚠️ Warning: ไม่พบไฟล์ Font {pnl_font_path} จะใช้ Font พื้นฐานแทน (ภาพอาจไม่สวย)")
+            font_main = ImageFont.load_default()
+            font_ticker = ImageFont.load_default()
+            font_pnl = ImageFont.load_default()
+        else:
+            font_main = ImageFont.truetype(pnl_font_path, 40)
+            font_app_title = ImageFont.truetype(pnl_font_path, 30)
+            font_username = ImageFont.truetype(pnl_font_path, 45)
+            font_ticker = ImageFont.truetype(pnl_font_path, 180) # หุ้นตัวใหญ่ๆ
+            font_label = ImageFont.truetype(pnl_font_path, 35)
+            font_price = ImageFont.truetype(pnl_font_path, 60)
+            font_pnl = ImageFont.truetype(pnl_font_path, 220) # เปอร์เซ็นต์ใหญ่สุดๆ
+    except Exception as e:
+        print(f"❌ Font Error: {e}")
+        font_main = font_ticker = font_pnl = ImageFont.load_default()
 
-    draw.text((80, 80), "APEXIFY MASTER", fill="#D0FD3E", font=font_normal)
-    draw.text((80, 140), "PREMIUM PORTFOLIO", fill="#8B949E", font=font_small)
-    draw.text((80, 300), f"{ticker} / USD", fill="#FFFFFF", font=font_title)
+    # 📊 3. คำนวณข้อมูล
+    pnl_amount = current_price - entry_price
+    pnl_percent = (pnl_amount / entry_price) * 100
     
-    position_text = "LONG (SPOT)" if is_profit else "HOLDING"
-    draw.text((80, 400), position_text, fill=main_color, font=font_normal)
-    draw.text((80, 500), f"{sign}{profit_pct:.2f}%", fill=main_color, font=font_huge)
+    is_profit = pnl_percent >= 0
+    status_color = color_profit if is_profit else color_loss
+    status_arrow = "⬆️" if is_profit else "⬇️"
+    
+    # ✍️ 4. เริ่มวาดองค์ประกอบต่างๆ
+    
+    # Header: ชื่อแอปและ User
+    draw.text((40, 40), "APEXIFY TRADING AI", fill=(150, 150, 150), font=font_app_title)
+    draw.text((width - 40, 40), f"USER: {username.upper()}", fill=text_color_main, font=font_username, anchor="ra")
+    
+    # Center 1: ชื่อหุ้น (Ticker)
+    draw.text((width // 2, 220), ticker, fill=text_color_main, font=font_ticker, anchor="mm")
+    
+    # Center 2: เปอร์เซ็นต์ PnL (ใหญ่ที่สุด)
+    pnl_text = f"{pnl_percent:+.2f}%"
+    draw.text((width // 2, 450), pnl_text, fill=status_color, font=font_pnl, anchor="mm")
+    
+    # สัญลักษณ์ลูกศร
+    draw.text((width // 2 + draw.textlength(pnl_text, font=font_pnl) // 2 + 50, 450), status_arrow, fill=status_color, font=font_main, anchor="mm")
 
-    draw.text((80, 800), "Entry Price", fill="#8B949E", font=font_normal)
-    draw.text((80, 860), f"${entry_price:,.2f}", fill="#FFFFFF", font=font_title)
-    draw.text((600, 800), "Current Price", fill="#8B949E", font=font_normal)
-    draw.text((600, 860), f"${current_price:,.2f}", fill="#FFFFFF", font=font_title)
+    # Bottom: ราคาเข้าและราคาปัจจุบัน
+    box_y = 600
+    # ฝั่งซ้าย: ราคาเข้า (ENTRY)
+    draw.text((width * 0.25, box_y), "ENTRY PRICE", fill=(180, 180, 180), font=font_label, anchor="mm")
+    draw.text((width * 0.25, box_y + 60), f"${entry_price:,.2f}", fill=text_color_main, font=font_price, anchor="mm")
+    
+    # ฝั่งขวา: ราคาปัจจุบัน (CURRENT)
+    draw.text((width * 0.75, box_y), "CURRENT PRICE", fill=(180, 180, 180), font=font_label, anchor="mm")
+    draw.text((width * 0.75, box_y + 60), f"${current_price:,.2f}", fill=status_color, font=font_price, anchor="mm")
 
-    draw.text((80, 1000), f"Trader: @{username}", fill="#D0FD3E", font=font_small)
-    draw.text((700, 1000), "Scan to Join Apexify 🚀", fill="#8B949E", font=font_small)
-
+    # ⬇️ 5. แปลงรูปภาพเป็น Bytes เพื่อส่งผ่าน Telegram
     img_byte_arr = io.BytesIO()
-    image.save(img_byte_arr, format='PNG')
+    img.save(img_byte_arr, format='PNG')
     img_byte_arr.seek(0)
     
     return img_byte_arr
