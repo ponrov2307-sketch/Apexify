@@ -443,7 +443,7 @@ def handle_pnl_card(message):
         bot.send_photo(
             message.chat.id, 
             photo=image_bytes, 
-            caption=f"🚀 ผลประกอบการ **{ticker}** จากคุณ {username}!\n\n🤖 วิเคราะห์และจัดทำพอร์ตสวยๆ แบบนี้ด้วย **Apexify AI**\n👉 สมัครใช้งานฟรีได้ที่: @[ชื่อบอทของคุณ]",
+            caption=f"🚀 ผลประกอบการ **{ticker}** จากคุณ {username}!\n\n🤖 วิเคราะห์และจัดทำพอร์ตสวยๆ แบบนี้ด้วย **Apexify AI**\n👉 สมัครใช้งานฟรีได้ที่:https://t.me/Apexify_Trading_bot  @Apexify_Trading_bot",
             parse_mode='Markdown'
         )
         bot.delete_message(message.chat.id, wait_msg.message_id)
