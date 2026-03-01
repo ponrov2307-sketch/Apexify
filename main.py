@@ -1,5 +1,5 @@
 from email.mime import message
-
+from pnl_generator import generate_pnl_card
 import telebot
 import logging
 import json
@@ -389,7 +389,53 @@ def handle_portfolio(message):
         
     except Exception as e:
         bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูล: {e}", chat_id=message.chat.id, message_id=processing_msg.message_id)
-
+@bot.message_handler(commands=['pnl'])
+def handle_pnl_card(message):
+    """คำสั่ง /pnl [ชื่อหุ้น] เพื่อสร้างการ์ดอวดกำไร"""
+    parts = message.text.split()
+    if len(parts) < 2:
+        bot.reply_to(message, "❌ กรุณาพิมพ์ชื่อหุ้นด้วยครับ เช่น `/pnl NVDA`", parse_mode='Markdown')
+        return
+        
+    ticker = parts[1].upper()
+    user_id = str(message.from_user.id)
+    username = message.from_user.username or message.from_user.first_name
+    
+    # 1. ดึงพอร์ตของ User จาก database.py
+    portfolio = get_user_portfolio(user_id) 
+    
+    # พอร์ตจะคืนค่ามาเป็น list of tuples [(ticker, shares, avg_cost)]
+    # เราก็หาตัวที่มีชื่อหุ้นตรงกับที่พิมพ์มา
+    asset = next((item for item in portfolio if item == ticker), None)
+    
+    if not asset:
+        bot.reply_to(message, f"❌ ไม่พบหุ้น **{ticker}** ในพอร์ตของคุณครับ", parse_mode='Markdown')
+        return
+        
+    wait_msg = bot.reply_to(message, "🎨 กำลังสร้างการ์ด PnL ระดับ Pro ให้คุณ...")
+    
+    try:
+        # 2. ดึงต้นทุนเฉลี่ย (avg_cost อยู่ตำแหน่งที่ 3 ของ tuple)
+        entry_price = float(asset[2])
+        
+        # 3. ดึงราคาปัจจุบันผ่าน yfinance
+        ticker_yf = yf.Ticker(ticker)
+        current_price = ticker_yf.fast_info['lastPrice']
+        
+        # 4. สร้างรูปภาพ
+        image_bytes = generate_pnl_card(username, ticker, entry_price, current_price)
+        
+        # 5. ส่งรูปภาพกลับไป
+        bot.send_photo(
+            message.chat.id, 
+            photo=image_bytes, 
+            caption=f"🚀 ผลประกอบการ **{ticker}** ของคุณ!\nกด Share อวดเพื่อนได้เลย!",
+            parse_mode='Markdown'
+        )
+        bot.delete_message(message.chat.id, wait_msg.message_id)
+        
+    except Exception as e:
+        bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการสร้างภาพ: {e}", message.chat.id, wait_msg.message_id)
 
 # ==========================================
 # 🌟 ระบบคำสั่งตั้งเตือนราคาส่วนตัว
