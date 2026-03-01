@@ -896,7 +896,7 @@ def inline_callbacks(call):
             "พิมพ์ `/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]`\n"
             "*(เช่น `/add PTT.BK 100 32.50`)*\n\n"
             "• **วิธีดูสรุปพอร์ตทั้งหมด:**\n"
-            "พิมพ์ `/portfolio` หรือ `/port` และ`/pnlเพื่อสร้างการ์ดโชว์หุ้น`ในแชทได้เลยครับ!"
+            "พิมพ์ `/portfolio` หรือ `/port` และ`/pnl`เพื่อสร้างการ์ดโชว์หุ้น ในแชทได้เลยครับ!"
         )
         bot.send_message(user_id, msg, parse_mode="Markdown")
         
