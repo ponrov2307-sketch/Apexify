@@ -389,7 +389,7 @@ def handle_portfolio(message):
         
     except Exception as e:
         bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูล: {e}", chat_id=message.chat.id, message_id=processing_msg.message_id)
-@@bot.message_handler(commands=['pnl'])
+@bot.message_handler(commands=['pnl'])
 def handle_pnl_card(message):
     """คำสั่ง /pnl [ชื่อหุ้น] เพื่อสร้างการ์ดอวดกำไร (ดึงข้อมูลจากพอร์ต)"""
     parts = message.text.split()
