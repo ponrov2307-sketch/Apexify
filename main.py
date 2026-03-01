@@ -389,56 +389,57 @@ def handle_portfolio(message):
         
     except Exception as e:
         bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูล: {e}", chat_id=message.chat.id, message_id=processing_msg.message_id)
-@bot.message_handler(commands=['pnl'])
+@@bot.message_handler(commands=['pnl'])
 def handle_pnl_card(message):
-    """คำสั่ง /pnl [ชื่อหุ้น] เพื่อสร้างการ์ดอวดกำไร (ดึงข้อมูลจากตารางเว็บ)"""
+    """คำสั่ง /pnl [ชื่อหุ้น] เพื่อสร้างการ์ดอวดกำไร (ดึงข้อมูลจากพอร์ต)"""
     parts = message.text.split()
     if len(parts) < 2:
         bot.reply_to(message, "❌ กรุณาพิมพ์ชื่อหุ้นด้วยครับ เช่น `/pnl NVDA`", parse_mode='Markdown')
         return
         
-    ticker = parts.upper()
-    telegram_id = message.from_user.id
+    # 🐛 1. แก้ไขให้ดึงคำที่ 2 จาก List ออกมาเป็นชื่อหุ้น
+    ticker = parts[1].upper()
+    user_id = str(message.chat.id) # ใช้ user_id แทน telegram_id ให้ตรงกับ DB
     username = message.from_user.username or message.from_user.first_name
     
-    # 🌟 1. ใช้ระบบฐานข้อมูลของโปรเจกต์บอท
     from database import get_connection
-    
     conn = get_connection()
     c = conn.cursor()
     
     try:
-        # 2. ค้นหา User ID ฝั่งเว็บจากตาราง apex_users
-        c.execute("SELECT id FROM apex_users WHERE telegram_id = %s", (telegram_id,))
+        # 🐛 2. เปลี่ยนชื่อตารางเป็น users (ให้ตรงกับ database.py)
+        c.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
         user_row = c.fetchone()
         
         if not user_row:
-            bot.reply_to(message, "⚠️ คุณยังไม่ได้ลงทะเบียนในระบบเว็บครับ พิมพ์ /start เพื่อลงทะเบียน")
+            bot.reply_to(message, "⚠️ คุณยังไม่ได้ลงทะเบียนในระบบครับ พิมพ์ /start เพื่อลงทะเบียน")
             return
             
-        db_user_id = user_row
-        
-        # 3. ค้นหาหุ้นตัวนี้ในตาราง apex_portfolios
-        c.execute("SELECT avg_cost FROM apex_portfolios WHERE user_id = %s AND ticker = %s", (db_user_id, ticker))
+        # 🐛 2. เปลี่ยนชื่อตารางเป็น portfolios (ให้ตรงกับ database.py)
+        c.execute("SELECT avg_cost FROM portfolios WHERE user_id = %s AND ticker = %s", (user_id, ticker))
         port_row = c.fetchone()
         
         if not port_row:
-            bot.reply_to(message, f"❌ ไม่พบหุ้น **{ticker}** ในพอร์ตของคุณครับ", parse_mode='Markdown')
+            bot.reply_to(message, f"❌ ไม่พบหุ้น **{ticker}** ในพอร์ตของคุณครับ\n*(พิมพ์ `/add {ticker} [จำนวน] [ราคา]` เพื่อเพิ่มเข้าพอร์ตก่อน)*", parse_mode='Markdown')
             return
             
-        # 4. ได้ต้นทุนมาแล้ว! เตรียมดึงราคาปัจจุบัน
-        entry_price = float(port_row)
+        # 🐛 3. port_row เป็น Tuple ต้องดึง index [0] ออกมา
+        entry_price = float(port_row[0])
         wait_msg = bot.reply_to(message, "🎨 กำลังสร้างการ์ด PnL ระดับ Pro ให้คุณ...")
         
+        # 🐛 4. ปรับชื่อหุ้นให้รองรับตลาดอื่นๆ เหมือนใน technical_tools.py
         import yfinance as yf
-        ticker_yf = yf.Ticker(ticker)
-        current_price = ticker_yf.fast_info['lastPrice']
+        allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+        clean_ticker = ticker.replace(".", "-") if "." in ticker and not ticker.endswith(allowed_suffixes) else ticker
         
-        # 5. วาดรูปการ์ด
+        ticker_yf = yf.Ticker(clean_ticker)
+        current_price = float(ticker_yf.fast_info['lastPrice'])
+        
+        # วาดรูปการ์ด
         from pnl_generator import generate_pnl_card
         image_bytes = generate_pnl_card(username, ticker, entry_price, current_price)
         
-        # 6. ส่งรูปลงแชท
+        # ส่งรูปลงแชท
         bot.send_photo(
             message.chat.id, 
             photo=image_bytes, 
@@ -449,6 +450,7 @@ def handle_pnl_card(message):
         
     except Exception as e:
         bot.reply_to(message, f"❌ เกิดข้อผิดพลาด: {e}")
+        print(f"PnL Error: {e}") # ปริ้น Error ลงใน Console ของ VPS ด้วย จะได้รู้ว่าพังตรงไหน
     finally:
         # ปิดการเชื่อมต่อ Database เสมอ
         c.close()
