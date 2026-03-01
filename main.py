@@ -330,6 +330,9 @@ def handle_add_stock(message):
     except Exception as e:
         bot.reply_to(message, f"❌ เกิดข้อผิดพลาด: {e}")
 
+# ==========================================
+# 🌟 ระบบบันทึกและดูพอร์ตลงทุน (แก้บั๊ก Telegram Markdown)
+# ==========================================
 @bot.message_handler(commands=['portfolio', 'port'])
 def handle_portfolio(message):
     """คำสั่งเช็คพอร์ตผ่านแชท"""
@@ -340,26 +343,25 @@ def handle_portfolio(message):
     try:
         portfolio = get_user_portfolio(user_id)
         if not portfolio:
-            bot.edit_message_text("📊 พอร์ตลงทุนของคุณยังว่างเปล่า\nพิมพ์ `/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]` เพื่อเพิ่มหุ้นเข้าพอร์ตครับ", chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='Markdown')
+            bot.edit_message_text("📊 พอร์ตลงทุนของคุณยังว่างเปล่า\nพิมพ์ <code>/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]</code> เพื่อเพิ่มหุ้นเข้าพอร์ตครับ", chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='HTML')
             return
         
         total_invested = 0
         current_value = 0
         
-        msg = f"📈 **สรุปพอร์ตลงทุนของคุณ (Apex Wealth Master)**\n\n"
+        msg = f"📈 <b>สรุปพอร์ตลงทุนของคุณ (Apex Wealth Master)</b>\n\n"
         
         for asset in portfolio:
             ticker = asset['ticker']
             shares = asset['shares']
             avg_cost = asset['avg_cost']
             
-            # ดึงราคาล่าสุดจาก Yahoo Finance
             try:
                 allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
                 clean_ticker = ticker.replace(".", "-") if "." in ticker and not ticker.endswith(allowed_suffixes) else ticker
                 live_price = float(yf.Ticker(clean_ticker).fast_info.last_price)
             except Exception:
-                live_price = avg_cost # ถ้าดึงราคาไม่ได้ให้ใช้ต้นทุนแทนชั่วคราว
+                live_price = avg_cost 
             
             invested = shares * avg_cost
             current = shares * live_price
@@ -369,9 +371,8 @@ def handle_portfolio(message):
             total_invested += invested
             current_value += current
             
-            # ตกแต่งข้อความ
             icon = "🟢" if profit >= 0 else "🔴"
-            msg += f"{icon} **{ticker}**\n"
+            msg += f"{icon} <b>{ticker}</b>\n"
             msg += f"   • จำนวน: {shares:,.4f} หุ้น\n"
             msg += f"   • ทุนเฉลี่ย: {avg_cost:,.2f} | ล่าสุด: {live_price:,.2f}\n"
             msg += f"   • กำไร: {profit:,.2f} ({profit_pct:,.2f}%)\n\n"
@@ -381,25 +382,26 @@ def handle_portfolio(message):
         total_icon = "🟢" if total_profit >= 0 else "🔴"
         
         msg += f"====================\n"
-        msg += f"💰 **มูลค่าพอร์ตรวม (Net Worth):** {current_value:,.2f}\n"
-        msg += f"💵 **ต้นทุนรวม (Invested):** {total_invested:,.2f}\n"
-        msg += f"{total_icon} **กำไรรวม (Total Return):** {total_profit:,.2f} ({total_profit_pct:,.2f}%)\n"
+        msg += f"💰 <b>มูลค่าพอร์ตรวม (Net Worth):</b> {current_value:,.2f}\n"
+        msg += f"💵 <b>ต้นทุนรวม (Invested):</b> {total_invested:,.2f}\n"
+        msg += f"{total_icon} <b>กำไรรวม (Total Return):</b> {total_profit:,.2f} ({total_profit_pct:,.2f}%)\n"
         
-        bot.edit_message_text(msg, chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='Markdown')
+        bot.edit_message_text(msg, chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='HTML')
         
     except Exception as e:
         bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูล: {e}", chat_id=message.chat.id, message_id=processing_msg.message_id)
+
+
 @bot.message_handler(commands=['pnl'])
 def handle_pnl_card(message):
-    """คำสั่ง /pnl [ชื่อหุ้น] เพื่อสร้างการ์ดอวดกำไร (ดึงข้อมูลจากพอร์ต)"""
+    """คำสั่ง /pnl [ชื่อหุ้น] เพื่อสร้างการ์ดอวดกำไร"""
     parts = message.text.split()
     if len(parts) < 2:
-        bot.reply_to(message, "❌ กรุณาพิมพ์ชื่อหุ้นด้วยครับ เช่น `/pnl NVDA`", parse_mode='Markdown')
+        bot.reply_to(message, "❌ กรุณาพิมพ์ชื่อหุ้นด้วยครับ เช่น <code>/pnl NVDA</code>", parse_mode='HTML')
         return
         
-    # 🐛 1. แก้ไขให้ดึงคำที่ 2 จาก List ออกมาเป็นชื่อหุ้น
     ticker = parts[1].upper()
-    user_id = str(message.chat.id) # ใช้ user_id แทน telegram_id ให้ตรงกับ DB
+    user_id = str(message.chat.id)
     username = message.from_user.username or message.from_user.first_name
     
     from database import get_connection
@@ -407,7 +409,6 @@ def handle_pnl_card(message):
     c = conn.cursor()
     
     try:
-        # 🐛 2. เปลี่ยนชื่อตารางเป็น users (ให้ตรงกับ database.py)
         c.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
         user_row = c.fetchone()
         
@@ -415,19 +416,16 @@ def handle_pnl_card(message):
             bot.reply_to(message, "⚠️ คุณยังไม่ได้ลงทะเบียนในระบบครับ พิมพ์ /start เพื่อลงทะเบียน")
             return
             
-        # 🐛 2. เปลี่ยนชื่อตารางเป็น portfolios (ให้ตรงกับ database.py)
         c.execute("SELECT avg_cost FROM portfolios WHERE user_id = %s AND ticker = %s", (user_id, ticker))
         port_row = c.fetchone()
         
         if not port_row:
-            bot.reply_to(message, f"❌ ไม่พบหุ้น **{ticker}** ในพอร์ตของคุณครับ\n*(พิมพ์ `/add {ticker} [จำนวน] [ราคา]` เพื่อเพิ่มเข้าพอร์ตก่อน)*", parse_mode='Markdown')
+            bot.reply_to(message, f"❌ ไม่พบหุ้น <b>{ticker}</b> ในพอร์ตของคุณครับ\n<i>(พิมพ์ <code>/add {ticker} [จำนวน] [ราคา]</code> เพื่อเพิ่มเข้าพอร์ตก่อน)</i>", parse_mode='HTML')
             return
             
-        # 🐛 3. port_row เป็น Tuple ต้องดึง index [0] ออกมา
         entry_price = float(port_row[0])
         wait_msg = bot.reply_to(message, "🎨 กำลังสร้างการ์ด PnL ระดับ Pro ให้คุณ...")
         
-        # 🐛 4. ปรับชื่อหุ้นให้รองรับตลาดอื่นๆ เหมือนใน technical_tools.py
         import yfinance as yf
         allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
         clean_ticker = ticker.replace(".", "-") if "." in ticker and not ticker.endswith(allowed_suffixes) else ticker
@@ -443,16 +441,15 @@ def handle_pnl_card(message):
         bot.send_photo(
             message.chat.id, 
             photo=image_bytes, 
-            caption=f"🚀 ผลประกอบการ **{ticker}** จากคุณ {username}!\n\n🤖 วิเคราะห์และจัดทำพอร์ตสวยๆ แบบนี้ด้วย **Apexify AI**\n👉 สมัครใช้งานฟรีได้ที่:https://t.me/Apexify_Trading_bot  @Apexify_Trading_bot",
-            parse_mode='Markdown'
+            caption=f"🚀 ผลประกอบการ <b>{ticker}</b> ของคุณ!\nกด Share อวดเพื่อนได้เลย!",
+            parse_mode='HTML'
         )
         bot.delete_message(message.chat.id, wait_msg.message_id)
         
     except Exception as e:
         bot.reply_to(message, f"❌ เกิดข้อผิดพลาด: {e}")
-        print(f"PnL Error: {e}") # ปริ้น Error ลงใน Console ของ VPS ด้วย จะได้รู้ว่าพังตรงไหน
+        print(f"PnL Error: {e}") 
     finally:
-        # ปิดการเชื่อมต่อ Database เสมอ
         c.close()
         conn.close()
 
