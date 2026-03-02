@@ -600,7 +600,75 @@ def check_xd_alerts():
                 except Exception: pass
         cur.close()
         conn.close()
+# ==========================================
+# 🌟 ฟีเจอร์ใหม่: Daily Portfolio Summary (สรุปพอร์ตตี 5)
+# ==========================================
+def send_daily_portfolio_summary(bot_instance):
+    from database import get_user_portfolio, get_connection # ระวังการ import
+    from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+    import yfinance as yf
+    import time
+    
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT user_id FROM portfolios")
+    users_with_port = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    count = 0
+    for row in users_with_port:
+        user_id = row[0]
+        portfolio = get_user_portfolio(user_id)
+        if not portfolio: continue
+            
+        total_invested = 0
+        current_value = 0
+        msg = f"🔔 **สรุปพอร์ตลงทุน (Apex Wealth Master)** 🔔\n\n"
+        
+        for asset in portfolio:
+            ticker = asset['ticker']
+            shares = asset['shares']
+            avg_cost = asset['avg_cost']
+            try:
+                allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+                clean_ticker = ticker.replace(".", "-") if "." in ticker and not ticker.endswith(allowed_suffixes) else ticker
+                live_price = float(yf.Ticker(clean_ticker).fast_info.last_price)
+            except Exception:
+                live_price = avg_cost
+                
+            invested = shares * avg_cost
+            current = shares * live_price
+            profit = current - invested
+            profit_pct = (profit / invested * 100) if invested > 0 else 0
+            
+            total_invested += invested
+            current_value += current
+            
+            icon = "🟢" if profit >= 0 else "🔴"
+            msg += f"{icon} **{ticker}** : {profit:,.2f} ({profit_pct:,.2f}%)\n"
+            
+        total_profit = current_value - total_invested
+        total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
+        total_icon = "🟢" if total_profit >= 0 else "🔴"
+        
+        msg += f"\n====================\n"
+        msg += f"💰 **มูลค่าพอร์ตรวม:** {current_value:,.2f}\n"
+        msg += f"💵 **ต้นทุนรวม:** {total_invested:,.2f}\n"
+        msg += f"{total_icon} **กำไร/ขาดทุนรวม:** {total_profit:,.2f} ({total_profit_pct:,.2f}%)\n"
+        
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("🌐 ดูรายละเอียดพอร์ตบนเว็บ", url="https://ใส่ลิงก์เว็บของคุณ.com"))
+        
+        try:
+            bot_instance.send_message(user_id, msg, parse_mode='Markdown', reply_markup=markup)
+            count += 1
+            time.sleep(0.5)
+        except Exception: pass
+            
+    if count > 0: print(f"✅ ส่งสรุปพอร์ตสำเร็จ {count} คน")
 
+# 👇 จุดสังเกต: วางไว้เหนือบรรทัดนี้
 if __name__ == "__main__":
     init_db()
     print("🚀 Apexify Alert System (PRO Exclusive) is Running...")
@@ -610,6 +678,8 @@ if __name__ == "__main__":
     last_global_news_time = time.time() - 14400 # พร้อมส่งข่าว 4 ชม. ทันที
     last_morning_briefing_date = None
     last_xd_check_date = None
+    # 🌟 เอาบรรทัดนี้มาแปะตรงนี้ครับ
+    last_portfolio_summary_date = None
     
     while True:
         current_time = time.time()
@@ -626,7 +696,11 @@ if __name__ == "__main__":
         if last_xd_check_date != current_date_str:
             check_xd_alerts()
             last_xd_check_date = current_date_str
-
+        # 🌟 เอาบล็อกนี้มาแทรกตรงนี้ครับ (เช็คเวลาตี 5)
+        if thai_time.hour == 5 and thai_time.minute >= 0:
+            if last_portfolio_summary_date != current_date_str:
+                send_daily_portfolio_summary(bot)
+                last_portfolio_summary_date = current_date_str
         # 🌟 แจ้งเตือนข่าว 1 ชั่วโมง (Flash News)
         if current_time - last_hourly_news_time >= 3600:
             broadcast_hourly_urgent_news(bot)
