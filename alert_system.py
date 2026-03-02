@@ -9,7 +9,7 @@ import psycopg2
 from database import (get_all_active_symbols, get_users_watching, init_db, check_subscription, 
                       get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert,
                       auto_downgrade_expired_users) # 🌟 เพิ่มชื่อฟังก์ชันนี้ต่อท้ายเข้าไป
-
+import json
 import xml.etree.ElementTree as ET 
 import yfinance as yf
 from curl_cffi import requests as cffi_requests 
