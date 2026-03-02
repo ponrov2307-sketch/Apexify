@@ -604,8 +604,12 @@ def check_xd_alerts():
 
 if __name__ == "__main__":
     init_db()
-    print("🚀 Apexify Alert System (PRO Exclusive) is Running...")
     
+    # 🧹 [เพิ่มบรรทัดนี้] สั่งให้กวาดล้างทันที 1 ครั้ง ตอนที่เพิ่งกดรันบอทใหม่
+    auto_downgrade_expired_users()
+    print("🧹 กวาดล้าง DB ทันทีที่เปิดระบบเรียบร้อยแล้ว!")
+    
+    print("🚀 Apexify Alert System (PRO Exclusive) is Running...")    
     # 🌟 ตั้งค่าเริ่มต้น
     last_hourly_news_time = time.time() - 3600  # พร้อมส่งข่าว 1 ชม. ทันที
     last_global_news_time = time.time() - 14400 # พร้อมส่งข่าว 4 ชม. ทันที
