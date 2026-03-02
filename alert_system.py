@@ -498,7 +498,8 @@ def check_custom_price_alerts():
                     time.sleep(0.5)
                 except Exception: deactivate_price_alert(a_id)
 # ==========================================
-# 🌟 ฟีเจอร์ใหม่: Morning Apexify Briefing (08:30 น.)
+# ==========================================
+# 🌟 ฟีเจอร์ Morning Apexify Briefing (08:30 น.)
 # ==========================================
 def send_morning_briefing(bot_instance):
     try:
@@ -506,7 +507,6 @@ def send_morning_briefing(bot_instance):
         btc = yf.Ticker('BTC-USD').history(period='1d')
         gold = yf.Ticker('GC=F').history(period='1d') 
         
-        # 🌟 เพิ่ม: ดึงข่าวข้ามคืนมาเสริมความฉลาดให้ AI
         fresh_news = get_fresh_global_news()
         news_titles = "\n".join([f"- {n['title']}" for n in fresh_news[:5]]) if fresh_news else "ไม่มีข่าวเด่น"
         
@@ -515,12 +515,19 @@ def send_morning_briefing(bot_instance):
             btc_close = btc['Close'].iloc[-1]
             gold_close = gold['Close'].iloc[-1] if not gold.empty else 0
             
-            # 🌟 อัปเดต Prompt ให้ AI วิเคราะห์จากข่าวด้วย
+            # 🌟 อัปเดต Prompt ใหม่ บังคับให้สั้นและห้ามทวนคำสั่ง!
             prompt = f"""
-            ทำตัวเป็นนักวิเคราะห์ สรุปแนวโน้มตลาดเช้านี้ (อิงจาก S&P500 ปิดที่ {sp500_close:.2f}, Crypto {btc_close:.2f}, ทองคำ {gold_close:.2f})
-            และประเมินทิศทางจากข่าวข้ามคืนเหล่านี้:
+            คุณคือนักวิเคราะห์การเงินที่เก่งกาจและเป็นกันเอง 
+            จงสรุปแนวโน้มตลาดเช้านี้สั้นๆ แบบฟันธงเพื่อส่งให้เทรดเดอร์ (ความยาวไม่เกิน 4 บรรทัดเท่านั้น!)
+            
+            ข้อมูลตลาดเมื่อคืน: S&P500={sp500_close:.2f}, Bitcoin={btc_close:.2f}, ทองคำ={gold_close:.2f}
+            พาดหัวข่าวสำคัญ:
             {news_titles}
-            ให้กำลังใจและชี้เป้าทิศทางตลาดสั้นๆ แบบฟันธง ความยาวไม่เกิน 4 บรรทัด
+            
+            ข้อบังคับเด็ดขาด: 
+            1. ห้ามทวนคำสั่งหรือเขียนหัวข้อใดๆ ทั้งสิ้น
+            2. ห้ามแยกข้อ 1-2-3 ให้เขียนบรรยายรวดเดียวจบ
+            3. พิมพ์มาแค่เนื้อหาสรุป 3-4 บรรทัดจบ พร้อมให้กำลังใจท้ายข้อความ
             """
             ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             summary = ai_check.text.strip()
