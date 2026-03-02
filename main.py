@@ -635,15 +635,34 @@ def handle_broadcast(message):
 def handle_stats(message):
     if str(message.chat.id) != ADMIN_ID: return
     try:
-        stats, total = get_user_stats()
+        # 1. ดึงรายชื่อ User ทั้งหมดออกมา
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT user_id FROM users")
+        all_users = c.fetchall()
+        conn.close()
+        
+        # 2. สร้างกล่องเก็บสถิติเริ่มต้น
+        stats = {'free': 0, 'vip': 0, 'pro': 0}
+        total = len(all_users)
+        
+        # 3. วนลูปเช็คสถานะแบบ Real-time ทีละคน
+        for row in all_users:
+            uid = row[0]
+            # check_subscription จะเช็คเวลาปัจจุบัน ถ้าหมดอายุแล้วจะรีเทิร์น 'free' กลับมาให้เลย
+            actual_role = check_subscription(uid)
+            stats[actual_role] = stats.get(actual_role, 0) + 1
+            
         est_revenue = (stats.get('vip', 0) * 199) + (stats.get('pro', 0) * 499)
+        
         msg = (
-            "📊 **สถิติการใช้งาน Apexify** 📊\n\n"
+            "📊 **สถิติการใช้งาน Apexify (อัปเดตสถานะล่าสุด)** 📊\n\n"
             f"👥 **ผู้ใช้งานทั้งหมด:** {total} คน\n"
             f"🆓 **สายฟรี:** {stats.get('free', 0)} คน\n"
-            f"💎 **ระดับ VIP:** {stats.get('vip', 0)} คน\n"
-            f"👑 **ระดับ PRO:** {stats.get('pro', 0)} คน\n\n"
-            f"💰 **ประมาณการรายได้ขั้นต่ำ:** {est_revenue:,.2f} บาท/เดือน"
+            f"💎 **ระดับ VIP (Active):** {stats.get('vip', 0)} คน\n"
+            f"👑 **ระดับ PRO (Active):** {stats.get('pro', 0)} คน\n\n"
+            f"💰 **ประมาณการรายได้ขั้นต่ำ:** {est_revenue:,.2f} บาท/เดือน\n"
+            f"*(หมายเหตุ: ระบบตัดผู้ที่หมดอายุแพ็กเกจออกจากการคำนวณรายได้แล้ว)*"
         )
         bot.reply_to(message, msg, parse_mode="Markdown")
     except Exception as e:

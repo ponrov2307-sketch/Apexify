@@ -7,8 +7,9 @@ from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
 from technical_tools import calculate_technical_indicators
 import psycopg2
 from database import (get_all_active_symbols, get_users_watching, init_db, check_subscription, 
-                      get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert)
-import json
+                      get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert,
+                      auto_downgrade_expired_users) # 🌟 เพิ่มชื่อฟังก์ชันนี้ต่อท้ายเข้าไป
+
 import xml.etree.ElementTree as ET 
 import yfinance as yf
 from curl_cffi import requests as cffi_requests 
@@ -497,7 +498,8 @@ def check_custom_price_alerts():
                     time.sleep(0.5)
                 except Exception: deactivate_price_alert(a_id)
 # ==========================================
-# 🌟 ฟีเจอร์ใหม่: Morning Apexify Briefing (08:30 น.)
+# ==========================================
+# 🌟 ฟีเจอร์ Morning Apexify Briefing (08:30 น.)
 # ==========================================
 def send_morning_briefing(bot_instance):
     try:
@@ -505,7 +507,6 @@ def send_morning_briefing(bot_instance):
         btc = yf.Ticker('BTC-USD').history(period='1d')
         gold = yf.Ticker('GC=F').history(period='1d') 
         
-        # 🌟 เพิ่ม: ดึงข่าวข้ามคืนมาเสริมความฉลาดให้ AI
         fresh_news = get_fresh_global_news()
         news_titles = "\n".join([f"- {n['title']}" for n in fresh_news[:5]]) if fresh_news else "ไม่มีข่าวเด่น"
         
@@ -514,12 +515,19 @@ def send_morning_briefing(bot_instance):
             btc_close = btc['Close'].iloc[-1]
             gold_close = gold['Close'].iloc[-1] if not gold.empty else 0
             
-            # 🌟 อัปเดต Prompt ให้ AI วิเคราะห์จากข่าวด้วย
+            # 🌟 อัปเดต Prompt ใหม่ บังคับให้สั้นและห้ามทวนคำสั่ง!
             prompt = f"""
-            ทำตัวเป็นนักวิเคราะห์ สรุปแนวโน้มตลาดเช้านี้ (อิงจาก S&P500 ปิดที่ {sp500_close:.2f}, Crypto {btc_close:.2f}, ทองคำ {gold_close:.2f})
-            และประเมินทิศทางจากข่าวข้ามคืนเหล่านี้:
+            คุณคือนักวิเคราะห์การเงินที่เก่งกาจและเป็นกันเอง 
+            จงสรุปแนวโน้มตลาดเช้านี้สั้นๆ แบบฟันธงเพื่อส่งให้เทรดเดอร์ (ความยาวไม่เกิน 4 บรรทัดเท่านั้น!)
+            
+            ข้อมูลตลาดเมื่อคืน: S&P500={sp500_close:.2f}, Bitcoin={btc_close:.2f}, ทองคำ={gold_close:.2f}
+            พาดหัวข่าวสำคัญ:
             {news_titles}
-            ให้กำลังใจและชี้เป้าทิศทางตลาดสั้นๆ แบบฟันธง ความยาวไม่เกิน 4 บรรทัด
+            
+            ข้อบังคับเด็ดขาด: 
+            1. ห้ามทวนคำสั่งหรือเขียนหัวข้อใดๆ ทั้งสิ้น
+            2. ห้ามแยกข้อ 1-2-3 ให้เขียนบรรยายรวดเดียวจบ
+            3. พิมพ์มาแค่เนื้อหาสรุป 3-4 บรรทัดจบ พร้อมให้กำลังใจท้ายข้อความ
             """
             ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             summary = ai_check.text.strip()
@@ -671,21 +679,34 @@ def send_daily_portfolio_summary(bot_instance):
 # 👇 จุดสังเกต: วางไว้เหนือบรรทัดนี้
 if __name__ == "__main__":
     init_db()
-    print("🚀 Apexify Alert System (PRO Exclusive) is Running...")
     
+    # 🧹 [เพิ่มบรรทัดนี้] สั่งให้กวาดล้างทันที 1 ครั้ง ตอนที่เพิ่งกดรันบอทใหม่
+    auto_downgrade_expired_users()
+    print("🧹 กวาดล้าง DB ทันทีที่เปิดระบบเรียบร้อยแล้ว!")
+    
+    print("🚀 Apexify Alert System (PRO Exclusive) is Running...")    
     # 🌟 ตั้งค่าเริ่มต้น
     last_hourly_news_time = time.time() - 3600  # พร้อมส่งข่าว 1 ชม. ทันที
     last_global_news_time = time.time() - 14400 # พร้อมส่งข่าว 4 ชม. ทันที
     last_morning_briefing_date = None
     last_xd_check_date = None
+
     # 🌟 เอาบรรทัดนี้มาแปะตรงนี้ครับ
     last_portfolio_summary_date = None
+
+    last_downgrade_date = None # 🌟 เพิ่มตัวแปรสำหรับเช็ควันที่ปรับยศ
     
     while True:
         current_time = time.time()
         thai_time = datetime.utcnow() + timedelta(hours=7)
         current_date_str = thai_time.strftime("%Y-%m-%d")
         
+        # 🧹 [เพิ่มใหม่] สั่งปรับยศคนหมดอายุตอนเที่ยงคืน (ทำแค่วันละ 1 ครั้ง)
+        if thai_time.hour == 0 and last_downgrade_date != current_date_str:
+            auto_downgrade_expired_users()
+            print(f"🧹 [{current_date_str}] Auto-Downgrade: อัปเดต DB ปรับยศคนหมดอายุเรียบร้อย")
+            last_downgrade_date = current_date_str
+            
         # 🌅 ส่ง Morning Briefing (08:30 น.)
         if thai_time.hour == 8 and thai_time.minute >= 30:
             if last_morning_briefing_date != current_date_str:
@@ -716,3 +737,4 @@ if __name__ == "__main__":
         check_custom_price_alerts()
         
         time.sleep(300)
+
