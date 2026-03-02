@@ -7,8 +7,9 @@ from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
 from technical_tools import calculate_technical_indicators
 import psycopg2
 from database import (get_all_active_symbols, get_users_watching, init_db, check_subscription, 
-                      get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert)
-import json
+                      get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert,
+                      auto_downgrade_expired_users) # 🌟 เพิ่มชื่อฟังก์ชันนี้ต่อท้ายเข้าไป
+
 import xml.etree.ElementTree as ET 
 import yfinance as yf
 from curl_cffi import requests as cffi_requests 
@@ -610,12 +611,19 @@ if __name__ == "__main__":
     last_global_news_time = time.time() - 14400 # พร้อมส่งข่าว 4 ชม. ทันที
     last_morning_briefing_date = None
     last_xd_check_date = None
+    last_downgrade_date = None # 🌟 เพิ่มตัวแปรสำหรับเช็ควันที่ปรับยศ
     
     while True:
         current_time = time.time()
         thai_time = datetime.utcnow() + timedelta(hours=7)
         current_date_str = thai_time.strftime("%Y-%m-%d")
         
+        # 🧹 [เพิ่มใหม่] สั่งปรับยศคนหมดอายุตอนเที่ยงคืน (ทำแค่วันละ 1 ครั้ง)
+        if thai_time.hour == 0 and last_downgrade_date != current_date_str:
+            auto_downgrade_expired_users()
+            print(f"🧹 [{current_date_str}] Auto-Downgrade: อัปเดต DB ปรับยศคนหมดอายุเรียบร้อย")
+            last_downgrade_date = current_date_str
+            
         # 🌅 ส่ง Morning Briefing (08:30 น.)
         if thai_time.hour == 8 and thai_time.minute >= 30:
             if last_morning_briefing_date != current_date_str:
@@ -642,3 +650,4 @@ if __name__ == "__main__":
         check_custom_price_alerts()
         
         time.sleep(300)
+
