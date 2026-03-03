@@ -14,7 +14,9 @@ def init_db():
     conn = get_connection()
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users 
-                 (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT, role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0)''')
+                 (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT, role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0, username TEXT DEFAULT 'Unknown')''')
+    # Keep old deployments compatible by adding missing column if table already exists.
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT DEFAULT 'Unknown'")
     
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes 
@@ -347,7 +349,7 @@ def process_referral(referrer_id, new_user_id):
     c = conn.cursor()
     try:
         # ใช้ %s แทน ? สำหรับ PostgreSQL
-        c.execute("SELECT id FROM users WHERE user_id = %s", (new_user_id,))
+        c.execute("SELECT user_id FROM users WHERE user_id = %s", (new_user_id,))
         if c.fetchone(): 
             return False 
         

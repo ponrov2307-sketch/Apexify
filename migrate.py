@@ -30,7 +30,8 @@ def migrate_data():
     print("\n🛠️ กำลังสร้างโครงสร้างตารางบน Cloud...")
     try:
         pg_c.execute('''CREATE TABLE IF NOT EXISTS users 
-                     (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT, role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0)''')
+                     (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT, role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0, username TEXT DEFAULT 'Unknown')''')
+        pg_c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT DEFAULT 'Unknown'")
         pg_c.execute('''CREATE TABLE IF NOT EXISTS watchlists 
                      (user_id TEXT, symbol TEXT, PRIMARY KEY (user_id, symbol))''')
         pg_conn.commit()
@@ -49,10 +50,10 @@ def migrate_data():
         count = 0
         for user in users:
             pg_c.execute("""
-                INSERT INTO users (user_id, status, registered_date, role, expiry_date, usage_count)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO users (user_id, status, registered_date, role, expiry_date, usage_count, username)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (user_id) DO NOTHING
-            """, user)
+            """, (*user, "Unknown"))
             count += 1
         pg_conn.commit()
         print(f"✅ ย้าย Users สำเร็จ: {count} รายการ")
