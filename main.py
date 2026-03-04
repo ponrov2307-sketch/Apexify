@@ -691,7 +691,8 @@ def handle_stats(message):
             actual_role = check_subscription(uid)
             stats[actual_role] = stats.get(actual_role, 0) + 1
             
-        est_revenue = (stats.get('vip', 0) * 199) + (stats.get('pro', 0) * 499)
+        # 🌟 เปลี่ยนตัวคูณของ VIP จาก 199 เป็น 299
+        est_revenue = (stats.get('vip', 0) * 299) + (stats.get('pro', 0) * 499)
         
         msg = (
             "📊 **สถิติการใช้งาน Apexify (อัปเดตสถานะล่าสุด)** 📊\n\n"
@@ -788,18 +789,18 @@ def handle_payment_slip_check(message):
             if amount == 4990:
                 expiry = add_subscription(user_id, 'pro', 365)
                 msg_text = f"🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"
-            elif amount == 1990:
+            elif amount == 2990: # 🌟 แก้ตรงนี้จาก 1990 เป็น 2990
                 expiry = add_subscription(user_id, 'vip', 365)
                 msg_text = f"🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายปี)**\n⏰ หมดอายุ: {expiry}"
             elif amount == 499:
                 expiry = add_subscription(user_id, 'pro', 30)
                 msg_text = f"🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
-            elif amount == 199:
+            elif amount == 299: # 🌟 แก้ตรงนี้จาก 199 เป็น 299
                 expiry = add_subscription(user_id, 'vip', 30)
                 msg_text = f"🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
             else:
                 bot.edit_message_text(
-                    f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** ({amount:,.2f} บาท)\nกรุณาโอนให้ตรงราคา (199, 499, 1990, 4990)", 
+                    f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** ({amount:,.2f} บาท)\nกรุณาโอนให้ตรงราคา (299, 499, 2990, 4990)", # 🌟 อย่าลืมแก้ตัวเลขแจ้งเตือนตรงนี้ด้วยครับ
                     message.chat.id, progress_msg.message_id, parse_mode="Markdown"
                 )
                 bot.send_message(ADMIN_ID, f"⚠️ **ยอดผิดปกติ!** User `{user_id}` โอน {amount:,.2f} บาท", parse_mode="Markdown")
@@ -834,7 +835,7 @@ def inline_callbacks(call):
                 "• โควต้าวิเคราะห์กราฟ 10 ครั้ง\n"
                 "• สร้าง Watchlist สูงสุด 3 ตัว\n\n"
                 
-                "💎 **2. ระดับ VIP (199.-/เดือน หรือ 1,990.-/ปี):**\n"
+                "💎 **2. ระดับ VIP (299.-/เดือน หรือ 2,990.-/ปี):**\n" # 🌟 เปลี่ยนตัวเลขแสดงผลตรงนี้
                 "• โควต้าวิเคราะห์กราฟ **ไม่จำกัด!**\n"
                 "• สร้าง Watchlist **สูงสุด 10 ตัว**\n"
                 "• สแกนหุ้นใน Watchlist รวดเดียวจบ\n"
