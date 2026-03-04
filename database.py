@@ -314,10 +314,9 @@ def log_alert(symbol, alert_type, price):
 # 🌟 ระบบชวนเพื่อน (Referral System)
 # ==========================================
 def init_new_features_db():
-    """สร้างตารางใหม่สำหรับ PostgreSQL"""
+    """สร้างตารางใหม่และอัปเดตโครงสร้าง (Migration) สำหรับ PostgreSQL"""
     conn = get_connection()
     c = conn.cursor()
-    # เปลี่ยน AUTOINCREMENT เป็น SERIAL
     c.execute('''CREATE TABLE IF NOT EXISTS user_price_alerts
                  (id SERIAL PRIMARY KEY,
                   user_id TEXT,
@@ -331,16 +330,34 @@ def init_new_features_db():
                   referrer_id TEXT,
                   referred_id TEXT UNIQUE,
                   timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-    # 🌟 [เพิ่มใหม่ตรงนี้] สร้างตารางเก็บพอร์ตหุ้น Apex Wealth Master
+                  
+    # 🌟 1. สร้างตารางใหม่ (สำหรับคนเพิ่งรันบอทครั้งแรก)
     c.execute('''CREATE TABLE IF NOT EXISTS portfolios 
                  (id SERIAL PRIMARY KEY,
-                  user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+                  user_id TEXT,
                   ticker TEXT NOT NULL,
                   shares NUMERIC NOT NULL,
                   avg_cost NUMERIC NOT NULL,
                   asset_group TEXT DEFAULT 'ALL',
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+                  alert_price NUMERIC DEFAULT 0,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  UNIQUE(user_id, ticker))''')
     conn.commit()
+    
+    # 🌟 2. บังคับอัปเดตคอลัมน์ให้ฐานข้อมูลเก่าที่มีอยู่แล้ว (ป้องกัน Error)
+    try:
+        c.execute("ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS alert_price NUMERIC DEFAULT 0")
+        conn.commit()
+    except Exception:
+        conn.rollback() 
+        
+    try:
+        c.execute("ALTER TABLE portfolios ADD CONSTRAINT portfolios_user_ticker_unique UNIQUE(user_id, ticker)")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
+    c.close()
     conn.close()
 
 def process_referral(referrer_id, new_user_id):
@@ -473,3 +490,26 @@ def get_user_portfolio(user_id):
             'avg_cost': float(row[2])
         })
     return portfolio
+def get_user_watch(user_id: str):
+    """ให้เว็บดึง Watchlist ได้แบบเดียวกับบอท"""
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT symbol FROM watchlists WHERE user_id=%s", (str(user_id),))
+            rows = c.fetchall()
+            c.close()
+        return [row[0] for row in rows]
+    except Exception as e:
+        return []
+
+def add_watch(user_id: str, symbol: str):
+    """ให้เว็บเพิ่ม Watchlist ได้แบบเดียวกับบอท"""
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute("INSERT INTO watchlists (user_id, symbol) VALUES (%s, %s) ON CONFLICT DO NOTHING", (str(user_id), symbol.upper()))
+            conn.commit()
+            c.close()
+        return True
+    except Exception as e:
+        return False

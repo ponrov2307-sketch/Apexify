@@ -338,21 +338,6 @@ def check_and_broadcast_pro_news(bot_instance):
 # ==========================================
 # 🌟 ระบบเช็คตั้งเตือนราคาส่วนตัว
 # ==========================================
-def get_web_price_alerts():
-    """ดึงข้อมูล Alert ที่ตั้งค่าผ่านหน้า Web Dashboard จากตาราง portfolios"""
-    conn = get_connection() 
-    cur = conn.cursor()
-    try:
-        cur.execute("SELECT user_id, ticker, alert_price FROM portfolios WHERE alert_price > 0")
-        alerts = cur.fetchall()
-        return alerts
-    except Exception as e:
-        print(f"Error getting web alerts: {e}")
-        return []
-    finally:
-        cur.close()
-        conn.close()
-
 def clear_web_price_alert(user_id, ticker):
     """รีเซ็ตค่า alert_price กลับเป็น 0 หลังแจ้งเตือนแล้ว"""
     conn = get_connection()
@@ -367,64 +352,47 @@ def clear_web_price_alert(user_id, ticker):
         conn.close()
 
 def check_custom_price_alerts():
-    """🌟 รวมร่าง: เช็คทั้ง Alert จากบอทเก่า และ Alert จากเว็บใหม่"""
-    
-    # 1. เช็ค Alert ฝั่ง Web
-    web_alerts = get_web_price_alerts()
-    for alert in web_alerts:
-        user_id, symbol, target_price = alert[0], alert[1], float(alert[2])
-        try:
-            tech_data, _, err = calculate_technical_indicators(symbol, generate_chart=False)
-            if err or not tech_data: continue
-            
-            curr_price = tech_data['price']
-            
-            if abs(curr_price - target_price) / target_price <= 0.01:
-                msg = (
-                    f"🎯 **APEX PRICE ALERT!** 🎯\n\n"
-                    f"📌 หุ้น **{symbol}** มาถึงเป้าหมายแล้ว!\n"
-                    f"💵 ปัจจุบัน: **${curr_price:,.2f}**\n"
-                    f"📍 เป้าหมาย: **${target_price:,.2f}**\n\n"
-                    f"👉 *ระบบปิดการแจ้งเตือนรายการนี้แล้ว (ตั้งใหม่ได้ที่เว็บ)*\n"
-                )
-                try:
-                    bot.send_message(user_id, msg, parse_mode="Markdown")
-                    clear_web_price_alert(user_id, symbol)
-                    time.sleep(0.5)
-                except Exception: pass
-        except Exception: pass
-
-    # 2. เช็ค Alert ฝั่งบอทเก่า
+    """🌟 เช็ค Alert จากตารางเดียว และตัดสิทธิ์คนหมด PRO ทันที"""
     bot_alerts = get_all_active_price_alerts()
-    if bot_alerts:
-        current_prices = {}
-        for alert in bot_alerts:
-            sym = alert[2]
-            if sym not in current_prices:
-                try:
-                    tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
-                    if not err and tech_data: current_prices[sym] = tech_data['price']
-                except: pass
-                
-        for alert in bot_alerts:
-            a_id, user_id, symbol, target_price, condition = alert
-            if symbol not in current_prices: continue
+    if not bot_alerts: return
+    
+    current_prices = {}
+    for alert in bot_alerts:
+        sym = alert[2]
+        if sym not in current_prices:
+            try:
+                tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
+                if not err and tech_data: current_prices[sym] = tech_data['price']
+            except: pass
             
-            curr_price = current_prices[symbol]
-            triggered = False
+    for alert in bot_alerts:
+        a_id, user_id, symbol, target_price, condition = alert
+        
+        # 🌟 ถ้ายศตกจาก PRO ให้ลบ Alert นั้นทิ้งอัตโนมัติ!
+        if check_subscription(user_id) != 'pro':
+            deactivate_price_alert(a_id)
+            continue
             
-            if condition == 'above' and curr_price >= target_price:
-                triggered, cond_text = True, "ทะลุขึ้นเป้าหมายที่"
-            elif condition == 'below' and curr_price <= target_price:
-                triggered, cond_text = True, "ร่วงลงมาแตะที่"
-                
-            if triggered:
-                msg = (f"🎯 **TARGET REACHED!** 🎯\n\n📌 หุ้น **{symbol}** \nราคาได้ **{cond_text} {target_price:,.2f}** แล้ว!\n*(ปัจจุบัน: {curr_price:,.2f})*\n\n👉 ระบบปิดการแจ้งเตือนนี้แล้ว")
-                try:
-                    bot.send_message(user_id, msg, parse_mode="Markdown")
-                    deactivate_price_alert(a_id)
-                    time.sleep(0.5)
-                except Exception: deactivate_price_alert(a_id)
+        if symbol not in current_prices: continue
+        curr_price = current_prices[symbol]
+        triggered = False
+        
+        # 🌟 ปรับ Format ให้ตรงกัน (เว็บส่ง > บอทส่ง above)
+        cond_normalized = 'above' if condition in ['above', '>'] else 'below'
+        
+        if cond_normalized == 'above' and curr_price >= target_price:
+            triggered, cond_text = True, "ทะลุขึ้นเป้าหมายที่"
+        elif cond_normalized == 'below' and curr_price <= target_price:
+            triggered, cond_text = True, "ร่วงลงมาแตะที่"
+            
+        if triggered:
+            msg = (f"🎯 **TARGET REACHED!** 🎯\n\n📌 หุ้น **{symbol}** \nราคาได้ **{cond_text} {target_price:,.2f}** แล้ว!\n*(ปัจจุบัน: {curr_price:,.2f})*\n\n👉 ระบบปิดการแจ้งเตือนนี้แล้ว")
+            try:
+                bot.send_message(user_id, msg, parse_mode="Markdown")
+                deactivate_price_alert(a_id)
+                time.sleep(0.5)
+            except Exception: 
+                deactivate_price_alert(a_id)
 # ==========================================
 # 🎙️ ฟีเจอร์ AI Podcast สรุปตลาดตอนเช้า (08:00 น.)
 # ==========================================
