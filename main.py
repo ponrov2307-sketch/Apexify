@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 MAINTENANCE_MODE = False
 from keep_alive import keep_alive 
-from config import TELEGRAM_TOKEN, ADMIN_ID, DASHBOARD_LOGIN_TOKEN_TTL
+from config import TELEGRAM_TOKEN, ADMIN_ID, DASHBOARD_LOGIN_TOKEN_TTL, APEXIFY_PASSWORD
 from dashboard_login import issue_dashboard_login_url
 import zipfile
 import os
@@ -253,19 +253,24 @@ def send_dashboard_login_link(user_id):
     success, login_url, reason = issue_dashboard_login_url(user_id)
     if not success:
         if reason in {'disabled', 'url_missing', 'secret_missing'}:
-            bot.send_message(user_id, "Dashboard login is not ready yet. Please contact admin.")
+            bot.send_message(user_id, "ระบบลิงก์ Dashboard ยังไม่พร้อมใช้งาน กรุณาติดต่อแอดมิน")
         else:
-            bot.send_message(user_id, "Could not create login link. Please try again.")
+            bot.send_message(user_id, "ไม่สามารถสร้างลิงก์เข้า Dashboard ได้ กรุณาลองใหม่อีกครั้ง")
         return
 
     ttl_seconds = max(1, int(DASHBOARD_LOGIN_TOKEN_TTL))
     ttl_minutes = max(1, (ttl_seconds + 59) // 60)
+    apexify_password = APEXIFY_PASSWORD or "(ยังไม่ได้ตั้งค่า APEXIFY_PASSWORD/AUTH_SHARED_PASSCODE)"
 
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("Open Dashboard (Auto Login)", url=login_url))
+    markup.add(InlineKeyboardButton("เปิดแดชบอร์ด (ล็อกอินอัตโนมัติ)", url=login_url))
     msg = (
-        "Tap the button below to open Dashboard with automatic login.\n"
-        f"This link expires in about {ttl_minutes} minute(s)."
+        "กดปุ่มด้านล่างเพื่อเปิด Dashboard แบบล็อกอินอัตโนมัติ\n"
+        f"ลิงก์นี้มีอายุประมาณ {ttl_minutes} นาที\n\n"
+        "ข้อมูลสำหรับล็อกอินผ่านหน้าเว็บ (กรณีเข้าอัตโนมัติไม่สำเร็จ)\n"
+        f"- Telegram ID: {user_id}\n"
+        f"- รหัส Apexify: {apexify_password}\n\n"
+        "หากลิงก์หมดอายุ ให้กด /dashboard เพื่อสร้างลิงก์ใหม่"
     )
     bot.send_message(user_id, msg, reply_markup=markup)
 

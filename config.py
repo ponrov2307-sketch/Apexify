@@ -31,6 +31,11 @@ BOT_DASHBOARD_LOGIN_ENABLED = _to_bool("BOT_DASHBOARD_LOGIN_ENABLED", True)
 DASHBOARD_BASE_URL = (os.getenv("DASHBOARD_BASE_URL") or "").strip()
 DASHBOARD_LOGIN_SECRET = (os.getenv("DASHBOARD_LOGIN_SECRET") or "").strip()
 DASHBOARD_LOGIN_TOKEN_TTL = _to_int("DASHBOARD_LOGIN_TOKEN_TTL", 300)
+APEXIFY_PASSWORD = (
+    os.getenv("APEXIFY_PASSWORD")
+    or os.getenv("AUTH_SHARED_PASSCODE")
+    or ""
+).strip()
 
 if not TELEGRAM_TOKEN or not GEMINI_API_KEY:
     raise ValueError("❌ Error: กรุณาตั้งค่า TELEGRAM_TOKEN และ GEMINI_API_KEY ในไฟล์ .env หรือ Environment Variables")
