@@ -14,7 +14,8 @@ import xml.etree.ElementTree as ET
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 MAINTENANCE_MODE = False
 from keep_alive import keep_alive 
-from config import TELEGRAM_TOKEN, ADMIN_ID
+from config import TELEGRAM_TOKEN, ADMIN_ID, DASHBOARD_LOGIN_TOKEN_TTL
+from dashboard_login import issue_dashboard_login_url
 import zipfile
 import os
 from datetime import datetime
@@ -244,6 +245,37 @@ def handle_mock_alert(message):
         bot.reply_to(message, f"❌ เกิดข้อผิดพลาด: {e}")        
 def generate_random_code(length=6):
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
+
+# ==========================================
+# Dashboard Magic Login (Telegram -> Web)
+# ==========================================
+def send_dashboard_login_link(user_id):
+    success, login_url, reason = issue_dashboard_login_url(user_id)
+    if not success:
+        if reason in {'disabled', 'url_missing', 'secret_missing'}:
+            bot.send_message(user_id, "Dashboard login is not ready yet. Please contact admin.")
+        else:
+            bot.send_message(user_id, "Could not create login link. Please try again.")
+        return
+
+    ttl_seconds = max(1, int(DASHBOARD_LOGIN_TOKEN_TTL))
+    ttl_minutes = max(1, (ttl_seconds + 59) // 60)
+
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("Open Dashboard (Auto Login)", url=login_url))
+    msg = (
+        "Tap the button below to open Dashboard with automatic login.\n"
+        f"This link expires in about {ttl_minutes} minute(s)."
+    )
+    bot.send_message(user_id, msg, reply_markup=markup)
+
+
+@bot.message_handler(commands=['dashboard'])
+def handle_dashboard_login(message):
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    send_dashboard_login_link(user_id)
 
 # ==========================================
 # 🌟 ระบบ Start & Referral
@@ -838,6 +870,9 @@ def inline_callbacks(call):
         except Exception as e:
             bot.send_message(user_id, f"❌ ระบบชวนเพื่อนขัดข้อง (ฐานข้อมูลอาจยังไม่อัปเดต)\nแจ้งเตือน: {e}")
             
+    elif call.data == 'menu_dashboard':
+        send_dashboard_login_link(user_id)
+
     elif call.data == 'hub_market':
         try:
             load_msg = bot.send_message(user_id, "🌍 กำลังดึงข้อมูลสภาวะตลาดโลก...")
@@ -1287,7 +1322,10 @@ def handle_main(message):
                 InlineKeyboardButton("💎 สมัคร/ต่ออายุ VIP", callback_data="menu_vip"),
                 InlineKeyboardButton("🎁 เติมโค้ด", callback_data="menu_code")
             )
-            markup.add(InlineKeyboardButton("🤝 ชวนเพื่อนรับ VIP ฟรี", callback_data="menu_referral"))
+            markup.add(
+                InlineKeyboardButton("?? ???????????? VIP ???", callback_data="menu_referral"),
+                InlineKeyboardButton("?? ???? Dashboard ?????????", callback_data="menu_dashboard")
+            )
             bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
         else:
             bot.reply_to(message, "❌ ไม่พบข้อมูลบัญชี พิมพ์ /start เพื่อลงทะเบียนใหม่")
