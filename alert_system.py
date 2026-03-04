@@ -216,11 +216,15 @@ def get_fresh_global_news():
     return news_list
 
 # ==========================================
-# 🌟 ระบบส่งข่าวด่วนรายชั่วโมง (Flash News)
+# 🌟 ระบบส่งข่าวด่วนรายชั่วโมง (Flash News) - [อัปเกรดระบบดักจับ Error]
 # ==========================================
 def broadcast_hourly_urgent_news(bot_instance):
     fresh_news = get_fresh_global_news()
-    if not fresh_news: return
+    if not fresh_news: 
+        try:
+            bot_instance.send_message(ADMIN_ID, "⚠️ **Flash News System:** ไม่พบข่าวใหม่จากสำนักข่าวเลย (อาจเกิดจาก Network หรือไม่มีข่าวจริงๆ)")
+        except: pass
+        return
     
     titles = [n['title'] for n in fresh_news]
     titles_str = "\n".join([f"- {t}" for t in titles[:20]]) # ลดจำนวนลงกัน AI งง
@@ -243,10 +247,17 @@ def broadcast_hourly_urgent_news(bot_instance):
     try:
         ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
-        analysis = json.loads(result_text)
         
-        title = analysis.get('original_title', '')
-        summary = analysis.get('summary', '')
+        # 🌟 1. ดักจับกรณี AI ไม่ยอมตอบเป็น JSON
+        try:
+            analysis = json.loads(result_text)
+        except json.JSONDecodeError:
+            bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News Error:** AI ไม่ได้ตอบเป็น JSON!\n\n**ข้อความที่ AI ตอบมา:**\n{result_text[:500]}")
+            return
+        
+        # 🌟 2. รองรับ Key หลายรูปแบบ (เผื่อ AI ดื้อเปลี่ยนชื่อ Key เอง)
+        title = analysis.get('original_title') or analysis.get('title') or analysis.get('headline') or ''
+        summary = analysis.get('summary') or analysis.get('content') or analysis.get('description') or ''
         
         if title and summary:
             msg = f"🚨 **ข่าวด่วนรอบชั่วโมง** 🚨\n\n📌 **{title}**\n\n📝 **สรุป:** {summary}"
@@ -258,21 +269,29 @@ def broadcast_hourly_urgent_news(bot_instance):
             conn = get_connection()
             cur = conn.cursor()
             cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
+            count = 0
             for pro in cur.fetchall():
                 if check_subscription(pro[0]) == 'pro':
                     try:
                         bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
+                        count += 1
                         time.sleep(0.5) 
                     except Exception: pass
             conn.close()
+            # แจ้งแอดมินว่าส่งสำเร็จกี่คน
+            bot_instance.send_message(ADMIN_ID, f"✅ **Flash News:** ส่งสำเร็จ {count} คน")
+        else:
+            # 🌟 3. ดักจับกรณี AI ตอบ JSON แต่ข้อมูลแหว่ง/ไม่ครบ
+            bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News Error:** ข้อมูลแหว่ง (Title หรือ Summary หายไป)\n\n**JSON ที่ได้:**\n{result_text}")
+            
     except Exception as e:
-        # ฟ้องแอดมินทันทีถ้าระบบข่าวมีปัญหา
+        # 🌟 4. ดักจับกรณี API พัง หรือโดนบล็อคเนื้อหาความรุนแรง
         try:
             error_msg = str(e)
             if "Safety" in error_msg or "blocked" in error_msg.lower():
-                bot_instance.send_message(ADMIN_ID, "⚠️ **ระบบข่าว Flash News สะดุด:** AI ปฏิเสธการสรุปข่าวเนื่องจากติดฟิลเตอร์คำรุนแรง")
+                bot_instance.send_message(ADMIN_ID, "⚠️ **Flash News สะดุด:** AI ปฏิเสธการสรุปข่าวเนื่องจากติดฟิลเตอร์คำรุนแรง (Safety Policy)")
             else:
-                bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News Error:** {error_msg}")
+                bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News System Error:** {error_msg}")
         except: pass
 
 # ==========================================
