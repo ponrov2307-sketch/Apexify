@@ -1323,8 +1323,7 @@ def handle_main(message):
                 InlineKeyboardButton("🎁 เติมโค้ด", callback_data="menu_code")
             )
             markup.add(
-                InlineKeyboardButton("?? ???????????? VIP ???", callback_data="menu_referral"),
-                InlineKeyboardButton("?? ???? Dashboard ?????????", callback_data="menu_dashboard")
+                InlineKeyboardButton("🎁 ชวนเพื่อนรับวัน VIP ฟรี", callback_data="menu_referral")
             )
             bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
         else:
@@ -1350,6 +1349,9 @@ def handle_main(message):
         )
         markup.add(
             InlineKeyboardButton("🎮 เล่น Daily Quiz", callback_data="admin_quiz")
+        )
+        markup.add(
+            InlineKeyboardButton("🌐 เปิด Dashboard อัตโนมัติ", callback_data="menu_dashboard")
         )
         markup.add(
             InlineKeyboardButton("📖 คู่มือจัดการสมาชิก & โค้ด", callback_data="admin_guide_user")
