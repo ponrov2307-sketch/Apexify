@@ -312,6 +312,7 @@ def send_welcome(message):
     
     if user_id == ADMIN_ID:
         markup.add(KeyboardButton("👑 แผงควบคุมแอดมิน"))
+        markup.add(KeyboardButton("🌐 เปิด Dashboard อัตโนมัติ"))
     
     welcome_text = (
         f"⚡️ ยินดีต้อนรับคุณ **{full_name}** สู่ **Apexify** ระบบวิเคราะห์หุ้นอัจฉริยะ\n\n"
@@ -1351,9 +1352,6 @@ def handle_main(message):
             InlineKeyboardButton("🎮 เล่น Daily Quiz", callback_data="admin_quiz")
         )
         markup.add(
-            InlineKeyboardButton("🌐 เปิด Dashboard อัตโนมัติ", callback_data="menu_dashboard")
-        )
-        markup.add(
             InlineKeyboardButton("📖 คู่มือจัดการสมาชิก & โค้ด", callback_data="admin_guide_user")
         )
         markup.add(
@@ -1362,6 +1360,10 @@ def handle_main(message):
 
         admin_text = "👑 **Apexify Admin Master Control**\nเลือกระบบที่คุณต้องการจัดการจากปุ่มด้านล่างได้เลยครับ:"
         bot.reply_to(message, admin_text, parse_mode="Markdown", reply_markup=markup)
+        return
+
+    elif text == "🌐 เปิด Dashboard อัตโนมัติ":
+        send_dashboard_login_link(user_id)
         return
 
     symbol = text.upper()
