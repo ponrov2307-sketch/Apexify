@@ -277,8 +277,7 @@ def broadcast_hourly_urgent_news(bot_instance):
                         count += 1
                         time.sleep(0.5) 
                     except Exception: pass
-                         conn.close()
-            #bot_instance.send_message(ADMIN_ID, msg + f"\n\n*(รายงานแอดมิน: ส่งสำเร็จ {count} คน)*", parse_mode='Markdown')
+                conn.close()
 
         else:
             # 🌟 3. ดักจับกรณี AI ตอบ JSON แต่ข้อมูลแหว่ง/ไม่ครบ
