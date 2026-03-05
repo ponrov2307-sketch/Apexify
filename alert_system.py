@@ -638,9 +638,9 @@ def send_daily_portfolio_summary(bot_instance):
         msg += f"{total_icon} **กำไร/ขาดทุนรวม:** {total_profit:,.2f} ({total_profit_pct:,.2f}%)\n"
         
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("🌐 ดูรายละเอียดพอร์ตบนเว็บ", url="https://ใส่ลิงก์เว็บของคุณ.com"))
-        
-        try:
+        # เมื่อลูกค้ากดปุ่มนี้ มันจะเด้งไปเรียกฟังก์ชันสร้างลิงก์ล็อกอินอัตโนมัติของบอท (เหมือนตอนพิมพ์คำสั่ง)
+        markup.add(InlineKeyboardButton("🌐 รับลิงก์ล็อกอินเข้าเว็บ", callback_data="open_dashboard"))
+
             bot_instance.send_message(user_id, msg, parse_mode='Markdown', reply_markup=markup)
             count += 1
             time.sleep(0.5)
