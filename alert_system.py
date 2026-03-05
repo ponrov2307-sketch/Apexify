@@ -1,4 +1,4 @@
-import time
+﻿import time
 from datetime import datetime, timedelta
 import telebot
 import requests 
@@ -670,12 +670,7 @@ def send_daily_portfolio_summary(bot_instance):
         msg += f"{total_icon} **กำไร/ขาดทุนรวม:** {total_profit:,.2f} ({total_profit_pct:,.2f}%)\n"
         
         markup = InlineKeyboardMarkup()
-<<<<<<< HEAD
-        # เมื่อลูกค้ากดปุ่มนี้...
-        markup.add(InlineKeyboardButton("🌐 รับลิงก์ล็อกอินเข้าเว็บ", callback_data="open_dashboard"))
-=======
-        markup.add(InlineKeyboardButton("🌐 ดูรายละเอียดพอร์ตบนเว็บ", url="https://apexify.up.railway.app/"))
->>>>>>> ace3e89 (Apexify Auto Sync: 2026-03-05 19:46:08)
+        markup.add(InlineKeyboardButton("Open Dashboard Login", callback_data="menu_dashboard"))
         
         try:  # 👈 เติมคำว่า try: ตรงบรรทัดนี้ครับ! (ย่อหน้าให้ตรงกับ markup)
             bot_instance.send_message(user_id, msg, parse_mode='Markdown', reply_markup=markup)
