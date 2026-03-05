@@ -278,8 +278,8 @@ def broadcast_hourly_urgent_news(bot_instance):
                         time.sleep(0.5) 
                     except Exception: pass
             conn.close()
-            # แจ้งแอดมินว่าส่งสำเร็จกี่คน
-            bot_instance.send_message(ADMIN_ID, f"✅ **Flash News:** ส่งสำเร็จ {count} คน")
+             bot_instance.send_message(ADMIN_ID, msg + f"\n\n*(รายงานแอดมิน: ส่งสำเร็จ {count} คน)*", parse_mode='Markdown')
+
         else:
             # 🌟 3. ดักจับกรณี AI ตอบ JSON แต่ข้อมูลแหว่ง/ไม่ครบ
             bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News Error:** ข้อมูลแหว่ง (Title หรือ Summary หายไป)\n\n**JSON ที่ได้:**\n{result_text}")
