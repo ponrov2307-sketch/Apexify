@@ -26,7 +26,10 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       check_slip_used, mark_slip_used, ban_user, unban_user, is_user_banned,
                       init_new_features_db, process_referral, get_referral_stats, 
                       add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,
-                      get_connection, add_portfolio_stock, get_user_portfolio)
+                      get_connection, add_portfolio_stock, get_user_portfolio,
+                      get_user_settings, set_user_notifications, set_user_timezone,
+                      set_user_language, set_user_digest_frequency, set_user_news_window,
+                      ALLOWED_TIMEZONES, ALLOWED_LANGUAGES, ALLOWED_DIGEST_FREQUENCIES)
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
 import psutil
@@ -42,6 +45,99 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 user_message_tracking = {}
 user_command_history = {}
 spam_alerted = set()
+
+SETTINGS_NEWS_WINDOW_PRESETS = [
+    (0, 23),   # all day
+    (7, 11),   # morning
+    (12, 17),  # afternoon
+    (18, 23),  # evening
+    (7, 22),   # business day
+]
+SETTINGS_LANGUAGE_LABELS = {"th": "Thai", "en": "English"}
+
+
+def _format_news_window(start_hour, end_hour):
+    start = int(start_hour) % 24
+    end = int(end_hour) % 24
+    if start <= end:
+        return f"{start:02d}:00-{end:02d}:59"
+    return f"{start:02d}:00-{end:02d}:59 (overnight)"
+
+
+def _build_settings_keyboard(settings):
+    notifications_label = "ON" if settings["notifications_enabled"] else "OFF"
+    timezone_label = settings.get("timezone", "Asia/Bangkok")
+    language_label = SETTINGS_LANGUAGE_LABELS.get(
+        settings.get("language", "th"),
+        settings.get("language", "th"),
+    )
+    digest_label = f"Every {settings.get('digest_frequency_hours', 4)}h"
+    news_window_label = _format_news_window(
+        settings.get("news_start_hour", 7),
+        settings.get("news_end_hour", 22),
+    )
+
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton(f"Alerts: {notifications_label}", callback_data="settings_toggle"),
+        InlineKeyboardButton(f"Timezone: {timezone_label}", callback_data="settings_tz_next"),
+    )
+    markup.add(
+        InlineKeyboardButton(f"Language: {language_label}", callback_data="settings_lang_next"),
+        InlineKeyboardButton(f"Digest: {digest_label}", callback_data="settings_digest_next"),
+    )
+    markup.add(
+        InlineKeyboardButton(f"News window: {news_window_label}", callback_data="settings_window_cycle"),
+    )
+    markup.add(
+        InlineKeyboardButton("Refresh", callback_data="settings_refresh"),
+    )
+    return markup
+
+
+def _build_settings_text(user_id, settings):
+    notifications_label = "ON" if settings["notifications_enabled"] else "OFF"
+    timezone_label = settings.get("timezone", "Asia/Bangkok")
+    language_label = SETTINGS_LANGUAGE_LABELS.get(
+        settings.get("language", "th"),
+        settings.get("language", "th"),
+    )
+    digest_label = f"{settings.get('digest_frequency_hours', 4)} hours"
+    news_window_label = _format_news_window(
+        settings.get("news_start_hour", 7),
+        settings.get("news_end_hour", 22),
+    )
+    return (
+        "⚙️ *User Settings*\n\n"
+        f"`User ID:` `{user_id}`\n"
+        f"`Alerts:` `{notifications_label}`\n"
+        f"`News Timezone:` `{timezone_label}`\n"
+        f"`Language:` `{language_label}`\n"
+        f"`Digest Frequency:` `{digest_label}`\n"
+        f"`News Receive Window:` `{news_window_label}`\n\n"
+        "Tap buttons below to update."
+    )
+
+
+def send_settings_panel(chat_id, user_id=None, edit_message_id=None):
+    target_user = str(user_id or chat_id)
+    settings = get_user_settings(target_user)
+    text = _build_settings_text(target_user, settings)
+    markup = _build_settings_keyboard(settings)
+    if edit_message_id:
+        return bot.edit_message_text(
+            text,
+            chat_id,
+            edit_message_id,
+            parse_mode="Markdown",
+            reply_markup=markup,
+        )
+    return bot.send_message(
+        chat_id,
+        text,
+        parse_mode="Markdown",
+        reply_markup=markup,
+    )
 
 def is_allowed(user_id):
     global MAINTENANCE_MODE
@@ -282,6 +378,14 @@ def handle_dashboard_login(message):
         return
     send_dashboard_login_link(user_id)
 
+
+@bot.message_handler(commands=['settings'])
+def handle_settings(message):
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    send_settings_panel(message.chat.id, user_id=user_id)
+
 # ==========================================
 # 🌟 ระบบ Start & Referral
 # ==========================================
@@ -314,6 +418,7 @@ def send_welcome(message):
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(KeyboardButton("📊 วิเคราะห์หุ้น"), KeyboardButton("📱 เปิดเมนูหลัก"))
     markup.add(KeyboardButton("💎 บัญชี / VIP"))
+    markup.add(KeyboardButton("⚙️ ตั้งค่าแจ้งเตือน"))
     
     if user_id == ADMIN_ID:
         markup.add(KeyboardButton("👑 แผงควบคุมแอดมิน"))
@@ -818,12 +923,51 @@ def handle_payment_slip_check(message):
 # ==========================================
 # 🌟 ระบบปุ่มกด Inline
 # ==========================================
-@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_'))
 def inline_callbacks(call):
     user_id = str(call.message.chat.id)
     if not is_allowed(user_id): return
     role = check_subscription(user_id)
     bot.answer_callback_query(call.id)
+
+    if call.data == 'settings_open' or call.data.startswith('settings_'):
+        action = call.data.replace('settings_', '', 1)
+        settings = get_user_settings(user_id)
+
+        if action == 'toggle':
+            set_user_notifications(user_id, not settings.get("notifications_enabled", True))
+        elif action == 'tz_next':
+            tz_values = list(ALLOWED_TIMEZONES)
+            current_tz = settings.get("timezone", tz_values[0])
+            next_tz = tz_values[(tz_values.index(current_tz) + 1) % len(tz_values)] if current_tz in tz_values else tz_values[0]
+            set_user_timezone(user_id, next_tz)
+        elif action == 'lang_next':
+            lang_values = list(ALLOWED_LANGUAGES)
+            current_lang = settings.get("language", lang_values[0])
+            next_lang = lang_values[(lang_values.index(current_lang) + 1) % len(lang_values)] if current_lang in lang_values else lang_values[0]
+            set_user_language(user_id, next_lang)
+        elif action == 'digest_next':
+            digest_values = list(ALLOWED_DIGEST_FREQUENCIES)
+            current_digest = int(settings.get("digest_frequency_hours", digest_values[0]))
+            next_digest = digest_values[(digest_values.index(current_digest) + 1) % len(digest_values)] if current_digest in digest_values else digest_values[0]
+            set_user_digest_frequency(user_id, next_digest)
+        elif action == 'window_cycle':
+            current_window = (
+                int(settings.get("news_start_hour", SETTINGS_NEWS_WINDOW_PRESETS[0][0])),
+                int(settings.get("news_end_hour", SETTINGS_NEWS_WINDOW_PRESETS[0][1])),
+            )
+            if current_window in SETTINGS_NEWS_WINDOW_PRESETS:
+                next_index = (SETTINGS_NEWS_WINDOW_PRESETS.index(current_window) + 1) % len(SETTINGS_NEWS_WINDOW_PRESETS)
+            else:
+                next_index = 0
+            next_start, next_end = SETTINGS_NEWS_WINDOW_PRESETS[next_index]
+            set_user_news_window(user_id, next_start, next_end)
+
+        try:
+            send_settings_panel(call.message.chat.id, user_id=user_id, edit_message_id=call.message.message_id)
+        except Exception:
+            send_settings_panel(call.message.chat.id, user_id=user_id)
+        return
     
     if call.data == 'menu_vip':
         try:
@@ -850,6 +994,8 @@ def inline_callbacks(call):
                 "🤖 **[บอท]** 📋 สอดส่องหุ้นเข้า Watchlist สูงสุด 10 ตัว\n"
                 "🤖 **[บอท]** 🚀 สั่งสแกนหุ้นใน Watchlist ทั้งหมดรวดเดียวจบ\n"
                 "🤖 **[บอท]** 🎯 รับบทวิเคราะห์ AI ฟันธงจุดเข้าซื้อ/ถือ/ขาย\n"
+                "🤖 **[บอท]** 🌅 **Morning Briefing:** สรุปภาพรวมตลาดส่งตรงให้ทุกเช้า\n"
+                "🤖 **[บอท]** 📊 **Daily Portfolio Summary:** สรุปพอร์ตลงทุนส่งตรงอัตโนมัติรายวัน\n"
                 "🌐 **[เว็บ]** 📈 เพิ่มหุ้นเข้าพอร์ตลงทุนได้สูงสุด 10 ตัว\n"
                 "🌐 **[เว็บ]** 🗺️ ปลดล็อก AI Trade Plan: เป้าทำกำไร (TP) / ตัดขาดทุน (SL)\n"
                 "🌐 **[เว็บ]** 🌡️ ปลดล็อก Health Score: ตรวจสุขภาพพอร์ต 4 มิติ\n"
@@ -863,9 +1009,8 @@ def inline_callbacks(call):
                 "🤖 **[บอท]** 🔔 **Smart Alerts:** ตั้งเตือนราคาส่วนตัว (ซิงค์ตรงจากเว็บ!)\n"
                 "🤖 **[บอท]** 📡 **Technical Radar:** AI เฝ้ากราฟ 24 ชม. เตือน Golden Cross/RSI\n"
                 "🤖 **[บอท]** 🚨 **Flash News:** แจ้งเตือนข่าวด่วนที่มีผลกระทบรุนแรงรายชั่วโมง\n"
-                "🤖 **[บอท]** 📰 **News Digest:** สรุปเจาะลึก 3 ข่าวสำคัญรอบโลกทุก 4 ชั่วโมง\n"
+                "🤖 **[บอท]** 📰 **News Digest:** สรุปเจาะลึกข่าวสำคัญตามความถี่ที่ตั้งไว้ (1/4/8/24 ชม.)\n"
                 "🤖 **[บอท]** 📅 **Dividend Hunter:** แจ้งเตือนหุ้นปันผล (XD) ล่วงหน้า 3 วัน\n"
-                "🤖 **[บอท]** 🌅 **Morning Briefing:** สรุปภาพรวมตลาดส่งตรงให้ทุกเช้า\n"
                 "🤖 **[บอท]** 💎 **Apexify Screener:** เรดาร์สแกนหา \"หุ้นเด่นน่าเก็บประจำวัน\"\n"
                 "🤖 **[บอท]** 🧠 **Hedge Fund Playbook:** อัปเกรดบทวิเคราะห์กราฟขั้นสูง\n"
                 "🌐 **[เว็บ]** ⚖️ **AI Rebalance:** ให้ AI เสนอแผนปรับสัดส่วนพอร์ตใหม่ให้สมดุล\n"
@@ -1316,6 +1461,9 @@ def handle_main(message):
         markup.add(
             InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert")
         )
+        markup.add(
+            InlineKeyboardButton("⚙️ ตั้งค่าการแจ้งเตือน", callback_data="settings_open")
+        )
         
         msg = "📱 **Apexify Hub (เมนูหลัก)**\nเลือกฟีเจอร์ที่คุณต้องการใช้งานได้เลยครับ:"
         bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
@@ -1356,6 +1504,10 @@ def handle_main(message):
             bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
         else:
             bot.reply_to(message, "❌ ไม่พบข้อมูลบัญชี พิมพ์ /start เพื่อลงทะเบียนใหม่")
+        return
+
+    elif text == "⚙️ ตั้งค่าแจ้งเตือน":
+        send_settings_panel(message.chat.id, user_id=user_id)
         return
         
     elif text == "👑 แผงควบคุมแอดมิน":

@@ -1,9 +1,120 @@
 import os
 import psycopg2
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 # ดึง URL จาก Environment Variable
 DB_URL = os.getenv("DATABASE_URL")
+DEFAULT_USER_TIMEZONE = "Asia/Bangkok"
+DEFAULT_USER_LANGUAGE = "th"
+DEFAULT_DIGEST_FREQUENCY_HOURS = 4
+DEFAULT_NEWS_START_HOUR = 7
+DEFAULT_NEWS_END_HOUR = 22
+ALLOWED_TIMEZONES = (
+    "Asia/Bangkok",
+    "UTC",
+    "America/New_York",
+    "Europe/London",
+    "Asia/Tokyo",
+)
+ALLOWED_LANGUAGES = ("th", "en")
+ALLOWED_DIGEST_FREQUENCIES = (1, 4, 8, 24)
+NEWS_TIME_FILTER_CATEGORIES = {"flash_news", "digest_news", "morning_briefing", "xd_alert"}
+
+
+def _normalize_timezone(timezone_name: str) -> str:
+    tz = str(timezone_name or "").strip()
+    if tz in ALLOWED_TIMEZONES:
+        return tz
+    return DEFAULT_USER_TIMEZONE
+
+
+def _normalize_language(language: str) -> str:
+    lang = str(language or "").strip().lower()
+    if lang in ALLOWED_LANGUAGES:
+        return lang
+    return DEFAULT_USER_LANGUAGE
+
+
+def _normalize_digest_frequency(hours) -> int:
+    try:
+        value = int(hours)
+    except (TypeError, ValueError):
+        value = DEFAULT_DIGEST_FREQUENCY_HOURS
+    if value in ALLOWED_DIGEST_FREQUENCIES:
+        return value
+    return DEFAULT_DIGEST_FREQUENCY_HOURS
+
+
+def _normalize_news_window(start_hour, end_hour) -> tuple[int, int]:
+    try:
+        start = int(start_hour)
+    except (TypeError, ValueError):
+        start = DEFAULT_NEWS_START_HOUR
+    try:
+        end = int(end_hour)
+    except (TypeError, ValueError):
+        end = DEFAULT_NEWS_END_HOUR
+    start = max(0, min(23, start))
+    end = max(0, min(23, end))
+    return start, end
+
+
+def _coerce_utc_datetime(value):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return None
+        normalized = raw.replace('Z', '+00:00')
+        try:
+            parsed = datetime.fromisoformat(normalized)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def _is_hour_in_window(hour: int, start_hour: int, end_hour: int) -> bool:
+    hour = int(hour) % 24
+    start = int(start_hour) % 24
+    end = int(end_hour) % 24
+    if start <= end:
+        return start <= hour <= end
+    return hour >= start or hour <= end
+
+
+def _ensure_user_settings_row(cursor, user_id: str):
+    cursor.execute(
+        """
+        INSERT INTO user_settings (
+            user_id,
+            notifications_enabled,
+            timezone,
+            language,
+            digest_frequency_hours,
+            news_start_hour,
+            news_end_hour
+        )
+        VALUES (%s, TRUE, %s, %s, %s, %s, %s)
+        ON CONFLICT (user_id) DO NOTHING
+        """,
+        (
+            str(user_id),
+            DEFAULT_USER_TIMEZONE,
+            DEFAULT_USER_LANGUAGE,
+            DEFAULT_DIGEST_FREQUENCY_HOURS,
+            DEFAULT_NEWS_START_HOUR,
+            DEFAULT_NEWS_END_HOUR,
+        ),
+    )
 
 def get_connection():
     """สร้างการเชื่อมต่อกับ PostgreSQL"""
@@ -330,6 +441,17 @@ def init_new_features_db():
                   referrer_id TEXT,
                   referred_id TEXT UNIQUE,
                   timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    c.execute(
+        f"""CREATE TABLE IF NOT EXISTS user_settings
+                 (user_id TEXT PRIMARY KEY,
+                  notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                  timezone TEXT NOT NULL DEFAULT '{DEFAULT_USER_TIMEZONE}',
+                  language TEXT NOT NULL DEFAULT '{DEFAULT_USER_LANGUAGE}',
+                  digest_frequency_hours INTEGER NOT NULL DEFAULT {DEFAULT_DIGEST_FREQUENCY_HOURS},
+                  news_start_hour INTEGER NOT NULL DEFAULT {DEFAULT_NEWS_START_HOUR},
+                  news_end_hour INTEGER NOT NULL DEFAULT {DEFAULT_NEWS_END_HOUR},
+                  last_digest_sent_at TIMESTAMPTZ)"""
+    )
                   
     # 🌟 1. สร้างตารางใหม่ (สำหรับคนเพิ่งรันบอทครั้งแรก)
     c.execute('''CREATE TABLE IF NOT EXISTS portfolios 
@@ -357,8 +479,251 @@ def init_new_features_db():
     except Exception:
         conn.rollback()
 
+    try:
+        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE")
+        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT %s", (DEFAULT_USER_TIMEZONE,))
+        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT %s", (DEFAULT_USER_LANGUAGE,))
+        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS digest_frequency_hours INTEGER NOT NULL DEFAULT %s", (DEFAULT_DIGEST_FREQUENCY_HOURS,))
+        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS news_start_hour INTEGER NOT NULL DEFAULT %s", (DEFAULT_NEWS_START_HOUR,))
+        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS news_end_hour INTEGER NOT NULL DEFAULT %s", (DEFAULT_NEWS_END_HOUR,))
+        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS last_digest_sent_at TIMESTAMPTZ")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
     c.close()
     conn.close()
+
+
+def get_user_settings(user_id):
+    uid = str(user_id)
+    default_start, default_end = _normalize_news_window(DEFAULT_NEWS_START_HOUR, DEFAULT_NEWS_END_HOUR)
+    default_settings = {
+        "user_id": uid,
+        "notifications_enabled": True,
+        "timezone": DEFAULT_USER_TIMEZONE,
+        "language": DEFAULT_USER_LANGUAGE,
+        "digest_frequency_hours": DEFAULT_DIGEST_FREQUENCY_HOURS,
+        "news_start_hour": default_start,
+        "news_end_hour": default_end,
+        "last_digest_sent_at": None,
+    }
+
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        _ensure_user_settings_row(c, uid)
+        conn.commit()
+
+        c.execute(
+            """
+            SELECT notifications_enabled, timezone, language, digest_frequency_hours,
+                   news_start_hour, news_end_hour, last_digest_sent_at
+            FROM user_settings
+            WHERE user_id = %s
+            """,
+            (uid,),
+        )
+        row = c.fetchone()
+        if not row:
+            return default_settings
+
+        notifications_enabled = bool(row[0]) if row[0] is not None else True
+        tz_name = _normalize_timezone(row[1])
+        language = _normalize_language(row[2])
+        digest_frequency_hours = _normalize_digest_frequency(row[3])
+        news_start_hour, news_end_hour = _normalize_news_window(row[4], row[5])
+        last_digest_sent_at = _coerce_utc_datetime(row[6])
+
+        c.execute(
+            """
+            UPDATE user_settings
+            SET notifications_enabled = %s,
+                timezone = %s,
+                language = %s,
+                digest_frequency_hours = %s,
+                news_start_hour = %s,
+                news_end_hour = %s
+            WHERE user_id = %s
+            """,
+            (
+                notifications_enabled,
+                tz_name,
+                language,
+                digest_frequency_hours,
+                news_start_hour,
+                news_end_hour,
+                uid,
+            ),
+        )
+        conn.commit()
+
+        return {
+            "user_id": uid,
+            "notifications_enabled": notifications_enabled,
+            "timezone": tz_name,
+            "language": language,
+            "digest_frequency_hours": digest_frequency_hours,
+            "news_start_hour": news_start_hour,
+            "news_end_hour": news_end_hour,
+            "last_digest_sent_at": last_digest_sent_at,
+        }
+    except Exception:
+        conn.rollback()
+        return default_settings
+    finally:
+        conn.close()
+
+
+def set_user_notifications(user_id, enabled):
+    uid = str(user_id)
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        _ensure_user_settings_row(c, uid)
+        c.execute(
+            "UPDATE user_settings SET notifications_enabled = %s WHERE user_id = %s",
+            (bool(enabled), uid),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+    return get_user_settings(uid)
+
+
+def set_user_timezone(user_id, timezone_name):
+    uid = str(user_id)
+    normalized_tz = _normalize_timezone(timezone_name)
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        _ensure_user_settings_row(c, uid)
+        c.execute(
+            "UPDATE user_settings SET timezone = %s WHERE user_id = %s",
+            (normalized_tz, uid),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+    return get_user_settings(uid)
+
+
+def set_user_language(user_id, language):
+    uid = str(user_id)
+    normalized_language = _normalize_language(language)
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        _ensure_user_settings_row(c, uid)
+        c.execute(
+            "UPDATE user_settings SET language = %s WHERE user_id = %s",
+            (normalized_language, uid),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+    return get_user_settings(uid)
+
+
+def set_user_digest_frequency(user_id, hours):
+    uid = str(user_id)
+    normalized_frequency = _normalize_digest_frequency(hours)
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        _ensure_user_settings_row(c, uid)
+        c.execute(
+            "UPDATE user_settings SET digest_frequency_hours = %s WHERE user_id = %s",
+            (normalized_frequency, uid),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+    return get_user_settings(uid)
+
+
+def set_user_news_window(user_id, start_hour, end_hour):
+    uid = str(user_id)
+    normalized_start, normalized_end = _normalize_news_window(start_hour, end_hour)
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        _ensure_user_settings_row(c, uid)
+        c.execute(
+            """
+            UPDATE user_settings
+            SET news_start_hour = %s, news_end_hour = %s
+            WHERE user_id = %s
+            """,
+            (normalized_start, normalized_end, uid),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+    return get_user_settings(uid)
+
+
+def mark_digest_sent(user_id, when_utc=None):
+    uid = str(user_id)
+    sent_time = when_utc or datetime.now(timezone.utc)
+    sent_time = _coerce_utc_datetime(sent_time) or datetime.now(timezone.utc)
+
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        _ensure_user_settings_row(c, uid)
+        c.execute(
+            "UPDATE user_settings SET last_digest_sent_at = %s WHERE user_id = %s",
+            (sent_time, uid),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+def should_send_user_notification(user_id, category="general", now_utc=None):
+    settings = get_user_settings(user_id)
+    if not settings["notifications_enabled"]:
+        return False
+
+    category_name = str(category or "general").strip().lower()
+    now = now_utc or datetime.now(timezone.utc)
+    now = _coerce_utc_datetime(now) or datetime.now(timezone.utc)
+
+    if category_name in NEWS_TIME_FILTER_CATEGORIES:
+        tz_name = settings.get("timezone", DEFAULT_USER_TIMEZONE)
+        try:
+            local_now = now.astimezone(ZoneInfo(tz_name))
+        except Exception:
+            local_now = now.astimezone(ZoneInfo(DEFAULT_USER_TIMEZONE))
+
+        if not _is_hour_in_window(
+            local_now.hour,
+            settings.get("news_start_hour", DEFAULT_NEWS_START_HOUR),
+            settings.get("news_end_hour", DEFAULT_NEWS_END_HOUR),
+        ):
+            return False
+
+    if category_name == "digest_news":
+        last_sent = _coerce_utc_datetime(settings.get("last_digest_sent_at"))
+        digest_interval_hours = int(settings.get("digest_frequency_hours", DEFAULT_DIGEST_FREQUENCY_HOURS))
+        if last_sent and (now - last_sent).total_seconds() < digest_interval_hours * 3600:
+            return False
+
+    return True
+
 
 def process_referral(referrer_id, new_user_id):
     """จัดการเมื่อมีคนกดลิงก์ชวนเพื่อนเข้ามาใช้งานบอทครั้งแรก"""
@@ -493,7 +858,7 @@ def get_user_portfolio(user_id):
 def get_user_watch(user_id: str):
     """ให้เว็บดึง Watchlist ได้แบบเดียวกับบอท"""
     try:
-        with get_db_connection() as conn:
+        with get_connection() as conn:
             c = conn.cursor()
             c.execute("SELECT symbol FROM watchlists WHERE user_id=%s", (str(user_id),))
             rows = c.fetchall()
@@ -505,7 +870,7 @@ def get_user_watch(user_id: str):
 def add_watch(user_id: str, symbol: str):
     """ให้เว็บเพิ่ม Watchlist ได้แบบเดียวกับบอท"""
     try:
-        with get_db_connection() as conn:
+        with get_connection() as conn:
             c = conn.cursor()
             c.execute("INSERT INTO watchlists (user_id, symbol) VALUES (%s, %s) ON CONFLICT DO NOTHING", (str(user_id), symbol.upper()))
             conn.commit()

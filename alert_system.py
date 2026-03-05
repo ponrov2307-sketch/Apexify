@@ -8,7 +8,8 @@ from technical_tools import calculate_technical_indicators
 import psycopg2
 from database import (get_all_active_symbols, get_users_watching, init_db, check_subscription, 
                       get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert,
-                      auto_downgrade_expired_users) # 🌟 เพิ่มชื่อฟังก์ชันนี้ต่อท้ายเข้าไป
+                      auto_downgrade_expired_users, init_new_features_db,
+                      should_send_user_notification, mark_digest_sent) # 🌟 เพิ่มชื่อฟังก์ชันนี้ต่อท้ายเข้าไป
 import json
 import xml.etree.ElementTree as ET 
 import yfinance as yf
@@ -27,7 +28,13 @@ def send_alert_to_users(symbol, message, alert_type="tech"):
     users = get_users_watching(symbol)
     for user_id in users:
         role = check_subscription(user_id)
-        if role != 'pro': continue
+        if role != 'pro':
+            continue
+
+        category = "flash_news" if alert_type == "news" else "general"
+        if not should_send_user_notification(user_id, category=category):
+            continue
+
         try:
             full_msg = f"🚨 **APEXIFY ALERT: {symbol}** 🚨\n\n{message}"
             bot.send_message(user_id, full_msg, parse_mode="Markdown", disable_web_page_preview=True)
@@ -271,7 +278,7 @@ def broadcast_hourly_urgent_news(bot_instance):
             cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
             count = 0
             for pro in cur.fetchall():
-                if check_subscription(pro[0]) == 'pro':
+                if check_subscription(pro[0]) == 'pro' and should_send_user_notification(pro[0], category="flash_news"):
                     try:
                         bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
                         count += 1
@@ -330,7 +337,16 @@ def check_and_broadcast_pro_news(bot_instance):
         conn = get_connection()
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
-        pro_users = cur.fetchall()
+        pro_users = [row[0] for row in cur.fetchall()]
+        cur.close()
+        eligible_users = []
+        for uid in pro_users:
+            if check_subscription(uid) == 'pro' and should_send_user_notification(uid, category="digest_news"):
+                eligible_users.append(uid)
+        if not eligible_users:
+            conn.close()
+            return
+        sent_to_users = set()
         
         for item in analysis_list:
             title = item.get('original_title', '')
@@ -340,12 +356,15 @@ def check_and_broadcast_pro_news(bot_instance):
                 msg = f"📰 **APEX NEWS:**\n*{title}*\n\n📝 **สรุป:**\n{summary}"
                 sent_pro_news.add(title)
                 
-                for pro in pro_users:
-                    if check_subscription(pro[0]) == 'pro':
-                        try:
-                            bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
-                            time.sleep(0.5) 
-                        except Exception: pass
+                for uid in eligible_users:
+                    try:
+                        bot_instance.send_message(uid, msg, parse_mode='Markdown')
+                        sent_to_users.add(uid)
+                        time.sleep(0.5)
+                    except Exception:
+                        pass
+        for uid in sent_to_users:
+            mark_digest_sent(uid)
         conn.close()
     except Exception as e:
         try:
@@ -389,6 +408,9 @@ def check_custom_price_alerts():
         # 🌟 ถ้ายศตกจาก PRO ให้ลบ Alert นั้นทิ้งอัตโนมัติ!
         if check_subscription(user_id) != 'pro':
             deactivate_price_alert(a_id)
+            continue
+
+        if not should_send_user_notification(user_id, category="general"):
             continue
             
         if symbol not in current_prices: continue
@@ -455,7 +477,7 @@ async def create_and_send_podcast(bot_instance):
     count = 0
     for row in pro_users:
         user_id = row[0]
-        if check_subscription(user_id) == 'pro':
+        if check_subscription(user_id) == 'pro' and should_send_user_notification(user_id, category="morning_briefing"):
             try:
                 with open(filename, 'rb') as audio:
                     bot_instance.send_voice(
@@ -517,12 +539,12 @@ def send_morning_briefing(bot_instance):
             
             conn = get_connection()
             cur = conn.cursor()
-            cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
+            cur.execute("SELECT user_id FROM users WHERE role IN ('vip', 'pro')")
             pro_users = cur.fetchall()
             
             count = 0
             for pro in pro_users:
-                if check_subscription(pro[0]) == 'pro':
+                if check_subscription(pro[0]) in ('vip', 'pro') and should_send_user_notification(pro[0], category="morning_briefing"):
                     try:
                         bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
                         count += 1
@@ -573,7 +595,7 @@ def check_xd_alerts():
         cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
         pro_users = cur.fetchall()
         for pro in pro_users:
-            if check_subscription(pro[0]) == 'pro':
+            if check_subscription(pro[0]) == 'pro' and should_send_user_notification(pro[0], category="xd_alert"):
                 try:
                     bot.send_message(pro[0], msg, parse_mode='Markdown')
                     time.sleep(0.5)
@@ -591,7 +613,12 @@ def send_daily_portfolio_summary(bot_instance):
     
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT DISTINCT user_id FROM portfolios")
+    cur.execute("""
+        SELECT DISTINCT p.user_id
+        FROM portfolios p
+        JOIN users u ON u.user_id = p.user_id
+        WHERE u.role IN ('vip', 'pro')
+    """)
     users_with_port = cur.fetchall()
     cur.close()
     conn.close()
@@ -599,6 +626,11 @@ def send_daily_portfolio_summary(bot_instance):
     count = 0
     for row in users_with_port:
         user_id = row[0]
+        role = check_subscription(user_id)
+        if role not in ('vip', 'pro'):
+            continue
+        if not should_send_user_notification(user_id, category="general"):
+            continue
         portfolio = get_user_portfolio(user_id)
         if not portfolio: continue
             
@@ -638,8 +670,12 @@ def send_daily_portfolio_summary(bot_instance):
         msg += f"{total_icon} **กำไร/ขาดทุนรวม:** {total_profit:,.2f} ({total_profit_pct:,.2f}%)\n"
         
         markup = InlineKeyboardMarkup()
+<<<<<<< HEAD
         # เมื่อลูกค้ากดปุ่มนี้...
         markup.add(InlineKeyboardButton("🌐 รับลิงก์ล็อกอินเข้าเว็บ", callback_data="open_dashboard"))
+=======
+        markup.add(InlineKeyboardButton("🌐 ดูรายละเอียดพอร์ตบนเว็บ", url="https://apexify.up.railway.app/"))
+>>>>>>> ace3e89 (Apexify Auto Sync: 2026-03-05 19:46:08)
         
         try:  # 👈 เติมคำว่า try: ตรงบรรทัดนี้ครับ! (ย่อหน้าให้ตรงกับ markup)
             bot_instance.send_message(user_id, msg, parse_mode='Markdown', reply_markup=markup)
@@ -653,15 +689,19 @@ def send_daily_portfolio_summary(bot_instance):
 # 👇 จุดสังเกต: วางไว้เหนือบรรทัดนี้
 if __name__ == "__main__":
     init_db()
+    try:
+        init_new_features_db()
+    except Exception as e:
+        print("DB Init Error:", e)
     
     # 🧹 [เพิ่มบรรทัดนี้] สั่งให้กวาดล้างทันที 1 ครั้ง ตอนที่เพิ่งกดรันบอทใหม่
     auto_downgrade_expired_users()
     print("🧹 กวาดล้าง DB ทันทีที่เปิดระบบเรียบร้อยแล้ว!")
     
-    print("🚀 Apexify Alert System (PRO Exclusive) is Running...")    
+    print("🚀 Apexify Alert System (PRO + VIP selected features) is Running...")
     # 🌟 ตั้งค่าเริ่มต้น
     last_hourly_news_time = time.time() - 3600  # พร้อมส่งข่าว 1 ชม. ทันที
-    last_global_news_time = time.time() - 14400 # พร้อมส่งข่าว 4 ชม. ทันที
+    last_global_news_time = time.time() - 3600  # พร้อมตรวจ Digest ทุก 1 ชม. ทันที
     last_morning_briefing_date = None
     last_xd_check_date = None
     last_podcast_date = None
@@ -706,8 +746,8 @@ if __name__ == "__main__":
             broadcast_hourly_urgent_news(bot)
             last_hourly_news_time = time.time()
         
-        # 🌟 แจ้งเตือนข่าว 4 ชั่วโมง (Digest News)
-        if current_time - last_global_news_time >= 14400:
+        # 🌟 ตรวจ Digest News ทุก 1 ชั่วโมง แล้วคัดตามความถี่รายผู้ใช้
+        if current_time - last_global_news_time >= 3600:
             check_and_broadcast_pro_news(bot)
             last_global_news_time = time.time() 
             
