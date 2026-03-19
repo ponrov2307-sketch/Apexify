@@ -5,11 +5,11 @@ from threading import Thread
 from flask import Flask, abort, flash, redirect, render_template, request, send_file, session, url_for
 
 from admin_service import build_local_backup_zip, get_admin_dashboard_snapshot, toggle_maintenance_status
-from config import ADMIN_ID, BOT_WEB_BASE_URL, DASHBOARD_LOGIN_SECRET, FLASK_SECRET_KEY
+from config import ADMIN_DASHBOARD_LOGIN_SECRET, ADMIN_ID, BOT_WEB_BASE_URL, FLASK_SECRET_KEY
 from dashboard_login import verify_admin_dashboard_token
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = FLASK_SECRET_KEY or DASHBOARD_LOGIN_SECRET or os.urandom(32)
+app.config["SECRET_KEY"] = FLASK_SECRET_KEY or ADMIN_DASHBOARD_LOGIN_SECRET or os.urandom(32)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 if (BOT_WEB_BASE_URL or "").startswith("https://"):

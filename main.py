@@ -425,10 +425,10 @@ def send_welcome(message):
     markup.add(KeyboardButton("📊 วิเคราะห์หุ้น"), KeyboardButton("📱 เปิดเมนูหลัก"))
     markup.add(KeyboardButton("💎 บัญชี / VIP"))
     markup.add(KeyboardButton("⚙️ ตั้งค่าแจ้งเตือน"))
+    markup.add(KeyboardButton("🌐 เปิด Dashboard อัตโนมัติ"))
     
     if user_id == ADMIN_ID:
         markup.add(KeyboardButton("👑 แผงควบคุมแอดมิน"))
-        markup.add(KeyboardButton("🌐 เปิด Dashboard อัตโนมัติ"))
     
     welcome_text = (
         f"⚡️ ยินดีต้อนรับคุณ **{full_name}** สู่ **Apexify** ระบบวิเคราะห์หุ้นอัจฉริยะ\n\n"
@@ -1425,7 +1425,8 @@ def handle_main(message):
             InlineKeyboardButton("🔥 หุ้นเด่น (PRO)", callback_data="hub_screener")
         )
         markup.add(
-            InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert")
+            InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert"),
+            InlineKeyboardButton("🌐 เปิด Web Dashboard", callback_data="menu_dashboard")
         )
         markup.add(
             InlineKeyboardButton("⚙️ ตั้งค่าการแจ้งเตือน", callback_data="settings_open")

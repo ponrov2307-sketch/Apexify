@@ -6,285 +6,431 @@
   <title>Apexify Admin Dashboard</title>
   <style>
     :root {
-      --color-bg: #f4efe8;
-      --color-bg-glow: rgba(200, 107, 51, 0.18);
-      --color-surface: rgba(255, 252, 246, 0.9);
-      --color-surface-strong: #141a22;
-      --color-surface-soft: #efe6d8;
-      --color-card: #fffaf3;
-      --color-text: #1d2330;
-      --color-text-inverse: #f6f1ea;
-      --color-muted: #716b7d;
-      --color-border: rgba(128, 110, 86, 0.18);
-      --color-line: rgba(128, 110, 86, 0.12);
-      --color-accent: #c86b33;
-      --color-accent-strong: #a44a28;
-      --color-accent-soft: rgba(200, 107, 51, 0.12);
-      --color-teal: #146c63;
-      --color-success: #278056;
-      --color-success-soft: rgba(39, 128, 86, 0.13);
-      --color-danger: #c04e40;
-      --color-danger-soft: rgba(192, 78, 64, 0.13);
-      --color-shadow: 0 28px 60px rgba(38, 29, 18, 0.14);
+      --bg: #060808;
+      --bg-soft: #0b0f0f;
+      --panel: rgba(17, 20, 20, 0.92);
+      --panel-soft: rgba(22, 28, 27, 0.88);
+      --line: rgba(255, 255, 255, 0.08);
+      --text: #f4f7f2;
+      --muted: #8e9990;
+      --green: #93ff46;
+      --green-strong: #79f725;
+      --green-soft: rgba(147, 255, 70, 0.13);
+      --cyan: #67efe4;
+      --cyan-soft: rgba(103, 239, 228, 0.12);
+      --amber: #ffcb68;
+      --amber-soft: rgba(255, 203, 104, 0.12);
+      --red: #ff8484;
+      --red-soft: rgba(255, 132, 132, 0.12);
+      --shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+      --glow: 0 0 0 1px rgba(147, 255, 70, 0.12), 0 0 36px rgba(147, 255, 70, 0.09);
       --radius-xl: 30px;
-      --radius-lg: 22px;
-      --radius-md: 16px;
-      --radius-sm: 12px;
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --space-2: 8px;
       --space-3: 12px;
       --space-4: 16px;
       --space-5: 20px;
       --space-6: 24px;
       --space-7: 28px;
       --space-8: 32px;
-      --container: 1280px;
-      --font-sans: "Aptos", "Trebuchet MS", "Segoe UI", sans-serif;
-      --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+      --body: "Aptos", "Segoe UI Variable Text", "Trebuchet MS", sans-serif;
+      --display: "Aptos Display", "Segoe UI Variable Display", "Trebuchet MS", sans-serif;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
 
     body {
       margin: 0;
-      min-height: 100vh;
-      font-family: var(--font-sans);
-      color: var(--color-text);
+      color: var(--text);
+      font-family: var(--body);
       background:
-        radial-gradient(circle at top left, rgba(20, 108, 99, 0.16), transparent 28%),
-        radial-gradient(circle at 90% 0%, var(--color-bg-glow), transparent 24%),
-        linear-gradient(180deg, #faf6ef 0%, #f4efe8 52%, #efe9e0 100%);
+        radial-gradient(circle at top left, rgba(147, 255, 70, 0.16), transparent 18%),
+        radial-gradient(circle at top right, rgba(103, 239, 228, 0.08), transparent 16%),
+        radial-gradient(circle at bottom left, rgba(147, 255, 70, 0.08), transparent 22%),
+        linear-gradient(180deg, #060707, #090c0c 42%, #060707);
+      min-height: 100vh;
     }
 
-    .dashboard {
-      width: min(var(--container), calc(100% - 24px));
-      margin: 18px auto 44px;
-    }
-
-    .dashboard__hero {
-      position: relative;
+    .shell {
       display: grid;
-      grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
-      gap: var(--space-5);
-      margin-bottom: var(--space-5);
+      grid-template-columns: 248px minmax(0, 1fr);
+      min-height: 100vh;
     }
 
-    .dashboard__hero::before {
+    .sidebar {
+      position: relative;
+      padding: var(--space-7);
+      border-right: 1px solid var(--line);
+      background:
+        radial-gradient(circle at top left, rgba(147, 255, 70, 0.08), transparent 30%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 32%),
+        #0a0d0d;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+
+    .sidebar::after {
       content: "";
       position: absolute;
-      inset: auto 12% -18px 12%;
-      height: 60px;
-      background: rgba(26, 20, 14, 0.1);
-      filter: blur(24px);
-      z-index: -1;
+      inset: 24px 0 24px auto;
+      width: 1px;
+      background: linear-gradient(180deg, transparent, rgba(147, 255, 70, 0.2), transparent);
     }
 
-    .hero-panel,
-    .hero-summary,
-    .panel,
-    .table-panel {
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--color-shadow);
-      overflow: hidden;
-      backdrop-filter: blur(10px);
-    }
-
-    .hero-panel {
-      position: relative;
-      padding: var(--space-8);
-      color: var(--color-text-inverse);
-      background:
-        radial-gradient(circle at 85% 15%, rgba(255, 196, 121, 0.14), transparent 22%),
-        radial-gradient(circle at 0% 100%, rgba(20, 108, 99, 0.2), transparent 24%),
-        linear-gradient(140deg, #131922 0%, #1b2431 52%, #32211b 100%);
-    }
-
-    .hero-panel__eyebrow,
-    .hero-summary__eyebrow,
-    .panel__eyebrow {
-      display: inline-flex;
+    .brand {
+      display: flex;
       align-items: center;
-      gap: 10px;
-      font-size: 12px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
+      gap: var(--space-4);
     }
 
-    .hero-panel__eyebrow {
-      margin-bottom: var(--space-4);
-      color: rgba(246, 241, 234, 0.72);
+    .brand__icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 21px;
+      font-weight: 800;
+      background: radial-gradient(circle at 30% 30%, rgba(147, 255, 70, 0.28), rgba(147, 255, 70, 0.06));
+      border: 1px solid rgba(147, 255, 70, 0.2);
+      box-shadow: var(--glow);
     }
 
-    .hero-panel__eyebrow::before {
-      content: "";
-      width: 34px;
-      height: 1px;
-      background: rgba(246, 241, 234, 0.34);
-    }
-
-    .hero-panel__title,
-    .hero-summary__title,
-    .panel__title {
+    .brand__title {
       margin: 0;
-      font-family: var(--font-display);
-      line-height: 1.02;
+      font: 800 24px/1 var(--display);
       letter-spacing: -0.04em;
     }
 
-    .hero-panel__title {
-      max-width: 11ch;
-      font-size: clamp(42px, 6.2vw, 74px);
+    .brand__subtitle {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
     }
 
-    .hero-panel__copy,
-    .panel__subtitle,
-    .summary-card__text {
+    .nav {
+      display: grid;
+      gap: 10px;
+    }
+
+    .nav__link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      color: var(--muted);
+      text-decoration: none;
+      border-radius: 18px;
+      border: 1px solid transparent;
+      background: transparent;
+      transition: 180ms ease;
+    }
+
+    .nav__link:hover,
+    .nav__link--active {
+      color: var(--text);
+      border-color: rgba(147, 255, 70, 0.18);
+      background: linear-gradient(90deg, rgba(147, 255, 70, 0.16), rgba(147, 255, 70, 0.03));
+      box-shadow: inset 0 0 0 1px rgba(147, 255, 70, 0.06);
+    }
+
+    .nav__icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.04);
+      font-size: 14px;
+    }
+
+    .sidebar-card {
+      margin-top: auto;
+      padding: var(--space-6);
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(147, 255, 70, 0.14);
+      background:
+        radial-gradient(circle at top center, rgba(147, 255, 70, 0.14), transparent 42%),
+        linear-gradient(180deg, rgba(147, 255, 70, 0.08), rgba(255, 255, 255, 0.02));
+      box-shadow: var(--glow), var(--shadow);
+    }
+
+    .eyebrow {
+      color: var(--green);
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      font-size: 12px;
+    }
+
+    .sidebar-card__value {
+      margin: 10px 0 0;
+      font: 800 28px/1 var(--display);
+      letter-spacing: -0.05em;
+      word-break: break-all;
+    }
+
+    .sidebar-card p {
+      margin: 12px 0 0;
+      color: var(--muted);
       line-height: 1.7;
+      font-size: 14px;
     }
 
-    .hero-panel__copy {
-      margin: var(--space-5) 0 0;
-      max-width: 62ch;
-      color: rgba(246, 241, 234, 0.8);
-      font-size: 16px;
+    .main { padding: var(--space-7); }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--space-8);
+      margin-bottom: var(--space-6);
     }
 
-    .hero-panel__actions {
+    .headline {
+      margin: 10px 0 0;
+      font: 800 clamp(34px, 4.2vw, 52px)/0.96 var(--display);
+      letter-spacing: -0.05em;
+    }
+
+    .intro {
+      margin: 12px 0 0;
+      max-width: 72ch;
+      color: var(--muted);
+      line-height: 1.75;
+    }
+
+    .actions {
       display: flex;
       flex-wrap: wrap;
-      gap: var(--space-3);
-      margin-top: var(--space-6);
+      gap: 12px;
     }
 
-    .hero-panel__actions form,
-    .action-form {
-      margin: 0;
-    }
+    .actions form { margin: 0; }
 
     .btn {
       appearance: none;
-      border: 0;
-      border-radius: 999px;
-      padding: 13px 18px;
-      font: inherit;
-      font-weight: 700;
-      line-height: 1;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
       text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
+      padding: 13px 18px;
+      border-radius: 999px;
+      font: 700 14px/1 var(--body);
       cursor: pointer;
-      transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+      transition: 180ms ease;
     }
 
     .btn:hover {
       transform: translateY(-1px);
-      box-shadow: 0 16px 28px rgba(11, 10, 14, 0.18);
+      border-color: rgba(147, 255, 70, 0.18);
     }
 
     .btn--primary {
-      color: #fff8f1;
-      background: linear-gradient(135deg, var(--color-accent), var(--color-accent-strong));
+      color: #071106;
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--green), var(--green-strong));
+      box-shadow: var(--glow);
     }
 
-    .btn--ghost {
-      color: var(--color-text-inverse);
-      background: rgba(255, 255, 255, 0.07);
-      border: 1px solid rgba(255, 255, 255, 0.14);
+    .btn--danger {
+      color: #ffe7e7;
+      background: var(--red-soft);
+      border-color: rgba(255, 132, 132, 0.18);
     }
 
-    .btn--light {
-      color: var(--color-text);
-      background: rgba(255, 250, 243, 0.9);
-      border: 1px solid rgba(255, 250, 243, 0.28);
-    }
-
-    .hero-panel__meta,
-    .summary-grid,
-    .split-list,
-    .highlight-grid,
-    .section-grid {
+    .flash-stack {
       display: grid;
-      gap: var(--space-4);
+      gap: 12px;
+      margin-bottom: var(--space-6);
     }
 
-    .hero-panel__meta {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      margin-top: var(--space-7);
+    .flash {
+      padding: 14px 18px;
+      border-radius: 18px;
+      border: 1px solid rgba(147, 255, 70, 0.16);
+      background: rgba(147, 255, 70, 0.12);
+      color: #dfffc6;
     }
 
-    .meta-chip,
-    .summary-stat,
-    .mini-card,
-    .highlight-card {
-      border-radius: var(--radius-md);
-      border: 1px solid var(--color-line);
+    .flash--error {
+      border-color: rgba(255, 132, 132, 0.18);
+      background: rgba(255, 132, 132, 0.11);
+      color: #ffdede;
     }
 
-    .meta-chip {
-      padding: var(--space-4);
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(255, 255, 255, 0.09);
-    }
-
-    .meta-chip__label,
-    .summary-stat__label,
-    .mini-card__label,
-    .highlight-card__label {
-      display: block;
-      margin-bottom: 8px;
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .meta-chip__label {
-      color: rgba(246, 241, 234, 0.58);
-    }
-
-    .meta-chip__value {
-      display: block;
-      color: var(--color-text-inverse);
-      font-weight: 700;
-      line-height: 1.4;
-    }
-
-    .hero-summary {
-      padding: var(--space-7);
+    .kpi-grid {
       display: grid;
-      gap: var(--space-4);
-      background: rgba(255, 250, 243, 0.82);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: var(--space-6);
     }
 
-    .hero-summary__header,
-    .panel__header,
-    .metric-row__top {
+    .card {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(31, 36, 35, 0.94), rgba(15, 18, 18, 0.98));
+      box-shadow: var(--shadow);
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(147, 255, 70, 0.48), transparent);
+    }
+
+    .kpi-card {
+      padding: 20px;
       display: flex;
-      align-items: flex-start;
       justify-content: space-between;
-      gap: var(--space-4);
+      gap: 16px;
+      box-shadow: var(--glow), var(--shadow);
     }
 
-    .hero-summary__eyebrow,
-    .panel__eyebrow,
-    .summary-card__title,
-    .metric-row__label {
-      color: var(--color-muted);
+    .kpi-card__icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 20px;
+      background: radial-gradient(circle at 30% 30%, rgba(147, 255, 70, 0.28), rgba(147, 255, 70, 0.06));
+      border: 1px solid rgba(147, 255, 70, 0.18);
     }
 
-    .hero-summary__title,
-    .panel__title {
-      font-size: 32px;
+    .kpi-card__label {
+      color: var(--muted);
+      font-size: 15px;
     }
 
-    .status-badge,
+    .kpi-card__value {
+      margin-top: 8px;
+      font: 800 clamp(24px, 2.6vw, 38px)/1 var(--display);
+      letter-spacing: -0.05em;
+    }
+
+    .kpi-card__meta {
+      margin-top: 9px;
+      color: var(--green);
+      font-size: 13px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr) 290px;
+      gap: 16px;
+      margin-bottom: var(--space-6);
+    }
+
+    .panel { padding: 24px; }
+
+    .panel-label {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .panel-title {
+      margin: 0;
+      font: 800 30px/1.02 var(--display);
+      letter-spacing: -0.045em;
+    }
+
+    .panel-copy {
+      margin: 10px 0 0;
+      color: var(--muted);
+      line-height: 1.72;
+    }
+
+    .welcome {
+      display: grid;
+      align-content: space-between;
+      gap: 22px;
+      box-shadow: var(--glow), var(--shadow);
+    }
+
+    .avatar {
+      width: 136px;
+      height: 136px;
+      margin: 0 auto;
+      border-radius: 30px;
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 58px;
+      background: radial-gradient(circle at 50% 30%, rgba(147, 255, 70, 0.18), transparent 62%), rgba(147, 255, 70, 0.05);
+      border: 1px solid rgba(147, 255, 70, 0.22);
+      box-shadow: 0 0 30px rgba(147, 255, 70, 0.18);
+    }
+
+    .welcome__title {
+      margin: 0;
+      text-align: center;
+      font: 800 34px/1.04 var(--display);
+      letter-spacing: -0.05em;
+    }
+
+    .welcome__title span { color: var(--green); }
+
+    .welcome__copy {
+      text-align: center;
+      color: var(--muted);
+      line-height: 1.7;
+      margin: 10px 0 0;
+    }
+
+    .meta-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 15px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--muted);
+    }
+
+    .meta-row strong {
+      color: var(--text);
+      text-align: right;
+    }
+
+    .overview {
+      display: grid;
+      gap: 24px;
+    }
+
+    .overview__head,
+    .table-card__head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
     .pill {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 9px 13px;
+      padding: 8px 12px;
       border-radius: 999px;
       font-size: 12px;
       font-weight: 800;
@@ -292,176 +438,181 @@
       border: 1px solid currentColor;
     }
 
-    .status-badge::before {
-      content: "";
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: currentColor;
-      box-shadow: 0 0 0 4px currentColor;
-      opacity: 0.18;
+    .pill--success {
+      color: var(--green);
+      background: var(--green-soft);
     }
 
-    .status-badge--live,
-    .pill--active,
-    .pill--win {
-      color: var(--color-success);
-      background: var(--color-success-soft);
+    .pill--warn {
+      color: var(--amber);
+      background: var(--amber-soft);
     }
 
-    .status-badge--maintenance,
-    .pill--expired,
-    .pill--loss {
-      color: var(--color-danger);
-      background: var(--color-danger-soft);
+    .pill--danger {
+      color: var(--red);
+      background: var(--red-soft);
     }
 
-    .summary-card,
-    .panel,
-    .table-panel {
-      background: rgba(255, 251, 245, 0.84);
+    .pill--cyan {
+      color: var(--cyan);
+      background: var(--cyan-soft);
     }
 
-    .summary-card {
-      padding: var(--space-5);
-      border-radius: var(--radius-lg);
-      border: 1px solid rgba(128, 110, 86, 0.1);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 247, 238, 0.92));
+    .overview-chart {
+      padding: 18px 18px 8px;
+      border-radius: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: linear-gradient(180deg, rgba(147, 255, 70, 0.05), transparent 45%), rgba(255, 255, 255, 0.02);
     }
 
-    .summary-stat,
-    .mini-card,
-    .highlight-card {
-      padding: var(--space-4);
-      background: var(--color-card);
-    }
-
-    .summary-grid,
-    .split-list {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .summary-stat__value,
-    .mini-card__value,
-    .highlight-card__value {
+    .overview-chart svg {
+      width: 100%;
+      height: auto;
       display: block;
-      font-weight: 800;
-      line-height: 1;
     }
 
-    .summary-stat__value {
-      font-size: clamp(22px, 3vw, 30px);
-    }
-
-    .mini-card__value {
-      font-size: 28px;
-    }
-
-    .highlight-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      margin-bottom: var(--space-5);
-    }
-
-    .highlight-card {
-      box-shadow: var(--color-shadow);
-    }
-
-    .highlight-card__value {
-      margin-bottom: 10px;
-      font-family: var(--font-display);
-      font-size: clamp(28px, 4vw, 42px);
-      letter-spacing: -0.03em;
-    }
-
-    .highlight-card__hint,
-    .summary-stat__hint,
-    .mini-card__hint,
-    .panel__subtitle,
-    .empty,
-    .notice {
-      color: var(--color-muted);
-      font-size: 14px;
-    }
-
-    .notice-list {
+    .overview-legend {
       display: grid;
-      gap: var(--space-3);
-      margin-bottom: var(--space-5);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 12px;
     }
 
-    .notice {
-      padding: var(--space-4) var(--space-5);
-      border-radius: var(--radius-md);
-      border: 1px solid var(--color-line);
-      background: rgba(255, 252, 246, 0.78);
-      line-height: 1.65;
+    .legend-chip {
+      padding: 11px 12px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
-    .notice--success {
-      border-color: rgba(39, 128, 86, 0.18);
-      background: rgba(39, 128, 86, 0.08);
+    .legend-chip__label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
     }
 
-    .notice--error {
-      border-color: rgba(192, 78, 64, 0.18);
-      background: rgba(192, 78, 64, 0.08);
+    .legend-chip__value {
+      margin-top: 6px;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }
+
+    .gauge {
+      display: grid;
+      align-content: center;
+      gap: 20px;
+      text-align: center;
+    }
+
+    .gauge__ring {
+      width: 220px;
+      height: 220px;
+      margin: 0 auto;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at center, #080c0b 58%, transparent 59%), conic-gradient(var(--green) calc(var(--value) * 1%), rgba(255, 255, 255, 0.09) 0);
+      box-shadow: inset 0 0 34px rgba(147, 255, 70, 0.1), 0 0 34px rgba(147, 255, 70, 0.12);
+    }
+
+    .gauge__inner {
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 50% 20%, rgba(147, 255, 70, 0.08), rgba(9, 13, 13, 0.98));
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .gauge__value {
+      font: 800 42px/1 var(--display);
+      letter-spacing: -0.05em;
     }
 
     .section-grid {
+      display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      margin-bottom: var(--space-5);
+      gap: 16px;
+      margin-bottom: var(--space-6);
     }
 
-    .panel,
-    .table-panel {
-      padding: var(--space-7);
-    }
-
-    .metric-list {
+    .mini-grid {
       display: grid;
-      gap: var(--space-4);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
     }
 
-    .metric-row {
+    .mini-card {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .mini-card__label {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 12px;
+    }
+
+    .mini-card__value {
+      margin-top: 6px;
+      font: 800 26px/1 var(--display);
+      letter-spacing: -0.04em;
+    }
+
+    .stack-list {
       display: grid;
-      gap: 10px;
+      gap: 12px;
+      margin-top: 18px;
     }
 
-    .metric-row__value {
+    .stack-item {
+      padding: 15px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .stack-item__top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .stack-item__title {
       font-weight: 800;
-      text-align: right;
+      line-height: 1.45;
     }
 
-    .meter {
-      position: relative;
-      width: 100%;
-      height: 10px;
-      border-radius: 999px;
-      background: rgba(128, 110, 86, 0.12);
-      overflow: hidden;
+    .stack-item__meta {
+      margin-top: 6px;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 14px;
     }
 
-    .meter__fill {
-      position: absolute;
-      inset: 0 auto 0 0;
-      height: 100%;
-      border-radius: inherit;
-      background: linear-gradient(90deg, var(--color-teal), #28a58d);
+    .stack-item__value {
+      color: var(--green);
+      font-weight: 800;
+      white-space: nowrap;
     }
 
-    .meter__fill--warm {
-      background: linear-gradient(90deg, var(--color-accent), #f3a64c);
-    }
-
-    .meter__fill--danger {
-      background: linear-gradient(90deg, var(--color-danger), #ee8a6d);
+    .table-card {
+      margin-bottom: var(--space-6);
     }
 
     .table-scroll {
       overflow: hidden;
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--color-line);
-      background: rgba(255, 255, 255, 0.74);
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.02);
     }
 
     table {
@@ -473,36 +624,53 @@
     thead th {
       padding: 16px 18px;
       text-align: left;
+      color: var(--muted);
       font-size: 12px;
-      letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: var(--color-muted);
-      background: rgba(239, 230, 216, 0.62);
-      border-bottom: 1px solid var(--color-line);
+      letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.02);
     }
 
     tbody td {
       padding: 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       vertical-align: top;
-      border-bottom: 1px solid var(--color-line);
+    }
+
+    tbody tr:hover {
+      background: rgba(147, 255, 70, 0.04);
     }
 
     tbody tr:last-child td {
       border-bottom: 0;
     }
 
-    tbody tr:hover {
-      background: rgba(255, 247, 238, 0.72);
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      line-height: 1;
+      font-weight: 800;
+      border: 1px solid currentColor;
     }
 
-    .pill--vip {
-      color: #0c7282;
-      background: rgba(12, 114, 130, 0.1);
+    .badge--pro,
+    .badge--ok {
+      color: var(--green);
+      background: var(--green-soft);
     }
 
-    .pill--pro {
-      color: #9b4b1f;
-      background: rgba(155, 75, 31, 0.1);
+    .badge--vip {
+      color: var(--cyan);
+      background: var(--cyan-soft);
+    }
+
+    .badge--no {
+      color: var(--red);
+      background: var(--red-soft);
     }
 
     .mono {
@@ -511,44 +679,67 @@
     }
 
     .empty {
-      padding: var(--space-5);
-      border-radius: var(--radius-lg);
-      background: rgba(255, 255, 255, 0.7);
+      padding: 18px;
+      margin-top: 18px;
+      border-radius: 18px;
+      border: 1px dashed rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--muted);
       line-height: 1.7;
-      border: 1px dashed rgba(128, 110, 86, 0.22);
+    }
+
+    @media (max-width: 1280px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+      }
     }
 
     @media (max-width: 1120px) {
-      .dashboard__hero,
-      .section-grid,
-      .highlight-grid {
-        grid-template-columns: 1fr;
+      .kpi-grid,
+      .section-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
-    @media (max-width: 860px) {
-      .dashboard {
-        width: min(var(--container), calc(100% - 16px));
-      }
-
-      .hero-panel,
-      .hero-summary,
-      .panel,
-      .table-panel {
-        padding: var(--space-6);
-        border-radius: 24px;
-      }
-
-      .hero-panel__meta,
-      .summary-grid,
-      .split-list {
+    @media (max-width: 980px) {
+      .shell {
         grid-template-columns: 1fr;
       }
 
-      .hero-summary__header,
-      .panel__header,
-      .metric-row__top {
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        min-height: auto;
+      }
+
+      .sidebar::after {
+        display: none;
+      }
+
+      .nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .main,
+      .sidebar {
+        padding: 16px;
+      }
+
+      .topbar,
+      .actions,
+      .overview__head,
+      .table-card__head,
+      .stack-item__top {
         flex-direction: column;
+      }
+
+      .kpi-grid,
+      .section-grid,
+      .mini-grid,
+      .overview-legend {
+        grid-template-columns: 1fr;
       }
 
       table,
@@ -565,20 +756,17 @@
       }
 
       .table-scroll {
-        background: transparent;
         border: 0;
+        background: transparent;
       }
 
       tbody tr {
-        margin-bottom: var(--space-3);
-        padding: var(--space-4);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--color-line);
-        background: rgba(255, 255, 255, 0.76);
-      }
-
-      tbody tr:last-child {
-        margin-bottom: 0;
+        display: block;
+        margin-bottom: 12px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.03);
       }
 
       tbody td {
@@ -590,9 +778,9 @@
         content: attr(data-label);
         display: block;
         margin-bottom: 4px;
-        color: var(--color-muted);
+        color: var(--muted);
         font-size: 11px;
-        letter-spacing: 0.1em;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
       }
     }
@@ -606,365 +794,641 @@
   
   
   
+  
+  
+  
+  
+  
+  
+    
+    
+    
+    
+  
+    
+    
+    
+    
+  
+    
+    
+    
+    
+  
+    
+    
+    
+    
+  
+    
+    
+    
+    
+  
+    
+    
+    
+    
+  
 
-  <main class="dashboard">
-    <section class="dashboard__hero">
-      <article class="hero-panel">
-        <div class="hero-panel__eyebrow">Apexify Control Room</div>
-        <h1 class="hero-panel__title">Admin Dashboard</h1>
-        <p class="hero-panel__copy">
-          ภาพรวมชุดเดียวกับเมนูแอดมินใน Telegram แบบเรียลไทม์
-          เอาไว้ดูสถานะระบบ ลูกค้า และผลงานสัญญาณในหน้าเดียวโดยไม่ต้องสลับหลายจุด
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand__icon">A</div>
+        <div>
+          <h1 class="brand__title">Apexify</h1>
+          <div class="brand__subtitle">Admin Control Room</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a class="nav__link nav__link--active" href="#overview"><span class="nav__icon">⌘</span><span>Dashboard</span></a>
+        <a class="nav__link" href="#attention"><span class="nav__icon">◎</span><span>Attention</span></a>
+        <a class="nav__link" href="#notifications"><span class="nav__icon">◌</span><span>Settings</span></a>
+        <a class="nav__link" href="#signals"><span class="nav__icon">↗</span><span>Signals</span></a>
+        <a class="nav__link" href="#members"><span class="nav__icon">◉</span><span>Members</span></a>
+        <a class="nav__link" href="#actions"><span class="nav__icon">↺</span><span>Actions</span></a>
+      </nav>
+
+      <section class="sidebar-card">
+        <div class="eyebrow">Live Admin</div>
+        <div class="sidebar-card__value mono">8295809187</div>
+        <p>
+          Last refresh
+          2026-03-19 23:28:23<br>
+          
+            System is serving users normally and the web console is online.
+          
         </p>
+      </section>
+    </aside>
 
-        <div class="hero-panel__actions">
-          <a class="btn btn--light" href="/admin">Refresh Dashboard</a>
-          <form method="post" action="/admin/actions/maintenance">
-            <button class="btn btn--primary" type="submit">
-              เปิด Maintenance
-            </button>
-          </form>
-          <form method="post" action="/admin/actions/backup">
-            <button class="btn btn--ghost" type="submit">Download Backup</button>
-          </form>
-        </div>
-
-        <div class="hero-panel__meta">
-          <div class="meta-chip">
-            <span class="meta-chip__label">Admin ID</span>
-            <span class="meta-chip__value mono">8295809187</span>
-          </div>
-          <div class="meta-chip">
-            <span class="meta-chip__label">Last Refresh</span>
-            <span class="meta-chip__value">2026-03-19 22:58:41</span>
-          </div>
-          <div class="meta-chip">
-            <span class="meta-chip__label">Paid Base</span>
-            <span class="meta-chip__value">3 active members</span>
-          </div>
-        </div>
-      </article>
-
-      <aside class="hero-summary">
-        <div class="hero-summary__header">
-          <div>
-            <div class="hero-summary__eyebrow">Live Ops Status</div>
-            <h2 class="hero-summary__title">System Snapshot</h2>
-          </div>
-          <div class="status-badge status-badge--live">
-            System Live
-          </div>
-        </div>
-
-        <div class="summary-card">
-          <h3 class="summary-card__title">สถานะล่าสุด</h3>
-          <p class="summary-card__text">?????????????????????</p>
-        </div>
-
-        <div class="summary-grid">
-          <div class="summary-stat">
-            <span class="summary-stat__label">Total Users</span>
-            <span class="summary-stat__value">48</span>
-            <span class="summary-stat__hint">ฐานผู้ใช้งานทั้งหมดในระบบ</span>
-          </div>
-          <div class="summary-stat">
-            <span class="summary-stat__label">Monthly Revenue</span>
-            <span class="summary-stat__value">1,497</span>
-            <span class="summary-stat__hint">ประมาณการรายได้ขั้นต่ำต่อเดือน</span>
-          </div>
-          <div class="summary-stat">
-            <span class="summary-stat__label">Signal Win Rate</span>
-            <span class="summary-stat__value">58.3%</span>
-            <span class="summary-stat__hint">คำนวณจาก 12 alerts ล่าสุด</span>
-          </div>
-          <div class="summary-stat">
-            <span class="summary-stat__label">Server Uptime</span>
-            <span class="summary-stat__value">128</span>
-            <span class="summary-stat__hint">ชั่วโมงที่เครื่องทำงานต่อเนื่อง</span>
-          </div>
-        </div>
-      </aside>
-    </section>
-
-    <section class="notice-list">
-      
-        
-      
-    </section>
-
-    <section class="highlight-grid">
-      <article class="highlight-card">
-        <span class="highlight-card__label">Free Users</span>
-        <span class="highlight-card__value">45</span>
-        <div class="highlight-card__hint">ผู้ใช้ที่ยังไม่ได้อยู่ในแผนชำระเงิน</div>
-      </article>
-      <article class="highlight-card">
-        <span class="highlight-card__label">VIP Share</span>
-        <span class="highlight-card__value">0.0%</span>
-        <div class="highlight-card__hint">0 คน จากฐานทั้งหมด</div>
-      </article>
-      <article class="highlight-card">
-        <span class="highlight-card__label">PRO Share</span>
-        <span class="highlight-card__value">6.2%</span>
-        <div class="highlight-card__hint">3 คน พร้อมรับ feature เต็มรูปแบบ</div>
-      </article>
-      <article class="highlight-card">
-        <span class="highlight-card__label">Signals Won</span>
-        <span class="highlight-card__value">7</span>
-        <div class="highlight-card__hint">จำนวนสัญญาณที่เข้าเป้าจากชุดที่ประเมินได้</div>
-      </article>
-    </section>
-
-    <section class="section-grid">
-      <article class="panel">
-        <div class="panel__header">
-          <div>
-            <div class="panel__eyebrow">Infrastructure</div>
-            <h2 class="panel__title">System Health</h2>
-            <p class="panel__subtitle">ดูภาระเครื่องแบบเร็วๆ ผ่านกราฟ usage ที่อ่านง่ายขึ้น เพื่อรู้ทันว่าควรระวังจุดไหนก่อนระบบสะดุด</p>
-          </div>
-        </div>
-
-        <div class="metric-list">
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">CPU Usage</span>
-              <span class="metric-row__value">24%</span>
-            </div>
-            <div class="meter"><span class="meter__fill" style="width: 24%;"></span></div>
-          </div>
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">RAM Usage</span>
-              <span class="metric-row__value">0.47 / 0.94 GB</span>
-            </div>
-            <div class="meter"><span class="meter__fill" style="width: 50%;"></span></div>
-          </div>
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Disk Usage</span>
-              <span class="metric-row__value">31%</span>
-            </div>
-            <div class="meter"><span class="meter__fill" style="width: 31%;"></span></div>
-          </div>
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Uptime</span>
-              <span class="metric-row__value">128 ชั่วโมง</span>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div class="panel__header">
-          <div>
-            <div class="panel__eyebrow">Commercial Snapshot</div>
-            <h2 class="panel__title">Business Overview</h2>
-            <p class="panel__subtitle">ดูภาพฐานลูกค้าและสัดส่วนแพ็กเกจให้จบใน section เดียว พร้อมตัวเลขรายได้ขั้นต่ำที่คาดได้ทันที</p>
-          </div>
-        </div>
-
-        <div class="split-list">
-          <div class="mini-card">
-            <span class="mini-card__label">All Users</span>
-            <span class="mini-card__value">48</span>
-            <div class="mini-card__hint">จำนวนผู้ใช้ทั้งหมดที่ลงทะเบียนแล้ว</div>
-          </div>
-          <div class="mini-card">
-            <span class="mini-card__label">Free</span>
-            <span class="mini-card__value">45</span>
-            <div class="mini-card__hint">ฐานที่ยังมีโอกาสแปลงเป็น paid</div>
-          </div>
-          <div class="mini-card">
-            <span class="mini-card__label">VIP</span>
-            <span class="mini-card__value">0</span>
-            <div class="mini-card__hint">แพ็กเกจระดับกลางที่ยัง active</div>
-          </div>
-          <div class="mini-card">
-            <span class="mini-card__label">PRO</span>
-            <span class="mini-card__value">3</span>
-            <div class="mini-card__hint">กลุ่มสมาชิกที่ใช้ feature เต็มสุด</div>
-          </div>
-        </div>
-
-        <div class="metric-list" style="margin-top: 20px;">
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Estimated Monthly Revenue</span>
-              <span class="metric-row__value">1,497.00 บาท</span>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div class="panel__header">
-          <div>
-            <div class="panel__eyebrow">Operations</div>
-            <h2 class="panel__title">Maintenance & Actions</h2>
-            <p class="panel__subtitle">สรุปผลกระทบของ maintenance mode ให้เห็นชัด พร้อมบริบทที่ต้องใช้เวลาเปิดดูระบบจากมือถือหรือหน้าเว็บสั้นๆ</p>
-          </div>
-        </div>
-
-        <div class="summary-card">
-          <h3 class="summary-card__title">Maintenance Mode</h3>
-          <p class="summary-card__text">
-            ตอนนี้ระบบอยู่ในสถานะ <strong>???</strong><br>
-            ?????????????????????
+    <main class="main">
+      <header class="topbar" id="actions">
+        <div>
+          <div class="eyebrow">Apexify Admin Dashboard</div>
+          <h2 class="headline">Dark room, clear signals, faster admin moves.</h2>
+          <p class="intro">
+            หน้า dashboard รอบนี้เน้นอารมณ์แบบ control room มากขึ้น ใช้ข้อมูลจริงจากสมาชิก ระบบแจ้งเตือน
+            watchlist และสภาพเครื่อง เพื่อให้เห็นทั้งภาพธุรกิจและสิ่งที่ต้องรีบจัดการในหน้าจอเดียว
           </p>
         </div>
 
-        <div class="metric-list" style="margin-top: 20px;">
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Admin Access</span>
-              <span class="metric-row__value mono">8295809187</span>
-            </div>
-          </div>
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Snapshot Generated</span>
-              <span class="metric-row__value">2026-03-19 22:58:41</span>
-            </div>
-          </div>
+        <div class="actions">
+          <a class="btn" href="/admin">Refresh</a>
+          <form method="post" action="/admin/actions/maintenance">
+            <button class="btn btn--primary" type="submit">
+              Turn Maintenance On
+            </button>
+          </form>
+          <form method="post" action="/admin/actions/backup">
+            <button class="btn" type="submit">Download Backup</button>
+          </form>
         </div>
-      </article>
+      </header>
 
-      <article class="panel">
-        <div class="panel__header">
+      <section class="flash-stack">
+        
+          
+        
+      </section>
+
+      <section class="kpi-grid">
+        <article class="card kpi-card">
           <div>
-            <div class="panel__eyebrow">Signal Quality</div>
-            <h2 class="panel__title">Performance</h2>
-            <p class="panel__subtitle">มองภาพสั้นว่าระบบสัญญาณช่วงล่าสุดแม่นแค่ไหน พร้อมตัวเลขที่สำคัญที่สุดต่อการดูคุณภาพ alerts</p>
+            <div class="kpi-card__label">Monthly Revenue</div>
+            <div class="kpi-card__value">1,796.00</div>
+            <div class="kpi-card__meta">บาทต่อเดือนจากสมาชิกแบบชำระเงิน</div>
           </div>
-        </div>
+          <div class="kpi-card__icon">$</div>
+        </article>
 
-        <div class="metric-list">
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Total Evaluated Signals</span>
-              <span class="metric-row__value">12</span>
+        <article class="card kpi-card">
+          <div>
+            <div class="kpi-card__label">Paid Members</div>
+            <div class="kpi-card__value">4</div>
+            <div class="kpi-card__meta">8.3% of all users</div>
+          </div>
+          <div class="kpi-card__icon">◉</div>
+        </article>
+
+        <article class="card kpi-card">
+          <div>
+            <div class="kpi-card__label">Active Alerts</div>
+            <div class="kpi-card__value">19</div>
+            <div class="kpi-card__meta">7 users are tracking targets</div>
+          </div>
+          <div class="kpi-card__icon">↗</div>
+        </article>
+
+        <article class="card kpi-card">
+          <div>
+            <div class="kpi-card__label">Success Rate</div>
+            <div class="kpi-card__value">58%</div>
+            <div class="kpi-card__meta">7 wins from 12 evaluated signals</div>
+          </div>
+          <div class="kpi-card__icon">✓</div>
+        </article>
+      </section>
+
+      <section class="hero-grid" id="overview">
+        <article class="card panel welcome">
+          <div>
+            <div class="avatar">⌬</div>
+            <h3 class="welcome__title">Welcome back, <span>Admin</span></h3>
+            <p class="welcome__copy">
+              เปิดมาปุ๊บให้เห็นเลยว่าช่วงนี้ระบบร้อนแค่ไหน ผู้ใช้จ่ายเงินเป็นสัดส่วนเท่าไร
+              และมีแรงกดดันจากสมาชิกใกล้หมดอายุหรือ alerts ฝั่งตลาดมากแค่ไหน
+            </p>
+          </div>
+
+          <div class="meta-list">
+            <div class="meta-row"><span>System mode</span><strong>Live</strong></div>
+            <div class="meta-row"><span>Total users</span><strong>48</strong></div>
+            <div class="meta-row"><span>Unique watched symbols</span><strong>16</strong></div>
+            <div class="meta-row"><span>Uptime</span><strong>128h</strong></div>
+          </div>
+        </article>
+
+        <article class="card panel overview">
+          <div class="overview__head">
+            <div>
+              <div class="panel-label">Operations Overview</div>
+              <h3 class="panel-title">How the room feels right now</h3>
+              <p class="panel-copy">
+                ภาพรวมนี้จับความตึงของระบบจาก health, paid ratio, signal quality และโหลดฝั่ง alerts
+                เพื่อให้มองออกเร็วว่าควรสนใจ reliability, retention หรือ market traffic ก่อน
+              </p>
+            </div>
+            <span class="pill pill--success">58.3% signal quality</span>
+          </div>
+
+          <div class="overview-chart">
+            <svg viewBox="0 0 650 290" role="img" aria-label="Overview trend line">
+              
+                <line x1="52" y1="70" x2="612" y2="70" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+              
+                <line x1="52" y1="130" x2="612" y2="130" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+              
+                <line x1="52" y1="190" x2="612" y2="190" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+              
+                <line x1="52" y1="250" x2="612" y2="250" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+              
+
+              <polyline fill="none" stroke="#93ff46" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="70,214.4 185,165.0 300,201.1 415,244.2 530,149.2 645,223.9"/>
+              <polyline fill="rgba(147,255,70,0.10)" stroke="none" points="70,260 70,214.4 185,165.0 300,201.1 415,244.2 530,149.2 645,223.9 645,260"/>
+
+              
+                
+                
+                
+                <circle cx="70" cy="214.4" r="7" fill="#0b0f0f" stroke="#93ff46" stroke-width="3"/>
+                <text x="70" y="198.4" fill="#f4f7f2" text-anchor="middle" font-size="12" font-weight="700">24</text>
+                <text x="70" y="282" fill="#8e9990" text-anchor="middle" font-size="12" letter-spacing="0.08em">CPU</text>
+              
+                
+                
+                
+                <circle cx="185" cy="165.0" r="7" fill="#0b0f0f" stroke="#93ff46" stroke-width="3"/>
+                <text x="185" y="149.0" fill="#f4f7f2" text-anchor="middle" font-size="12" font-weight="700">50</text>
+                <text x="185" y="282" fill="#8e9990" text-anchor="middle" font-size="12" letter-spacing="0.08em">RAM</text>
+              
+                
+                
+                
+                <circle cx="300" cy="201.1" r="7" fill="#0b0f0f" stroke="#93ff46" stroke-width="3"/>
+                <text x="300" y="185.1" fill="#f4f7f2" text-anchor="middle" font-size="12" font-weight="700">31</text>
+                <text x="300" y="282" fill="#8e9990" text-anchor="middle" font-size="12" letter-spacing="0.08em">Disk</text>
+              
+                
+                
+                
+                <circle cx="415" cy="244.2" r="7" fill="#0b0f0f" stroke="#93ff46" stroke-width="3"/>
+                <text x="415" y="228.2" fill="#f4f7f2" text-anchor="middle" font-size="12" font-weight="700">8</text>
+                <text x="415" y="282" fill="#8e9990" text-anchor="middle" font-size="12" letter-spacing="0.08em">Paid</text>
+              
+                
+                
+                
+                <circle cx="530" cy="149.2" r="7" fill="#0b0f0f" stroke="#93ff46" stroke-width="3"/>
+                <text x="530" y="133.2" fill="#f4f7f2" text-anchor="middle" font-size="12" font-weight="700">58</text>
+                <text x="530" y="282" fill="#8e9990" text-anchor="middle" font-size="12" letter-spacing="0.08em">Win</text>
+              
+                
+                
+                
+                <circle cx="645" cy="223.9" r="7" fill="#0b0f0f" stroke="#93ff46" stroke-width="3"/>
+                <text x="645" y="207.9" fill="#f4f7f2" text-anchor="middle" font-size="12" font-weight="700">19</text>
+                <text x="645" y="282" fill="#8e9990" text-anchor="middle" font-size="12" letter-spacing="0.08em">Alerts</text>
+              
+            </svg>
+          </div>
+
+          <div class="overview-legend">
+            <div class="legend-chip">
+              <div class="legend-chip__label">Watch entries</div>
+              <div class="legend-chip__value">74</div>
+            </div>
+            <div class="legend-chip">
+              <div class="legend-chip__label">Revenue at risk</div>
+              <div class="legend-chip__value">798</div>
+            </div>
+            <div class="legend-chip">
+              <div class="legend-chip__label">Notifications off</div>
+              <div class="legend-chip__value">13.6%</div>
             </div>
           </div>
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Signals Hit Target</span>
-              <span class="metric-row__value">7</span>
+        </article>
+
+        <article class="card panel gauge">
+          <div>
+            <div class="panel-label">Renewal Health</div>
+            <h3 class="panel-title">Membership stability</h3>
+          </div>
+
+          <div class="gauge__ring" style="--value: 50;">
+            <div class="gauge__inner">
+              <div class="gauge__value">50%</div>
             </div>
           </div>
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Win Rate</span>
-              <span class="metric-row__value">58.33%</span>
-            </div>
-            <div class="meter"><span class="meter__fill meter__fill--warm" style="width: 58%;"></span></div>
+
+          <div>
+            <span class="pill pill--danger">
+              2 members within 7 days
+            </span>
+            <p class="panel-copy">
+              ถ้าตัวเลขนี้ลดลง แปลว่า paid base ค่อนข้างนิ่ง ถ้าพุ่งขึ้นเมื่อไรควรรีบดู renewal flow
+              และ retention message ให้มากขึ้น
+            </p>
           </div>
-        </div>
-      </article>
-    </section>
+        </article>
+      </section>
 
-    <section class="table-panel">
-      <div class="panel__header">
-        <div>
-          <div class="panel__eyebrow">Recent Signals</div>
-          <h2 class="panel__title">Performance ล่าสุด</h2>
-          <p class="panel__subtitle">เช็กย้อนหลังว่าระบบแจ้งเตือนตัวไหนเข้าเป้า ตัวไหนควรจับตาเรื่องคุณภาพสัญญาณมากขึ้น</p>
-        </div>
-      </div>
+      <section class="section-grid" id="attention">
+        <article class="card panel">
+          <div class="panel-label">Market Attention</div>
+          <h3 class="panel-title">Top Watched Symbols</h3>
+          <p class="panel-copy">
+            หุ้นที่ถูกติดตามมากสุดใน watchlist ช่วยสะท้อนว่าฝั่งผู้ใช้กำลังสนใจอะไร
+            และตัวไหนมีโอกาสกลายเป็น traffic hub ของ alerts กับ content
+          </p>
 
-      
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Signal</th>
-                <th>Alert Price</th>
-                <th>Current Price</th>
-                <th>Result</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              
-                <tr>
-                  <td data-label="Symbol"><strong>AAPL</strong></td>
-                  <td data-label="Signal">GOLDEN CROSS</td>
-                  <td data-label="Alert Price">210.12</td>
-                  <td data-label="Current Price">218.44</td>
-                  <td data-label="Result">+3.96%</td>
-                  <td data-label="Status">
-                    <span class="pill pill--win">Win</span>
-                  </td>
-                </tr>
-              
-                <tr>
-                  <td data-label="Symbol"><strong>TSLA</strong></td>
-                  <td data-label="Signal">BREAK SUP</td>
-                  <td data-label="Alert Price">188.01</td>
-                  <td data-label="Current Price">176.81</td>
-                  <td data-label="Result">+5.96%</td>
-                  <td data-label="Status">
-                    <span class="pill pill--win">Win</span>
-                  </td>
-                </tr>
-              
-            </tbody>
-          </table>
-        </div>
-      
-    </section>
+          <div class="mini-grid">
+            <div class="mini-card">
+              <div class="mini-card__label">Watch Entries</div>
+              <div class="mini-card__value">74</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-card__label">Unique Symbols</div>
+              <div class="mini-card__value">16</div>
+            </div>
+          </div>
 
-    <section class="table-panel">
-      <div class="panel__header">
-        <div>
-          <div class="panel__eyebrow">Membership Base</div>
-          <h2 class="panel__title">VIP / PRO Users</h2>
-          <p class="panel__subtitle">สรุปรายชื่อลูกค้าที่อยู่ในแผนชำระเงิน พร้อมวันหมดอายุและสถานะใช้งานปัจจุบัน</p>
-        </div>
-      </div>
+          
+            <div class="stack-list">
+              
+                <div class="stack-item">
+                  <div class="stack-item__top">
+                    <div>
+                      <div class="stack-item__title">NVDA</div>
+                      <div class="stack-item__meta">ความสนใจจากผู้ใช้ในระบบตอนนี้</div>
+                    </div>
+                    <div class="stack-item__value">12 watchers</div>
+                  </div>
+                </div>
+              
+                <div class="stack-item">
+                  <div class="stack-item__top">
+                    <div>
+                      <div class="stack-item__title">AAPL</div>
+                      <div class="stack-item__meta">ความสนใจจากผู้ใช้ในระบบตอนนี้</div>
+                    </div>
+                    <div class="stack-item__value">9 watchers</div>
+                  </div>
+                </div>
+              
+                <div class="stack-item">
+                  <div class="stack-item__top">
+                    <div>
+                      <div class="stack-item__title">TSLA</div>
+                      <div class="stack-item__meta">ความสนใจจากผู้ใช้ในระบบตอนนี้</div>
+                    </div>
+                    <div class="stack-item__value">7 watchers</div>
+                  </div>
+                </div>
+              
+            </div>
+          
+        </article>
 
-      
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>User ID</th>
-                <th>Role</th>
-                <th>Expiry</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
+        <article class="card panel">
+          <div class="panel-label">Alert Load</div>
+          <h3 class="panel-title">Active Price Alerts</h3>
+          <p class="panel-copy">
+            ดูว่าตอนนี้มีผู้ใช้กี่คนผูก alerts ไว้ และ symbol ไหนอาจกลายเป็นจุดที่เกิด notification
+            หนาแน่นที่สุดในรอบถัดไป
+          </p>
+
+          <div class="mini-grid">
+            <div class="mini-card">
+              <div class="mini-card__label">Total Active</div>
+              <div class="mini-card__value">19</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-card__label">Unique Users</div>
+              <div class="mini-card__value">7</div>
+            </div>
+          </div>
+
+          
+            <div class="stack-list">
               
-                <tr>
-                  <td data-label="User ID"><span class="mono">123456</span></td>
-                  <td data-label="Role">
-                    <span class="pill pill--pro">PRO</span>
-                  </td>
-                  <td data-label="Expiry">2026-04-15</td>
-                  <td data-label="Status">
-                    <span class="pill pill--active">Active</span>
-                  </td>
-                </tr>
+                <div class="stack-item">
+                  <div class="stack-item__top">
+                    <div>
+                      <div class="stack-item__title">TSLA</div>
+                      <div class="stack-item__meta">จำนวน alerts ที่ยัง active อยู่</div>
+                    </div>
+                    <div class="stack-item__value">5 alerts</div>
+                  </div>
+                </div>
               
-                <tr>
-                  <td data-label="User ID"><span class="mono">654321</span></td>
-                  <td data-label="Role">
-                    <span class="pill pill--vip">VIP</span>
-                  </td>
-                  <td data-label="Expiry">2026-03-18</td>
-                  <td data-label="Status">
-                    <span class="pill pill--expired">Expired</span>
-                  </td>
-                </tr>
+                <div class="stack-item">
+                  <div class="stack-item__top">
+                    <div>
+                      <div class="stack-item__title">AAPL</div>
+                      <div class="stack-item__meta">จำนวน alerts ที่ยัง active อยู่</div>
+                    </div>
+                    <div class="stack-item__value">4 alerts</div>
+                  </div>
+                </div>
               
-            </tbody>
-          </table>
+                <div class="stack-item">
+                  <div class="stack-item__top">
+                    <div>
+                      <div class="stack-item__title">NVDA</div>
+                      <div class="stack-item__meta">จำนวน alerts ที่ยัง active อยู่</div>
+                    </div>
+                    <div class="stack-item__value">3 alerts</div>
+                  </div>
+                </div>
+              
+            </div>
+          
+        </article>
+      </section>
+
+      <section class="section-grid" id="notifications">
+        <article class="card panel">
+          <div class="panel-label">Retention Watch</div>
+          <h3 class="panel-title">Expiring Soon</h3>
+          <p class="panel-copy">
+            กลุ่มสมาชิกที่ใกล้หมดอายุที่สุดใน 7 วันข้างหน้า ช่วยให้เห็นว่าควรไล่ดู renewal หรือ support
+            case ไหนก่อนเป็นอันดับแรก
+          </p>
+
+          <div class="mini-grid">
+            <div class="mini-card">
+              <div class="mini-card__label">Within 3 Days</div>
+              <div class="mini-card__value">1</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-card__label">Within 7 Days</div>
+              <div class="mini-card__value">2</div>
+            </div>
+          </div>
+
+          
+            <div class="stack-list">
+              
+                <div class="stack-item">
+                  <div class="stack-item__top">
+                    <div>
+                      <div class="stack-item__title">123456</div>
+                      <div class="stack-item__meta">PRO • expires 2026-03-21</div>
+                    </div>
+                    <div class="stack-item__value">2d left</div>
+                  </div>
+                </div>
+              
+                <div class="stack-item">
+                  <div class="stack-item__top">
+                    <div>
+                      <div class="stack-item__title">789012</div>
+                      <div class="stack-item__meta">VIP • expires 2026-03-25</div>
+                    </div>
+                    <div class="stack-item__value">6d left</div>
+                  </div>
+                </div>
+              
+            </div>
+          
+        </article>
+
+        <article class="card panel">
+          <div class="panel-label">Notification Control</div>
+          <h3 class="panel-title">Settings Snapshot</h3>
+          <p class="panel-copy">
+            มองภาพรวมการเปิดปิด notifications, การตั้ง custom news window และการกระจายตัวของ digest
+            เพื่อดูว่าผู้ใช้รับข่าวสารในความถี่แบบไหนมากที่สุด
+          </p>
+
+          <div class="mini-grid">
+            <div class="mini-card">
+              <div class="mini-card__label">Settings Rows</div>
+              <div class="mini-card__value">22</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-card__label">Alerts Off</div>
+              <div class="mini-card__value">3</div>
+            </div>
+          </div>
+
+          <div class="stack-list">
+            <div class="stack-item">
+              <div class="stack-item__top">
+                <div>
+                  <div class="stack-item__title">Notifications disabled</div>
+                  <div class="stack-item__meta">สัดส่วนผู้ใช้ที่เลือกปิด notifications ทั้งหมด</div>
+                </div>
+                <div class="stack-item__value">13.6%</div>
+              </div>
+            </div>
+
+            <div class="stack-item">
+              <div class="stack-item__top">
+                <div>
+                  <div class="stack-item__title">Custom news window</div>
+                  <div class="stack-item__meta">ผู้ใช้ที่ตั้งช่วงเวลาอ่านข่าวไม่เหมือนค่ามาตรฐาน</div>
+                </div>
+                <div class="stack-item__value">4</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mini-grid">
+            
+              <div class="mini-card">
+                <div class="mini-card__label">Digest 1h</div>
+                <div class="mini-card__value">4</div>
+              </div>
+            
+              <div class="mini-card">
+                <div class="mini-card__label">Digest 4h</div>
+                <div class="mini-card__value">10</div>
+              </div>
+            
+              <div class="mini-card">
+                <div class="mini-card__label">Digest 8h</div>
+                <div class="mini-card__value">5</div>
+              </div>
+            
+              <div class="mini-card">
+                <div class="mini-card__label">Digest 24h</div>
+                <div class="mini-card__value">3</div>
+              </div>
+            
+          </div>
+        </article>
+      </section>
+
+      <section class="card panel table-card" id="signals">
+        <div class="table-card__head">
+          <div>
+            <div class="panel-label">Recent Signals</div>
+            <h3 class="panel-title">Performance Feed</h3>
+            <p class="panel-copy">
+              เปลี่ยนมุมมองจาก log ธรรมดาให้ดูเหมือน transaction feed เพื่อให้เห็นเร็วว่า signal ไหนเข้าเป้า
+              และตัวไหนยังต้องกลับไปปรับคุณภาพโมเดล
+            </p>
+          </div>
+          <span class="pill pill--success">
+            58.33% win rate
+          </span>
         </div>
-      
-    </section>
-  </main>
+
+        
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Signal</th>
+                  <th>Alert Price</th>
+                  <th>Current Price</th>
+                  <th>Result</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                
+                  <tr>
+                    <td data-label="Symbol"><strong>NVDA</strong></td>
+                    <td data-label="Signal">GOLDEN CROSS</td>
+                    <td data-label="Alert Price">118.22</td>
+                    <td data-label="Current Price">124.41</td>
+                    <td data-label="Result">+5.24%</td>
+                    <td data-label="Status">
+                      <span class="badge badge--ok">
+                        Win
+                      </span>
+                    </td>
+                  </tr>
+                
+                  <tr>
+                    <td data-label="Symbol"><strong>TSLA</strong></td>
+                    <td data-label="Signal">BREAK SUP</td>
+                    <td data-label="Alert Price">210.40</td>
+                    <td data-label="Current Price">203.08</td>
+                    <td data-label="Result">+3.48%</td>
+                    <td data-label="Status">
+                      <span class="badge badge--ok">
+                        Win
+                      </span>
+                    </td>
+                  </tr>
+                
+                  <tr>
+                    <td data-label="Symbol"><strong>AAPL</strong></td>
+                    <td data-label="Signal">OVERBOUGHT</td>
+                    <td data-label="Alert Price">183.50</td>
+                    <td data-label="Current Price">185.12</td>
+                    <td data-label="Result">-0.88%</td>
+                    <td data-label="Status">
+                      <span class="badge badge--no">
+                        Miss
+                      </span>
+                    </td>
+                  </tr>
+                
+              </tbody>
+            </table>
+          </div>
+        
+      </section>
+
+      <section class="card panel table-card" id="members">
+        <div class="table-card__head">
+          <div>
+            <div class="panel-label">Membership Base</div>
+            <h3 class="panel-title">VIP / PRO Members</h3>
+            <p class="panel-copy">
+              รายชื่อสมาชิกชำระเงินพร้อมสถานะล่าสุด วันหมดอายุ และบทบาท เพื่อให้ตามงาน retention
+              หรือ support รายเคสได้ไวขึ้น
+            </p>
+          </div>
+          <span class="pill pill--cyan">4 active paid users</span>
+        </div>
+
+        
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>User ID</th>
+                  <th>Role</th>
+                  <th>Expiry</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                
+                  <tr>
+                    <td data-label="User ID"><span class="mono">123456</span></td>
+                    <td data-label="Role">
+                      <span class="badge badge--pro">
+                        PRO
+                      </span>
+                    </td>
+                    <td data-label="Expiry">2026-03-21</td>
+                    <td data-label="Status">
+                      <span class="badge badge--ok">
+                        Active
+                      </span>
+                    </td>
+                  </tr>
+                
+                  <tr>
+                    <td data-label="User ID"><span class="mono">789012</span></td>
+                    <td data-label="Role">
+                      <span class="badge badge--vip">
+                        VIP
+                      </span>
+                    </td>
+                    <td data-label="Expiry">2026-03-25</td>
+                    <td data-label="Status">
+                      <span class="badge badge--ok">
+                        Active
+                      </span>
+                    </td>
+                  </tr>
+                
+              </tbody>
+            </table>
+          </div>
+        
+      </section>
+    </main>
+  </div>
 </body>
 </html>

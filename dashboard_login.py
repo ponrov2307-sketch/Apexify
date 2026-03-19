@@ -6,6 +6,7 @@ import jwt
 
 from config import (
     ADMIN_ID,
+    ADMIN_DASHBOARD_LOGIN_SECRET,
     BOT_DASHBOARD_LOGIN_ENABLED,
     BOT_WEB_BASE_URL,
     DASHBOARD_BASE_URL,
@@ -36,7 +37,7 @@ def is_dashboard_login_ready() -> tuple[bool, str]:
 def is_admin_dashboard_ready() -> tuple[bool, str]:
     if not BOT_WEB_BASE_URL:
         return False, "url_missing"
-    if not DASHBOARD_LOGIN_SECRET:
+    if not ADMIN_DASHBOARD_LOGIN_SECRET:
         return False, "secret_missing"
     if not ADMIN_ID:
         return False, "admin_missing"
@@ -65,7 +66,7 @@ def build_admin_dashboard_token(telegram_id: str) -> str:
         "iss": "apexify-bot",
         "scope": "admin_dashboard",
     }
-    return jwt.encode(payload, DASHBOARD_LOGIN_SECRET, algorithm="HS256")
+    return jwt.encode(payload, ADMIN_DASHBOARD_LOGIN_SECRET, algorithm="HS256")
 
 
 def build_dashboard_login_url(telegram_id: str) -> str:
@@ -135,13 +136,13 @@ def verify_admin_dashboard_token(token: str) -> tuple[bool, dict | None, str]:
     raw_token = str(token or "").strip()
     if not raw_token:
         return False, None, "token_missing"
-    if not DASHBOARD_LOGIN_SECRET:
+    if not ADMIN_DASHBOARD_LOGIN_SECRET:
         return False, None, "secret_missing"
 
     try:
         payload = jwt.decode(
             raw_token,
-            DASHBOARD_LOGIN_SECRET,
+            ADMIN_DASHBOARD_LOGIN_SECRET,
             algorithms=["HS256"],
             issuer="apexify-bot",
         )

@@ -7,6 +7,8 @@ ALERT_SERVICE_NAME="${ALERT_SERVICE_NAME:-apexify-alert.service}"
 PORT="${PORT:-8080}"
 LOG_FILE="${LOG_FILE:-/tmp/apexify_update.log}"
 PYTHON_BIN="${PYTHON_BIN:-}"
+REQUIREMENTS_STATE_FILE="${REQUIREMENTS_STATE_FILE:-$APP_DIR/.requirements-sync-state}"
+FORCE_PIP_SYNC="${FORCE_PIP_SYNC:-0}"
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -78,16 +80,47 @@ resolve_python_bin() {
 }
 
 install_requirements() {
+  local fingerprint
+  fingerprint="$("${PYTHON_BIN}" - <<'PY'
+import hashlib
+import pathlib
+import sys
+
+requirements = pathlib.Path("requirements.txt").read_bytes()
+payload = requirements + b"\n" + sys.executable.encode("utf-8") + b"\n" + sys.version.encode("utf-8")
+print(hashlib.sha256(payload).hexdigest())
+PY
+)"
+
+  if [ "${FORCE_PIP_SYNC}" != "1" ] && [ -f "${REQUIREMENTS_STATE_FILE}" ]; then
+    local previous_fingerprint
+    previous_fingerprint="$(cat "${REQUIREMENTS_STATE_FILE}")"
+    if [ "${previous_fingerprint}" = "${fingerprint}" ]; then
+      echo "requirements unchanged - skipping pip sync"
+      return 0
+    fi
+  fi
+
+  local pip_args=(
+    install
+    --disable-pip-version-check
+    --prefer-binary
+    --upgrade-strategy only-if-needed
+    --no-input
+    -r requirements.txt
+  )
+
   if "${PYTHON_BIN}" - <<'PY'
 import sys
 raise SystemExit(0 if sys.prefix == getattr(sys, "base_prefix", sys.prefix) else 1)
 PY
   then
-    "${PYTHON_BIN}" -m pip install --break-system-packages -r requirements.txt
-    return 0
+    "${PYTHON_BIN}" -m pip "${pip_args[@]}" --break-system-packages
+  else
+    "${PYTHON_BIN}" -m pip "${pip_args[@]}"
   fi
 
-  "${PYTHON_BIN}" -m pip install -r requirements.txt
+  printf '%s' "${fingerprint}" > "${REQUIREMENTS_STATE_FILE}"
 }
 
 verify_runtime_imports() {
