@@ -16,13 +16,41 @@ import yfinance as yf
 from curl_cffi import requests as cffi_requests 
 import asyncio
 import edge_tts
+import re
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 last_alert_state = {}
 sent_pro_news = set() # 🌟 เก็บประวัติข่าวที่เคยส่งไปแล้วเพื่อกันส่งซ้ำ
 sent_stock_news_history = {} 
+last_stock_news_sent_at = {}
 sent_xd_alerts = set()
+
+FLASH_NEWS_INTERVAL_SECONDS = 3 * 3600
+DIGEST_NEWS_CHECK_INTERVAL_SECONDS = 3600
+STOCK_NEWS_COOLDOWN_SECONDS = 4 * 3600
+MAX_FLASH_HEADLINES = 12
+MAX_DIGEST_HEADLINES = 12
+MAX_DIGEST_ITEMS = 2
+
+
+def _compact_news_text(text, max_chars=180, max_lines=2):
+    cleaned_lines = []
+    for raw_line in str(text or "").replace("\r\n", "\n").split("\n"):
+        line = re.sub(r"\s+", " ", raw_line).strip(" -•\t")
+        if line:
+            cleaned_lines.append(line)
+
+    compact = "\n".join(cleaned_lines[:max_lines]).strip()
+    if not compact:
+        return ""
+    if len(compact) <= max_chars:
+        return compact
+
+    trimmed = compact[: max_chars - 1].rstrip()
+    if " " in trimmed:
+        trimmed = trimmed.rsplit(" ", 1)[0]
+    return f"{trimmed}…"
 
 def send_alert_to_users(symbol, message, alert_type="tech"):
     users = get_users_watching(symbol)
@@ -48,6 +76,10 @@ def check_hot_news(symbol):
     try:
         is_thai_stock = symbol.endswith('.BK')
         search_term = symbol.replace('.BK', '')
+        now = time.time()
+
+        if now - last_stock_news_sent_at.get(symbol, 0) < STOCK_NEWS_COOLDOWN_SECONDS:
+            return
         
         if is_thai_stock:
             url = f"https://news.google.com/rss/search?q={search_term}+หุ้น+when:1d&hl=th&gl=TH&ceid=TH:th"
@@ -79,7 +111,7 @@ def check_hot_news(symbol):
             {{
                 "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
                 "severity": "HIGH" (เฉพาะข่าวด่วนที่มีผลกระทบรุนแรงต่อราคาหุ้นจริงๆ เท่านั้น นอกนั้นให้ตอบ LOW),
-                "reason": "วิเคราะห์ผลกระทบสั้นๆ จับใจความ 1 ประโยค (ภาษาไทย)"
+                "reason": "วิเคราะห์ผลกระทบสั้นมาก 1 ประโยค (ภาษาไทย ไม่เกิน 80 ตัวอักษร)"
             }}
             """
             
@@ -90,19 +122,25 @@ def check_hot_news(symbol):
                 analysis = json.loads(result_text)
                 if analysis.get('severity') == 'HIGH':
                     sentiment = analysis.get('sentiment', 'NEUTRAL')
-                    reason = analysis.get('reason', 'ไม่มีคำอธิบายเพิ่มเติม')
+                    reason = _compact_news_text(
+                        analysis.get('reason', 'ไม่มีคำอธิบายเพิ่มเติม'),
+                        max_chars=100,
+                        max_lines=1,
+                    )
                     
-                    emoji_status = "🚀 BULLISH (เชิงบวก)" if sentiment == "BULLISH" else "🩸 BEARISH (เชิงลบ)" if sentiment == "BEARISH" else "⚪️ NEUTRAL (ปกติ)"
+                    emoji_status = "🚀 เชิงบวก" if sentiment == "BULLISH" else "🩸 เชิงลบ" if sentiment == "BEARISH" else "⚪️ กลางๆ"
                     
                     msg = (
-                        f"🗞 **ข่าวด่วน:** {title}\n"
-                        f"🤖 **มุมมอง Apexify:** {emoji_status}\n"
-                        f"💡 **วิเคราะห์:** {reason}\n\n"
-                        f"🔗 [อ่านข่าวเต็มคลิกที่นี่]({link})"
+                        f"🗞 **ข่าวด่วน {symbol}**\n"
+                        f"📌 {title}\n"
+                        f"📊 {emoji_status}\n"
+                        f"💡 {reason}\n"
+                        f"🔗 [อ่านต่อ]({link})"
                     )
                     
                     send_alert_to_users(symbol, msg, alert_type="news")
                     sent_stock_news_history[symbol].add(title) 
+                    last_stock_news_sent_at[symbol] = now
                     
                     if len(sent_stock_news_history[symbol]) > 50:
                         sent_stock_news_history[symbol].clear()
@@ -207,6 +245,7 @@ def get_fresh_global_news():
         "https://www.investing.com/rss/market_overview.rss"
     ]
     news_list = []
+    seen_titles = set()
     for url in urls:
         try:
             response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
@@ -217,8 +256,9 @@ def get_fresh_global_news():
                 if title_elem is not None:
                     title = title_elem.text.strip()
                     link = link_elem.text.strip() if link_elem is not None else ""
-                    if title not in sent_pro_news:
+                    if title not in sent_pro_news and title not in seen_titles:
                         news_list.append({"title": title, "link": link})
+                        seen_titles.add(title)
         except Exception: pass
     return news_list
 
@@ -234,7 +274,7 @@ def broadcast_hourly_urgent_news(bot_instance):
         return
     
     titles = [n['title'] for n in fresh_news]
-    titles_str = "\n".join([f"- {t}" for t in titles[:20]]) # ลดจำนวนลงกัน AI งง
+    titles_str = "\n".join([f"- {t}" for t in titles[:MAX_FLASH_HEADLINES]]) # ลดจำนวนลงกัน AI งง
     
     prompt = f"""
     คุณคือนักวิเคราะห์การเงินระดับโลก 
@@ -242,13 +282,13 @@ def broadcast_hourly_urgent_news(bot_instance):
     {titles_str}
     
     เลือกข่าวที่ "ด่วนและสำคัญที่สุดในเชิงเศรษฐกิจ" เพียง 1 ข่าว 
-    และสรุปเนื้อข่าว 3-4 บรรทัด (เป็นภาษาไทย) ห้ามใส่ลิงก์
+    และสรุปเนื้อข่าวแบบสั้นมาก 1-2 บรรทัด (เป็นภาษาไทย) ห้ามใส่ลิงก์
     (ถ้าข่าวมีความรุนแรงหรือสงคราม ให้สรุปเฉพาะผลกระทบทางเศรษฐกิจเท่านั้น)
     
     ตอบกลับในรูปแบบ JSON เท่านั้น:
     {{
         "original_title": "พาดหัวข่าวที่เลือก",
-        "summary": "สรุปเนื้อข่าว 3-4 บรรทัด"
+        "summary": "สรุปเนื้อข่าว 1-2 บรรทัด แบบอ่านจบเร็ว"
     }}
     """
     try:
@@ -267,7 +307,8 @@ def broadcast_hourly_urgent_news(bot_instance):
         summary = analysis.get('summary') or analysis.get('content') or analysis.get('description') or ''
         
         if title and summary:
-            msg = f"🚨 **ข่าวด่วนรอบชั่วโมง** 🚨\n\n📌 **{title}**\n\n📝 **สรุป:** {summary}"
+            summary = _compact_news_text(summary, max_chars=180, max_lines=2)
+            msg = f"🚨 **Flash News**\n📌 **{title}**\n📝 {summary}"
             sent_pro_news.add(title)
             
             # ป้องกันหน่วยความจำเต็ม
@@ -284,7 +325,7 @@ def broadcast_hourly_urgent_news(bot_instance):
                         count += 1
                         time.sleep(0.5) 
                     except Exception: pass
-                conn.close()
+            conn.close()
 
         else:
             # 🌟 3. ดักจับกรณี AI ตอบ JSON แต่ข้อมูลแหว่ง/ไม่ครบ
@@ -308,22 +349,22 @@ def check_and_broadcast_pro_news(bot_instance):
     if not fresh_news: return
     
     titles = [n['title'] for n in fresh_news]
-    titles_str = "\n".join([f"- {t}" for t in titles[:25]])
+    titles_str = "\n".join([f"- {t}" for t in titles[:MAX_DIGEST_HEADLINES]])
     
     prompt = f"""
     คุณคือนักวิเคราะห์การเงิน 
     นี่คือพาดหัวข่าวล่าสุด:
     {titles_str}
     
-    เลือกข่าวเชิงเศรษฐกิจ/การลงทุน ที่ "สำคัญที่สุด" 3 ข่าว 
-    สรุปเนื้อหาแต่ละข่าวแบบเจาะลึก 3-4 บรรทัด (ภาษาไทย)
+    เลือกข่าวเชิงเศรษฐกิจ/การลงทุน ที่ "สำคัญที่สุด" 2 ข่าว 
+    สรุปเนื้อหาแต่ละข่าวแบบสั้น กระชับ ข่าวละ 1-2 บรรทัด (ภาษาไทย)
     (เน้นเรื่องเศรษฐกิจ หลีกเลี่ยงเนื้อหาความรุนแรง)
     
     ตอบกลับในรูปแบบ JSON Array เท่านั้น:
     [
         {{
             "original_title": "พาดหัวข่าวต้นฉบับที่เลือก",
-            "summary": "สรุปเนื้อข่าว 3-4 บรรทัด"
+            "summary": "สรุปเนื้อข่าว 1-2 บรรทัด"
         }}
     ]
     """
@@ -347,22 +388,29 @@ def check_and_broadcast_pro_news(bot_instance):
             conn.close()
             return
         sent_to_users = set()
-        
-        for item in analysis_list:
+        digest_sections = []
+
+        for item in analysis_list[:MAX_DIGEST_ITEMS]:
             title = item.get('original_title', '')
             summary = item.get('summary', '')
             
             if title and summary:
-                msg = f"📰 **APEX NEWS:**\n*{title}*\n\n📝 **สรุป:**\n{summary}"
+                summary = _compact_news_text(summary, max_chars=140, max_lines=2)
+                digest_sections.append(f"**{len(digest_sections) + 1}. {title}**\n{summary}")
                 sent_pro_news.add(title)
-                
-                for uid in eligible_users:
-                    try:
-                        bot_instance.send_message(uid, msg, parse_mode='Markdown')
-                        sent_to_users.add(uid)
-                        time.sleep(0.5)
-                    except Exception:
-                        pass
+        if not digest_sections:
+            conn.close()
+            return
+
+        msg = "📰 **APEX NEWS DIGEST**\n\n" + "\n\n".join(digest_sections)
+
+        for uid in eligible_users:
+            try:
+                bot_instance.send_message(uid, msg, parse_mode='Markdown')
+                sent_to_users.add(uid)
+                time.sleep(0.5)
+            except Exception:
+                pass
         for uid in sent_to_users:
             mark_digest_sent(uid)
         conn.close()
@@ -695,8 +743,8 @@ if __name__ == "__main__":
     
     print("🚀 Apexify Alert System (PRO + VIP selected features) is Running...")
     # 🌟 ตั้งค่าเริ่มต้น
-    last_hourly_news_time = time.time() - 3600  # พร้อมส่งข่าว 1 ชม. ทันที
-    last_global_news_time = time.time() - 3600  # พร้อมตรวจ Digest ทุก 1 ชม. ทันที
+    last_hourly_news_time = time.time() - FLASH_NEWS_INTERVAL_SECONDS
+    last_global_news_time = time.time() - DIGEST_NEWS_CHECK_INTERVAL_SECONDS
     last_morning_briefing_date = None
     last_xd_check_date = None
     last_podcast_date = None
@@ -736,13 +784,13 @@ if __name__ == "__main__":
             if last_portfolio_summary_date != current_date_str:
                 send_daily_portfolio_summary(bot)
                 last_portfolio_summary_date = current_date_str
-        # 🌟 แจ้งเตือนข่าว 1 ชั่วโมง (Flash News)
-        if current_time - last_hourly_news_time >= 3600:
+        # 🌟 แจ้งเตือนข่าว Flash News ทุก 3 ชั่วโมง
+        if current_time - last_hourly_news_time >= FLASH_NEWS_INTERVAL_SECONDS:
             broadcast_hourly_urgent_news(bot)
             last_hourly_news_time = time.time()
         
         # 🌟 ตรวจ Digest News ทุก 1 ชั่วโมง แล้วคัดตามความถี่รายผู้ใช้
-        if current_time - last_global_news_time >= 3600:
+        if current_time - last_global_news_time >= DIGEST_NEWS_CHECK_INTERVAL_SECONDS:
             check_and_broadcast_pro_news(bot)
             last_global_news_time = time.time() 
             

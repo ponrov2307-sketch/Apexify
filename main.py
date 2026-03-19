@@ -288,7 +288,7 @@ def handle_force_news(message):
             bot.edit_message_text("✅ บรอดแคสต์ Flash News ข่าวเดียวเด่นๆ สำเร็จ!", message.chat.id, load_msg.message_id)
         elif news_type == 'digest':
             check_and_broadcast_pro_news(bot)
-            bot.edit_message_text("✅ บรอดแคสต์ Digest News (แบบ 3 ข่าว) สำเร็จ!", message.chat.id, load_msg.message_id)
+            bot.edit_message_text("✅ บรอดแคสต์ Digest News (แบบ 2 ข่าวสั้น) สำเร็จ!", message.chat.id, load_msg.message_id)
         else:
             bot.edit_message_text("❌ ประเภทข่าวไม่ถูกต้อง พิมพ์ `/force_news flash` หรือ `/force_news digest`", message.chat.id, load_msg.message_id)
     except Exception as e:
@@ -1012,8 +1012,8 @@ def inline_callbacks(call):
                 "🤖 **[บอท]** ♾️ ขยาย Watchlist และพอร์ตเว็บ **ไม่จำกัดจำนวน!**\n"
                 "🤖 **[บอท]** 🔔 **Smart Alerts:** ตั้งเตือนราคาส่วนตัว (ซิงค์ตรงจากเว็บ!)\n"
                 "🤖 **[บอท]** 📡 **Technical Radar:** AI เฝ้ากราฟ 24 ชม. เตือน Golden Cross/RSI\n"
-                "🤖 **[บอท]** 🚨 **Flash News:** แจ้งเตือนข่าวด่วนที่มีผลกระทบรุนแรงรายชั่วโมง\n"
-                "🤖 **[บอท]** 📰 **News Digest:** สรุปเจาะลึกข่าวสำคัญตามความถี่ที่ตั้งไว้ (1/4/8/24 ชม.)\n"
+                "🤖 **[บอท]** 🚨 **Flash News:** คัดข่าวด่วนที่มีผลกระทบสูง ส่งแบบสั้นลงทุก 3 ชั่วโมง\n"
+                "🤖 **[บอท]** 📰 **News Digest:** รวมข่าวสำคัญเป็นฉบับย่อ ตามความถี่ที่ตั้งไว้ (1/4/8/24 ชม.)\n"
                 "🤖 **[บอท]** 📅 **Dividend Hunter:** แจ้งเตือนหุ้นปันผล (XD) ล่วงหน้า 3 วัน\n"
                 "🤖 **[บอท]** 💎 **Apexify Screener:** เรดาร์สแกนหา \"หุ้นเด่นน่าเก็บประจำวัน\"\n"
                 "🤖 **[บอท]** 🧠 **Hedge Fund Playbook:** อัปเกรดบทวิเคราะห์กราฟขั้นสูง\n"
@@ -1300,7 +1300,7 @@ def inline_callbacks(call):
                 "📣 **คู่มือบรอดแคสต์และข่าวสาร (คัดลอกคำสั่งไปพิมพ์ได้เลย)**\n\n"
                 "• `/broadcast [ข้อความที่ต้องการส่ง]` : แจ้งเตือน User ทุกคน\n"
                 "• `/force_news flash` : ยิงข่าวด่วนที่สุด 1 ข่าว\n"
-                "• `/force_news digest` : ยิงสรุปข่าวเจาะลึก 3 ข่าว\n"
+                "• `/force_news digest` : ยิงสรุปข่าวย่อ 2 ข่าว\n"
                 "• `/mock_alert [whale/dump/xd/golden]` : ทดสอบการแจ้งเตือน\n"
                 "• `/earnings [ชื่อหุ้น]` : สั่ง AI วิเคราะห์งบการเงินล่าสุด"
             )
