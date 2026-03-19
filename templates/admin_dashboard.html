@@ -691,7 +691,9 @@
   {% set ram = system_health.get("ram_percent", 0) or 0 %}
   {% set ram_used = system_health.get("ram_used_gb", 0) or 0 %}
   {% set ram_total = system_health.get("ram_total_gb", 0) or 0 %}
+  {% set disk_pct = system_health.get("disk_percent", 0) or 0 %}
   {% set uptime_seconds = system_health.get("uptime_seconds", 0) or 0 %}
+  {% set uptime_hours_total = system_health.get("uptime_hours", 0) or 0 %}
   
   {% set uptime_days = uptime_seconds // 86400 %}
   {% set uptime_hours = (uptime_seconds % 86400) // 3600 %}
@@ -838,35 +840,62 @@
         <article class="glass-card panel">
           <div class="panel-header">
             <div>
-              <h3 class="panel-title">System Telemetry Matrix</h3>
+              <h3 class="panel-title">💻 System Health Matrix</h3>
               <p style="color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;">
-                {% if uptime_days > 0 %}{{ uptime_days }}d {% endif %}{{ uptime_hours }}h {{ uptime_mins }}m Uptime
+                ⏱️ Uptime: {{ uptime_hours_total }} hours (~{{ uptime_days }}d {{ uptime_hours }}h)
               </p>
             </div>
-            <span class="badge badge-cyan">
-              RAM: {{ '%.1f'|format(ram_used) }} / {{ '%.1f'|format(ram_total) }} GB
-            </span>
+            <span class="badge badge-cyan">LIVE TELEMETRY</span>
           </div>
           
           <div class="progress-stack">
-            {% set progress_data = [
-              {"label": "CPU Load", "val": cpu, "color": "var(--accent-primary)"},
-              {"label": "Memory (RAM)", "val": ram, "color": "var(--accent-secondary)"},
-              {"label": "Signal Success", "val": win_rate, "color": "var(--accent-success)"},
-              {"label": "Paid Density", "val": paid_share, "color": "var(--accent-primary)"},
-              {"label": "Alert Pressure", "val": (total_alerts/10 if total_alerts < 1000 else 100), "color": "var(--accent-warning)"},
-              {"label": "Grid Stability", "val": 94, "color": "var(--accent-success)"}
-            ] %}
-            
-            {% for item in progress_data %}
-              <div class="progress-item">
-                <span class="progress-label">{{ item.label }}</span>
-                <div class="progress-track">
-                  <div class="progress-fill" style="width: {{ '%.0f'|format(item.val | default(0)) }}%; background: {{ item.color }}; box-shadow: 0 0 15px {{ item.color }}66;"></div>
-                </div>
-                <span class="progress-value">{{ '%.0f'|format(item.val | default(0)) }}%</span>
+            <div class="progress-item">
+              <span class="progress-label">🧠 CPU Usage</span>
+              <div class="progress-track">
+                <div class="progress-fill" style="width: {{ '%.0f'|format(cpu) }}%; background: var(--accent-primary); box-shadow: 0 0 15px var(--accent-primary)66;"></div>
               </div>
-            {% endfor %}
+              <span class="progress-value">{{ '%.0f'|format(cpu) }}%</span>
+            </div>
+
+            <div class="progress-item">
+              <span class="progress-label">💽 RAM ({{ '%.2f'|format(ram_used) }} / {{ '%.2f'|format(ram_total) }} GB)</span>
+              <div class="progress-track">
+                <div class="progress-fill" style="width: {{ '%.0f'|format(ram) }}%; background: var(--accent-secondary); box-shadow: 0 0 15px var(--accent-secondary)66;"></div>
+              </div>
+              <span class="progress-value">{{ '%.0f'|format(ram) }}%</span>
+            </div>
+
+            <div class="progress-item">
+              <span class="progress-label">💾 Disk Space</span>
+              <div class="progress-track">
+                <div class="progress-fill" style="width: {{ '%.0f'|format(disk_pct) }}%; background: var(--accent-warning); box-shadow: 0 0 15px var(--accent-warning)66;"></div>
+              </div>
+              <span class="progress-value">{{ '%.0f'|format(disk_pct) }}%</span>
+            </div>
+
+            <div class="progress-item">
+              <span class="progress-label">🚀 Signal Success</span>
+              <div class="progress-track">
+                <div class="progress-fill" style="width: {{ '%.0f'|format(win_rate) }}%; background: var(--accent-success); box-shadow: 0 0 15px var(--accent-success)66;"></div>
+              </div>
+              <span class="progress-value">{{ '%.0f'|format(win_rate) }}%</span>
+            </div>
+
+            <div class="progress-item">
+              <span class="progress-label">💎 Paid Density</span>
+              <div class="progress-track">
+                <div class="progress-fill" style="width: {{ '%.0f'|format(paid_share) }}%; background: var(--accent-primary); box-shadow: 0 0 15px var(--accent-primary)66;"></div>
+              </div>
+              <span class="progress-value">{{ '%.0f'|format(paid_share) }}%</span>
+            </div>
+
+            <div class="progress-item">
+              <span class="progress-label">📡 Alert Pressure</span>
+              <div class="progress-track">
+                <div class="progress-fill" style="width: {{ '%.0f'|format(total_alerts/10 if total_alerts < 1000 else 100) }}%; background: var(--accent-danger); box-shadow: 0 0 15px var(--accent-danger)66;"></div>
+              </div>
+              <span class="progress-value">{{ '%.0f'|format(total_alerts/10 if total_alerts < 1000 else 100) }}%</span>
+            </div>
           </div>
         </article>
 
