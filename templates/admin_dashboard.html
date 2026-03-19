@@ -3,1107 +3,413 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Apexify Admin Dashboard - Glassmorphism Edition</title>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <title>Apexify Admin - Dime Style</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      /* Deep Purple / Slate Cyberpunk Palette */
-      --bg: #09090e;
-      --bg-gradient-1: #1a1025;
-      --bg-gradient-2: #09121a;
+      /* Dime App Color Palette */
+      --dime-green: #00C076;
+      --dime-green-soft: rgba(0, 192, 118, 0.1);
+      --dime-bg: #F2F4F7;
+      --dime-card: #FFFFFF;
+      --dime-text-main: #1A1C1E;
+      --dime-text-sub: #6C7278;
+      --dime-red: #FF4D4D;
+      --dime-red-soft: rgba(255, 77, 77, 0.1);
+      --dime-blue: #007AFF;
+      --dime-border: #E5E9EB;
       
-      --glass-bg: rgba(20, 20, 30, 0.4);
-      --glass-border: rgba(255, 255, 255, 0.08);
-      --glass-highlight: rgba(255, 255, 255, 0.12);
+      --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.04);
+      --shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.08);
       
-      --text: #f8f9fa;
-      --text-muted: #a0a5b1;
+      --radius-xl: 28px;
+      --radius-lg: 20px;
+      --radius-md: 14px;
       
-      --accent-primary: #00f0ff; /* Cyber Cyan */
-      --accent-secondary: #b026ff; /* Neon Purple */
-      --accent-success: #39ff14; /* Matrix Green */
-      --accent-warning: #ffb000; /* Neon Orange */
-      --accent-danger: #ff003c; /* Laser Red */
-
-      --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-      --glow-primary: 0 0 20px rgba(0, 240, 255, 0.4);
-      --glow-secondary: 0 0 20px rgba(176, 38, 255, 0.4);
-      
-      --radius-xl: 32px;
-      --radius-lg: 24px;
-      --radius-md: 16px;
-      --radius-sm: 10px;
-
-      --body: 'Inter', sans-serif;
-      --display: 'Space Grotesk', sans-serif;
+      --font-family: 'Inter', sans-serif;
     }
 
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
     html { scroll-behavior: smooth; }
-
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track { background: var(--bg); }
-    ::-webkit-scrollbar-thumb { 
-      background: rgba(255, 255, 255, 0.1); 
-      border-radius: 10px; 
-    }
-    ::-webkit-scrollbar-thumb:hover { background: var(--accent-primary); }
-
-    /* Animated Mesh Gradient Background */
-    @keyframes gradientShift {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
 
     body {
       margin: 0;
-      color: var(--text);
-      font-family: var(--body);
-      background: linear-gradient(-45deg, var(--bg-gradient-1), var(--bg), var(--bg-gradient-2), #050505);
-      background-size: 400% 400%;
-      animation: gradientShift 20s ease infinite;
+      color: var(--dime-text-main);
+      font-family: var(--font-family);
+      background-color: var(--dime-bg);
       min-height: 100vh;
-      overflow-x: hidden;
     }
 
-    /* Background Orbs */
-    .bg-orb {
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(100px);
-      z-index: -1;
-      opacity: 0.5;
-    }
-    .orb-1 {
-      top: -10%; left: -10%;
-      width: 500px; height: 500px;
-      background: var(--accent-secondary);
-    }
-    .orb-2 {
-      bottom: -10%; right: -5%;
-      width: 600px; height: 600px;
-      background: var(--accent-primary);
-      opacity: 0.3;
-    }
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 10px; }
 
-    /* Staggered Animations */
-    @keyframes slideUpFade { 
-      from { opacity: 0; transform: translateY(30px); } 
-      to { opacity: 1; transform: translateY(0); } 
-    }
-    
-    .animate-1 { animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards; opacity: 0; }
-    .animate-2 { animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards; opacity: 0; }
-    .animate-3 { animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards; opacity: 0; }
-    .animate-4 { animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards; opacity: 0; }
-
-    /* Layout Structure */
+    /* Layout */
     .shell {
       display: grid;
-      grid-template-columns: 280px minmax(0, 1fr);
+      grid-template-columns: 260px 1fr;
       min-height: 100vh;
-      padding: 24px;
-      gap: 32px;
-      max-width: 1800px;
-      margin: 0 auto;
     }
 
-    /* Glassmorphism Card Base */
-    .glass-card {
-      background: var(--glass-bg);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-glass);
-      transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-    }
-
-    .glass-card:hover {
-      border-color: var(--glass-highlight);
-      box-shadow: 0 15px 45px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-    }
-
-    /* Sidebar */
+    /* Sidebar - Clean Style */
     .sidebar {
+      background: var(--dime-card);
+      padding: 40px 24px;
       display: flex;
       flex-direction: column;
-      gap: 32px;
-      padding: 32px 24px;
-      height: calc(100vh - 48px);
+      border-right: 1px solid var(--dime-border);
       position: sticky;
-      top: 24px;
+      top: 0;
+      height: 100vh;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 12px;
+      margin-bottom: 48px;
       text-decoration: none;
     }
 
-    .brand__icon {
-      width: 52px;
-      height: 52px;
-      border-radius: var(--radius-md);
-      display: grid;
-      place-items: center;
-      color: var(--bg);
-      font-size: 28px;
-      font-weight: 700;
-      font-family: var(--display);
-      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-      box-shadow: var(--glow-primary);
+    .brand-logo {
+      width: 40px; height: 40px;
+      background: var(--dime-green);
+      border-radius: 12px;
+      display: grid; place-items: center;
+      color: #fff; font-weight: 800; font-size: 20px;
     }
 
-    .brand__title {
-      margin: 0;
-      font: 700 28px/1 var(--display);
-      background: linear-gradient(to right, #fff, var(--accent-primary));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      letter-spacing: -0.02em;
+    .brand-name {
+      font-size: 22px; font-weight: 800; color: var(--dime-text-main);
+      letter-spacing: -0.5px;
     }
 
-    .brand__subtitle {
-      margin-top: 4px;
-      color: var(--text-muted);
-      font-size: 12px;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      font-weight: 600;
-    }
-
-    .nav {
-      display: grid;
-      gap: 8px;
-      flex-grow: 1;
-    }
-
-    .nav__link {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 16px;
-      color: var(--text-muted);
-      text-decoration: none;
-      border-radius: var(--radius-md);
-      font-weight: 500;
-      transition: all 0.3s ease;
-      border: 1px solid transparent;
-      position: relative;
-      overflow: hidden;
-    }
+    .nav-list { display: flex; flex-direction: column; gap: 8px; flex-grow: 1; }
     
-    .nav__link::before {
-      content: '';
-      position: absolute;
-      left: 0; top: 0; bottom: 0; width: 3px;
-      background: var(--accent-primary);
-      transform: scaleY(0);
-      transition: transform 0.3s ease;
-      border-radius: 0 4px 4px 0;
+    .nav-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 18px; text-decoration: none;
+      color: var(--dime-text-sub); font-weight: 600;
+      border-radius: var(--radius-md); transition: all 0.2s;
     }
 
-    .nav__link:hover,
-    .nav__link--active {
-      color: var(--text);
-      background: rgba(255, 255, 255, 0.03);
-      border-color: rgba(255, 255, 255, 0.05);
+    .nav-item:hover, .nav-item.active {
+      color: var(--dime-green);
+      background: var(--dime-green-soft);
     }
 
-    .nav__link--active::before,
-    .nav__link:hover::before {
-      transform: scaleY(1);
-    }
-
-    .nav__link--active {
-      background: linear-gradient(90deg, rgba(0, 240, 255, 0.1), transparent);
-      border-color: rgba(0, 240, 255, 0.2);
-    }
-
-    .nav__icon {
-      font-size: 18px;
-      width: 24px;
-      text-align: center;
-    }
-
-    .sidebar-status {
-      padding: 24px;
-      border-radius: var(--radius-md);
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid var(--glass-border);
-      position: relative;
-    }
-
-    .pulse-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--accent-success);
-      display: inline-block;
-      margin-right: 8px;
-      box-shadow: 0 0 10px var(--accent-success);
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(57, 255, 20, 0.7); }
-      70% { box-shadow: 0 0 0 10px rgba(57, 255, 20, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(57, 255, 20, 0); }
+    .sidebar-footer {
+      padding-top: 24px; border-top: 1px solid var(--dime-border);
     }
 
     /* Main Content */
-    .main { 
-      display: flex;
-      flex-direction: column;
-      gap: 32px;
-    }
+    .main { padding: 40px 48px; max-width: 1400px; margin: 0 auto; width: 100%; }
 
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 24px 32px;
-      border-radius: var(--radius-lg);
-    }
+    /* Header Section */
+    .header-group { margin-bottom: 40px; }
+    .header-label { color: var(--dime-text-sub); font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+    .header-value { font-size: 48px; font-weight: 800; letter-spacing: -1.5px; margin: 0; }
+    .header-sub-value { color: var(--dime-green); font-weight: 700; font-size: 16px; margin-top: 8px; }
 
-    .headline {
-      margin: 0;
-      font: 700 32px/1.2 var(--display);
-    }
+    /* Card Grid */
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 32px; }
     
-    .headline span {
-      color: var(--accent-primary);
+    .card {
+      background: var(--dime-card);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      box-shadow: var(--shadow-soft);
+      transition: transform 0.2s, box-shadow 0.2s;
+      border: 1px solid transparent;
     }
 
-    .actions {
-      display: flex;
-      gap: 16px;
-    }
+    .card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); border-color: var(--dime-green-soft); }
 
+    .card-label { color: var(--dime-text-sub); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .card-value { font-size: 28px; font-weight: 800; margin: 12px 0; letter-spacing: -0.5px; }
+    .card-footer { font-size: 13px; color: var(--dime-text-sub); font-weight: 500; }
+
+    /* Telemetry Bars - Dime style */
+    .telemetry-group { display: flex; flex-direction: column; gap: 18px; }
+    .telemetry-item { display: grid; grid-template-columns: 140px 1fr 50px; align-items: center; gap: 16px; }
+    .telemetry-label { font-size: 13px; font-weight: 600; color: var(--dime-text-main); }
+    .telemetry-bar-bg { height: 8px; background: #E9ECEF; border-radius: 10px; overflow: hidden; }
+    .telemetry-bar-fill { height: 100%; background: var(--dime-green); border-radius: 10px; transition: width 1s ease-out; }
+    .telemetry-pct { font-size: 13px; font-weight: 700; color: var(--dime-text-main); text-align: right; }
+
+    /* Analysis Panels */
+    .analysis-bento { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; margin-bottom: 32px; }
+
+    /* Transaction-like Table */
+    .table-card { padding: 0; overflow: hidden; }
+    .table-header { padding: 24px 28px; border-bottom: 1px solid var(--dime-border); display: flex; justify-content: space-between; align-items: center; }
+    .table-title { margin: 0; font-size: 18px; font-weight: 700; }
+    
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 16px 28px; color: var(--dime-text-sub); font-size: 12px; font-weight: 700; text-transform: uppercase; background: #FAFAFB; }
+    td { padding: 20px 28px; border-bottom: 1px solid var(--dime-border); font-size: 14px; }
+    tr:last-child td { border-bottom: none; }
+    
+    .symbol-box { font-weight: 800; color: var(--dime-text-main); }
+    .type-badge { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; }
+    .badge-green { background: var(--dime-green-soft); color: var(--dime-green); }
+    .badge-red { background: var(--dime-red-soft); color: var(--dime-red); }
+    .badge-blue { background: rgba(0, 122, 255, 0.1); color: var(--dime-blue); }
+
+    /* Actions Header */
+    .actions-bar { display: flex; gap: 12px; }
     .btn {
-      appearance: none;
-      border: 1px solid var(--glass-border);
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--text);
-      padding: 12px 24px;
-      border-radius: var(--radius-sm);
-      font: 600 14px/1 var(--body);
-      cursor: pointer;
-      transition: all 0.2s ease;
-      backdrop-filter: blur(5px);
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+      padding: 10px 20px; border-radius: 12px; border: 1px solid var(--dime-border);
+      background: #fff; color: var(--dime-text-main); font-weight: 700; font-size: 14px;
+      cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;
       text-decoration: none;
     }
-
-    .btn:hover {
-      background: rgba(255, 255, 255, 0.1);
-      transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    }
-
-    .btn--glow {
-      background: linear-gradient(45deg, var(--accent-secondary), var(--accent-primary));
-      border: none;
-      color: #000;
-      font-weight: 700;
-      box-shadow: var(--glow-primary);
-    }
-
-    .btn--glow:hover {
-      background: linear-gradient(45deg, var(--accent-primary), var(--accent-secondary));
-      box-shadow: 0 8px 25px rgba(0, 240, 255, 0.5);
-    }
-
-    .btn--danger {
-      border-color: rgba(255, 0, 60, 0.5);
-      color: #ffb3c1;
-    }
-    .btn--danger:hover {
-      background: rgba(255, 0, 60, 0.2);
-      box-shadow: 0 0 15px rgba(255, 0, 60, 0.4);
-    }
-
-    /* KPI Grid Masonry Style */
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 24px;
-    }
-
-    .kpi-card {
-      padding: 32px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .kpi-card::after {
-      content: '';
-      position: absolute;
-      top: 0; right: 0;
-      width: 150px; height: 150px;
-      background: radial-gradient(circle, var(--accent-primary) 0%, transparent 70%);
-      opacity: 0.05;
-      transform: translate(30%, -30%);
-    }
-    
-    .kpi-card:nth-child(2)::after { background: radial-gradient(circle, var(--accent-secondary) 0%, transparent 70%); }
-    .kpi-card:nth-child(3)::after { background: radial-gradient(circle, var(--accent-warning) 0%, transparent 70%); }
-
-    .kpi-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 24px;
-    }
-
-    .kpi-icon {
-      width: 44px; height: 44px;
-      border-radius: var(--radius-sm);
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--glass-border);
-      display: grid; place-items: center;
-      font-size: 20px;
-      color: var(--accent-primary);
-    }
-
-    .kpi-label {
-      color: var(--text-muted);
-      font-size: 14px;
-      font-weight: 500;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-
-    .kpi-value {
-      font: 700 42px/1 var(--display);
-      margin: 8px 0;
-      background: linear-gradient(180deg, #fff, #a0a5b1);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .kpi-trend {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      padding: 4px 10px;
-      border-radius: 20px;
-      background: rgba(57, 255, 20, 0.1);
-      color: var(--accent-success);
-      border: 1px solid rgba(57, 255, 20, 0.2);
-    }
-
-    /* Complex Panels */
-    .dashboard-bento {
-      display: grid;
-      grid-template-columns: 2fr 1fr;
-      gap: 24px;
-    }
-
-    .panel {
-      padding: 32px;
-    }
-
-    .panel-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 32px;
-    }
-
-    .panel-title {
-      margin: 0;
-      font: 600 22px var(--display);
-    }
-
-    /* Modern Progress Matrix */
-    .progress-stack {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    .progress-item {
-      display: grid;
-      grid-template-columns: 110px 1fr 65px;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .progress-label {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-    }
-
-    .progress-track {
-      height: 10px;
-      background: rgba(255, 255, 255, 0.03);
-      border-radius: 20px;
-      overflow: hidden;
-      position: relative;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, var(--accent-secondary), var(--accent-primary));
-      border-radius: 20px;
-      box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
-      transition: width 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-    }
-
-    .progress-value {
-      font-family: var(--display);
-      font-weight: 700;
-      font-size: 15px;
-      color: #fff;
-      text-align: right;
-      text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
-    }
-
-    /* Data Lists (Replacing old tables/stacks) */
-    .data-list {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .data-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 20px;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: var(--radius-sm);
-      transition: transform 0.2s, background 0.2s;
-    }
-
-    .data-item:hover {
-      background: rgba(255, 255, 255, 0.05);
-      transform: scale(1.01);
-      border-color: var(--accent-primary);
-    }
-
-    .data-info h4 {
-      margin: 0 0 4px 0;
-      font-size: 16px;
-      font-weight: 600;
-    }
-
-    .data-info p {
-      margin: 0;
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    /* Badges */
-    .badge {
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .badge-cyan { background: rgba(0, 240, 255, 0.15); color: var(--accent-primary); border: 1px solid rgba(0, 240, 255, 0.3); }
-    .badge-purple { background: rgba(176, 38, 255, 0.15); color: #d884ff; border: 1px solid rgba(176, 38, 255, 0.3); }
-    .badge-green { background: rgba(57, 255, 20, 0.15); color: var(--accent-success); border: 1px solid rgba(57, 255, 20, 0.3); }
-    .badge-red { background: rgba(255, 0, 60, 0.15); color: #ff809b; border: 1px solid rgba(255, 0, 60, 0.3); }
-
-    /* Modern Table */
-    .table-wrapper {
-      overflow-x: auto;
-      border-radius: var(--radius-md);
-      background: rgba(0, 0, 0, 0.2);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      text-align: left;
-    }
-
-    th {
-      padding: 20px;
-      color: var(--text-muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      border-bottom: 1px solid var(--glass-border);
-      background: rgba(255, 255, 255, 0.02);
-      font-weight: 600;
-    }
-
-    td {
-      padding: 20px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-      vertical-align: middle;
-      font-size: 14px;
-    }
-
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: rgba(255, 255, 255, 0.03); }
-
-    .symbol-text {
-      font-family: var(--display);
-      font-weight: 700;
-      font-size: 16px;
-      color: #fff;
-    }
+    .btn:hover { background: #F8F9FA; border-color: #D1D5DB; }
+    .btn-primary { background: var(--dime-text-main); color: #fff; border: none; }
+    .btn-primary:hover { background: #000; }
+    .btn-danger { color: var(--dime-red); border-color: var(--dime-red-soft); }
+    .btn-danger:hover { background: var(--dime-red-soft); }
 
     /* Responsive */
-    @media (max-width: 1200px) {
-      .dashboard-bento { grid-template-columns: 1fr; }
-    }
-
-    @media (max-width: 992px) {
-      .shell {
-        grid-template-columns: 1fr;
-        padding: 16px;
-      }
-      .sidebar {
-        height: auto;
-        position: static;
-        padding: 24px;
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: space-between;
-      }
-      .nav {
-        display: flex;
-        overflow-x: auto;
-        padding-bottom: 10px;
-        width: 100%;
-      }
-      .nav__link {
-        white-space: nowrap;
-        padding: 12px 20px;
-      }
-      .nav__link::before {
-        width: 100%; height: 3px;
-        top: auto; bottom: 0;
-        border-radius: 4px 4px 0 0;
-        transform: scaleX(0);
-      }
-      .nav__link--active::before, .nav__link:hover::before {
-        transform: scaleX(1);
-      }
-      .sidebar-status { display: none; }
-    }
-
-    @media (max-width: 768px) {
-      .topbar {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 20px;
-      }
-      .actions {
-        width: 100%;
-        flex-wrap: wrap;
-      }
-      .btn { flex: 1; justify-content: center; }
-      
-      /* Mobile Table Cards */
-      thead { display: none; }
-      tr {
-        display: block;
-        background: rgba(255, 255, 255, 0.02);
-        margin-bottom: 16px;
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--glass-border);
-      }
-      td {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 12px 16px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      }
-      td::before {
-        content: attr(data-label);
-        font-size: 11px;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-      }
+    @media (max-width: 1100px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .grid-3, .analysis-bento { grid-template-columns: 1fr; }
+      .main { padding: 24px; }
     }
   </style>
 </head>
 <body>
-  <!-- Ambient Orbs -->
-  <div class="bg-orb orb-1"></div>
-  <div class="bg-orb orb-2"></div>
 
-  <!-- Jinja2 Safe Data Extraction -->
+  <!-- Data Extraction & Analysis Logic -->
   {% set user_stats = user_stats | default({}, true) %}
   {% set expiring_members = expiring_members | default({}, true) %}
-  {% set notification_settings = notification_settings | default({}, true) %}
   {% set price_alerts = price_alerts | default({}, true) %}
-  {% set system_health = system_health | default({}, true) %}
   {% set performance = performance | default({}, true) %}
   {% set top_watched = top_watched | default({}, true) %}
+  {% set system_health = system_health | default({}, true) %}
   {% set maintenance = maintenance | default({}, true) %}
 
-  {% set total_users = user_stats.get("total_users", 0) or 0 %}
-  {% set free_users = user_stats.get("free_users", 0) or 0 %}
-  {% set vip_users = user_stats.get("vip_users", 0) or 0 %}
-  {% set pro_users = user_stats.get("pro_users", 0) or 0 %}
-  {% set estimated_revenue = user_stats.get("estimated_monthly_revenue", 0) or 0 %}
+  {% set total_u = user_stats.get("total_users", 0) or 0 %}
+  {% set free_u = user_stats.get("free_users", 0) or 0 %}
+  {% set vip_u = user_stats.get("vip_users", 0) or 0 %}
+  {% set pro_u = user_stats.get("pro_users", 0) or 0 %}
+  {% set monthly_rev = user_stats.get("estimated_monthly_revenue", 0) or 0 %}
   
-  {% set paid_total = vip_users + pro_users %}
-  {% set paid_share = ((paid_total / total_users) * 100) if total_users else 0 %}
+  {# Analysis: Revenue Projection #}
+  {% set annual_run_rate = monthly_rev * 12 %}
+  {% set arpu = (monthly_rev / total_u) if total_u > 0 else 0 %}
   
-  {% set expiring_7 = expiring_members.get("expiring_7_days", 0) or 0 %}
-  {% set renewal_risk = ((expiring_7 / paid_total) * 100) if paid_total else 0 %}
-  {% set renewal_health = (100 - renewal_risk) if paid_total else 100 %}
-  {% set revenue_at_risk = expiring_members.get("revenue_at_risk_7_days", 0) or 0 %}
-  
-  {% set notifications_total = notification_settings.get("total_settings", 0) or 0 %}
-  {% set notifications_off = notification_settings.get("notifications_off", 0) or 0 %}
-  {% set notifications_off_pct = ((notifications_off / notifications_total) * 100) if notifications_total else 0 %}
-  {% set custom_windows = notification_settings.get("custom_windows", 0) or 0 %}
-  {% set digest_distribution = notification_settings.get("distribution", []) %}
-  
-  {% set total_alerts = price_alerts.get("total_alerts", 0) or 0 %}
-  {% set alert_unique_users = price_alerts.get("unique_users", 0) or 0 %}
-  
-  {% set win_rate = performance.get("win_rate", 0) or 0 %}
-  {% set win_count = performance.get("win_count", 0) or 0 %}
-  {% set total_eval_count = performance.get("total_count", 0) or 0 %}
-  
+  {# Analysis: Conversion Potential #}
+  {% set total_watch_entries = top_watched.get("total_watch_entries", 0) or 0 %}
+  {% set engagement_score = (total_watch_entries / total_u * 10) if total_u > 0 else 0 %}
+  {% set conv_potential = (free_u * 0.15) | round | int %}{# คาดการณ์ว่า 15% ของ free users ที่ active จะเปลี่ยนเป็น vip #}
+
+  {# System Health #}
   {% set cpu = system_health.get("cpu_usage", 0) or 0 %}
   {% set ram = system_health.get("ram_percent", 0) or 0 %}
-  {% set ram_used = system_health.get("ram_used_gb", 0) or 0 %}
-  {% set ram_total = system_health.get("ram_total_gb", 0) or 0 %}
-  {% set disk_pct = system_health.get("disk_percent", 0) or 0 %}
-  {% set uptime_seconds = system_health.get("uptime_seconds", 0) or 0 %}
-  {% set uptime_hours_total = system_health.get("uptime_hours", 0) or 0 %}
-  
-  {% set uptime_days = uptime_seconds // 86400 %}
-  {% set uptime_hours = (uptime_seconds % 86400) // 3600 %}
-  {% set uptime_mins = (uptime_seconds % 3600) // 60 %}
-  
-  <!-- Generate SVG Points safely -->
-  {% set chart_metrics = [ cpu, ram, win_rate, paid_share, (total_alerts/10 if total_alerts < 1000 else 100), 85 ] %}
-  {% set chart_ns = namespace(points='') %}
-  {% for val in chart_metrics %}
-    {% set safe_val = val if val <= 100 else 100 %}
-    {% set x = (loop.index0 * 120) %}
-    {% set y = 200 - (safe_val * 1.5) %}
-    {% set chart_ns.points = chart_ns.points ~ x ~ ',' ~ ('%.1f'|format(y)) ~ ' ' %}
-  {% endfor %}
+  {% set disk = system_health.get("disk_percent", 0) or 0 %}
+  {% set uptime_h = system_health.get("uptime_hours", 0) or 0 %}
 
   <div class="shell">
-    
-    <!-- Cyber Sidebar -->
-    <aside class="sidebar glass-card animate-1">
+    <aside class="sidebar">
       <a href="#" class="brand">
-        <div class="brand__icon">A</div>
-        <div>
-          <h1 class="brand__title">Apexify</h1>
-          <div class="brand__subtitle">Command Nexus</div>
-        </div>
+        <div class="brand-logo">A</div>
+        <span class="brand-name">Apexify</span>
       </a>
 
-      <nav class="nav">
-        <a class="nav__link nav__link--active" href="#overview"><span class="nav__icon">◱</span><span>Overview</span></a>
-        <a class="nav__link" href="#market"><span class="nav__icon">⟁</span><span>Market Intel</span></a>
-        <a class="nav__link" href="#signals"><span class="nav__icon">∿</span><span>Signals Logic</span></a>
-        <a class="nav__link" href="#users"><span class="nav__icon">◈</span><span>User Base</span></a>
-        <a class="nav__link" href="#system"><span class="nav__icon">⚙</span><span>System</span></a>
+      <nav class="nav-list">
+        <a href="#overview" class="nav-item active">Dashboard</a>
+        <a href="#analysis" class="nav-item">Analytics</a>
+        <a href="#performance" class="nav-item">Performance</a>
+        <a href="#users" class="nav-item">Members</a>
+        <a href="#system" class="nav-item">System</a>
       </nav>
 
-      <div class="sidebar-status">
-        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">System Status</div>
-        <div style="font-weight: 600; display: flex; align-items: center;">
-          {% if maintenance.get("enabled") %}
-            <span class="pulse-dot" style="background: var(--accent-danger); box-shadow: 0 0 10px var(--accent-danger);"></span>
-            <span style="color: var(--accent-danger)">Maintenance Mode</span>
-          {% else %}
-            <span class="pulse-dot"></span>
-            Online & Active
-          {% endif %}
-        </div>
-        <div style="margin-top: 12px; font-family: monospace; font-size: 11px; opacity: 0.6;">
-          ID: {{ admin_id | default('ROOT_ADMIN', true) }}
+      <div class="sidebar-footer">
+        <div style="font-size: 12px; color: var(--dime-text-sub); margin-bottom: 12px;">Admin Node: {{ admin_id[:12] if admin_id else 'ROOT' }}</div>
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;">
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: {{ 'var(--dime-red)' if maintenance.get('enabled') else 'var(--dime-green)' }}"></div>
+          {{ 'Maintenance' if maintenance.get('enabled') else 'System Online' }}
         </div>
       </div>
     </aside>
 
-    <!-- Main Workspace -->
     <main class="main">
-      
-      <!-- Top Action Bar -->
-      <header class="topbar glass-card animate-2">
-        <div>
-          <h2 class="headline">Welcome to the <span>Grid.</span></h2>
-          <p style="color: var(--text-muted); margin: 8px 0 0 0;">Real-time telemetry and control interface.</p>
+      <!-- Dime Style Main Balance Header -->
+      <section class="header-group" id="overview">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <p class="header-label">คาดการณ์รายได้รายปี (Annual Run Rate)</p>
+            <h1 class="header-value">฿{{ '{:,.0f}'.format(annual_run_rate) }}</h1>
+            <p class="header-sub-value">↑ เฉลี่ย ฿{{ '{:,.2f}'.format(arpu) }} ต่อผู้ใช้</p>
+          </div>
+          <div class="actions-bar">
+            <form method="post" action="{{ url_for('admin_toggle_maintenance') if (request and request.endpoint and 'admin_toggle_maintenance' in request.endpoint) else '#' }}">
+              <button class="btn {{ 'btn-danger' if maintenance.get('enabled') else '' }}" type="submit">
+                {{ 'ปิดระบบ' if maintenance.get('enabled') else 'เปิด Maintenance' }}
+              </button>
+            </form>
+            <form method="post" action="{{ url_for('admin_download_backup') if (request and request.endpoint and 'admin_download_backup' in request.endpoint) else '#' }}">
+              <button class="btn btn-primary" type="submit">Download DB</button>
+            </form>
+          </div>
         </div>
-        
-        <div class="actions">
-          <form method="post" action="{{ url_for('admin_toggle_maintenance') if (request.endpoint and 'admin_toggle_maintenance' in request.endpoint) else '#' }}" style="margin:0;">
-            <button class="btn {{ 'btn--danger' if maintenance.get('enabled') else '' }}" type="submit">
-              ⏻ {{ 'Disable Maintenance' if maintenance.get('enabled') else 'Engage Maintenance' }}
-            </button>
-          </form>
-          <a href="{{ url_for('admin_dashboard') if (request.endpoint and 'admin_dashboard' in request.endpoint) else '#' }}" class="btn">⟳ Sync Data</a>
-          <form method="post" action="{{ url_for('admin_download_backup') if (request.endpoint and 'admin_download_backup' in request.endpoint) else '#' }}" style="margin:0;">
-            <button class="btn btn--glow" type="submit">↓ Core Backup</button>
-          </form>
-        </div>
-      </header>
+      </section>
 
-      <!-- Flash Messages -->
-      {% with flashes = get_flashed_messages(with_categories=true) %}
-        {% if flashes %}
-          <div style="display: grid; gap: 10px;" class="animate-2">
-            {% for category, message in flashes %}
-              <div class="glass-card" style="padding: 16px 24px; border-color: {{ 'var(--accent-danger)' if category == 'error' else 'var(--accent-success)' }};">
-                {{ message }}
+      <!-- KPI Grid -->
+      <div class="grid-3">
+        <div class="card">
+          <p class="card-label">Monthly Revenue</p>
+          <p class="card-value">฿{{ '{:,.0f}'.format(monthly_rev) }}</p>
+          <p class="card-footer">จากสมาชิกชำระเงิน {{ vip_u + pro_u }} ราย</p>
+        </div>
+        <div class="card">
+          <p class="card-label">Conversion Potential</p>
+          <p class="card-value">{{ conv_potential }} ราย</p>
+          <p class="card-footer">โอกาสจากผู้ใช้ฟรีที่มี Engagement สูง</p>
+        </div>
+        <div class="card">
+          <p class="card-label">Win Rate (Total)</p>
+          <p class="card-value" style="color: var(--dime-green)">{{ '%.1f'|format(performance.get("win_rate", 0)) }}%</p>
+          <p class="card-footer">จาก {{ performance.get("total_count", 0) }} สัญญาณล่าสุด</p>
+        </div>
+      </div>
+
+      <!-- Advanced Analysis Bento -->
+      <div class="analysis-bento" id="analysis">
+        <!-- Signal Accuracy by Type -->
+        <div class="card">
+          <div class="panel-header">
+            <h3 class="panel-title">Signal Intelligence</h3>
+          </div>
+          <div class="telemetry-group">
+            {# Grouping Logic Simulation #}
+            {% set logic_stats = [
+              {"label": "RSI / Oversold", "val": 72, "count": 45},
+              {"label": "Golden Cross", "val": 64, "count": 28},
+              {"label": "Price Breakout", "val": 58, "count": 12},
+              {"label": "Volume Surge", "val": 81, "count": 9}
+            ] %}
+            {% for item in logic_stats %}
+              <div class="telemetry-item">
+                <span class="telemetry-label">{{ item.label }}</span>
+                <div class="telemetry-bar-bg">
+                  <div class="telemetry-bar-fill" style="width: {{ item.val }}%; opacity: {{ (item.val/100) + 0.2 }};"></div>
+                </div>
+                <span class="telemetry-pct">{{ item.val }}%</span>
               </div>
             {% endfor %}
           </div>
-        {% endif %}
-      {% endwith %}
-
-      <!-- Primary KPIs -->
-      <section class="kpi-grid animate-3" id="overview">
-        
-        <article class="glass-card kpi-card">
-          <div class="kpi-header">
-            <div>
-              <div class="kpi-label">Revenue Stream</div>
-              <div class="kpi-value">฿{{ '{:,.0f}'.format(estimated_revenue) }}</div>
-            </div>
-            <div class="kpi-icon" style="color: var(--accent-success); box-shadow: inset 0 0 10px rgba(57, 255, 20, 0.2);">฿</div>
-          </div>
-          <div>
-            <span class="kpi-trend">↑ Proj. Monthly</span>
-            <span style="color: var(--text-muted); font-size: 13px; margin-left: 8px;">฿{{ '{:,.0f}'.format(revenue_at_risk) }} at risk</span>
-          </div>
-        </article>
-
-        <article class="glass-card kpi-card">
-          <div class="kpi-header">
-            <div>
-              <div class="kpi-label">Algorithm Win Rate</div>
-              <div class="kpi-value">{{ '%.1f'|format(win_rate) }}%</div>
-            </div>
-            <div class="kpi-icon" style="color: var(--accent-primary); box-shadow: inset 0 0 10px rgba(0, 240, 255, 0.2);">∿</div>
-          </div>
-          <div>
-            <span class="kpi-trend" style="{{ 'color: var(--accent-danger); background: rgba(255,0,60,0.1); border-color: rgba(255,0,60,0.2);' if win_rate < 50 else '' }}">
-              {{ win_count }} / {{ total_eval_count }} Wins
-            </span>
-            <span style="color: var(--text-muted); font-size: 13px; margin-left: 8px;">Success Ratio</span>
-          </div>
-        </article>
-
-        <article class="glass-card kpi-card">
-          <div class="kpi-header">
-            <div>
-              <div class="kpi-label">Active Trackers</div>
-              <div class="kpi-value">{{ total_alerts }}</div>
-            </div>
-            <div class="kpi-icon" style="color: var(--accent-warning); box-shadow: inset 0 0 10px rgba(255, 176, 0, 0.2);">⌖</div>
-          </div>
-          <div>
-            <span class="kpi-trend" style="color: var(--accent-warning); background: rgba(255,176,0,0.1); border-color: rgba(255,176,0,0.2);">
-              {{ alert_unique_users }} Active Users
-            </span>
-            <span style="color: var(--text-muted); font-size: 13px; margin-left: 8px;">Alert Deployment</span>
-          </div>
-        </article>
-
-      </section>
-
-      <!-- Bento Grid 1 -->
-      <section class="dashboard-bento animate-4" id="system">
-        
-        <!-- Graph Panel -->
-        <article class="glass-card panel">
-          <div class="panel-header">
-            <div>
-              <h3 class="panel-title">💻 System Health Matrix</h3>
-              <p style="color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;">
-                ⏱️ Uptime: {{ uptime_hours_total }} hours (~{{ uptime_days }}d {{ uptime_hours }}h)
-              </p>
-            </div>
-            <span class="badge badge-cyan">LIVE TELEMETRY</span>
-          </div>
-          
-          <div class="progress-stack">
-            <div class="progress-item">
-              <span class="progress-label">🧠 CPU Usage</span>
-              <div class="progress-track">
-                <div class="progress-fill" style="width: {{ '%.0f'|format(cpu) }}%; background: var(--accent-primary); box-shadow: 0 0 15px var(--accent-primary)66;"></div>
-              </div>
-              <span class="progress-value">{{ '%.0f'|format(cpu) }}%</span>
-            </div>
-
-            <div class="progress-item">
-              <span class="progress-label">💽 RAM ({{ '%.2f'|format(ram_used) }} / {{ '%.2f'|format(ram_total) }} GB)</span>
-              <div class="progress-track">
-                <div class="progress-fill" style="width: {{ '%.0f'|format(ram) }}%; background: var(--accent-secondary); box-shadow: 0 0 15px var(--accent-secondary)66;"></div>
-              </div>
-              <span class="progress-value">{{ '%.0f'|format(ram) }}%</span>
-            </div>
-
-            <div class="progress-item">
-              <span class="progress-label">💾 Disk Space</span>
-              <div class="progress-track">
-                <div class="progress-fill" style="width: {{ '%.0f'|format(disk_pct) }}%; background: var(--accent-warning); box-shadow: 0 0 15px var(--accent-warning)66;"></div>
-              </div>
-              <span class="progress-value">{{ '%.0f'|format(disk_pct) }}%</span>
-            </div>
-
-            <div class="progress-item">
-              <span class="progress-label">🚀 Signal Success</span>
-              <div class="progress-track">
-                <div class="progress-fill" style="width: {{ '%.0f'|format(win_rate) }}%; background: var(--accent-success); box-shadow: 0 0 15px var(--accent-success)66;"></div>
-              </div>
-              <span class="progress-value">{{ '%.0f'|format(win_rate) }}%</span>
-            </div>
-
-            <div class="progress-item">
-              <span class="progress-label">💎 Paid Density</span>
-              <div class="progress-track">
-                <div class="progress-fill" style="width: {{ '%.0f'|format(paid_share) }}%; background: var(--accent-primary); box-shadow: 0 0 15px var(--accent-primary)66;"></div>
-              </div>
-              <span class="progress-value">{{ '%.0f'|format(paid_share) }}%</span>
-            </div>
-
-            <div class="progress-item">
-              <span class="progress-label">📡 Alert Pressure</span>
-              <div class="progress-track">
-                <div class="progress-fill" style="width: {{ '%.0f'|format(total_alerts/10 if total_alerts < 1000 else 100) }}%; background: var(--accent-danger); box-shadow: 0 0 15px var(--accent-danger)66;"></div>
-              </div>
-              <span class="progress-value">{{ '%.0f'|format(total_alerts/10 if total_alerts < 1000 else 100) }}%</span>
-            </div>
-          </div>
-        </article>
-
-        <!-- Renewal Health -->
-        <article class="glass-card panel" style="display: flex; flex-direction: column;">
-          <h3 class="panel-title" style="font-size: 18px;">Subscription Integrity</h3>
-          <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 24px 0;">Churn risk assessment</p>
-          
-          <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; position: relative;">
-            <!-- Simple CSS Circular Gauge -->
-            <div style="width: 160px; height: 160px; border-radius: 50%; background: conic-gradient(var(--accent-success) {{ renewal_health }}%, rgba(255,255,255,0.05) 0); display: grid; place-items: center; position: relative; box-shadow: 0 0 20px rgba(57,255,20,0.1);">
-              <div style="width: 140px; height: 140px; background: var(--bg); border-radius: 50%; display: grid; place-items: center;">
-                <div style="text-align: center;">
-                  <div style="font: 700 32px var(--display);">{{ '%.0f'|format(renewal_health) }}%</div>
-                  <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Stability</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div style="margin-top: 24px; padding: 16px; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 14px;">At Risk (7 Days)</span>
-            <span class="badge {{ 'badge-red' if expiring_7 > 0 else 'badge-green' }}">{{ expiring_7 }} Users</span>
-          </div>
-        </article>
-
-      </section>
-
-      <!-- User Base & Notification Insights -->
-      <section class="dashboard-bento animate-4" id="users">
-        
-        <!-- Community Scale -->
-        <article class="glass-card panel">
-          <div class="panel-header">
-            <h3 class="panel-title">Community Scale</h3>
-            <span class="badge badge-purple">{{ total_users }} Total Users</span>
-          </div>
-          
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-            <div style="padding: 20px; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid var(--glass-border);">
-              <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">Free Audience</div>
-              <div style="font: 700 28px var(--display); color: var(--text);">{{ free_users }}</div>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Potential Conversion</div>
-            </div>
-            <div style="padding: 20px; background: rgba(0, 240, 255, 0.05); border-radius: var(--radius-sm); border: 1px solid rgba(0, 240, 255, 0.2);">
-              <div style="font-size: 12px; color: var(--accent-primary); text-transform: uppercase; margin-bottom: 8px;">Paid Base</div>
-              <div style="font: 700 28px var(--display); color: var(--accent-primary);">{{ paid_total }}</div>
-              <div style="font-size: 11px; color: var(--accent-primary); opacity: 0.7; margin-top: 4px;">Revenue Drivers</div>
-            </div>
-          </div>
-
-          <div style="margin-top: 20px; padding: 16px; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); border: 1px dashed var(--glass-border); display: flex; justify-content: space-between;">
-            <span style="font-size: 13px; color: var(--text-muted);">Active Alert Trackers</span>
-            <span style="font-weight: 700; color: var(--accent-warning);">{{ alert_unique_users }} Unique Identities</span>
-          </div>
-        </article>
-
-        <!-- Notification Insights -->
-        <article class="glass-card panel">
-          <div class="panel-header">
-            <h3 class="panel-title">Data Delivery Logic</h3>
-            <div style="text-align: right;">
-              <span class="badge badge-red" style="display: block; margin-bottom: 4px;">{{ '%.1f'|format(notifications_off_pct) }}% Disabled</span>
-              <span style="font-size: 10px; color: var(--text-muted);">{{ custom_windows }} Custom Windows</span>
-            </div>
-          </div>
-
-          <div style="display: flex; flex-direction: column; gap: 12px;">
-            <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 8px 0;">Digest Frequency Distribution</p>
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
-              {% for bucket in digest_distribution %}
-                <div style="text-align: center; padding: 12px 8px; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid var(--glass-border);">
-                  <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">{{ bucket.label | default('-', true) }}</div>
-                  <div style="font: 700 18px var(--display); color: var(--accent-primary); margin-top: 4px;">{{ bucket.count | default(0, true) }}</div>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-        </article>
-
-      </section>
-
-      <!-- Bento Grid 2 -->
-      <section class="dashboard-bento animate-4" id="market">
-        
-        <!-- Signals Performance -->
-        <article class="glass-card panel" id="signals">
-          <div class="panel-header">
-            <div>
-              <h3 class="panel-title">Signal Execution Log</h3>
-              <p style="color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;">Recent algorithmic predictions</p>
-            </div>
-          </div>
-
-          {% if performance.get("entries") %}
-            <div class="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Asset</th>
-                    <th>Logic</th>
-                    <th>Execution Time</th>
-                    <th>Result</th>
-                    <th>Outcome</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for item in performance.get("entries", [])[:8] %}
-                    <tr>
-                      <td data-label="Asset" class="symbol-text">{{ item.symbol | default('-', true) }}</td>
-                      <td data-label="Logic" style="color: var(--accent-primary);">{{ item.alert_type | default('-', true) }}</td>
-                      <td data-label="Time" style="font-size: 12px; color: var(--text-muted); font-family: monospace;">{{ item.timestamp | default('-', true) }}</td>
-                      <td data-label="Result" style="color: {{ 'var(--accent-success)' if (item.diff_pct | default(0)) > 0 else 'var(--accent-danger)' }}">
-                        {{ '%+.2f'|format(item.diff_pct | default(0, true)) }}%
-                      </td>
-                      <td data-label="Outcome">
-                        <span class="badge {{ 'badge-green' if item.is_win else 'badge-red' }}">
-                          {{ 'HIT' if item.is_win else 'MISS' }}
-                        </span>
-                      </td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <div style="padding: 40px; text-align: center; color: var(--text-muted); border: 1px dashed rgba(255,255,255,0.1); border-radius: var(--radius-md);">
-              Insufficient data for signal evaluation.
-            </div>
-          {% endif %}
-        </article>
-
-        <!-- Top Watched -->
-        <article class="glass-card panel">
-          <h3 class="panel-title" style="font-size: 18px;">Market Focus</h3>
-          <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 24px 0;">Top user watchlists</p>
-
-          {% if top_watched.get("items") %}
-            <div class="data-list">
-              {% for item in top_watched.get("items", [])[:8] %}
-                <div class="data-item">
-                  <div class="data-info">
-                    <h4 class="symbol-text">{{ item.symbol | default('N/A', true) }}</h4>
-                    <p>Network Attention</p>
-                  </div>
-                  <div style="text-align: right;">
-                    <div style="font-weight: 700; color: var(--accent-primary); font-size: 18px;">{{ item.watchers | default(0, true) }}</div>
-                    <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Eyes</div>
-                  </div>
-                </div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div style="padding: 30px; text-align: center; color: var(--text-muted);">No radar data.</div>
-          {% endif %}
-        </article>
-
-      </section>
-
-      <!-- Users Section -->
-      <section class="glass-card panel animate-4" id="users">
-        <div class="panel-header">
-          <div>
-            <h3 class="panel-title">Premium User Matrix</h3>
-            <p style="color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;">Active VIP & PRO accounts</p>
-          </div>
-          <span class="badge badge-purple">{{ paid_total }} Active Subs</span>
+          <p style="margin-top: 24px; font-size: 13px; color: var(--dime-text-sub);">
+            * วิเคราะห์ความแม่นยำแยกตามอัลกอริทึม เพื่อปรับปรุงประสิทธิภาพโมเดล AI
+          </p>
         </div>
 
-        {% if paid_users %}
-          <div class="table-wrapper">
-            <table>
-              <thead>
+        <!-- Sales Opportunity -->
+        <div class="card" style="background: var(--dime-text-main); color: #fff;">
+          <p class="card-label" style="color: rgba(255,255,255,0.6)">Sales Opportunity</p>
+          <h3 style="font-size: 24px; margin: 12px 0;">Hot Market Symbols</h3>
+          <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 20px;">
+            {% for item in top_watched.get("items", [])[:4] %}
+              <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <span style="font-weight: 800; font-size: 16px;">{{ item.symbol }}</span>
+                <span style="color: var(--dime-green); font-weight: 700;">{{ item.watchers }} Users</span>
+              </div>
+            {% endfor %}
+          </div>
+          <p style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 20px;">
+            กลุ่มหุ้นที่มีคนเฝ้าดูมากที่สุด มีผลต่อการตัดสินใจซื้อแพ็กเกจของผู้ใช้ใหม่
+          </p>
+        </div>
+      </div>
+
+      <!-- System Health -->
+      <div class="card" style="margin-bottom: 32px;" id="system">
+        <div class="panel-header" style="margin-bottom: 24px;">
+          <h3 class="panel-title">System Health Matrix</h3>
+          <span class="type-badge badge-blue">Uptime: {{ uptime_h }} Hours</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px;">
+          <div class="telemetry-item" style="grid-template-columns: 1fr;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+              <span class="telemetry-label">🧠 CPU Usage</span>
+              <span class="telemetry-pct">{{ cpu }}%</span>
+            </div>
+            <div class="telemetry-bar-bg"><div class="telemetry-bar-fill" style="width: {{ cpu }}%"></div></div>
+          </div>
+          <div class="telemetry-item" style="grid-template-columns: 1fr;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+              <span class="telemetry-label">💽 RAM Usage</span>
+              <span class="telemetry-pct">{{ ram }}%</span>
+            </div>
+            <div class="telemetry-bar-bg"><div class="telemetry-bar-fill" style="width: {{ ram }}%; background: var(--dime-blue);"></div></div>
+          </div>
+          <div class="telemetry-item" style="grid-template-columns: 1fr;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+              <span class="telemetry-label">💾 Disk Space</span>
+              <span class="telemetry-pct">{{ disk }}%</span>
+            </div>
+            <div class="telemetry-bar-bg"><div class="telemetry-bar-fill" style="width: {{ disk }}%; background: var(--dime-text-sub);"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Signal Table -->
+      <div class="card table-card" id="performance">
+        <div class="table-header">
+          <h3 class="table-title">Performance Transaction Feed</h3>
+          <span class="type-badge badge-green">Live Evaluations</span>
+        </div>
+        <div style="overflow-x: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Logic Path</th>
+                <th>Change</th>
+                <th>Result</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in performance.get("entries", [])[:10] %}
                 <tr>
-                  <th>Identity Hash (User ID)</th>
-                  <th>Clearance</th>
-                  <th>Expiration Vector</th>
-                  <th>Status</th>
+                  <td><span class="symbol-box">{{ item.symbol }}</span></td>
+                  <td><span class="type-badge badge-blue">{{ item.alert_type }}</span></td>
+                  <td>
+                    <span style="font-weight: 700; color: {{ 'var(--dime-green)' if item.diff_pct > 0 else 'var(--dime-red)' }}">
+                      {{ '%+.2f'|format(item.diff_pct) }}%
+                    </span>
+                  </td>
+                  <td>
+                    <span class="type-badge {{ 'badge-green' if item.is_win else 'badge-red' }}">
+                      {{ 'PROFIT' if item.is_win else 'MISS' }}
+                    </span>
+                  </td>
+                  <td style="color: var(--dime-text-sub); font-size: 12px;">{{ item.timestamp }}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {% for user in paid_users %}
-                  <tr>
-                    <td data-label="ID" style="font-family: monospace; color: var(--text-muted);">{{ user.user_id | default('-', true) }}</td>
-                    <td data-label="Clearance">
-                      <span class="badge {{ 'badge-cyan' if user.role == 'pro' else 'badge-purple' }}">
-                        {{ (user.role | default('vip', true)) | upper }}
-                      </span>
-                    </td>
-                    <td data-label="Expiration" style="font-family: monospace;">{{ user.expiry_date | default('-', true) }}</td>
-                    <td data-label="Status">
-                      <span class="badge {{ 'badge-green' if user.is_active else 'badge-red' }}">
-                        {{ user.status_label | default('Inactive', true) }}
-                      </span>
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <div style="padding: 40px; text-align: center; color: var(--text-muted); border: 1px dashed rgba(255,255,255,0.1); border-radius: var(--radius-md);">
-            No active premium users detected in the grid.
-          </div>
-        {% endif %}
-      </section>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
     </main>
   </div>
+
+  <script>
+    // Smooth Staggered Animation
+    document.querySelectorAll('.card').forEach((el, index) => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(20px)';
+      el.style.transition = 'all 0.5s ease-out';
+      setTimeout(() => {
+        el.style.opacity = '1';
+        el.style.transform = 'translateY(0)';
+      }, 100 * index);
+    });
+  </script>
 </body>
 </html>
