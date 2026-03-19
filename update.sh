@@ -180,16 +180,16 @@ step "🧬 [4/11] Checking .env is never tracked" \
      "! git ls-files --error-unmatch .env >/dev/null 2>&1" "false"
 
 step "🐍 [5/11] Resolving Python runtime" \
-     "resolve_python_bin && \"$PYTHON_BIN\" --version" "false"
+     "resolve_python_bin && \"\$PYTHON_BIN\" --version" "false"
 
 step "📡 [6/11] Pulling latest star-map from GitHub" \
      "git fetch --all && git reset --hard origin/main" "false"
 
 step "📦 [7/11] Syncing Python dependencies" \
-     "\"$PYTHON_BIN\" -m pip install -r requirements.txt" "false"
+     "\"\$PYTHON_BIN\" -m pip install -r requirements.txt" "false"
 
 step "🧪 [8/11] Running Python warp-syntax check" \
-     "\"$PYTHON_BIN\" -m py_compile main.py config.py dashboard_login.py keep_alive.py admin_service.py alert_system.py database.py ai_analyzer.py technical_tools.py" "false"
+     "\"\$PYTHON_BIN\" -m py_compile main.py config.py dashboard_login.py keep_alive.py admin_service.py alert_system.py database.py ai_analyzer.py technical_tools.py" "false"
 
 step "🧰 [9/11] Verifying runtime imports" \
      "verify_runtime_imports" "false"
