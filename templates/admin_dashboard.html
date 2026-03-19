@@ -727,13 +727,13 @@
         </div>
         
         <div class="actions">
-          <form method="post" action="{{ url_for('admin_toggle_maintenance') if 'admin_toggle_maintenance' in request.endpoint else '#' }}" style="margin:0;">
+          <form method="post" action="{{ url_for('admin_toggle_maintenance') if (request.endpoint and 'admin_toggle_maintenance' in request.endpoint) else '#' }}" style="margin:0;">
             <button class="btn {{ 'btn--danger' if maintenance.get('enabled') else '' }}" type="submit">
               ⏻ {{ 'Disable Maintenance' if maintenance.get('enabled') else 'Engage Maintenance' }}
             </button>
           </form>
-          <a href="{{ url_for('admin_dashboard') if 'admin_dashboard' in request.endpoint else '#' }}" class="btn">⟳ Sync Data</a>
-          <form method="post" action="{{ url_for('admin_download_backup') if 'admin_download_backup' in request.endpoint else '#' }}" style="margin:0;">
+          <a href="{{ url_for('admin_dashboard') if (request.endpoint and 'admin_dashboard' in request.endpoint) else '#' }}" class="btn">⟳ Sync Data</a>
+          <form method="post" action="{{ url_for('admin_download_backup') if (request.endpoint and 'admin_download_backup' in request.endpoint) else '#' }}" style="margin:0;">
             <button class="btn btn--glow" type="submit">↓ Core Backup</button>
           </form>
         </div>
@@ -910,7 +910,7 @@
                       <td data-label="Asset" class="symbol-text">{{ item.symbol | default('-', true) }}</td>
                       <td data-label="Logic" style="color: var(--accent-primary);">{{ item.alert_type | default('-', true) }}</td>
                       <td data-label="Target" style="font-family: monospace;">{{ '%.2f'|format(item.start_price | default(0, true)) }}</td>
-                      <td data-label="Result" style="color: {{ var('--accent-success') if item.diff_pct and item.diff_pct > 0 else var('--accent-danger') }}">
+                      <td data-label="Result" style="color: {{ 'var(--accent-success)' if (item.diff_pct | default(0)) > 0 else 'var(--accent-danger)' }}">
                         {{ '%+.2f'|format(item.diff_pct | default(0, true)) }}%
                       </td>
                       <td data-label="Outcome">
