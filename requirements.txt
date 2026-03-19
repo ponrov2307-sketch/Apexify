@@ -11,7 +11,7 @@ APScheduler==3.11.2
 arrow==1.4.0
 asyncio==4.0.0
 attrs==25.4.0
-audioop-lts==0.2.2
+audioop-lts==0.2.2; python_version >= "3.13"
 beautifulsoup4==4.14.3
 bidict==0.23.1
 binaryornot==0.4.4
