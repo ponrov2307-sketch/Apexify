@@ -3,465 +3,334 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Apexify Elite Admin - Deep Insights</title>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <title>Apexify Admin - Complete Simple Dark</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
-      --bg: #050505;
-      --card: rgba(18, 18, 20, 0.7);
-      --card-hover: rgba(24, 24, 27, 0.9);
-      --border: rgba(255, 255, 255, 0.06);
+      --bg: #000000;
+      --card: #111111;
+      --border: #222222;
       --dime-green: #00C076;
-      --dime-green-glow: rgba(0, 192, 118, 0.15);
       --text-main: #FFFFFF;
-      --text-sub: #8E9196;
-      --accent-blue: #3B82F6;
-      --accent-purple: #A855F7;
-      --accent-gold: #F59E0B;
-      --danger: #FF4D4D;
-      
-      --radius-2xl: 32px;
-      --radius-xl: 24px;
-      --radius-lg: 16px;
+      --text-sub: #888888;
+      --accent-blue: #007AFF;
+      --accent-purple: #AF52DE;
+      --danger: #FF3B30;
+      --radius: 16px;
     }
 
     * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
     html { scroll-behavior: smooth; }
-    
     body {
       margin: 0;
       background-color: var(--bg);
       color: var(--text-main);
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      overflow-x: hidden;
-      min-height: 100vh;
-    }
-
-    /* Animated Ambient Background */
-    .ambient-orb {
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(80px);
-      z-index: -1;
-      opacity: 0.15;
-      animation: drift 25s infinite alternate ease-in-out;
-    }
-    .orb-1 { top: -10%; left: -10%; width: 40vw; height: 40vw; background: var(--dime-green); }
-    .orb-2 { bottom: -10%; right: -5%; width: 35vw; height: 35vw; background: var(--accent-purple); animation-delay: -5s; }
-    .orb-3 { top: 40%; left: 50%; width: 25vw; height: 25vw; background: var(--accent-blue); animation-delay: -10s; }
-
-    @keyframes drift {
-      from { transform: translate(0, 0) scale(1); }
-      to { transform: translate(5%, 10%) scale(1.1); }
+      font-family: 'Inter', sans-serif;
     }
 
     /* Layout */
-    .shell { display: flex; min-height: 100vh; }
+    .shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
     
     .sidebar {
-      width: 280px;
-      background: rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(20px);
+      background: var(--bg);
       border-right: 1px solid var(--border);
-      padding: 40px 24px;
+      padding: 32px 20px;
       display: flex;
       flex-direction: column;
       position: sticky;
       top: 0;
       height: 100vh;
-      z-index: 100;
     }
 
-    .main { flex: 1; padding: 48px 64px; max-width: 1600px; margin: 0 auto; width: 100%; }
+    .main { padding: 48px; max-width: 1400px; margin: 0 auto; width: 100%; }
 
-    /* Glass Effects */
-    .glass {
-      background: var(--card);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid var(--border);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    /* Components */
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 40px; text-decoration: none; color: #fff; font-weight: 800; font-size: 20px; }
+    .brand-icon { width: 32px; height: 32px; background: var(--dime-green); border-radius: 8px; }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 12px; padding: 12px;
+      color: var(--text-sub); text-decoration: none; font-weight: 600; font-size: 14px;
+      border-radius: 10px; transition: 0.2s;
     }
+    .nav-item:hover, .nav-item.active { color: #fff; background: #111; }
+    .nav-item.active { color: var(--dime-green); }
 
-    /* Typography Overrides */
-    .brand-name { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; color: #fff; letter-spacing: -1px; }
-    .mono { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent-blue); }
+    /* Hero Stats */
+    .hero { margin-bottom: 48px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .hero-label { color: var(--text-sub); font-size: 14px; font-weight: 500; }
+    .hero-value { font-size: 48px; font-weight: 800; margin: 8px 0; letter-spacing: -1px; }
+    .hero-sub { color: var(--dime-green); font-weight: 700; font-size: 14px; }
 
-    /* Custom UI Components */
-    .hero-section { margin-bottom: 64px; position: relative; }
-    .hero-glow {
-      position: absolute; top: -50px; left: -20px; width: 300px; height: 150px;
-      background: var(--dime-green); filter: blur(100px); opacity: 0.1; z-index: -1;
-    }
-    
-    .balance-label { color: var(--text-sub); font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
-    .balance-value { font-family: 'Space Grotesk', sans-serif; font-size: 72px; margin: 8px 0; letter-spacing: -3px; line-height: 1; }
-    
-    .stat-badge {
-      display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
-      border-radius: 99px; background: rgba(255,255,255,0.05); font-size: 13px; font-weight: 700;
-    }
-
-    /* Masonry-like Grid */
-    .dashboard-grid {
-      display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      grid-auto-rows: auto;
-      gap: 24px;
-      margin-bottom: 48px;
-    }
-
-    .col-2 { grid-column: span 2; }
-    .col-3 { grid-column: span 3; }
-    .col-4 { grid-column: span 4; }
-    .col-6 { grid-column: span 6; }
+    /* Grid System */
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 32px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
 
     .card {
-      border-radius: var(--radius-xl);
-      padding: 32px;
-      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      position: relative;
-      overflow: hidden;
-    }
-    .card:hover {
-      transform: translateY(-6px) scale(1.01);
-      border-color: rgba(255, 255, 255, 0.15);
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
     }
 
-    /* Progress & Loading */
-    .p-bar-container { margin-top: 20px; }
-    .p-bar-row { margin-bottom: 18px; }
-    .p-bar-info { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; font-weight: 700; }
-    .p-bar-track { height: 8px; background: rgba(255,255,255,0.04); border-radius: 10px; position: relative; }
-    .p-bar-fill { height: 100%; border-radius: 10px; transition: width 1.5s ease-in-out; position: relative; }
-    .p-bar-fill::after {
-      content: ''; position: absolute; top: 0; right: 0; width: 20px; height: 100%;
-      background: #fff; filter: blur(10px); opacity: 0.3;
-    }
+    .card-label { color: var(--text-sub); font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 12px; }
+    .card-value { font-size: 24px; font-weight: 800; }
+    .card-footer { font-size: 12px; color: var(--text-sub); margin-top: 8px; }
 
-    /* Data List */
-    .item-list { display: flex; flex-direction: column; gap: 12px; }
-    .list-row {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 16px; border-radius: var(--radius-lg); background: rgba(255,255,255,0.02);
-      border: 1px solid transparent; transition: 0.2s;
-    }
-    .list-row:hover { background: rgba(255,255,255,0.05); border-color: var(--border); }
+    /* Charts */
+    .chart-container { height: 220px; margin-top: 16px; }
 
-    /* Enhanced Table */
-    .table-box { border-radius: var(--radius-2xl); overflow: hidden; margin-top: 32px; }
-    table { width: 100%; border-collapse: collapse; background: var(--card); }
-    th { text-align: left; padding: 20px 32px; font-size: 11px; text-transform: uppercase; color: var(--text-sub); border-bottom: 1px solid var(--border); }
-    td { padding: 24px 32px; border-bottom: 1px solid rgba(255,255,255,0.02); font-size: 14px; vertical-align: middle; }
-    
-    .symbol-chip { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px; color: #fff; }
-    .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+    /* Simple Progress Bars */
+    .p-bar-row { margin-bottom: 16px; }
+    .p-bar-info { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+    .p-bar-bg { height: 6px; background: #222; border-radius: 10px; overflow: hidden; }
+    .p-bar-fill { height: 100%; background: var(--dime-green); border-radius: 10px; transition: width 1s ease; }
 
-    /* Interaction */
-    .btn-action {
-      padding: 12px 24px; border-radius: 14px; font-weight: 700; font-size: 14px;
-      cursor: pointer; transition: 0.3s; border: 1px solid var(--border);
-      background: #fff; color: #000; text-decoration: none;
-    }
-    .btn-action:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,255,255,0.2); }
-    
-    /* Counter Animation class */
-    .counter { transition: 2s ease-out; }
+    /* Clean Table */
+    .table-container { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 32px; }
+    .table-header { padding: 20px 24px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 14px 24px; font-size: 11px; text-transform: uppercase; color: var(--text-sub); border-bottom: 1px solid var(--border); }
+    td { padding: 16px 24px; border-bottom: 1px solid #1a1a1a; font-size: 14px; }
+    tr:last-child td { border-bottom: none; }
 
-    @media (max-width: 1400px) {
-      .dashboard-grid { grid-template-columns: repeat(4, 1fr); }
-      .col-3, .col-4 { grid-column: span 2; }
+    .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .badge-success { background: rgba(0, 192, 118, 0.1); color: var(--dime-green); }
+    .badge-danger { background: rgba(255, 59, 48, 0.1); color: var(--danger); }
+    .badge-blue { background: rgba(0, 122, 255, 0.1); color: var(--accent-blue); }
+    .badge-purple { background: rgba(175, 82, 222, 0.1); color: var(--accent-purple); }
+
+    .btn-group { display: flex; gap: 10px; }
+    .btn {
+      padding: 10px 16px; border-radius: 10px; border: 1px solid var(--border);
+      background: #111; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; text-decoration: none;
     }
-    @media (max-width: 900px) {
-      .shell { flex-direction: column; }
-      .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
-      .main { padding: 32px 20px; }
-      .dashboard-grid { grid-template-columns: 1fr; }
-      .col-2, .col-3, .col-4, .col-6 { grid-column: span 1; }
-      .balance-value { font-size: 48px; }
+    .btn-primary { background: #fff; color: #000; border: none; }
+
+    .mono { font-family: monospace; color: var(--text-sub); }
+
+    @media (max-width: 1000px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .grid-4, .grid-2 { grid-template-columns: 1fr; }
+      .main { padding: 24px; }
+      .hero { flex-direction: column; align-items: flex-start; gap: 20px; }
     }
   </style>
 </head>
 <body>
 
-  <div class="ambient-orb orb-1"></div>
-  <div class="ambient-orb orb-2"></div>
-  <div class="ambient-orb orb-3"></div>
-
   {% set user_stats = user_stats | default({}, true) %}
   {% set performance = performance | default({}, true) %}
   {% set top_watched = top_watched | default({}, true) %}
-  {% set maintenance = maintenance | default({}, true) %}
   {% set sys = system_health | default({}, true) %}
+  {% set maintenance = maintenance | default({}, true) %}
   {% set expiring = expiring_members | default({}, true) %}
   {% set alerts = price_alerts | default({}, true) %}
+  {% set paid_users = paid_users | default([], true) %}
   {% set notif = notification_settings | default({}, true) %}
   
   {% set m_rev = user_stats.get("estimated_monthly_revenue", 0) or 0 %}
-  {% set a_rev = m_rev * 12 %}
   {% set total_u = user_stats.get("total_users", 0) or 0 %}
   {% set paid_u = (user_stats.get("vip_users", 0) or 0) + (user_stats.get("pro_users", 0) or 0) %}
-  {% set free_u = user_stats.get("free_users", 0) or 0 %}
   
-  {# Deep Analytics #}
-  {% set arpu = (m_rev / paid_u) if paid_u > 0 else 0 %}
-  {% set conv_pot = (free_u * 0.15) | round | int %}
-  {% set win_rate = performance.get("win_rate", 0) or 0 %}
-  {% set total_watch = top_watched.get("total_watch_entries", 0) or 0 %}
-  {% set engage_index = (total_watch / total_u * 10) if total_u > 0 else 0 %}
-
   <div class="shell">
     <aside class="sidebar">
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 48px;">
-        <div style="width: 40px; height: 40px; background: var(--dime-green); border-radius: 12px; display: grid; place-items: center;">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-        </div>
-        <span class="brand-name">Apexify Elite</span>
-      </div>
-
-      <nav style="display: flex; flex-direction: column; gap: 8px; flex-grow: 1;">
-        <a href="#overview" class="nav-item active" style="color: var(--dime-green);">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-          Dashboard
-        </a>
-        <a href="#market" class="nav-item">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          Market Intel
-        </a>
-        <a href="#signals" class="nav-item">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          Signal Logic
-        </a>
-        <a href="#system" class="nav-item">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-          System Grid
-        </a>
+      <a href="#" class="brand"><div class="brand-icon"></div> Apexify Admin</a>
+      <nav style="flex-grow: 1;">
+        <a href="#overview" class="nav-item active">Overview</a>
+        <a href="#performance" class="nav-item">Signal Log</a>
+        <a href="#members" class="nav-item">Member Base</a>
+        <a href="#system" class="nav-item">System</a>
       </nav>
-
-      <div class="glass" style="padding: 20px; border-radius: 20px; margin-top: auto;">
-        <div style="font-size: 11px; color: var(--text-sub); text-transform: uppercase; margin-bottom: 8px;">Node Clearance</div>
-        <div class="mono">{{ admin_id[:16] if admin_id else 'LOCAL_HOST' }}</div>
-        <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; font-weight: 700;">
-          <div class="status-dot" style="background: {{ 'var(--danger)' if maintenance.get('enabled') else 'var(--dime-green)' }}; box-shadow: 0 0 10px {{ 'var(--danger)' if maintenance.get('enabled') else 'var(--dime-green)' }};"></div>
-          {{ 'MAINTENANCE' if maintenance.get('enabled') else 'OPERATIONAL' }}
-        </div>
+      <div style="font-size: 12px; color: var(--text-sub); padding: 20px; background: #111; border-radius: 12px;">
+        Status: <span style="color: {{ 'var(--danger)' if maintenance.get('enabled') else 'var(--dime-green)' }}">● {{ 'Maintenance' if maintenance.get('enabled') else 'Online' }}</span>
+        <div style="margin-top: 8px; font-size: 10px; opacity: 0.6;">Admin: {{ admin_id[:12] if admin_id else 'ROOT' }}</div>
       </div>
     </aside>
 
     <main class="main">
-      <header class="hero-section" id="overview">
-        <div class="hero-glow"></div>
-        <p class="balance-label">คาดการณ์รายได้รายปี (ARR Projection)</p>
-        <h1 class="balance-value">฿<span class="counter">{{ '{:,.0f}'.format(a_rev) }}</span></h1>
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px;">
-          <div style="display: flex; gap: 16px;">
-            <div class="stat-badge"><span style="color: var(--dime-green);">●</span> Monthly: ฿{{ '{:,.0f}'.format(m_rev) }}</div>
-            <div class="stat-badge"><span style="color: var(--accent-blue);">●</span> ARPU: ฿{{ '{:,.0f}'.format(arpu) }}</div>
-          </div>
-          <div style="display: flex; gap: 12px;">
-            <form method="post" action="{{ url_for('admin_toggle_maintenance') if (request and request.endpoint and 'admin_toggle_maintenance' in request.endpoint) else '#' }}">
-              <button class="btn-action" style="background: rgba(255,255,255,0.05); color: #fff;" type="submit">Maintenance Mode</button>
-            </form>
-            <form method="post" action="{{ url_for('admin_download_backup') if (request and request.endpoint and 'admin_download_backup' in request.endpoint) else '#' }}">
-              <button class="btn-action" type="submit">Backup Database</button>
-            </form>
-          </div>
+      <section class="hero" id="overview">
+        <div>
+          <p class="hero-label">คาดการณ์รายได้รายปี (ARR)</p>
+          <h1 class="hero-value">฿{{ '{:,.0f}'.format(m_rev * 12) }}</h1>
+          <p class="hero-sub">↑ เฉลี่ย ฿{{ '{:,.0f}'.format(m_rev / paid_u if paid_u > 0 else 0) }} / สมาชิกพรีเมียม</p>
         </div>
-      </header>
-
-      <div class="dashboard-grid">
-        <!-- KPI Cards -->
-        <div class="card glass col-2">
-          <p class="card-title">Market Attention</p>
-          <div style="display: flex; align-items: baseline; gap: 10px;">
-            <span class="card-value">{{ total_watch }}</span>
-            <span style="color: var(--dime-green); font-weight: 700; font-size: 14px;">↑ {{ '%.1f'|format(engage_index) }} idx</span>
-          </div>
-          <p class="card-sub">Total watchlist entries across grid</p>
+        <div class="btn-group">
+          <form method="post" action="{{ url_for('admin_toggle_maintenance') if (request and request.endpoint and 'admin_toggle_maintenance' in request.endpoint) else '#' }}">
+            <button class="btn" type="submit">{{ 'Turn Off' if maintenance.get('enabled') else 'Enable Maintenance' }}</button>
+          </form>
+          <form method="post" action="{{ url_for('admin_download_backup') if (request and request.endpoint and 'admin_download_backup' in request.endpoint) else '#' }}">
+            <button class="btn btn-primary" type="submit">Download DB</button>
+          </form>
         </div>
+      </section>
 
-        <div class="card glass col-2">
-          <p class="card-title">Conversion Potential</p>
-          <span class="card-value" style="color: var(--accent-purple);">{{ conv_pot }} Users</span>
-          <p class="card-sub">High-activity free users to target</p>
+      <div class="grid-4">
+        <div class="card">
+          <p class="card-label">Active Subs</p>
+          <p class="card-value">{{ paid_u }}</p>
+          <p class="card-footer">{{ user_stats.get("vip_users", 0) }} VIP / {{ user_stats.get("pro_users", 0) }} PRO</p>
         </div>
-
-        <div class="card glass col-2">
-          <p class="card-title">System Success</p>
-          <span class="card-value" style="color: var(--dime-green);">{{ '%.1f'|format(win_rate) }}%</span>
-          <p class="card-sub">Win rate from {{ performance.get("total_count", 0) }} signals</p>
+        <div class="card">
+          <p class="card-label">Alert Traffic</p>
+          <p class="card-value">{{ alerts.get("total_alerts", 0) }}</p>
+          <p class="card-footer">จาก {{ alerts.get("unique_users", 0) }} ผู้ใช้งาน</p>
         </div>
-
-        <!-- Big Analytics Charts -->
-        <div class="card glass col-3">
-          <p class="card-title">User Distribution Matrix</p>
-          <div style="height: 240px;"><canvas id="userTypeChart"></canvas></div>
+        <div class="card">
+          <p class="card-label">Win Rate</p>
+          <p class="card-value" style="color: var(--dime-green)">{{ '%.1f'|format(performance.get("win_rate", 0)) }}%</p>
+          <p class="card-footer">สัญญาณแม่นยำล่าสุด</p>
         </div>
-
-        <div class="card glass col-3">
-          <p class="card-title">Algorithm Performance</p>
-          <div style="height: 240px;"><canvas id="algoChart"></canvas></div>
+        <div class="card">
+          <p class="card-label">Risk (7 Days)</p>
+          <p class="card-value" style="color: var(--danger)">฿{{ '{:,.0f}'.format(expiring.get("revenue_at_risk_7_days", 0)) }}</p>
+          <p class="card-footer">ยอดสมาชิกที่จะหมดอายุ</p>
         </div>
+      </div>
 
-        <!-- Notification Insights -->
-        <div class="card glass col-2">
-          <p class="card-title">Data Delivery Logic</p>
-          <div class="p-bar-container">
-            {% for item in notif.get("distribution", []) %}
-              <div class="p-bar-row">
-                <div class="p-bar-info"><span>{{ item.label }} Digest</span><span>{{ item.count }}</span></div>
-                <div class="p-bar-track">
-                  <div class="p-bar-fill" style="width: {{ (item.count / total_u * 100) if total_u > 0 else 0 }}%; background: var(--accent-blue);"></div>
-                </div>
-              </div>
-            {% endfor %}
-          </div>
+      <div class="grid-2">
+        <div class="card">
+          <p class="card-label">User Distribution</p>
+          <div class="chart-container"><canvas id="userChart"></canvas></div>
         </div>
+        <div class="card">
+          <p class="card-label">Digest Frequency (Notification)</p>
+          <div class="chart-container"><canvas id="digestChart"></canvas></div>
+        </div>
+      </div>
 
-        <!-- Sales Opportunity -->
-        <div class="card glass col-2" style="background: linear-gradient(135deg, #1A1A1E 0%, #050505 100%);">
-          <p class="card-title" style="color: var(--accent-gold);">🔥 Hot Market Symbols</p>
-          <div class="item-list" style="margin-top: 20px;">
+      <div class="grid-2">
+        <div class="card">
+          <p class="card-label">🔥 Hot Symbols (Watchlist)</p>
+          <div style="margin-top: 16px;">
             {% for item in top_watched.get("items", [])[:5] %}
-              <div class="list-row">
-                <span class="symbol-chip">{{ item.symbol }}</span>
-                <div style="text-align: right;">
-                  <div style="font-weight: 800; color: var(--dime-green);">{{ item.watchers }}</div>
-                  <div style="font-size: 10px; color: var(--text-sub);">WATCHERS</div>
-                </div>
+              <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #222;">
+                <span style="font-weight: 700;">{{ item.symbol }}</span>
+                <span style="color: var(--dime-green); font-weight: 700;">{{ item.watchers }} Users</span>
               </div>
             {% endfor %}
           </div>
         </div>
 
-        <!-- Alert Load & System Health -->
-        <div class="card glass col-2">
-          <p class="card-title">Grid Telemetry</p>
-          <div class="p-bar-container">
+        <div class="card" id="system">
+          <p class="card-label">System Integrity</p>
+          <div style="margin-top: 16px;">
             <div class="p-bar-row">
-              <div class="p-bar-info"><span>🧠 CPU Usage</span><span>{{ sys.get("cpu_usage", 0) }}%</span></div>
-              <div class="p-bar-track"><div class="p-bar-fill" style="width: {{ sys.get('cpu_usage', 0) }}%; background: var(--dime-green);"></div></div>
+              <div class="p-bar-info"><span>CPU Usage</span><span>{{ sys.get("cpu_usage", 0) }}%</span></div>
+              <div class="p-bar-bg"><div class="p-bar-fill" style="width: {{ sys.get('cpu_usage', 0) }}%"></div></div>
             </div>
             <div class="p-bar-row">
-              <div class="p-bar-info"><span>💽 Memory (RAM)</span><span>{{ sys.get("ram_percent", 0) }}%</span></div>
-              <div class="p-bar-track"><div class="p-bar-fill" style="width: {{ sys.get('ram_percent', 0) }}%; background: var(--accent-purple);"></div></div>
+              <div class="p-bar-info"><span>Memory (RAM)</span><span>{{ sys.get("ram_percent", 0) }}%</span></div>
+              <div class="p-bar-bg"><div class="p-bar-fill" style="width: {{ sys.get('ram_percent', 0) }}%; background: var(--accent-purple);"></div></div>
             </div>
-            <div class="p-bar-row" style="margin-bottom: 0;">
-              <div class="p-bar-info"><span>💾 Disk Usage</span><span>{{ sys.get("disk_percent", 0) }}%</span></div>
-              <div class="p-bar-track"><div class="p-bar-fill" style="width: {{ sys.get('disk_percent', 0) }}%; background: var(--text-sub);"></div></div>
+            <div class="p-bar-row">
+              <div class="p-bar-info"><span>Disk Usage</span><span>{{ sys.get("disk_percent", 0) }}%</span></div>
+              <div class="p-bar-bg"><div class="p-bar-fill" style="width: {{ sys.get('disk_percent', 0) }}%; background: var(--text-sub);"></div></div>
             </div>
-          </div>
-          <div style="margin-top: 24px; padding: 16px; border-radius: 12px; background: rgba(0,192,118,0.05); border: 1px solid var(--dime-green-glow);">
-            <div style="font-size: 11px; color: var(--dime-green); font-weight: 800; margin-bottom: 4px;">SYSTEM UPTIME</div>
-            <div style="font-size: 20px; font-weight: 800;">{{ sys.get("uptime_hours", 0) }}h Online</div>
-          </div>
-        </div>
-
-        <!-- Signal Stream Table -->
-        <div class="glass col-6 table-box">
-          <div style="padding: 24px 32px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0; font-size: 20px; font-weight: 800;">Signal Execution Stream</h3>
-            <div class="stat-badge" style="background: var(--dime-green-glow); color: var(--dime-green);">LIVE FEED</div>
-          </div>
-          <div style="overflow-x: auto;">
-            <table>
-              <thead>
-                <tr>
-                  <th>Identity</th>
-                  <th>Logic Path</th>
-                  <th>Price Action</th>
-                  <th>Outcome</th>
-                  <th>Telemetry Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in performance.get("entries", [])[:10] %}
-                  <tr>
-                    <td><span class="symbol-chip">{{ item.symbol }}</span></td>
-                    <td><span class="badge bg-blue">{{ item.alert_type }}</span></td>
-                    <td>
-                      <div style="display: flex; flex-direction: column;">
-                        <span style="font-weight: 800; color: {{ 'var(--dime-green)' if (item.diff_pct | default(0)) > 0 else 'var(--danger)' }}">
-                          {{ '%+.2f'|format(item.diff_pct | default(0)) }}%
-                        </span>
-                        <span style="font-size: 11px; color: var(--text-sub);">Start: {{ '%.2f'|format(item.start_price | default(0)) }}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="stat-badge" style="background: {{ 'var(--dime-green-glow)' if item.is_win else 'rgba(255,77,77,0.1)' }}; color: {{ 'var(--dime-green)' if item.is_win else 'var(--danger)' }};">
-                        {{ 'PROFIT HIT' if item.is_win else 'MISALIGNED' }}
-                      </div>
-                    </td>
-                    <td class="mono" style="font-size: 12px; color: var(--text-sub);">{{ item.timestamp }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+            <div style="margin-top: 20px; font-size: 13px; font-weight: 700; color: var(--accent-blue);">
+              UPTIME: {{ sys.get("uptime_hours", 0) }} HOURS
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- Signals Table -->
+      <div class="table-container" id="performance">
+        <div class="table-header">Signal Execution Stream <span class="badge badge-blue">Live</span></div>
+        <div style="overflow-x: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Logic</th>
+                <th>Performance</th>
+                <th>Result</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in performance.get("entries", [])[:8] %}
+                <tr>
+                  <td style="font-weight: 700;">{{ item.symbol }}</td>
+                  <td><span class="badge badge-blue">{{ item.alert_type }}</span></td>
+                  <td style="font-weight: 700; color: {{ 'var(--dime-green)' if (item.diff_pct | default(0)) > 0 else 'var(--danger)' }}">
+                    {{ '%+.2f'|format(item.diff_pct | default(0)) }}%
+                  </td>
+                  <td><span class="badge {{ 'badge-success' if item.is_win else 'badge-danger' }}">{{ 'WIN' if item.is_win else 'MISS' }}</span></td>
+                  <td class="mono" style="font-size: 12px;">{{ item.timestamp }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Members Table -->
+      <div class="table-container" id="members">
+        <div class="table-header">Premium User Matrix <span class="badge badge-purple">Active Subs</span></div>
+        <div style="overflow-x: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>User ID</th>
+                <th>Role</th>
+                <th>Expiration</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for user in paid_users %}
+                <tr>
+                  <td class="mono">{{ user.user_id }}</td>
+                  <td><span class="badge {{ 'badge-purple' if user.role == 'pro' else 'badge-blue' }}">{{ user.role|upper }}</span></td>
+                  <td class="mono">{{ user.expiry_date }}</td>
+                  <td><span class="badge {{ 'badge-success' if user.is_active else 'badge-danger' }}">{{ user.status_label }}</span></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </main>
   </div>
 
   <script>
-    // Global Chart Config
-    Chart.defaults.color = '#8E9196';
-    Chart.defaults.font.family = 'Plus Jakarta Sans';
+    const commonOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } };
 
     // 1. User Distribution
-    new Chart(document.getElementById('userTypeChart'), {
+    new Chart(document.getElementById('userChart'), {
       type: 'doughnut',
       data: {
         labels: ['Free', 'VIP', 'PRO'],
         datasets: [{
-          data: [{{ free_u }}, {{ user_stats.get("vip_users", 0) }}, {{ user_stats.get("pro_users", 0) }}],
-          backgroundColor: ['#1A1A1E', '#00C076', '#A855F7'],
-          borderWidth: 0,
-          cutout: '80%'
+          data: [{{ user_stats.get("free_users", 0) }}, {{ user_stats.get("vip_users", 0) }}, {{ user_stats.get("pro_users", 0) }}],
+          backgroundColor: ['#222', '#00C076', '#AF52DE'],
+          borderWidth: 0, cutout: '75%'
         }]
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20, font: { weight: '700' } } } }
-      }
+      options: { ...commonOptions, plugins: { legend: { display: true, position: 'bottom', labels: { color: '#888', usePointStyle: true, padding: 20 } } } }
     });
 
-    // 2. Algorithm Performance
-    new Chart(document.getElementById('algoChart'), {
+    // 2. Digest Distribution
+    new Chart(document.getElementById('digestChart'), {
       type: 'bar',
       data: {
-        labels: ['RSI', 'Cross', 'Break', 'Vol', 'Trend'],
+        labels: [{% for b in notif.get("distribution", []) %}'{{ b.label }}',{% endfor %}],
         datasets: [{
-          data: [74, 68, 59, 82, 61],
-          backgroundColor: '#00C076',
-          borderRadius: 12,
-          barThickness: 20
+          data: [{% for b in notif.get("distribution", []) %}{{ b.count }},{% endfor %}],
+          backgroundColor: '#007AFF', borderRadius: 6
         }]
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        ...commonOptions,
         scales: {
-          y: { grid: { color: 'rgba(255,255,255,0.03)' }, border: { display: false } },
-          x: { grid: { display: false }, border: { display: false } }
+          y: { grid: { color: '#1a1a1a' }, ticks: { color: '#888', stepSize: 1 } },
+          x: { grid: { display: false }, ticks: { color: '#888' } }
         }
       }
-    });
-
-    // Entry Animations
-    document.querySelectorAll('.card, .table-box').forEach((el, i) => {
-      el.style.opacity = '0';
-      el.style.transform = 'translateY(30px)';
-      setTimeout(() => {
-        el.style.transition = 'all 0.6s cubic-bezier(0.2, 1, 0.3, 1)';
-        el.style.opacity = '1';
-        el.style.transform = 'translateY(0)';
-      }, i * 100);
     });
   </script>
 </body>
