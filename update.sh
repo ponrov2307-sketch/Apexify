@@ -80,6 +80,19 @@ resolve_python_bin() {
   return 1
 }
 
+install_requirements() {
+  if "${PYTHON_BIN}" - <<'PY'
+import sys
+raise SystemExit(0 if sys.prefix == getattr(sys, "base_prefix", sys.prefix) else 1)
+PY
+  then
+    "${PYTHON_BIN}" -m pip install --break-system-packages -r requirements.txt
+    return 0
+  fi
+
+  "${PYTHON_BIN}" -m pip install -r requirements.txt
+}
+
 verify_runtime_imports() {
   "${PYTHON_BIN}" - <<'PY'
 import flask
@@ -186,7 +199,7 @@ step "📡 [6/11] Pulling latest star-map from GitHub" \
      "git fetch --all && git reset --hard origin/main" "false"
 
 step "📦 [7/11] Syncing Python dependencies" \
-     "\"\$PYTHON_BIN\" -m pip install -r requirements.txt" "false"
+     "install_requirements" "false"
 
 step "🧪 [8/11] Running Python warp-syntax check" \
      "\"\$PYTHON_BIN\" -m py_compile main.py config.py dashboard_login.py keep_alive.py admin_service.py alert_system.py database.py ai_analyzer.py technical_tools.py" "false"
