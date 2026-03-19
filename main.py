@@ -23,7 +23,7 @@ from datetime import datetime
 from database import (get_all_users, init_db, register_user, check_subscription, add_subscription, 
                       get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, 
                       remove_watch_db, add_promo_code, redeem_code, get_user_stats, 
-                      check_slip_used, mark_slip_used, ban_user, unban_user, is_user_banned,
+                      claim_slip_and_add_subscription, ban_user, unban_user, is_user_banned,
                       init_new_features_db, process_referral, get_referral_stats, 
                       add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,
                       get_connection, add_portfolio_stock, get_user_portfolio,
@@ -870,7 +870,6 @@ def handle_performance(message):
 def handle_payment_slip_check(message):
     user_id = str(message.chat.id)
     if not is_allowed(user_id): return
-    role = check_subscription(user_id)
     progress_msg = bot.reply_to(message, "🧾 Apexify กำลังตรวจสอบสลิปโอนเงิน...")
         
     try:
@@ -886,24 +885,14 @@ def handle_payment_slip_check(message):
             if not ref_no or ref_no == "" or ref_no.lower() == "none":
                 bot.edit_message_text("⚠️ Apexify อ่าน 'เลขที่อ้างอิง' บนสลิปไม่ชัดเจน โปรดถ่ายให้เห็นชัดๆ ครับ", message.chat.id, progress_msg.message_id)
                 return
-            if check_slip_used(ref_no):
-                bot.edit_message_text("❌ **สลิปนี้ถูกใช้งานไปแล้ว!**\nไม่อนุญาตให้ใช้สลิปซ้ำครับ", message.chat.id, progress_msg.message_id, parse_mode="Markdown")
-                bot.send_message(ADMIN_ID, f"🚨 **ทุจริต!** User `{user_id}` ส่งสลิปซ้ำ (Ref: `{ref_no}`)", parse_mode="Markdown")
-                return
-
-            if amount == 4990:
-                expiry = add_subscription(user_id, 'pro', 365)
-                msg_text = f"🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"
-            elif amount == 2990: # 🌟 แก้ตรงนี้จาก 1990 เป็น 2990
-                expiry = add_subscription(user_id, 'vip', 365)
-                msg_text = f"🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายปี)**\n⏰ หมดอายุ: {expiry}"
-            elif amount == 499:
-                expiry = add_subscription(user_id, 'pro', 30)
-                msg_text = f"🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
-            elif amount == 299: # 🌟 แก้ตรงนี้จาก 199 เป็น 299
-                expiry = add_subscription(user_id, 'vip', 30)
-                msg_text = f"🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายเดือน)**\n⏰ หมดอายุ: {expiry}"
-            else:
+            slip_packages = {
+                4990: ('pro', 365, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"),
+                2990: ('vip', 365, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายปี)**\n⏰ หมดอายุ: {expiry}"),
+                499: ('pro', 30, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายเดือน)**\n⏰ หมดอายุ: {expiry}"),
+                299: ('vip', 30, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายเดือน)**\n⏰ หมดอายุ: {expiry}"),
+            }
+            package_info = slip_packages.get(amount)
+            if not package_info:
                 bot.edit_message_text(
                     f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** ({amount:,.2f} บาท)\nกรุณาโอนให้ตรงราคา (299, 499, 2990, 4990)", # 🌟 อย่าลืมแก้ตัวเลขแจ้งเตือนตรงนี้ด้วยครับ
                     message.chat.id, progress_msg.message_id, parse_mode="Markdown"
@@ -911,7 +900,22 @@ def handle_payment_slip_check(message):
                 bot.send_message(ADMIN_ID, f"⚠️ **ยอดผิดปกติ!** User `{user_id}` โอน {amount:,.2f} บาท", parse_mode="Markdown")
                 return
 
-            mark_slip_used(ref_no, user_id)
+            target_role, subscription_days, message_template = package_info
+            claim_status, expiry = claim_slip_and_add_subscription(
+                user_id,
+                ref_no,
+                target_role,
+                subscription_days,
+            )
+            if claim_status == "duplicate":
+                bot.edit_message_text("❌ **สลิปนี้ถูกใช้งานไปแล้ว!**\nไม่อนุญาตให้ใช้สลิปซ้ำครับ", message.chat.id, progress_msg.message_id, parse_mode="Markdown")
+                bot.send_message(ADMIN_ID, f"🚨 **ทุจริต!** User `{user_id}` ส่งสลิปซ้ำ (Ref: `{ref_no}`)", parse_mode="Markdown")
+                return
+            if claim_status != "success" or not expiry:
+                bot.edit_message_text("⚠️ Apexify ตรวจสอบสลิปได้แล้ว แต่ยังไม่สามารถอัปเดตสิทธิ์ได้ กรุณาลองใหม่อีกครั้ง", message.chat.id, progress_msg.message_id)
+                return
+
+            msg_text = message_template.format(expiry=expiry)
             bot.delete_message(message.chat.id, progress_msg.message_id)
             bot.reply_to(message, msg_text, parse_mode="Markdown")
             bot.send_message(ADMIN_ID, f"💰 เงินเข้า! User `{user_id}` โอน {amount} บาท")

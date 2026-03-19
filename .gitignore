@@ -5,5 +5,5 @@
 __pycache__/
 
 # ซ่อนไฟล์ฐานข้อมูล (กันข้อมูลลูกค้าหลุด)
-apex_master.db
+apexify.db
 *.sqlite3

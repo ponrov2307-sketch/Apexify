@@ -173,6 +173,23 @@ def register_user(user_id, username="Unknown"):
     finally:
         conn.close()
 
+def _calculate_subscription_expiry(role, days, current_role=None, current_expiry=None, now=None):
+    now = now or datetime.now()
+    new_expiry = now + timedelta(days=days)
+
+    if current_expiry:
+        try:
+            if isinstance(current_expiry, datetime):
+                parsed_expiry = current_expiry
+            else:
+                parsed_expiry = datetime.strptime(str(current_expiry), '%Y-%m-%d %H:%M:%S')
+            if parsed_expiry > now and (current_role == role or role == 'pro'):
+                new_expiry = parsed_expiry + timedelta(days=days)
+        except (TypeError, ValueError):
+            pass
+
+    return new_expiry
+
 def add_subscription(user_id, role='vip', days=30):
     conn = get_connection()
     c = conn.cursor()
@@ -180,18 +197,14 @@ def add_subscription(user_id, role='vip', days=30):
     c.execute("SELECT role, expiry_date FROM users WHERE user_id=%s", (str(user_id),))
     result = c.fetchone()
     
-    now = datetime.now()
-    new_expiry = now + timedelta(days=days)
-    
-    if result and result[1]:
-        old_role = result[0]
-        try:
-            old_expiry = datetime.strptime(result[1], '%Y-%m-%d %H:%M:%S')
-            # ทบวันให้ถ้าเป็นการต่ออายุแพ็กเกจเดิม หรืออัปเกรดจาก VIP ไป PRO
-            if old_expiry > now and (old_role == role or role == 'pro'):
-                new_expiry = old_expiry + timedelta(days=days) 
-        except:
-            pass
+    current_role = result[0] if result else None
+    current_expiry = result[1] if result else None
+    new_expiry = _calculate_subscription_expiry(
+        role,
+        days,
+        current_role=current_role,
+        current_expiry=current_expiry,
+    )
             
     expiry_str = new_expiry.strftime('%Y-%m-%d %H:%M:%S')
     c.execute("UPDATE users SET role=%s, expiry_date=%s WHERE user_id=%s", (role, expiry_str, str(user_id)))
@@ -371,6 +384,59 @@ def mark_slip_used(ref_no, user_id):
     except psycopg2.IntegrityError:
         conn.rollback()
         return False
+    finally:
+        conn.close()
+
+def claim_slip_and_add_subscription(user_id: str, ref_no: str, role: str, days: int) -> tuple[str, str | None]:
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        now = datetime.now()
+        now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+        c.execute(
+            """
+            INSERT INTO used_slips (ref_no, user_id, date_used)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (ref_no) DO NOTHING
+            RETURNING ref_no
+            """,
+            (str(ref_no), str(user_id), now_str),
+        )
+        if c.fetchone() is None:
+            return "duplicate", None
+
+        c.execute(
+            "SELECT role, expiry_date FROM users WHERE user_id=%s FOR UPDATE",
+            (str(user_id),),
+        )
+        result = c.fetchone()
+        if not result:
+            conn.rollback()
+            return "error", None
+
+        current_role, current_expiry = result
+        new_expiry = _calculate_subscription_expiry(
+            role,
+            days,
+            current_role=current_role,
+            current_expiry=current_expiry,
+            now=now,
+        )
+        expiry_str = new_expiry.strftime('%Y-%m-%d %H:%M:%S')
+        c.execute(
+            "UPDATE users SET role=%s, expiry_date=%s WHERE user_id=%s",
+            (role, expiry_str, str(user_id)),
+        )
+        if c.rowcount != 1:
+            conn.rollback()
+            return "error", None
+
+        conn.commit()
+        return "success", expiry_str
+    except Exception as e:
+        print(f"Slip Claim Error: {e}")
+        conn.rollback()
+        return "error", None
     finally:
         conn.close()
 
