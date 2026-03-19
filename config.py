@@ -1,8 +1,39 @@
-﻿import os
-import dotenv
+import os
+from pathlib import Path
 
-# โหลดค่าจากไฟล์ .env (ถ้ารันบนเครื่องตัวเอง)
-dotenv.load_dotenv()
+try:
+    from dotenv import load_dotenv as _load_dotenv
+except Exception:
+    _load_dotenv = None
+
+
+def _load_local_env():
+    env_path = Path(__file__).resolve().parent / ".env"
+
+    if callable(_load_dotenv):
+        try:
+            _load_dotenv(dotenv_path=env_path)
+        except TypeError:
+            _load_dotenv(str(env_path))
+        except Exception:
+            pass
+
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key:
+            continue
+        os.environ.setdefault(key, value.strip())
+
+
+# โหลดค่าจากไฟล์ .env จากโฟลเดอร์โปรเจกต์โดยตรง
+_load_local_env()
 
 
 def _to_bool(name, default=False):
