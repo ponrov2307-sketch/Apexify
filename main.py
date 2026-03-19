@@ -12,13 +12,9 @@ import string
 import time
 import xml.etree.ElementTree as ET 
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-MAINTENANCE_MODE = False
 from keep_alive import keep_alive 
 from config import TELEGRAM_TOKEN, ADMIN_ID, DASHBOARD_LOGIN_TOKEN_TTL, APEXIFY_PASSWORD
-from dashboard_login import issue_dashboard_login_url
-import zipfile
-import os
-from datetime import datetime
+from dashboard_login import issue_admin_dashboard_url, issue_dashboard_login_url
 # 🌟 Import ฟังก์ชันฐานข้อมูลทั้งหมด รวมถึงระบบจัดการพอร์ต
 from database import (get_all_users, init_db, register_user, check_subscription, add_subscription, 
                       get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, 
@@ -30,9 +26,17 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       get_user_settings, set_user_notifications, set_user_timezone,
                       set_user_language, set_user_digest_frequency, set_user_news_window,
                       ALLOWED_TIMEZONES, ALLOWED_LANGUAGES, ALLOWED_DIGEST_FREQUENCIES)
+from admin_service import (
+    build_local_backup_zip,
+    get_maintenance_status,
+    get_paid_users_snapshot,
+    get_performance_snapshot,
+    get_system_health_snapshot,
+    get_user_stats_snapshot,
+    toggle_maintenance_status,
+)
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report, analyze_payment_slip
-import psutil
 from alert_system import broadcast_hourly_urgent_news, check_and_broadcast_pro_news
 from curl_cffi import requests as cffi_requests
 
@@ -140,12 +144,11 @@ def send_settings_panel(chat_id, user_id=None, edit_message_id=None):
     )
 
 def is_allowed(user_id):
-    global MAINTENANCE_MODE
     if user_id == ADMIN_ID: return True 
     if is_user_banned(user_id): return False 
     
     # 🌟 ดักโหมดปิดปรับปรุงระบบ (แอดมินจะรอดผ่าน if user_id == ADMIN_ID ด้านบนมาแล้ว)
-    if MAINTENANCE_MODE:
+    if get_maintenance_status():
         try:
             bot.send_message(user_id, "🛠 **ระบบกำลังปิดปรับปรุง (Maintenance Mode)**\n\nทีมงาน Apexify กำลังอัปเกรดระบบให้ดียิ่งขึ้น กรุณารอสักครู่ครับ... 🚀", parse_mode="Markdown")
         except:
@@ -174,9 +177,8 @@ def is_allowed(user_id):
 @bot.message_handler(commands=['maintenance'])
 def handle_maintenance(message):
     if str(message.chat.id) != ADMIN_ID: return
-    global MAINTENANCE_MODE
-    MAINTENANCE_MODE = not MAINTENANCE_MODE
-    status = "🔴 เปิด (ผู้ใช้ทั่วไปใช้งานไม่ได้, แอดมินใช้ได้ปกติ)" if MAINTENANCE_MODE else "🟢 ปิด (ระบบเปิดใช้งานปกติทุกคน)"
+    enabled = toggle_maintenance_status()
+    status = "🔴 เปิด (ผู้ใช้ทั่วไปใช้งานไม่ได้, แอดมินใช้ได้ปกติ)" if enabled else "🟢 ปิด (ระบบเปิดใช้งานปกติทุกคน)"
     bot.reply_to(message, f"🛠 **สถานะ Maintenance Mode:** {status}", parse_mode="Markdown")
 
 @bot.message_handler(commands=['force_backup'])
@@ -186,24 +188,19 @@ def handle_force_backup(message):
     load_msg = bot.reply_to(message, "⏳ กำลังบีบอัดฐานข้อมูล `apexify.db` โปรดรอสักครู่...", parse_mode="Markdown")
     
     try:
-        db_filename = "apexify.db"
-        if not os.path.exists(db_filename):
+        success, zip_filename, zip_buffer, reason = build_local_backup_zip()
+        if not success or zip_buffer is None:
             bot.edit_message_text("❌ ไม่พบไฟล์ฐานข้อมูล (ระบบอาจจะเชื่อมต่อกับ Cloud Database อยู่)", message.chat.id, load_msg.message_id)
             return
-            
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        zip_filename = f"apexify_backup_{timestamp}.zip"
-        
-        # สร้างไฟล์ Zip (บีบอัดไฟล์ db ให้เล็กลง)
-        with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            zipf.write(db_filename)
-        
+
         # ส่งไฟล์เข้าแชทแอดมิน
-        with open(zip_filename, 'rb') as doc:
-            bot.send_document(message.chat.id, doc, caption=f"📦 **Backup ฐานข้อมูลสำเร็จ!**\n📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        # ลบไฟล์ zip ทิ้งหลังจากส่งเสร็จเพื่อไม่ให้รกพื้นที่เซิร์ฟเวอร์
-        os.remove(zip_filename)
+        zip_buffer.seek(0)
+        bot.send_document(
+            message.chat.id,
+            zip_buffer,
+            caption=f"📦 **Backup ฐานข้อมูลสำเร็จ!**\n📅 {time.strftime('%Y-%m-%d %H:%M:%S')}",
+            parse_mode="Markdown",
+        )
         bot.delete_message(message.chat.id, load_msg.message_id)
         
     except Exception as e:
@@ -215,28 +212,18 @@ def handle_system_health(message):
     
     load_msg = bot.reply_to(message, "⏳ กำลังดึงข้อมูลสถานะเซิร์ฟเวอร์...")
     try:
-        cpu_usage = psutil.cpu_percent(interval=1)
-        ram = psutil.virtual_memory()
-        ram_total = ram.total / (1024**3)
-        ram_used = ram.used / (1024**3)
-        ram_percent = ram.percent
-        disk = psutil.disk_usage('/')
-        disk_percent = disk.percent
-        
-        uptime = time.time() - psutil.boot_time()
-        uptime_hours = uptime // 3600
-        
+        snapshot = get_system_health_snapshot()
         msg = (
             "💻 **สถานะเซิร์ฟเวอร์ (System Health)** 💻\n\n"
-            f"🧠 **CPU Usage:** {cpu_usage}%\n"
-            f"💽 **RAM Usage:** {ram_used:.2f} GB / {ram_total:.2f} GB ({ram_percent}%)\n"
-            f"💾 **Disk Space:** {disk_percent}% ใช้ไป\n"
-            f"⏱ **Server Uptime:** {int(uptime_hours)} ชั่วโมง\n\n"
+            f"🧠 **CPU Usage:** {snapshot['cpu_usage']:.0f}%\n"
+            f"💽 **RAM Usage:** {snapshot['ram_used_gb']:.2f} GB / {snapshot['ram_total_gb']:.2f} GB ({snapshot['ram_percent']:.0f}%)\n"
+            f"💾 **Disk Space:** {snapshot['disk_percent']:.0f}% ใช้ไป\n"
+            f"⏱ **Server Uptime:** {int(snapshot['uptime_hours'])} ชั่วโมง\n\n"
             f"✅ ระบบทำงานปกติ ลื่นไหลไม่มีสะดุดครับ!"
         )
         bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
     except Exception as e:
-        bot.edit_message_text(f"❌ ไม่สามารถดึงข้อมูลระบบได้: {e}\n(คำแนะนำ: ต้องรัน `pip install psutil` บนเซิร์ฟเวอร์ด้วยครับ)", message.chat.id, load_msg.message_id)
+        bot.edit_message_text(f"❌ ไม่สามารถดึงข้อมูลระบบได้: {e}", message.chat.id, load_msg.message_id)
 
 @bot.message_handler(commands=['users_pro'])
 def handle_users_pro(message):
@@ -244,12 +231,7 @@ def handle_users_pro(message):
     
     load_msg = bot.reply_to(message, "⏳ กำลังดึงรายชื่อลูกค้า PRO และ VIP...")
     try:
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT user_id, role, expiry_date FROM users WHERE role IN ('pro', 'vip') ORDER BY role DESC, expiry_date ASC")
-        users_list = cur.fetchall()
-        cur.close()
-        conn.close()
+        users_list = get_paid_users_snapshot()
         
         if not users_list:
             bot.edit_message_text("❌ ยังไม่มีลูกค้า VIP หรือ PRO ในระบบ", message.chat.id, load_msg.message_id)
@@ -257,12 +239,11 @@ def handle_users_pro(message):
             
         report = "👑 **รายชื่อลูกค้า VIP / PRO ทั้งหมด** 👑\n\n"
         count = 1
-        for uid, role, expiry in users_list:
-            role_icon = "👑" if role == 'pro' else "💎"
-            is_active = check_subscription(uid)
-            status_icon = "✅" if is_active in ['pro', 'vip'] else "❌ (หมดอายุ)"
+        for item in users_list:
+            role_icon = "👑" if item["role"] == 'pro' else "💎"
+            status_icon = "✅" if item["is_active"] else "❌ (หมดอายุ)"
             
-            report += f"{count}. {role_icon} `{uid}` | หมดอายุ: {expiry[:10]} {status_icon}\n"
+            report += f"{count}. {role_icon} `{item['user_id']}` | หมดอายุ: {item['expiry_date']} {status_icon}\n"
             count += 1
             
             # ป้องกันข้อความยาวเกินลิมิตของ Telegram (ประมาณ 4000 ตัวอักษร)
@@ -367,6 +348,31 @@ def send_dashboard_login_link(user_id):
         f"- Telegram ID: {user_id}\n"
         f"- รหัส Apexify: {apexify_password}\n\n"
         "หากลิงก์หมดอายุ ให้กด /dashboard เพื่อสร้างลิงก์ใหม่"
+    )
+    bot.send_message(user_id, msg, reply_markup=markup)
+
+
+def send_admin_dashboard_link(user_id):
+    if str(user_id) != str(ADMIN_ID):
+        return
+
+    success, login_url, reason = issue_admin_dashboard_url(user_id)
+    if not success:
+        if reason in {"disabled", "url_missing", "secret_missing", "admin_missing"}:
+            bot.send_message(user_id, "ระบบ Admin Dashboard ยังไม่พร้อมใช้งาน กรุณาตรวจสอบค่า BOT_WEB_BASE_URL และ secret")
+        else:
+            bot.send_message(user_id, "ไม่สามารถสร้างลิงก์เข้า Admin Dashboard ได้ กรุณาลองใหม่อีกครั้ง")
+        return
+
+    ttl_seconds = max(1, int(DASHBOARD_LOGIN_TOKEN_TTL))
+    ttl_minutes = max(1, (ttl_seconds + 59) // 60)
+
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("เปิด Admin Dashboard", url=login_url))
+    msg = (
+        "กดปุ่มด้านล่างเพื่อเปิด Admin Dashboard แบบลิงก์ชั่วคราว\n"
+        f"ลิงก์นี้มีอายุประมาณ {ttl_minutes} นาที\n\n"
+        "ลิงก์นี้ใช้ได้เฉพาะบัญชีแอดมินเท่านั้น"
     )
     bot.send_message(user_id, msg, reply_markup=markup)
 
@@ -778,34 +784,14 @@ def handle_broadcast(message):
 def handle_stats(message):
     if str(message.chat.id) != ADMIN_ID: return
     try:
-        # 1. ดึงรายชื่อ User ทั้งหมดออกมา
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("SELECT user_id FROM users")
-        all_users = c.fetchall()
-        conn.close()
-        
-        # 2. สร้างกล่องเก็บสถิติเริ่มต้น
-        stats = {'free': 0, 'vip': 0, 'pro': 0}
-        total = len(all_users)
-        
-        # 3. วนลูปเช็คสถานะแบบ Real-time ทีละคน
-        for row in all_users:
-            uid = row[0]
-            # check_subscription จะเช็คเวลาปัจจุบัน ถ้าหมดอายุแล้วจะรีเทิร์น 'free' กลับมาให้เลย
-            actual_role = check_subscription(uid)
-            stats[actual_role] = stats.get(actual_role, 0) + 1
-            
-        # 🌟 เปลี่ยนตัวคูณของ VIP จาก 199 เป็น 299
-        est_revenue = (stats.get('vip', 0) * 299) + (stats.get('pro', 0) * 499)
-        
+        snapshot = get_user_stats_snapshot()
         msg = (
             "📊 **สถิติการใช้งาน Apexify (อัปเดตสถานะล่าสุด)** 📊\n\n"
-            f"👥 **ผู้ใช้งานทั้งหมด:** {total} คน\n"
-            f"🆓 **สายฟรี:** {stats.get('free', 0)} คน\n"
-            f"💎 **ระดับ VIP (Active):** {stats.get('vip', 0)} คน\n"
-            f"👑 **ระดับ PRO (Active):** {stats.get('pro', 0)} คน\n\n"
-            f"💰 **ประมาณการรายได้ขั้นต่ำ:** {est_revenue:,.2f} บาท/เดือน\n"
+            f"👥 **ผู้ใช้งานทั้งหมด:** {snapshot['total_users']} คน\n"
+            f"🆓 **สายฟรี:** {snapshot['free_users']} คน\n"
+            f"💎 **ระดับ VIP (Active):** {snapshot['vip_users']} คน\n"
+            f"👑 **ระดับ PRO (Active):** {snapshot['pro_users']} คน\n\n"
+            f"💰 **ประมาณการรายได้ขั้นต่ำ:** {snapshot['estimated_monthly_revenue']:,.2f} บาท/เดือน\n"
             f"*(หมายเหตุ: ระบบตัดผู้ที่หมดอายุแพ็กเกจออกจากการคำนวณรายได้แล้ว)*"
         )
         bot.reply_to(message, msg, parse_mode="Markdown")
@@ -817,51 +803,25 @@ def handle_performance(message):
     if str(message.chat.id) != ADMIN_ID: return
     status_msg = bot.reply_to(message, "⏳ กำลังดึงประวัติและคำนวณผลกำไร/ขาดทุน...")
     try:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("SELECT symbol, alert_type, price_at_alert, timestamp FROM alert_logs ORDER BY id DESC LIMIT 15")
-        logs = c.fetchall()
-        conn.close()
+        snapshot = get_performance_snapshot(limit=15)
 
-        if not logs:
+        if not snapshot["entries"]:
             bot.edit_message_text("❌ ยังไม่มีประวัติการแจ้งเตือนในระบบครับ", message.chat.id, status_msg.message_id)
             return
 
         report_text = "🎯 **สรุปผลงานความแม่นยำ Apexify (ล่าสุด)** 🎯\n\n"
-        win_count, total_count = 0, 0
-
-        for row in logs:
-            symbol, alert_type, start_price, timestamp = row
-            try:
-            
-                # 🌟 อัปเดตให้รองรับตลาดหุ้นทั่วโลก
-                allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
-                clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(allowed_suffixes) else symbol
-                ticker = yf.Ticker(clean_symbol)
-                hist = ticker.history(period="1d")
-                if hist.empty: continue
-                
-                current_price = float(hist['Close'].iloc[-1])
-                diff_pct = ((current_price - start_price) / start_price) * 100
-                
-                is_win = False
-                if any(x in alert_type.upper() for x in ["OVERSOLD", "GOLDEN_CROSS", "BREAK_RES"]):
-                    if diff_pct > 0: is_win = True
-                elif any(x in alert_type.upper() for x in ["OVERBOUGHT", "DEATH_CROSS", "BREAK_SUP"]):
-                    if diff_pct < 0: is_win = True
-                    diff_pct = -diff_pct 
-                    
-                if is_win: win_count += 1
-                total_count += 1
-                
-                emoji = "✅" if is_win else "❌"
-                short_type = alert_type.replace('_', ' ')
-                report_text += f"{emoji} **{symbol}** ({short_type})\n   เตือน: {start_price:.2f} ➡️ ปัจจุบัน: {current_price:.2f} ({diff_pct:+.2f}%)\n\n"
-            except Exception: continue
+        for item in snapshot["entries"]:
+            emoji = "✅" if item["is_win"] else "❌"
+            report_text += (
+                f"{emoji} **{item['symbol']}** ({item['alert_type']})\n"
+                f"   เตือน: {item['start_price']:.2f} ➡️ ปัจจุบัน: {item['current_price']:.2f} ({item['diff_pct']:+.2f}%)\n\n"
+            )
         
-        if total_count > 0:
-            win_rate = (win_count / total_count) * 100
-            report_text += f"🏆 **อัตราชนะรวม (Win Rate):** {win_rate:.2f}% ({win_count}/{total_count})"
+        if snapshot["total_count"] > 0:
+            report_text += (
+                f"🏆 **อัตราชนะรวม (Win Rate):** "
+                f"{snapshot['win_rate']:.2f}% ({snapshot['win_count']}/{snapshot['total_count']})"
+            )
         bot.edit_message_text(report_text, message.chat.id, status_msg.message_id, parse_mode="Markdown")
     except Exception as e:
         bot.edit_message_text(f"❌ Error: {e}", message.chat.id, status_msg.message_id)
@@ -1282,6 +1242,8 @@ def inline_callbacks(call):
             handle_users_pro(mock_msg)
         elif call.data == 'admin_backup':
             handle_force_backup(mock_msg)
+        elif call.data == 'admin_web_dashboard':
+            send_admin_dashboard_link(user_id)
         elif call.data == 'admin_quiz':
             handle_quiz(mock_msg)
             
@@ -1530,6 +1492,9 @@ def handle_main(message):
         markup.add(
             InlineKeyboardButton("👑 รายชื่อ PRO/VIP", callback_data="admin_users_pro"),
             InlineKeyboardButton("📦 Backup ฐานข้อมูล", callback_data="admin_backup")
+        )
+        markup.add(
+            InlineKeyboardButton("🌐 เปิด Admin Dashboard", callback_data="admin_web_dashboard")
         )
         markup.add(
             InlineKeyboardButton("🎮 เล่น Daily Quiz", callback_data="admin_quiz")

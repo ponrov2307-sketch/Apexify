@@ -5,7 +5,9 @@ from urllib.parse import quote
 import jwt
 
 from config import (
+    ADMIN_ID,
     BOT_DASHBOARD_LOGIN_ENABLED,
+    BOT_WEB_BASE_URL,
     DASHBOARD_BASE_URL,
     DASHBOARD_LOGIN_SECRET,
     DASHBOARD_LOGIN_TOKEN_TTL,
@@ -31,6 +33,16 @@ def is_dashboard_login_ready() -> tuple[bool, str]:
     return True, "ok"
 
 
+def is_admin_dashboard_ready() -> tuple[bool, str]:
+    if not BOT_WEB_BASE_URL:
+        return False, "url_missing"
+    if not DASHBOARD_LOGIN_SECRET:
+        return False, "secret_missing"
+    if not ADMIN_ID:
+        return False, "admin_missing"
+    return True, "ok"
+
+
 def build_dashboard_login_token(telegram_id: str) -> str:
     now = int(datetime.now(timezone.utc).timestamp())
     ttl = max(1, int(DASHBOARD_LOGIN_TOKEN_TTL))
@@ -43,10 +55,29 @@ def build_dashboard_login_token(telegram_id: str) -> str:
     return jwt.encode(payload, DASHBOARD_LOGIN_SECRET, algorithm="HS256")
 
 
+def build_admin_dashboard_token(telegram_id: str) -> str:
+    now = int(datetime.now(timezone.utc).timestamp())
+    ttl = max(1, int(DASHBOARD_LOGIN_TOKEN_TTL))
+    payload = {
+        "telegram_id": str(telegram_id),
+        "iat": now,
+        "exp": now + ttl,
+        "iss": "apexify-bot",
+        "scope": "admin_dashboard",
+    }
+    return jwt.encode(payload, DASHBOARD_LOGIN_SECRET, algorithm="HS256")
+
+
 def build_dashboard_login_url(telegram_id: str) -> str:
     token = build_dashboard_login_token(telegram_id)
     base_url = DASHBOARD_BASE_URL.rstrip("/")
     return f"{base_url}/login-token?token={quote(token, safe='')}"
+
+
+def build_admin_dashboard_url(telegram_id: str) -> str:
+    token = build_admin_dashboard_token(telegram_id)
+    base_url = BOT_WEB_BASE_URL.rstrip("/")
+    return f"{base_url}/admin-login-token?token={quote(token, safe='')}"
 
 
 def issue_dashboard_login_url(telegram_id: str) -> tuple[bool, str, str]:
@@ -69,3 +100,58 @@ def issue_dashboard_login_url(telegram_id: str) -> tuple[bool, str, str]:
             mask_telegram_id(telegram_id),
         )
         return False, "", "internal_error"
+
+
+def issue_admin_dashboard_url(telegram_id: str) -> tuple[bool, str, str]:
+    ready, reason = is_admin_dashboard_ready()
+    if not ready:
+        logger.warning(
+            "admin_dashboard_token_issue_failed telegram_id=%s reason=%s",
+            mask_telegram_id(telegram_id),
+            reason,
+        )
+        return False, "", reason
+
+    if str(telegram_id) != str(ADMIN_ID):
+        logger.warning(
+            "admin_dashboard_token_issue_failed telegram_id=%s reason=forbidden",
+            mask_telegram_id(telegram_id),
+        )
+        return False, "", "forbidden"
+
+    try:
+        url = build_admin_dashboard_url(telegram_id)
+        logger.info("admin_dashboard_token_issued telegram_id=%s", mask_telegram_id(telegram_id))
+        return True, url, "ok"
+    except Exception:
+        logger.warning(
+            "admin_dashboard_token_issue_failed telegram_id=%s reason=internal_error",
+            mask_telegram_id(telegram_id),
+        )
+        return False, "", "internal_error"
+
+
+def verify_admin_dashboard_token(token: str) -> tuple[bool, dict | None, str]:
+    raw_token = str(token or "").strip()
+    if not raw_token:
+        return False, None, "token_missing"
+    if not DASHBOARD_LOGIN_SECRET:
+        return False, None, "secret_missing"
+
+    try:
+        payload = jwt.decode(
+            raw_token,
+            DASHBOARD_LOGIN_SECRET,
+            algorithms=["HS256"],
+            issuer="apexify-bot",
+        )
+    except jwt.ExpiredSignatureError:
+        return False, None, "expired"
+    except jwt.InvalidTokenError:
+        return False, None, "invalid"
+
+    if payload.get("scope") != "admin_dashboard":
+        return False, None, "scope_invalid"
+    if str(payload.get("telegram_id", "")) != str(ADMIN_ID):
+        return False, None, "forbidden"
+    return True, payload, "ok"

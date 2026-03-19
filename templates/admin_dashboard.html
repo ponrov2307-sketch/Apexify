@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Apexify Admin Dashboard</title>
+  <style>
+    :root {
+      --bg: #f5efe5;
+      --panel: #fffaf2;
+      --panel-strong: #fff7ec;
+      --text: #2b2319;
+      --muted: #6f6355;
+      --line: #decdb6;
+      --primary: #bb5a2a;
+      --primary-dark: #93441d;
+      --success: #2f7f5f;
+      --danger: #b74835;
+      --shadow: 0 20px 60px rgba(63, 40, 16, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top right, rgba(187, 90, 42, 0.12), transparent 24%),
+        radial-gradient(circle at top left, rgba(47, 127, 95, 0.10), transparent 20%),
+        linear-gradient(180deg, #f9f4eb 0%, var(--bg) 100%);
+    }
+
+    .wrap {
+      width: min(1180px, calc(100% - 24px));
+      margin: 24px auto 40px;
+    }
+
+    .hero, .card, .table-card {
+      background: rgba(255, 250, 242, 0.92);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .hero {
+      padding: 28px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .eyebrow {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(30px, 6vw, 48px);
+      line-height: 1;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.6;
+      max-width: 720px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 700;
+      border: 1px solid currentColor;
+    }
+
+    .status-pill.success { color: var(--success); background: rgba(47, 127, 95, 0.08); }
+    .status-pill.danger { color: var(--danger); background: rgba(183, 72, 53, 0.08); }
+
+    .action-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .action-row form { margin: 0; }
+
+    button, .ghost {
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    button:hover, .ghost:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 30px rgba(88, 49, 15, 0.14);
+    }
+
+    .primary {
+      color: #fff;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    }
+
+    .secondary {
+      color: var(--text);
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+    }
+
+    .flash-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .flash {
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .card {
+      padding: 22px;
+    }
+
+    .card h2, .table-card h2 {
+      margin: 0 0 16px;
+      font-size: 22px;
+    }
+
+    .metric {
+      display: grid;
+      gap: 8px;
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 0;
+      border-bottom: 1px dashed var(--line);
+    }
+
+    .metric-row:last-child { border-bottom: 0; }
+    .metric-label { color: var(--muted); }
+    .metric-value { font-weight: 700; text-align: right; }
+
+    .table-card {
+      padding: 22px;
+      margin-top: 18px;
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    thead th {
+      text-align: left;
+      padding: 0 0 12px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--line);
+    }
+
+    tbody td {
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(222, 205, 182, 0.5);
+      vertical-align: top;
+    }
+
+    tbody tr:last-child td { border-bottom: 0; }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .tag.pro { color: #8c4b18; }
+    .tag.vip { color: #2b6f8d; }
+    .tag.active { color: var(--success); }
+    .tag.expired { color: var(--danger); }
+    .tag.win { color: var(--success); }
+    .tag.loss { color: var(--danger); }
+
+    .muted { color: var(--muted); }
+    .mono { font-family: "Courier New", monospace; }
+    .empty {
+      color: var(--muted);
+      padding: 12px 0 4px;
+    }
+
+    @media (max-width: 860px) {
+      .grid { grid-template-columns: 1fr; }
+      table, thead, tbody, th, td, tr { display: block; }
+      thead { display: none; }
+      tbody tr {
+        padding: 14px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      tbody td {
+        border-bottom: 0;
+        padding: 6px 0;
+      }
+      tbody td::before {
+        content: attr(data-label);
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="hero-top">
+        <div>
+          <div class="eyebrow">Apexify Control Room</div>
+          <h1>Admin Dashboard</h1>
+          <p>ภาพรวมนี้ดึงข้อมูลจากชุดเดียวกับเมนูแอดมินใน Telegram เพื่อให้สถานะบนเว็บกับบอทตรงกันจริงแบบเรียลไทม์</p>
+        </div>
+        <div class="status-pill {{ 'danger' if maintenance.enabled else 'success' }}">
+          {{ 'Maintenance ON' if maintenance.enabled else 'Maintenance OFF' }}
+        </div>
+      </div>
+
+      <div class="action-row">
+        <a class="ghost secondary" href="{{ url_for('admin_dashboard') }}">Refresh</a>
+        <form method="post" action="{{ url_for('admin_toggle_maintenance') }}">
+          <button class="primary" type="submit">{{ 'ปิด Maintenance' if maintenance.enabled else 'เปิด Maintenance' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('admin_download_backup') }}">
+          <button class="secondary" type="submit">Download Backup</button>
+        </form>
+      </div>
+
+      <div class="flash-list">
+        {% with flashes = get_flashed_messages(with_categories=true) %}
+          {% for category, message in flashes %}
+            <div class="flash">{{ message }}</div>
+          {% endfor %}
+        {% endwith %}
+        <div class="flash">Admin ID: <span class="mono">{{ admin_id }}</span> • สถานะล่าสุด: {{ maintenance.description }}</div>
+        <div class="flash">อัปเดตเมื่อ {{ generated_at.strftime('%Y-%m-%d %H:%M:%S') if generated_at else '-' }}</div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>System Health</h2>
+        <div class="metric">
+          <div class="metric-row"><span class="metric-label">CPU Usage</span><span class="metric-value">{{ '%.0f'|format(system_health.cpu_usage) }}%</span></div>
+          <div class="metric-row"><span class="metric-label">RAM Usage</span><span class="metric-value">{{ '%.2f'|format(system_health.ram_used_gb) }} GB / {{ '%.2f'|format(system_health.ram_total_gb) }} GB ({{ '%.0f'|format(system_health.ram_percent) }}%)</span></div>
+          <div class="metric-row"><span class="metric-label">Disk Usage</span><span class="metric-value">{{ '%.0f'|format(system_health.disk_percent) }}%</span></div>
+          <div class="metric-row"><span class="metric-label">Uptime</span><span class="metric-value">{{ system_health.uptime_hours }} ชั่วโมง</span></div>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>Usage Stats</h2>
+        <div class="metric">
+          <div class="metric-row"><span class="metric-label">ผู้ใช้งานทั้งหมด</span><span class="metric-value">{{ user_stats.total_users }}</span></div>
+          <div class="metric-row"><span class="metric-label">สายฟรี</span><span class="metric-value">{{ user_stats.free_users }}</span></div>
+          <div class="metric-row"><span class="metric-label">VIP Active</span><span class="metric-value">{{ user_stats.vip_users }}</span></div>
+          <div class="metric-row"><span class="metric-label">PRO Active</span><span class="metric-value">{{ user_stats.pro_users }}</span></div>
+          <div class="metric-row"><span class="metric-label">ประมาณการรายได้ขั้นต่ำ</span><span class="metric-value">{{ '{:,.2f}'.format(user_stats.estimated_monthly_revenue) }} บาท/เดือน</span></div>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>Maintenance</h2>
+        <div class="metric">
+          <div class="metric-row"><span class="metric-label">สถานะ</span><span class="metric-value">{{ maintenance.label }}</span></div>
+          <div class="metric-row"><span class="metric-label">ผลกระทบ</span><span class="metric-value">{{ maintenance.description }}</span></div>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>Performance</h2>
+        <div class="metric">
+          <div class="metric-row"><span class="metric-label">สัญญาณที่ประเมินได้</span><span class="metric-value">{{ performance.total_count }}</span></div>
+          <div class="metric-row"><span class="metric-label">จำนวนที่เข้าเป้า</span><span class="metric-value">{{ performance.win_count }}</span></div>
+          <div class="metric-row"><span class="metric-label">Win Rate</span><span class="metric-value">{{ '%.2f'|format(performance.win_rate) }}%</span></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="table-card">
+      <h2>Performance ล่าสุด</h2>
+      {% if performance.entries %}
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Signal</th>
+              <th>เตือนที่</th>
+              <th>ปัจจุบัน</th>
+              <th>ผลลัพธ์</th>
+              <th>สถานะ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in performance.entries %}
+              <tr>
+                <td data-label="Symbol"><strong>{{ item.symbol }}</strong></td>
+                <td data-label="Signal">{{ item.alert_type }}</td>
+                <td data-label="เตือนที่">{{ '%.2f'|format(item.start_price) }}</td>
+                <td data-label="ปัจจุบัน">{{ '%.2f'|format(item.current_price) }}</td>
+                <td data-label="ผลลัพธ์">{{ '%+.2f'|format(item.diff_pct) }}%</td>
+                <td data-label="สถานะ">
+                  <span class="tag {{ 'win' if item.is_win else 'loss' }}">{{ 'Win' if item.is_win else 'Miss' }}</span>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="empty">ยังไม่มีประวัติแจ้งเตือนที่คำนวณผลได้</div>
+      {% endif %}
+    </section>
+
+    <section class="table-card">
+      <h2>VIP / PRO Users</h2>
+      {% if paid_users %}
+        <table>
+          <thead>
+            <tr>
+              <th>User ID</th>
+              <th>Role</th>
+              <th>Expiry</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for user in paid_users %}
+              <tr>
+                <td data-label="User ID"><span class="mono">{{ user.user_id }}</span></td>
+                <td data-label="Role">
+                  <span class="tag {{ user.role }}">{{ user.role|upper }}</span>
+                </td>
+                <td data-label="Expiry">{{ user.expiry_date }}</td>
+                <td data-label="Status">
+                  <span class="tag {{ 'active' if user.is_active else 'expired' }}">{{ user.status_label }}</span>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="empty">ยังไม่มีลูกค้า VIP หรือ PRO ในระบบ</div>
+      {% endif %}
+    </section>
+  </div>
+</body>
+</html>
