@@ -646,6 +646,7 @@
   {% set maintenance = maintenance | default({}, true) %}
 
   {% set total_users = user_stats.get("total_users", 0) or 0 %}
+  {% set free_users = user_stats.get("free_users", 0) or 0 %}
   {% set vip_users = user_stats.get("vip_users", 0) or 0 %}
   {% set pro_users = user_stats.get("pro_users", 0) or 0 %}
   {% set estimated_revenue = user_stats.get("estimated_monthly_revenue", 0) or 0 %}
@@ -656,18 +657,30 @@
   {% set expiring_7 = expiring_members.get("expiring_7_days", 0) or 0 %}
   {% set renewal_risk = ((expiring_7 / paid_total) * 100) if paid_total else 0 %}
   {% set renewal_health = (100 - renewal_risk) if paid_total else 100 %}
+  {% set revenue_at_risk = expiring_members.get("revenue_at_risk_7_days", 0) or 0 %}
   
   {% set notifications_total = notification_settings.get("total_settings", 0) or 0 %}
   {% set notifications_off = notification_settings.get("notifications_off", 0) or 0 %}
   {% set notifications_off_pct = ((notifications_off / notifications_total) * 100) if notifications_total else 0 %}
+  {% set custom_windows = notification_settings.get("custom_windows", 0) or 0 %}
+  {% set digest_distribution = notification_settings.get("distribution", []) %}
   
   {% set total_alerts = price_alerts.get("total_alerts", 0) or 0 %}
+  {% set alert_unique_users = price_alerts.get("unique_users", 0) or 0 %}
   
   {% set win_rate = performance.get("win_rate", 0) or 0 %}
+  {% set win_count = performance.get("win_count", 0) or 0 %}
   {% set total_eval_count = performance.get("total_count", 0) or 0 %}
   
   {% set cpu = system_health.get("cpu_usage", 0) or 0 %}
   {% set ram = system_health.get("ram_percent", 0) or 0 %}
+  {% set ram_used = system_health.get("ram_used_gb", 0) or 0 %}
+  {% set ram_total = system_health.get("ram_total_gb", 0) or 0 %}
+  {% set uptime_seconds = system_health.get("uptime_seconds", 0) or 0 %}
+  
+  {% set uptime_days = uptime_seconds // 86400 %}
+  {% set uptime_hours = (uptime_seconds % 86400) // 3600 %}
+  {% set uptime_mins = (uptime_seconds % 3600) // 60 %}
   
   <!-- Generate SVG Points safely -->
   {% set chart_metrics = [ cpu, ram, win_rate, paid_share, (total_alerts/10 if total_alerts < 1000 else 100), 85 ] %}
@@ -765,7 +778,7 @@
           </div>
           <div>
             <span class="kpi-trend">↑ Proj. Monthly</span>
-            <span style="color: var(--text-muted); font-size: 13px; margin-left: 8px;">From {{ paid_total }} Subs</span>
+            <span style="color: var(--text-muted); font-size: 13px; margin-left: 8px;">฿{{ '{:,.0f}'.format(revenue_at_risk) }} at risk</span>
           </div>
         </article>
 
@@ -779,9 +792,9 @@
           </div>
           <div>
             <span class="kpi-trend" style="{{ 'color: var(--accent-danger); background: rgba(255,0,60,0.1); border-color: rgba(255,0,60,0.2);' if win_rate < 50 else '' }}">
-              {{ 'Critial' if win_rate < 50 else 'Optimal' }}
+              {{ win_count }} / {{ total_eval_count }} Wins
             </span>
-            <span style="color: var(--text-muted); font-size: 13px; margin-left: 8px;">Based on {{ total_eval_count }} evals</span>
+            <span style="color: var(--text-muted); font-size: 13px; margin-left: 8px;">Success Ratio</span>
           </div>
         </article>
 
@@ -795,9 +808,9 @@
           </div>
           <div>
             <span class="kpi-trend" style="color: var(--accent-warning); background: rgba(255,176,0,0.1); border-color: rgba(255,176,0,0.2);">
-              Live Watch
+              {{ alert_unique_users }} Active Users
             </span>
-            <span style="color: var(--text-muted); font-size: 13px; margin-left: 8px;">Across users</span>
+            <span style="color: var(--text-muted); font-size: 13px; margin-left: 8px;">Alert Deployment</span>
           </div>
         </article>
 
@@ -811,9 +824,13 @@
           <div class="panel-header">
             <div>
               <h3 class="panel-title">System Telemetry Matrix</h3>
-              <p style="color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;">Normalized metrics overview</p>
+              <p style="color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;">
+                {% if uptime_days > 0 %}{{ uptime_days }}d {% endif %}{{ uptime_hours }}h {{ uptime_mins }}m Uptime
+              </p>
             </div>
-            <span class="badge badge-cyan">Live Data</span>
+            <span class="badge badge-cyan">
+              RAM: {{ '%.1f'|format(ram_used) }} / {{ '%.1f'|format(ram_total) }} GB
+            </span>
           </div>
           
           <div class="chart-container">
@@ -880,6 +897,60 @@
 
       </section>
 
+      <!-- User Base & Notification Insights -->
+      <section class="dashboard-bento animate-4" id="users">
+        
+        <!-- Community Scale -->
+        <article class="glass-card panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Community Scale</h3>
+            <span class="badge badge-purple">{{ total_users }} Total Users</span>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div style="padding: 20px; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid var(--glass-border);">
+              <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">Free Audience</div>
+              <div style="font: 700 28px var(--display); color: var(--text);">{{ free_users }}</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Potential Conversion</div>
+            </div>
+            <div style="padding: 20px; background: rgba(0, 240, 255, 0.05); border-radius: var(--radius-sm); border: 1px solid rgba(0, 240, 255, 0.2);">
+              <div style="font-size: 12px; color: var(--accent-primary); text-transform: uppercase; margin-bottom: 8px;">Paid Base</div>
+              <div style="font: 700 28px var(--display); color: var(--accent-primary);">{{ paid_total }}</div>
+              <div style="font-size: 11px; color: var(--accent-primary); opacity: 0.7; margin-top: 4px;">Revenue Drivers</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 20px; padding: 16px; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); border: 1px dashed var(--glass-border); display: flex; justify-content: space-between;">
+            <span style="font-size: 13px; color: var(--text-muted);">Active Alert Trackers</span>
+            <span style="font-weight: 700; color: var(--accent-warning);">{{ alert_unique_users }} Unique Identities</span>
+          </div>
+        </article>
+
+        <!-- Notification Insights -->
+        <article class="glass-card panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Data Delivery Logic</h3>
+            <div style="text-align: right;">
+              <span class="badge badge-red" style="display: block; margin-bottom: 4px;">{{ '%.1f'|format(notifications_off_pct) }}% Disabled</span>
+              <span style="font-size: 10px; color: var(--text-muted);">{{ custom_windows }} Custom Windows</span>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 8px 0;">Digest Frequency Distribution</p>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+              {% for bucket in digest_distribution %}
+                <div style="text-align: center; padding: 12px 8px; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid var(--glass-border);">
+                  <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">{{ bucket.label | default('-', true) }}</div>
+                  <div style="font: 700 18px var(--display); color: var(--accent-primary); margin-top: 4px;">{{ bucket.count | default(0, true) }}</div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </article>
+
+      </section>
+
       <!-- Bento Grid 2 -->
       <section class="dashboard-bento animate-4" id="market">
         
@@ -899,17 +970,17 @@
                   <tr>
                     <th>Asset</th>
                     <th>Logic</th>
-                    <th>Target</th>
+                    <th>Execution Time</th>
                     <th>Result</th>
                     <th>Outcome</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {% for item in performance.get("entries", [])[:5] %}
+                  {% for item in performance.get("entries", [])[:8] %}
                     <tr>
                       <td data-label="Asset" class="symbol-text">{{ item.symbol | default('-', true) }}</td>
                       <td data-label="Logic" style="color: var(--accent-primary);">{{ item.alert_type | default('-', true) }}</td>
-                      <td data-label="Target" style="font-family: monospace;">{{ '%.2f'|format(item.start_price | default(0, true)) }}</td>
+                      <td data-label="Time" style="font-size: 12px; color: var(--text-muted); font-family: monospace;">{{ item.timestamp | default('-', true) }}</td>
                       <td data-label="Result" style="color: {{ 'var(--accent-success)' if (item.diff_pct | default(0)) > 0 else 'var(--accent-danger)' }}">
                         {{ '%+.2f'|format(item.diff_pct | default(0, true)) }}%
                       </td>
@@ -937,7 +1008,7 @@
 
           {% if top_watched.get("items") %}
             <div class="data-list">
-              {% for item in top_watched.get("items", [])[:5] %}
+              {% for item in top_watched.get("items", [])[:8] %}
                 <div class="data-item">
                   <div class="data-info">
                     <h4 class="symbol-text">{{ item.symbol | default('N/A', true) }}</h4>
@@ -964,7 +1035,7 @@
             <h3 class="panel-title">Premium User Matrix</h3>
             <p style="color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;">Active VIP & PRO accounts</p>
           </div>
-          <span class="badge badge-purple">{{ paid_total }} Active</span>
+          <span class="badge badge-purple">{{ paid_total }} Active Subs</span>
         </div>
 
         {% if paid_users %}
