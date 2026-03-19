@@ -3,884 +3,639 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Apexify Admin Dashboard</title>
+  <title>Apexify Admin Dashboard - Glassmorphism Edition</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #060808;
-      --bg-soft: #0b0f0f;
-      --panel: rgba(17, 20, 20, 0.92);
-      --panel-soft: rgba(22, 28, 27, 0.88);
-      --line: rgba(255, 255, 255, 0.08);
-      --text: #f4f7f2;
-      --muted: #8e9990;
-      --green: #93ff46;
-      --green-strong: #79f725;
-      --green-soft: rgba(147, 255, 70, 0.13);
-      --cyan: #67efe4;
-      --cyan-soft: rgba(103, 239, 228, 0.12);
-      --amber: #ffcb68;
-      --amber-soft: rgba(255, 203, 104, 0.12);
-      --red: #ff8484;
-      --red-soft: rgba(255, 132, 132, 0.12);
-      --shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
-      --glow: 0 0 0 1px rgba(147, 255, 70, 0.12), 0 0 36px rgba(147, 255, 70, 0.09);
-      --radius-xl: 30px;
+      /* Deep Purple / Slate Cyberpunk Palette */
+      --bg: #09090e;
+      --bg-gradient-1: #1a1025;
+      --bg-gradient-2: #09121a;
+      
+      --glass-bg: rgba(20, 20, 30, 0.4);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --glass-highlight: rgba(255, 255, 255, 0.12);
+      
+      --text: #f8f9fa;
+      --text-muted: #a0a5b1;
+      
+      --accent-primary: #00f0ff; /* Cyber Cyan */
+      --accent-secondary: #b026ff; /* Neon Purple */
+      --accent-success: #39ff14; /* Matrix Green */
+      --accent-warning: #ffb000; /* Neon Orange */
+      --accent-danger: #ff003c; /* Laser Red */
+
+      --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      --glow-primary: 0 0 20px rgba(0, 240, 255, 0.4);
+      --glow-secondary: 0 0 20px rgba(176, 38, 255, 0.4);
+      
+      --radius-xl: 32px;
       --radius-lg: 24px;
-      --radius-md: 18px;
-      --space-2: 8px;
-      --space-3: 12px;
-      --space-4: 16px;
-      --space-5: 20px;
-      --space-6: 24px;
-      --space-7: 28px;
-      --space-8: 32px;
-      --body: "Aptos", "Segoe UI Variable Text", "Trebuchet MS", sans-serif;
-      --display: "Aptos Display", "Segoe UI Variable Display", "Trebuchet MS", sans-serif;
+      --radius-md: 16px;
+      --radius-sm: 10px;
+
+      --body: 'Inter', sans-serif;
+      --display: 'Space Grotesk', sans-serif;
     }
 
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
 
-    ::-webkit-scrollbar { width: 10px; height: 10px; }
-    ::-webkit-scrollbar-track { background: var(--bg-soft); }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
     ::-webkit-scrollbar-thumb { 
-      background: rgba(147, 255, 70, 0.15); 
+      background: rgba(255, 255, 255, 0.1); 
       border-radius: 10px; 
-      border: 2px solid var(--bg-soft); 
     }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(147, 255, 70, 0.35); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent-primary); }
 
-    @keyframes fadeIn { 
-      from { opacity: 0; transform: translateY(15px); } 
-      to { opacity: 1; transform: translateY(0); } 
+    /* Animated Mesh Gradient Background */
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
     }
 
     body {
       margin: 0;
       color: var(--text);
       font-family: var(--body);
-      background:
-        radial-gradient(circle at top left, rgba(147, 255, 70, 0.16), transparent 18%),
-        radial-gradient(circle at top right, rgba(103, 239, 228, 0.08), transparent 16%),
-        radial-gradient(circle at bottom left, rgba(147, 255, 70, 0.08), transparent 22%),
-        linear-gradient(180deg, #060707, #090c0c 42%, #060707);
+      background: linear-gradient(-45deg, var(--bg-gradient-1), var(--bg), var(--bg-gradient-2), #050505);
+      background-size: 400% 400%;
+      animation: gradientShift 20s ease infinite;
       min-height: 100vh;
+      overflow-x: hidden;
     }
 
+    /* Background Orbs */
+    .bg-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(100px);
+      z-index: -1;
+      opacity: 0.5;
+    }
+    .orb-1 {
+      top: -10%; left: -10%;
+      width: 500px; height: 500px;
+      background: var(--accent-secondary);
+    }
+    .orb-2 {
+      bottom: -10%; right: -5%;
+      width: 600px; height: 600px;
+      background: var(--accent-primary);
+      opacity: 0.3;
+    }
+
+    /* Staggered Animations */
+    @keyframes slideUpFade { 
+      from { opacity: 0; transform: translateY(30px); } 
+      to { opacity: 1; transform: translateY(0); } 
+    }
+    
+    .animate-1 { animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards; opacity: 0; }
+    .animate-2 { animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards; opacity: 0; }
+    .animate-3 { animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards; opacity: 0; }
+    .animate-4 { animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards; opacity: 0; }
+
+    /* Layout Structure */
     .shell {
       display: grid;
-      grid-template-columns: 248px minmax(0, 1fr);
+      grid-template-columns: 280px minmax(0, 1fr);
       min-height: 100vh;
-      animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      padding: 24px;
+      gap: 32px;
+      max-width: 1800px;
+      margin: 0 auto;
     }
 
+    /* Glassmorphism Card Base */
+    .glass-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-glass);
+      transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    }
+
+    .glass-card:hover {
+      border-color: var(--glass-highlight);
+      box-shadow: 0 15px 45px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    }
+
+    /* Sidebar */
     .sidebar {
-      position: relative;
-      padding: var(--space-7);
-      border-right: 1px solid var(--line);
-      background:
-        radial-gradient(circle at top left, rgba(147, 255, 70, 0.08), transparent 30%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 32%),
-        #0a0d0d;
       display: flex;
       flex-direction: column;
-      gap: var(--space-8);
-    }
-
-    .sidebar::after {
-      content: "";
-      position: absolute;
-      inset: 24px 0 24px auto;
-      width: 1px;
-      background: linear-gradient(180deg, transparent, rgba(147, 255, 70, 0.2), transparent);
+      gap: 32px;
+      padding: 32px 24px;
+      height: calc(100vh - 48px);
+      position: sticky;
+      top: 24px;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: var(--space-4);
-      transition: transform 0.2s;
+      gap: 16px;
+      text-decoration: none;
     }
 
-    .brand:hover { transform: scale(1.02); }
-
     .brand__icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 16px;
+      width: 52px;
+      height: 52px;
+      border-radius: var(--radius-md);
       display: grid;
       place-items: center;
-      color: var(--green);
-      font-size: 21px;
-      font-weight: 800;
-      background: radial-gradient(circle at 30% 30%, rgba(147, 255, 70, 0.28), rgba(147, 255, 70, 0.06));
-      border: 1px solid rgba(147, 255, 70, 0.2);
-      box-shadow: var(--glow);
+      color: var(--bg);
+      font-size: 28px;
+      font-weight: 700;
+      font-family: var(--display);
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      box-shadow: var(--glow-primary);
     }
 
     .brand__title {
       margin: 0;
-      font: 800 24px/1 var(--display);
-      letter-spacing: -0.04em;
+      font: 700 28px/1 var(--display);
+      background: linear-gradient(to right, #fff, var(--accent-primary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
     }
 
     .brand__subtitle {
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 13px;
-      letter-spacing: 0.04em;
+      margin-top: 4px;
+      color: var(--text-muted);
+      font-size: 12px;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
+      font-weight: 600;
     }
 
     .nav {
       display: grid;
-      gap: 10px;
+      gap: 8px;
+      flex-grow: 1;
     }
 
     .nav__link {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 14px 16px;
-      color: var(--muted);
+      gap: 16px;
+      padding: 16px;
+      color: var(--text-muted);
       text-decoration: none;
-      border-radius: 18px;
+      border-radius: var(--radius-md);
+      font-weight: 500;
+      transition: all 0.3s ease;
       border: 1px solid transparent;
-      background: transparent;
-      transition: 180ms ease;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .nav__link::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0; width: 3px;
+      background: var(--accent-primary);
+      transform: scaleY(0);
+      transition: transform 0.3s ease;
+      border-radius: 0 4px 4px 0;
     }
 
     .nav__link:hover,
     .nav__link--active {
       color: var(--text);
-      border-color: rgba(147, 255, 70, 0.18);
-      background: linear-gradient(90deg, rgba(147, 255, 70, 0.16), rgba(147, 255, 70, 0.03));
-      box-shadow: inset 0 0 0 1px rgba(147, 255, 70, 0.06);
+      background: rgba(255, 255, 255, 0.03);
+      border-color: rgba(255, 255, 255, 0.05);
     }
 
-    .nav__link:active { transform: scale(0.97); }
+    .nav__link--active::before,
+    .nav__link:hover::before {
+      transform: scaleY(1);
+    }
+
+    .nav__link--active {
+      background: linear-gradient(90deg, rgba(0, 240, 255, 0.1), transparent);
+      border-color: rgba(0, 240, 255, 0.2);
+    }
 
     .nav__icon {
-      width: 28px;
-      height: 28px;
-      border-radius: 12px;
-      display: grid;
-      place-items: center;
-      background: rgba(255, 255, 255, 0.04);
-      font-size: 14px;
+      font-size: 18px;
+      width: 24px;
+      text-align: center;
     }
 
-    .sidebar-card {
-      margin-top: auto;
-      padding: var(--space-6);
-      border-radius: var(--radius-lg);
-      border: 1px solid rgba(147, 255, 70, 0.14);
-      background:
-        radial-gradient(circle at top center, rgba(147, 255, 70, 0.14), transparent 42%),
-        linear-gradient(180deg, rgba(147, 255, 70, 0.08), rgba(255, 255, 255, 0.02));
-      box-shadow: var(--glow), var(--shadow);
+    .sidebar-status {
+      padding: 24px;
+      border-radius: var(--radius-md);
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--glass-border);
+      position: relative;
     }
 
-    .eyebrow {
-      color: var(--green);
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      font-size: 12px;
+    .pulse-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent-success);
+      display: inline-block;
+      margin-right: 8px;
+      box-shadow: 0 0 10px var(--accent-success);
+      animation: pulse 2s infinite;
     }
 
-    .sidebar-card__value {
-      margin: 10px 0 0;
-      font: 800 28px/1 var(--display);
-      letter-spacing: -0.05em;
-      word-break: break-all;
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(57, 255, 20, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(57, 255, 20, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(57, 255, 20, 0); }
     }
 
-    .sidebar-card p {
-      margin: 12px 0 0;
-      color: var(--muted);
-      line-height: 1.7;
-      font-size: 14px;
+    /* Main Content */
+    .main { 
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
     }
-
-    .main { padding: var(--space-7); }
 
     .topbar {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      gap: var(--space-8);
-      margin-bottom: var(--space-6);
+      align-items: center;
+      padding: 24px 32px;
+      border-radius: var(--radius-lg);
     }
 
     .headline {
-      margin: 10px 0 0;
-      font: 800 clamp(34px, 4.2vw, 52px)/0.96 var(--display);
-      letter-spacing: -0.05em;
+      margin: 0;
+      font: 700 32px/1.2 var(--display);
     }
-
-    .intro {
-      margin: 12px 0 0;
-      max-width: 72ch;
-      color: var(--muted);
-      line-height: 1.75;
+    
+    .headline span {
+      color: var(--accent-primary);
     }
 
     .actions {
       display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
+      gap: 16px;
     }
-
-    .actions form { margin: 0; }
 
     .btn {
       appearance: none;
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--glass-border);
+      background: rgba(255, 255, 255, 0.05);
       color: var(--text);
-      text-decoration: none;
-      padding: 13px 18px;
-      border-radius: 999px;
-      font: 700 14px/1 var(--body);
+      padding: 12px 24px;
+      border-radius: var(--radius-sm);
+      font: 600 14px/1 var(--body);
       cursor: pointer;
-      transition: all 180ms ease;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(5px);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
     }
 
     .btn:hover {
+      background: rgba(255, 255, 255, 0.1);
       transform: translateY(-2px);
-      border-color: rgba(147, 255, 70, 0.18);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-    
-    .btn:active { transform: translateY(0) scale(0.97); }
-
-    .btn--primary {
-      color: #071106;
-      border-color: transparent;
-      background: linear-gradient(135deg, var(--green), var(--green-strong));
-      box-shadow: var(--glow);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
     }
 
-    .btn--primary:hover {
-      box-shadow: 0 8px 24px rgba(147, 255, 70, 0.25), var(--glow);
+    .btn--glow {
+      background: linear-gradient(45deg, var(--accent-secondary), var(--accent-primary));
+      border: none;
+      color: #000;
+      font-weight: 700;
+      box-shadow: var(--glow-primary);
+    }
+
+    .btn--glow:hover {
+      background: linear-gradient(45deg, var(--accent-primary), var(--accent-secondary));
+      box-shadow: 0 8px 25px rgba(0, 240, 255, 0.5);
     }
 
     .btn--danger {
-      color: #ffe7e7;
-      background: var(--red-soft);
-      border-color: rgba(255, 132, 132, 0.18);
+      border-color: rgba(255, 0, 60, 0.5);
+      color: #ffb3c1;
+    }
+    .btn--danger:hover {
+      background: rgba(255, 0, 60, 0.2);
+      box-shadow: 0 0 15px rgba(255, 0, 60, 0.4);
     }
 
-    .flash-stack {
-      display: grid;
-      gap: 12px;
-      margin-bottom: var(--space-6);
-    }
-
-    .flash {
-      padding: 14px 18px;
-      border-radius: 18px;
-      border: 1px solid rgba(147, 255, 70, 0.16);
-      background: rgba(147, 255, 70, 0.12);
-      color: #dfffc6;
-      animation: fadeIn 0.4s ease-out;
-    }
-
-    .flash--error {
-      border-color: rgba(255, 132, 132, 0.18);
-      background: rgba(255, 132, 132, 0.11);
-      color: #ffdede;
-    }
-
+    /* KPI Grid Masonry Style */
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 16px;
-      margin-bottom: var(--space-6);
-    }
-
-    .card {
-      position: relative;
-      overflow: hidden;
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(31, 36, 35, 0.94), rgba(15, 18, 18, 0.98));
-      box-shadow: var(--shadow);
-      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-    }
-
-    .card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6), var(--glow);
-      border-color: rgba(147, 255, 70, 0.2);
-    }
-
-    .card::after {
-      content: "";
-      position: absolute;
-      left: 18px;
-      right: 18px;
-      bottom: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(147, 255, 70, 0.48), transparent);
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
     }
 
     .kpi-card {
-      padding: 20px;
+      padding: 32px;
       display: flex;
+      flex-direction: column;
       justify-content: space-between;
-      gap: 16px;
-      box-shadow: var(--glow), var(--shadow);
+      position: relative;
+      overflow: hidden;
     }
 
-    .kpi-card__icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 16px;
-      display: grid;
-      place-items: center;
-      color: var(--green);
-      font-size: 20px;
-      background: radial-gradient(circle at 30% 30%, rgba(147, 255, 70, 0.28), rgba(147, 255, 70, 0.06));
-      border: 1px solid rgba(147, 255, 70, 0.18);
-      transition: transform 0.2s ease;
+    .kpi-card::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 150px; height: 150px;
+      background: radial-gradient(circle, var(--accent-primary) 0%, transparent 70%);
+      opacity: 0.05;
+      transform: translate(30%, -30%);
     }
     
-    .kpi-card:hover .kpi-card__icon {
-      transform: scale(1.08) rotate(3deg);
+    .kpi-card:nth-child(2)::after { background: radial-gradient(circle, var(--accent-secondary) 0%, transparent 70%); }
+    .kpi-card:nth-child(3)::after { background: radial-gradient(circle, var(--accent-warning) 0%, transparent 70%); }
+
+    .kpi-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24px;
     }
 
-    .kpi-card__label {
-      color: var(--muted);
-      font-size: 15px;
+    .kpi-icon {
+      width: 44px; height: 44px;
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--glass-border);
+      display: grid; place-items: center;
+      font-size: 20px;
+      color: var(--accent-primary);
     }
 
-    .kpi-card__value {
-      margin-top: 8px;
-      font: 800 clamp(24px, 2.6vw, 38px)/1 var(--display);
-      letter-spacing: -0.05em;
-    }
-
-    .kpi-card__meta {
-      margin-top: 9px;
-      color: var(--green);
-      font-size: 13px;
-    }
-
-    .hero-grid {
-      display: grid;
-      grid-template-columns: 320px minmax(0, 1fr) 290px;
-      gap: 16px;
-      margin-bottom: var(--space-6);
-    }
-
-    .panel { padding: 24px; }
-
-    .panel-label {
-      color: var(--muted);
+    .kpi-label {
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
-      letter-spacing: 0.14em;
-      font-size: 12px;
-      margin-bottom: 8px;
+    }
+
+    .kpi-value {
+      font: 700 42px/1 var(--display);
+      margin: 8px 0;
+      background: linear-gradient(180deg, #fff, #a0a5b1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .kpi-trend {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(57, 255, 20, 0.1);
+      color: var(--accent-success);
+      border: 1px solid rgba(57, 255, 20, 0.2);
+    }
+
+    /* Complex Panels */
+    .dashboard-bento {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+    }
+
+    .panel {
+      padding: 32px;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
     }
 
     .panel-title {
       margin: 0;
-      font: 800 30px/1.02 var(--display);
-      letter-spacing: -0.045em;
+      font: 600 22px var(--display);
     }
 
-    .panel-copy {
-      margin: 10px 0 0;
-      color: var(--muted);
-      line-height: 1.72;
+    /* Custom Chart Area */
+    .chart-container {
+      height: 250px;
+      position: relative;
+      margin-top: 20px;
     }
 
-    .welcome {
-      display: grid;
-      align-content: space-between;
-      gap: 22px;
-      box-shadow: var(--glow), var(--shadow);
-    }
-
-    .avatar {
-      width: 136px;
-      height: 136px;
-      margin: 0 auto;
-      border-radius: 30px;
-      display: grid;
-      place-items: center;
-      color: var(--green);
-      font-size: 58px;
-      background: radial-gradient(circle at 50% 30%, rgba(147, 255, 70, 0.18), transparent 62%), rgba(147, 255, 70, 0.05);
-      border: 1px solid rgba(147, 255, 70, 0.22);
-      box-shadow: 0 0 30px rgba(147, 255, 70, 0.18);
-    }
-
-    .welcome__title {
-      margin: 0;
-      text-align: center;
-      font: 800 34px/1.04 var(--display);
-      letter-spacing: -0.05em;
-    }
-
-    .welcome__title span { color: var(--green); }
-
-    .welcome__copy {
-      text-align: center;
-      color: var(--muted);
-      line-height: 1.7;
-      margin: 10px 0 0;
-    }
-
-    .meta-list {
-      display: grid;
-      gap: 10px;
-    }
-
-    .meta-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 13px 15px;
-      border-radius: 16px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      color: var(--muted);
-      transition: background 0.2s, border-color 0.2s;
-    }
-    
-    .meta-row:hover {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(147, 255, 70, 0.15);
-    }
-
-    .meta-row strong {
-      color: var(--text);
-      text-align: right;
-    }
-
-    .overview {
-      display: grid;
-      gap: 24px;
-    }
-
-    .overview__head,
-    .table-card__head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 16px;
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      padding: 8px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 800;
-      line-height: 1;
-      border: 1px solid currentColor;
-    }
-
-    .pill--success {
-      color: var(--green);
-      background: var(--green-soft);
-    }
-
-    .pill--warn {
-      color: var(--amber);
-      background: var(--amber-soft);
-    }
-
-    .pill--danger {
-      color: var(--red);
-      background: var(--red-soft);
-    }
-
-    .pill--cyan {
-      color: var(--cyan);
-      background: var(--cyan-soft);
-    }
-
-    .overview-chart {
-      padding: 18px 18px 8px;
-      border-radius: 22px;
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      background: linear-gradient(180deg, rgba(147, 255, 70, 0.05), transparent 45%), rgba(255, 255, 255, 0.02);
-      transition: border-color 0.2s;
-    }
-    
-    .overview-chart:hover {
-      border-color: rgba(147, 255, 70, 0.2);
-    }
-
-    .overview-chart svg {
+    .chart-svg {
       width: 100%;
-      height: auto;
-      display: block;
-    }
-
-    .overview-legend {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-      margin-top: 12px;
-    }
-
-    .legend-chip {
-      padding: 11px 12px;
-      border-radius: 16px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      transition: background 0.2s, border-color 0.2s;
+      height: 100%;
+      overflow: visible;
     }
     
-    .legend-chip:hover {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(147, 255, 70, 0.15);
-    }
-
-    .legend-chip__label {
-      color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .legend-chip__value {
-      margin-top: 6px;
-      font-size: 22px;
-      font-weight: 800;
-      letter-spacing: -0.04em;
-    }
-
-    .gauge {
-      display: grid;
-      align-content: center;
-      gap: 20px;
-      text-align: center;
-    }
-
-    .gauge__ring {
-      width: 220px;
-      height: 220px;
-      margin: 0 auto;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      background: radial-gradient(circle at center, #080c0b 58%, transparent 59%), conic-gradient(var(--green) calc(var(--value) * 1%), rgba(255, 255, 255, 0.09) 0);
-      box-shadow: inset 0 0 34px rgba(147, 255, 70, 0.1), 0 0 34px rgba(147, 255, 70, 0.12);
-      transition: filter 0.3s ease;
+    .chart-line {
+      fill: none;
+      stroke: var(--accent-primary);
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter: drop-shadow(0 4px 10px rgba(0, 240, 255, 0.5));
+      animation: drawLine 2s ease-out forwards;
     }
     
-    .card:hover .gauge__ring { filter: drop-shadow(0 0 10px rgba(147, 255, 70, 0.15)); }
-
-    .gauge__inner {
-      width: 130px;
-      height: 130px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      background: radial-gradient(circle at 50% 20%, rgba(147, 255, 70, 0.08), rgba(9, 13, 13, 0.98));
-      border: 1px solid rgba(255, 255, 255, 0.05);
+    @keyframes drawLine {
+      from { stroke-dasharray: 2000; stroke-dashoffset: 2000; }
+      to { stroke-dasharray: 2000; stroke-dashoffset: 0; }
     }
 
-    .gauge__value {
-      font: 800 42px/1 var(--display);
-      letter-spacing: -0.05em;
+    .chart-area {
+      fill: url(#chartGradient);
+      opacity: 0.5;
     }
 
-    .section-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
-      margin-bottom: var(--space-6);
-    }
-
-    .mini-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-      margin-top: 18px;
-    }
-
-    .mini-card {
-      padding: 14px 16px;
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      transition: background 0.2s, border-color 0.2s;
-    }
-    
-    .mini-card:hover {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(147, 255, 70, 0.15);
-    }
-
-    .mini-card__label {
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-size: 12px;
-    }
-
-    .mini-card__value {
-      margin-top: 6px;
-      font: 800 26px/1 var(--display);
-      letter-spacing: -0.04em;
-    }
-
-    .stack-list {
-      display: grid;
-      gap: 12px;
-      margin-top: 18px;
-    }
-
-    .stack-item {
-      padding: 15px 16px;
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      transition: background 0.2s, border-color 0.2s, transform 0.2s;
-    }
-    
-    .stack-item:hover {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(147, 255, 70, 0.15);
-      transform: translateX(4px);
-    }
-
-    .stack-item__top {
+    /* Data Lists (Replacing old tables/stacks) */
+    .data-list {
       display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .data-item {
+      display: flex;
+      align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      align-items: flex-start;
-    }
-
-    .stack-item__title {
-      font-weight: 800;
-      line-height: 1.45;
-    }
-
-    .stack-item__meta {
-      margin-top: 6px;
-      color: var(--muted);
-      line-height: 1.65;
-      font-size: 14px;
-    }
-
-    .stack-item__value {
-      color: var(--green);
-      font-weight: 800;
-      white-space: nowrap;
-    }
-
-    .table-card {
-      margin-bottom: var(--space-6);
-    }
-
-    .table-scroll {
-      overflow-x: auto;
-      border-radius: 20px;
-      border: 1px solid var(--line);
+      padding: 16px 20px;
       background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-sm);
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    .data-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      transform: scale(1.01);
+      border-color: var(--accent-primary);
+    }
+
+    .data-info h4 {
+      margin: 0 0 4px 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .data-info p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Badges */
+    .badge {
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-cyan { background: rgba(0, 240, 255, 0.15); color: var(--accent-primary); border: 1px solid rgba(0, 240, 255, 0.3); }
+    .badge-purple { background: rgba(176, 38, 255, 0.15); color: #d884ff; border: 1px solid rgba(176, 38, 255, 0.3); }
+    .badge-green { background: rgba(57, 255, 20, 0.15); color: var(--accent-success); border: 1px solid rgba(57, 255, 20, 0.3); }
+    .badge-red { background: rgba(255, 0, 60, 0.15); color: #ff809b; border: 1px solid rgba(255, 0, 60, 0.3); }
+
+    /* Modern Table */
+    .table-wrapper {
+      overflow-x: auto;
+      border-radius: var(--radius-md);
+      background: rgba(0, 0, 0, 0.2);
     }
 
     table {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
+      text-align: left;
+    }
+
+    th {
+      padding: 20px;
+      color: var(--text-muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      border-bottom: 1px solid var(--glass-border);
+      background: rgba(255, 255, 255, 0.02);
+      font-weight: 600;
+    }
+
+    td {
+      padding: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      vertical-align: middle;
       font-size: 14px;
     }
 
-    thead th {
-      padding: 16px 18px;
-      text-align: left;
-      color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      border-bottom: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.02);
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255, 255, 255, 0.03); }
+
+    .symbol-text {
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: 16px;
+      color: #fff;
     }
 
-    tbody td {
-      padding: 18px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      vertical-align: top;
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .dashboard-bento { grid-template-columns: 1fr; }
     }
 
-    tbody tr {
-      transition: background 0.2s;
-    }
-
-    tbody tr:hover {
-      background: rgba(147, 255, 70, 0.04);
-    }
-
-    tbody tr:last-child td {
-      border-bottom: 0;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 8px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      line-height: 1;
-      font-weight: 800;
-      border: 1px solid currentColor;
-    }
-
-    .badge--pro,
-    .badge--ok {
-      color: var(--green);
-      background: var(--green-soft);
-    }
-
-    .badge--vip {
-      color: var(--cyan);
-      background: var(--cyan-soft);
-    }
-
-    .badge--no {
-      color: var(--red);
-      background: var(--red-soft);
-    }
-
-    .mono {
-      font-family: "Consolas", "SFMono-Regular", "Courier New", monospace;
-      word-break: break-all;
-    }
-
-    .empty {
-      padding: 18px;
-      margin-top: 18px;
-      border-radius: 18px;
-      border: 1px dashed rgba(255, 255, 255, 0.1);
-      background: rgba(255, 255, 255, 0.02);
-      color: var(--muted);
-      line-height: 1.7;
-    }
-
-    @media (max-width: 1280px) {
-      .hero-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 1120px) {
-      .kpi-grid,
-      .section-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-
-    @media (max-width: 980px) {
+    @media (max-width: 992px) {
       .shell {
         grid-template-columns: 1fr;
+        padding: 16px;
       }
-
       .sidebar {
-        border-right: 0;
-        border-bottom: 1px solid var(--line);
-        min-height: auto;
+        height: auto;
+        position: static;
+        padding: 24px;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
       }
-
-      .sidebar::after {
-        display: none;
-      }
-
       .nav {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        display: flex;
+        overflow-x: auto;
+        padding-bottom: 10px;
+        width: 100%;
       }
+      .nav__link {
+        white-space: nowrap;
+        padding: 12px 20px;
+      }
+      .nav__link::before {
+        width: 100%; height: 3px;
+        top: auto; bottom: 0;
+        border-radius: 4px 4px 0 0;
+        transform: scaleX(0);
+      }
+      .nav__link--active::before, .nav__link:hover::before {
+        transform: scaleX(1);
+      }
+      .sidebar-status { display: none; }
     }
 
-    @media (max-width: 760px) {
-      .main,
-      .sidebar {
-        padding: 16px;
-      }
-
-      .topbar,
-      .actions,
-      .overview__head,
-      .table-card__head,
-      .stack-item__top {
+    @media (max-width: 768px) {
+      .topbar {
         flex-direction: column;
+        align-items: flex-start;
+        gap: 20px;
       }
-
-      .kpi-grid,
-      .section-grid,
-      .mini-grid,
-      .overview-legend {
-        grid-template-columns: 1fr;
+      .actions {
+        width: 100%;
+        flex-wrap: wrap;
       }
-
-      table,
-      thead,
-      tbody,
-      tr,
-      th,
-      td {
+      .btn { flex: 1; justify-content: center; }
+      
+      /* Mobile Table Cards */
+      thead { display: none; }
+      tr {
         display: block;
-      }
-
-      thead {
-        display: none;
-      }
-
-      .table-scroll {
-        border: 0;
-        background: transparent;
-        overflow-x: visible;
-      }
-
-      tbody tr {
-        display: block;
+        background: rgba(255, 255, 255, 0.02);
         margin-bottom: 16px;
-        padding: 16px;
-        border-radius: 18px;
-        border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.03);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--glass-border);
       }
-
-      tbody td {
+      td {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 10px 0;
+        padding: 12px 16px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        text-align: right;
       }
-      
-      tbody tr td:last-child {
-        border-bottom: 0;
-        padding-bottom: 0;
-      }
-      
-      tbody tr td:first-child {
-        padding-top: 0;
-      }
-
-      tbody td::before {
+      td::before {
         content: attr(data-label);
-        display: block;
-        color: var(--muted);
         font-size: 11px;
-        letter-spacing: 0.08em;
+        color: var(--text-muted);
         text-transform: uppercase;
-        font-weight: 600;
-        text-align: left;
-        margin-right: 16px;
+        letter-spacing: 0.05em;
       }
     }
   </style>
 </head>
 <body>
+  <!-- Ambient Orbs -->
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+
+  <!-- Jinja2 Safe Data Extraction -->
   {% set user_stats = user_stats | default({}, true) %}
   {% set expiring_members = expiring_members | default({}, true) %}
   {% set notification_settings = notification_settings | default({}, true) %}
@@ -907,488 +662,334 @@
   {% set notifications_off_pct = ((notifications_off / notifications_total) * 100) if notifications_total else 0 %}
   
   {% set total_alerts = price_alerts.get("total_alerts", 0) or 0 %}
-  {% set alert_load_pct = total_alerts if total_alerts < 100 else 100 %}
   
   {% set win_rate = performance.get("win_rate", 0) or 0 %}
-  {% set win_count = performance.get("win_count", 0) or 0 %}
   {% set total_eval_count = performance.get("total_count", 0) or 0 %}
   
-  {% set chart_metrics = [
-    {"label": "CPU", "value": system_health.get("cpu_usage", 0) or 0},
-    {"label": "RAM", "value": system_health.get("ram_percent", 0) or 0},
-    {"label": "Disk", "value": system_health.get("disk_percent", 0) or 0},
-    {"label": "Paid", "value": paid_share},
-    {"label": "Win", "value": win_rate},
-    {"label": "Alerts", "value": alert_load_pct}
-  ] %}
+  {% set cpu = system_health.get("cpu_usage", 0) or 0 %}
+  {% set ram = system_health.get("ram_percent", 0) or 0 %}
+  
+  <!-- Generate SVG Points safely -->
+  {% set chart_metrics = [ cpu, ram, win_rate, paid_share, (total_alerts/10 if total_alerts < 1000 else 100), 85 ] %}
   {% set chart_ns = namespace(points='') %}
-  {% for metric in chart_metrics %}
-    {% set metric_value = metric["value"] if metric["value"] < 100 else 100 %}
-    {% set metric_value = metric_value if metric_value > 0 else 0 %}
-    {% set x = 70 + (loop.index0 * 115) %}
-    {% set y = 260 - (metric_value * 1.9) %}
+  {% for val in chart_metrics %}
+    {% set safe_val = val if val <= 100 else 100 %}
+    {% set x = (loop.index0 * 120) %}
+    {% set y = 200 - (safe_val * 1.5) %}
     {% set chart_ns.points = chart_ns.points ~ x ~ ',' ~ ('%.1f'|format(y)) ~ ' ' %}
   {% endfor %}
 
   <div class="shell">
-    <aside class="sidebar">
-      <div class="brand">
+    
+    <!-- Cyber Sidebar -->
+    <aside class="sidebar glass-card animate-1">
+      <a href="#" class="brand">
         <div class="brand__icon">A</div>
         <div>
           <h1 class="brand__title">Apexify</h1>
-          <div class="brand__subtitle">Admin Control Room</div>
+          <div class="brand__subtitle">Command Nexus</div>
         </div>
-      </div>
+      </a>
 
       <nav class="nav">
-        <a class="nav__link nav__link--active" href="#overview"><span class="nav__icon">⌘</span><span>Dashboard</span></a>
-        <a class="nav__link" href="#attention"><span class="nav__icon">◎</span><span>Attention</span></a>
-        <a class="nav__link" href="#notifications"><span class="nav__icon">◌</span><span>Settings</span></a>
-        <a class="nav__link" href="#signals"><span class="nav__icon">↗</span><span>Signals</span></a>
-        <a class="nav__link" href="#members"><span class="nav__icon">◉</span><span>Members</span></a>
-        <a class="nav__link" href="#actions"><span class="nav__icon">↺</span><span>Actions</span></a>
+        <a class="nav__link nav__link--active" href="#overview"><span class="nav__icon">◱</span><span>Overview</span></a>
+        <a class="nav__link" href="#market"><span class="nav__icon">⟁</span><span>Market Intel</span></a>
+        <a class="nav__link" href="#signals"><span class="nav__icon">∿</span><span>Signals Logic</span></a>
+        <a class="nav__link" href="#users"><span class="nav__icon">◈</span><span>User Base</span></a>
+        <a class="nav__link" href="#system"><span class="nav__icon">⚙</span><span>System</span></a>
       </nav>
 
-      <section class="sidebar-card">
-        <div class="eyebrow">Live Admin</div>
-        <div class="sidebar-card__value mono">{{ admin_id | default('ADMIN', true) }}</div>
-        <p>
-          Last refresh
-          {{ generated_at.strftime('%Y-%m-%d %H:%M:%S') if generated_at else '-' }}<br>
+      <div class="sidebar-status">
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">System Status</div>
+        <div style="font-weight: 600; display: flex; align-items: center;">
           {% if maintenance.get("enabled") %}
-            Maintenance mode is active and only admin is allowed through.
+            <span class="pulse-dot" style="background: var(--accent-danger); box-shadow: 0 0 10px var(--accent-danger);"></span>
+            <span style="color: var(--accent-danger)">Maintenance Mode</span>
           {% else %}
-            System is serving users normally and the web console is online.
+            <span class="pulse-dot"></span>
+            Online & Active
           {% endif %}
-        </p>
-      </section>
+        </div>
+        <div style="margin-top: 12px; font-family: monospace; font-size: 11px; opacity: 0.6;">
+          ID: {{ admin_id | default('ROOT_ADMIN', true) }}
+        </div>
+      </div>
     </aside>
 
+    <!-- Main Workspace -->
     <main class="main">
-      <header class="topbar" id="actions">
+      
+      <!-- Top Action Bar -->
+      <header class="topbar glass-card animate-2">
         <div>
-          <div class="eyebrow">Apexify Admin Dashboard</div>
-          <h2 class="headline">Dark room, clear signals, faster admin moves.</h2>
-          <p class="intro">
-            หน้า dashboard รอบนี้เน้นอารมณ์แบบ control room มากขึ้น ใช้ข้อมูลจริงจากสมาชิก ระบบแจ้งเตือน
-            watchlist และสภาพเครื่อง เพื่อให้เห็นทั้งภาพธุรกิจและสิ่งที่ต้องรีบจัดการในหน้าจอเดียว
-          </p>
+          <h2 class="headline">Welcome to the <span>Grid.</span></h2>
+          <p style="color: var(--text-muted); margin: 8px 0 0 0;">Real-time telemetry and control interface.</p>
         </div>
-
+        
         <div class="actions">
-          <a class="btn" href="{{ url_for('admin_dashboard') if 'admin_dashboard' in request.endpoint else '#' }}">Refresh</a>
-          <form method="post" action="{{ url_for('admin_toggle_maintenance') if 'admin_toggle_maintenance' in request.endpoint else '#' }}">
-            <button class="btn {{ 'btn--danger' if maintenance.get('enabled') else 'btn--primary' }}" type="submit">
-              {{ 'Turn Maintenance Off' if maintenance.get('enabled') else 'Turn Maintenance On' }}
+          <form method="post" action="{{ url_for('admin_toggle_maintenance') if 'admin_toggle_maintenance' in request.endpoint else '#' }}" style="margin:0;">
+            <button class="btn {{ 'btn--danger' if maintenance.get('enabled') else '' }}" type="submit">
+              ⏻ {{ 'Disable Maintenance' if maintenance.get('enabled') else 'Engage Maintenance' }}
             </button>
           </form>
-          <form method="post" action="{{ url_for('admin_download_backup') if 'admin_download_backup' in request.endpoint else '#' }}">
-            <button class="btn" type="submit">Download Backup</button>
+          <a href="{{ url_for('admin_dashboard') if 'admin_dashboard' in request.endpoint else '#' }}" class="btn">⟳ Sync Data</a>
+          <form method="post" action="{{ url_for('admin_download_backup') if 'admin_download_backup' in request.endpoint else '#' }}" style="margin:0;">
+            <button class="btn btn--glow" type="submit">↓ Core Backup</button>
           </form>
         </div>
       </header>
 
-      <section class="flash-stack">
-        {% with flashes = get_flashed_messages(with_categories=true) %}
-          {% if flashes %}
+      <!-- Flash Messages -->
+      {% with flashes = get_flashed_messages(with_categories=true) %}
+        {% if flashes %}
+          <div style="display: grid; gap: 10px;" class="animate-2">
             {% for category, message in flashes %}
-              <div class="flash {{ 'flash--error' if category == 'error' else '' }}">{{ message }}</div>
+              <div class="glass-card" style="padding: 16px 24px; border-color: {{ 'var(--accent-danger)' if category == 'error' else 'var(--accent-success)' }};">
+                {{ message }}
+              </div>
             {% endfor %}
-          {% endif %}
-        {% endwith %}
-      </section>
-
-      <section class="kpi-grid">
-        <article class="card kpi-card">
-          <div>
-            <div class="kpi-card__label">Monthly Revenue</div>
-            <div class="kpi-card__value">{{ '{:,.2f}'.format(estimated_revenue) }}</div>
-            <div class="kpi-card__meta">บาทต่อเดือนจากสมาชิกแบบชำระเงิน</div>
           </div>
-          <div class="kpi-card__icon">$</div>
-        </article>
+        {% endif %}
+      {% endwith %}
 
-        <article class="card kpi-card">
-          <div>
-            <div class="kpi-card__label">Paid Members</div>
-            <div class="kpi-card__value">{{ paid_total }}</div>
-            <div class="kpi-card__meta">{{ '%.1f'|format(paid_share) }}% of all users</div>
-          </div>
-          <div class="kpi-card__icon">◉</div>
-        </article>
-
-        <article class="card kpi-card">
-          <div>
-            <div class="kpi-card__label">Active Alerts</div>
-            <div class="kpi-card__value">{{ total_alerts }}</div>
-            <div class="kpi-card__meta">{{ price_alerts.get("unique_users", 0) }} users are tracking targets</div>
-          </div>
-          <div class="kpi-card__icon">↗</div>
-        </article>
-
-        <article class="card kpi-card">
-          <div>
-            <div class="kpi-card__label">Success Rate</div>
-            <div class="kpi-card__value">{{ '%.0f'|format(win_rate) }}%</div>
-            <div class="kpi-card__meta">{{ win_count }} wins from {{ total_eval_count }} evaluated signals</div>
-          </div>
-          <div class="kpi-card__icon">✓</div>
-        </article>
-      </section>
-
-      <section class="hero-grid" id="overview">
-        <article class="card panel welcome">
-          <div>
-            <div class="avatar">⌬</div>
-            <h3 class="welcome__title">Welcome back, <span>Admin</span></h3>
-            <p class="welcome__copy">
-              เปิดมาปุ๊บให้เห็นเลยว่าช่วงนี้ระบบร้อนแค่ไหน ผู้ใช้จ่ายเงินเป็นสัดส่วนเท่าไร
-              และมีแรงกดดันจากสมาชิกใกล้หมดอายุหรือ alerts ฝั่งตลาดมากแค่ไหน
-            </p>
-          </div>
-
-          <div class="meta-list">
-            <div class="meta-row"><span>System mode</span><strong>{{ 'Maintenance ON' if maintenance.get("enabled") else 'Live' }}</strong></div>
-            <div class="meta-row"><span>Total users</span><strong>{{ total_users }}</strong></div>
-            <div class="meta-row"><span>Unique watched symbols</span><strong>{{ top_watched.get("unique_symbols", 0) }}</strong></div>
-            <div class="meta-row"><span>Uptime</span><strong>{{ system_health.get("uptime_hours", 0) }}h</strong></div>
-          </div>
-        </article>
-
-        <article class="card panel overview">
-          <div class="overview__head">
+      <!-- Primary KPIs -->
+      <section class="kpi-grid animate-3" id="overview">
+        
+        <article class="glass-card kpi-card">
+          <div class="kpi-header">
             <div>
-              <div class="panel-label">Operations Overview</div>
-              <h3 class="panel-title">How the room feels right now</h3>
-              <p class="panel-copy">
-                ภาพรวมนี้จับความตึงของระบบจาก health, paid ratio, signal quality และโหลดฝั่ง alerts
-                เพื่อให้มองออกเร็วว่าควรสนใจ reliability, retention หรือ market traffic ก่อน
-              </p>
+              <div class="kpi-label">Revenue Stream</div>
+              <div class="kpi-value">฿{{ '{:,.0f}'.format(estimated_revenue) }}</div>
             </div>
-            <span class="pill pill--success">{{ '%.1f'|format(win_rate) }}% signal quality</span>
+            <div class="kpi-icon" style="color: var(--accent-success); box-shadow: inset 0 0 10px rgba(57, 255, 20, 0.2);">฿</div>
           </div>
-
-          <div class="overview-chart">
-            <svg viewBox="0 0 650 290" role="img" aria-label="Overview trend line">
-              {% for y in [70, 130, 190, 250] %}
-                <line x1="52" y1="{{ y }}" x2="612" y2="{{ y }}" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
-              {% endfor %}
-
-              {% if chart_ns.points %}
-              <polyline fill="none" stroke="#93ff46" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="{{ chart_ns.points|trim }}"/>
-              <polyline fill="rgba(147,255,70,0.10)" stroke="none" points="70,260 {{ chart_ns.points|trim }} 645,260"/>
-              {% endif %}
-
-              {% for metric in chart_metrics %}
-                {% set value = metric["value"] if metric["value"] < 100 else 100 %}
-                {% set value = value if value > 0 else 0 %}
-                {% set x = 70 + (loop.index0 * 115) %}
-                {% set y = 260 - (value * 1.9) %}
-                <circle cx="{{ x }}" cy="{{ '%.1f'|format(y) }}" r="7" fill="#0b0f0f" stroke="#93ff46" stroke-width="3"/>
-                <text x="{{ x }}" y="{{ '%.1f'|format(y - 16) }}" fill="#f4f7f2" text-anchor="middle" font-size="12" font-weight="700">{{ '%.0f'|format(metric["value"]) }}</text>
-                <text x="{{ x }}" y="282" fill="#8e9990" text-anchor="middle" font-size="12" letter-spacing="0.08em">{{ metric["label"] }}</text>
-              {% endfor %}
-            </svg>
-          </div>
-
-          <div class="overview-legend">
-            <div class="legend-chip">
-              <div class="legend-chip__label">Watch entries</div>
-              <div class="legend-chip__value">{{ top_watched.get("total_watch_entries", 0) }}</div>
-            </div>
-            <div class="legend-chip">
-              <div class="legend-chip__label">Revenue at risk</div>
-              <div class="legend-chip__value">{{ '{:,.0f}'.format(expiring_members.get("revenue_at_risk_7_days", 0) or 0) }}</div>
-            </div>
-            <div class="legend-chip">
-              <div class="legend-chip__label">Notifications off</div>
-              <div class="legend-chip__value">{{ '%.1f'|format(notifications_off_pct) }}%</div>
-            </div>
+          <div>
+            <span class="kpi-trend">↑ Proj. Monthly</span>
+            <span style="color: var(--text-muted); font-size: 13px; margin-left: 8px;">From {{ paid_total }} Subs</span>
           </div>
         </article>
 
-        <article class="card panel gauge">
-          <div>
-            <div class="panel-label">Renewal Health</div>
-            <h3 class="panel-title">Membership stability</h3>
-          </div>
-
-          <div class="gauge__ring" style="--value: {{ '%.0f'|format(renewal_health) }};">
-            <div class="gauge__inner">
-              <div class="gauge__value">{{ '%.0f'|format(renewal_health) }}%</div>
+        <article class="glass-card kpi-card">
+          <div class="kpi-header">
+            <div>
+              <div class="kpi-label">Algorithm Win Rate</div>
+              <div class="kpi-value">{{ '%.1f'|format(win_rate) }}%</div>
             </div>
+            <div class="kpi-icon" style="color: var(--accent-primary); box-shadow: inset 0 0 10px rgba(0, 240, 255, 0.2);">∿</div>
           </div>
-
           <div>
-            <span class="pill {{ 'pill--danger' if expiring_7 else 'pill--success' }}">
-              {{ expiring_7 }} members within 7 days
+            <span class="kpi-trend" style="{{ 'color: var(--accent-danger); background: rgba(255,0,60,0.1); border-color: rgba(255,0,60,0.2);' if win_rate < 50 else '' }}">
+              {{ 'Critial' if win_rate < 50 else 'Optimal' }}
             </span>
-            <p class="panel-copy">
-              ถ้าตัวเลขนี้ลดลง แปลว่า paid base ค่อนข้างนิ่ง ถ้าพุ่งขึ้นเมื่อไรควรรีบดู renewal flow
-              และ retention message ให้มากขึ้น
-            </p>
+            <span style="color: var(--text-muted); font-size: 13px; margin-left: 8px;">Based on {{ total_eval_count }} evals</span>
           </div>
         </article>
+
+        <article class="glass-card kpi-card">
+          <div class="kpi-header">
+            <div>
+              <div class="kpi-label">Active Trackers</div>
+              <div class="kpi-value">{{ total_alerts }}</div>
+            </div>
+            <div class="kpi-icon" style="color: var(--accent-warning); box-shadow: inset 0 0 10px rgba(255, 176, 0, 0.2);">⌖</div>
+          </div>
+          <div>
+            <span class="kpi-trend" style="color: var(--accent-warning); background: rgba(255,176,0,0.1); border-color: rgba(255,176,0,0.2);">
+              Live Watch
+            </span>
+            <span style="color: var(--text-muted); font-size: 13px; margin-left: 8px;">Across users</span>
+          </div>
+        </article>
+
       </section>
 
-      <section class="section-grid" id="attention">
-        <article class="card panel">
-          <div class="panel-label">Market Attention</div>
-          <h3 class="panel-title">Top Watched Symbols</h3>
-          <p class="panel-copy">
-            หุ้นที่ถูกติดตามมากสุดใน watchlist ช่วยสะท้อนว่าฝั่งผู้ใช้กำลังสนใจอะไร
-            และตัวไหนมีโอกาสกลายเป็น traffic hub ของ alerts กับ content
-          </p>
-
-          <div class="mini-grid">
-            <div class="mini-card">
-              <div class="mini-card__label">Watch Entries</div>
-              <div class="mini-card__value">{{ top_watched.get("total_watch_entries", 0) }}</div>
+      <!-- Bento Grid 1 -->
+      <section class="dashboard-bento animate-4" id="system">
+        
+        <!-- Graph Panel -->
+        <article class="glass-card panel">
+          <div class="panel-header">
+            <div>
+              <h3 class="panel-title">System Telemetry Matrix</h3>
+              <p style="color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;">Normalized metrics overview</p>
             </div>
-            <div class="mini-card">
-              <div class="mini-card__label">Unique Symbols</div>
-              <div class="mini-card__value">{{ top_watched.get("unique_symbols", 0) }}</div>
+            <span class="badge badge-cyan">Live Data</span>
+          </div>
+          
+          <div class="chart-container">
+            <svg class="chart-svg" viewBox="0 0 600 220" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="var(--accent-primary)" stop-opacity="0.3"/>
+                  <stop offset="100%" stop-color="var(--accent-primary)" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <!-- Grid lines -->
+              <line x1="0" y1="50" x2="600" y2="50" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+              <line x1="0" y1="125" x2="600" y2="125" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+              <line x1="0" y1="200" x2="600" y2="200" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+              
+              {% if chart_ns.points %}
+                <!-- Fill Area -->
+                <polygon points="0,200 {{ chart_ns.points|trim }} 600,200" class="chart-area" />
+                <!-- Stroke Line -->
+                <polyline points="{{ chart_ns.points|trim }}" class="chart-line" />
+                
+                <!-- Data Nodes -->
+                {% for val in chart_metrics %}
+                  {% set safe_val = val if val <= 100 else 100 %}
+                  {% set x = (loop.index0 * 120) %}
+                  {% set y = 200 - (safe_val * 1.5) %}
+                  <circle cx="{{ x }}" cy="{{ '%.1f'|format(y) }}" r="5" fill="var(--bg)" stroke="var(--accent-primary)" stroke-width="3" />
+                {% endfor %}
+              {% endif %}
+            </svg>
+            <div style="display: flex; justify-content: space-between; margin-top: 10px; color: var(--text-muted); font-size: 12px; font-family: monospace;">
+              <span>CPU ({{ '%.0f'|format(cpu) }}%)</span>
+              <span>RAM ({{ '%.0f'|format(ram) }}%)</span>
+              <span>WinRate</span>
+              <span>PaidRatio</span>
+              <span>AlertLoad</span>
+              <span>Health</span>
             </div>
           </div>
+        </article>
+
+        <!-- Renewal Health -->
+        <article class="glass-card panel" style="display: flex; flex-direction: column;">
+          <h3 class="panel-title" style="font-size: 18px;">Subscription Integrity</h3>
+          <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 24px 0;">Churn risk assessment</p>
+          
+          <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; position: relative;">
+            <!-- Simple CSS Circular Gauge -->
+            <div style="width: 160px; height: 160px; border-radius: 50%; background: conic-gradient(var(--accent-success) {{ renewal_health }}%, rgba(255,255,255,0.05) 0); display: grid; place-items: center; position: relative; box-shadow: 0 0 20px rgba(57,255,20,0.1);">
+              <div style="width: 140px; height: 140px; background: var(--bg); border-radius: 50%; display: grid; place-items: center;">
+                <div style="text-align: center;">
+                  <div style="font: 700 32px var(--display);">{{ '%.0f'|format(renewal_health) }}%</div>
+                  <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Stability</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 24px; padding: 16px; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 14px;">At Risk (7 Days)</span>
+            <span class="badge {{ 'badge-red' if expiring_7 > 0 else 'badge-green' }}">{{ expiring_7 }} Users</span>
+          </div>
+        </article>
+
+      </section>
+
+      <!-- Bento Grid 2 -->
+      <section class="dashboard-bento animate-4" id="market">
+        
+        <!-- Signals Performance -->
+        <article class="glass-card panel" id="signals">
+          <div class="panel-header">
+            <div>
+              <h3 class="panel-title">Signal Execution Log</h3>
+              <p style="color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;">Recent algorithmic predictions</p>
+            </div>
+          </div>
+
+          {% if performance.get("entries") %}
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Asset</th>
+                    <th>Logic</th>
+                    <th>Target</th>
+                    <th>Result</th>
+                    <th>Outcome</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in performance.get("entries", [])[:5] %}
+                    <tr>
+                      <td data-label="Asset" class="symbol-text">{{ item.symbol | default('-', true) }}</td>
+                      <td data-label="Logic" style="color: var(--accent-primary);">{{ item.alert_type | default('-', true) }}</td>
+                      <td data-label="Target" style="font-family: monospace;">{{ '%.2f'|format(item.start_price | default(0, true)) }}</td>
+                      <td data-label="Result" style="color: {{ var('--accent-success') if item.diff_pct and item.diff_pct > 0 else var('--accent-danger') }}">
+                        {{ '%+.2f'|format(item.diff_pct | default(0, true)) }}%
+                      </td>
+                      <td data-label="Outcome">
+                        <span class="badge {{ 'badge-green' if item.is_win else 'badge-red' }}">
+                          {{ 'HIT' if item.is_win else 'MISS' }}
+                        </span>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div style="padding: 40px; text-align: center; color: var(--text-muted); border: 1px dashed rgba(255,255,255,0.1); border-radius: var(--radius-md);">
+              Insufficient data for signal evaluation.
+            </div>
+          {% endif %}
+        </article>
+
+        <!-- Top Watched -->
+        <article class="glass-card panel">
+          <h3 class="panel-title" style="font-size: 18px;">Market Focus</h3>
+          <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 24px 0;">Top user watchlists</p>
 
           {% if top_watched.get("items") %}
-            <div class="stack-list">
-              {% for item in top_watched.get("items", []) %}
-                <div class="stack-item">
-                  <div class="stack-item__top">
-                    <div>
-                      <div class="stack-item__title">{{ item.symbol | default('N/A', true) }}</div>
-                      <div class="stack-item__meta">ความสนใจจากผู้ใช้ในระบบตอนนี้</div>
-                    </div>
-                    <div class="stack-item__value">{{ item.watchers | default(0, true) }} watchers</div>
+            <div class="data-list">
+              {% for item in top_watched.get("items", [])[:5] %}
+                <div class="data-item">
+                  <div class="data-info">
+                    <h4 class="symbol-text">{{ item.symbol | default('N/A', true) }}</h4>
+                    <p>Network Attention</p>
+                  </div>
+                  <div style="text-align: right;">
+                    <div style="font-weight: 700; color: var(--accent-primary); font-size: 18px;">{{ item.watchers | default(0, true) }}</div>
+                    <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Eyes</div>
                   </div>
                 </div>
               {% endfor %}
             </div>
           {% else %}
-            <div class="empty">ยังไม่มีข้อมูล watchlist ในระบบ</div>
+            <div style="padding: 30px; text-align: center; color: var(--text-muted);">No radar data.</div>
           {% endif %}
         </article>
 
-        <article class="card panel">
-          <div class="panel-label">Alert Load</div>
-          <h3 class="panel-title">Active Price Alerts</h3>
-          <p class="panel-copy">
-            ดูว่าตอนนี้มีผู้ใช้กี่คนผูก alerts ไว้ และ symbol ไหนอาจกลายเป็นจุดที่เกิด notification
-            หนาแน่นที่สุดในรอบถัดไป
-          </p>
-
-          <div class="mini-grid">
-            <div class="mini-card">
-              <div class="mini-card__label">Total Active</div>
-              <div class="mini-card__value">{{ total_alerts }}</div>
-            </div>
-            <div class="mini-card">
-              <div class="mini-card__label">Unique Users</div>
-              <div class="mini-card__value">{{ price_alerts.get("unique_users", 0) }}</div>
-            </div>
-          </div>
-
-          {% if price_alerts.get("items") %}
-            <div class="stack-list">
-              {% for item in price_alerts.get("items", []) %}
-                <div class="stack-item">
-                  <div class="stack-item__top">
-                    <div>
-                      <div class="stack-item__title">{{ item.symbol | default('N/A', true) }}</div>
-                      <div class="stack-item__meta">จำนวน alerts ที่ยัง active อยู่</div>
-                    </div>
-                    <div class="stack-item__value">{{ item.alerts | default(0, true) }} alerts</div>
-                  </div>
-                </div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div class="empty">ตอนนี้ยังไม่มี active price alerts</div>
-          {% endif %}
-        </article>
       </section>
 
-      <section class="section-grid" id="notifications">
-        <article class="card panel">
-          <div class="panel-label">Retention Watch</div>
-          <h3 class="panel-title">Expiring Soon</h3>
-          <p class="panel-copy">
-            กลุ่มสมาชิกที่ใกล้หมดอายุที่สุดใน 7 วันข้างหน้า ช่วยให้เห็นว่าควรไล่ดู renewal หรือ support
-            case ไหนก่อนเป็นอันดับแรก
-          </p>
-
-          <div class="mini-grid">
-            <div class="mini-card">
-              <div class="mini-card__label">Within 3 Days</div>
-              <div class="mini-card__value">{{ expiring_members.get("expiring_3_days", 0) }}</div>
-            </div>
-            <div class="mini-card">
-              <div class="mini-card__label">Within 7 Days</div>
-              <div class="mini-card__value">{{ expiring_7 }}</div>
-            </div>
-          </div>
-
-          {% if expiring_members.get("items") %}
-            <div class="stack-list">
-              {% for item in expiring_members.get("items", []) %}
-                <div class="stack-item">
-                  <div class="stack-item__top">
-                    <div>
-                      <div class="stack-item__title">{{ item.user_id | default('Unknown', true) }}</div>
-                      <div class="stack-item__meta">{{ (item.role | default('user', true)) | upper }} • expires {{ item.expiry_date | default('-', true) }}</div>
-                    </div>
-                    <div class="stack-item__value">{{ item.days_left | default(0, true) }}d left</div>
-                  </div>
-                </div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div class="empty">ยังไม่มีสมาชิกที่กำลังจะหมดอายุใน 7 วันข้างหน้า</div>
-          {% endif %}
-        </article>
-
-        <article class="card panel">
-          <div class="panel-label">Notification Control</div>
-          <h3 class="panel-title">Settings Snapshot</h3>
-          <p class="panel-copy">
-            มองภาพรวมการเปิดปิด notifications, การตั้ง custom news window และการกระจายตัวของ digest
-            เพื่อดูว่าผู้ใช้รับข่าวสารในความถี่แบบไหนมากที่สุด
-          </p>
-
-          <div class="mini-grid">
-            <div class="mini-card">
-              <div class="mini-card__label">Settings Rows</div>
-              <div class="mini-card__value">{{ notifications_total }}</div>
-            </div>
-            <div class="mini-card">
-              <div class="mini-card__label">Alerts Off</div>
-              <div class="mini-card__value">{{ notifications_off }}</div>
-            </div>
-          </div>
-
-          <div class="stack-list">
-            <div class="stack-item">
-              <div class="stack-item__top">
-                <div>
-                  <div class="stack-item__title">Notifications disabled</div>
-                  <div class="stack-item__meta">สัดส่วนผู้ใช้ที่เลือกปิด notifications ทั้งหมด</div>
-                </div>
-                <div class="stack-item__value">{{ '%.1f'|format(notifications_off_pct) }}%</div>
-              </div>
-            </div>
-
-            <div class="stack-item">
-              <div class="stack-item__top">
-                <div>
-                  <div class="stack-item__title">Custom news window</div>
-                  <div class="stack-item__meta">ผู้ใช้ที่ตั้งช่วงเวลาอ่านข่าวไม่เหมือนค่ามาตรฐาน</div>
-                </div>
-                <div class="stack-item__value">{{ notification_settings.get("custom_windows", 0) }}</div>
-              </div>
-            </div>
-          </div>
-
-          {% if notification_settings.get("distribution") %}
-          <div class="mini-grid">
-            {% for bucket in notification_settings.get("distribution", []) %}
-              <div class="mini-card">
-                <div class="mini-card__label">Digest {{ bucket.label | default('-', true) }}</div>
-                <div class="mini-card__value">{{ bucket.count | default(0, true) }}</div>
-              </div>
-            {% endfor %}
-          </div>
-          {% endif %}
-        </article>
-      </section>
-
-      <section class="card panel table-card" id="signals">
-        <div class="table-card__head">
+      <!-- Users Section -->
+      <section class="glass-card panel animate-4" id="users">
+        <div class="panel-header">
           <div>
-            <div class="panel-label">Recent Signals</div>
-            <h3 class="panel-title">Performance Feed</h3>
-            <p class="panel-copy">
-              เปลี่ยนมุมมองจาก log ธรรมดาให้ดูเหมือน transaction feed เพื่อให้เห็นเร็วว่า signal ไหนเข้าเป้า
-              และตัวไหนยังต้องกลับไปปรับคุณภาพโมเดล
-            </p>
+            <h3 class="panel-title">Premium User Matrix</h3>
+            <p style="color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;">Active VIP & PRO accounts</p>
           </div>
-          <span class="pill {{ 'pill--success' if win_rate >= 50 else 'pill--warn' }}">
-            {{ '%.2f'|format(win_rate) }}% win rate
-          </span>
-        </div>
-
-        {% if performance.get("entries") %}
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Symbol</th>
-                  <th>Signal</th>
-                  <th>Alert Price</th>
-                  <th>Current Price</th>
-                  <th>Result</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in performance.get("entries", []) %}
-                  <tr>
-                    <td data-label="Symbol"><strong>{{ item.symbol | default('-', true) }}</strong></td>
-                    <td data-label="Signal">{{ item.alert_type | default('-', true) }}</td>
-                    <td data-label="Alert Price">{{ '%.2f'|format(item.start_price | default(0, true)) }}</td>
-                    <td data-label="Current Price">{{ '%.2f'|format(item.current_price | default(0, true)) }}</td>
-                    <td data-label="Result">{{ '%+.2f'|format(item.diff_pct | default(0, true)) }}%</td>
-                    <td data-label="Status">
-                      <span class="badge {{ 'badge--ok' if item.is_win else 'badge--no' }}">
-                        {{ 'Win' if item.is_win else 'Miss' }}
-                      </span>
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <div class="empty">ยังไม่มีประวัติ performance ที่คำนวณผลได้ในตอนนี้</div>
-        {% endif %}
-      </section>
-
-      <section class="card panel table-card" id="members">
-        <div class="table-card__head">
-          <div>
-            <div class="panel-label">Membership Base</div>
-            <h3 class="panel-title">VIP / PRO Members</h3>
-            <p class="panel-copy">
-              รายชื่อสมาชิกชำระเงินพร้อมสถานะล่าสุด วันหมดอายุ และบทบาท เพื่อให้ตามงาน retention
-              หรือ support รายเคสได้ไวขึ้น
-            </p>
-          </div>
-          <span class="pill pill--cyan">{{ paid_total }} active paid users</span>
+          <span class="badge badge-purple">{{ paid_total }} Active</span>
         </div>
 
         {% if paid_users %}
-          <div class="table-scroll">
+          <div class="table-wrapper">
             <table>
               <thead>
                 <tr>
-                  <th>User ID</th>
-                  <th>Role</th>
-                  <th>Expiry</th>
+                  <th>Identity Hash (User ID)</th>
+                  <th>Clearance</th>
+                  <th>Expiration Vector</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {% for user in paid_users %}
                   <tr>
-                    <td data-label="User ID"><span class="mono">{{ user.user_id | default('-', true) }}</span></td>
-                    <td data-label="Role">
-                      <span class="badge {{ 'badge--pro' if user.role == 'pro' else 'badge--vip' }}">
+                    <td data-label="ID" style="font-family: monospace; color: var(--text-muted);">{{ user.user_id | default('-', true) }}</td>
+                    <td data-label="Clearance">
+                      <span class="badge {{ 'badge-cyan' if user.role == 'pro' else 'badge-purple' }}">
                         {{ (user.role | default('vip', true)) | upper }}
                       </span>
                     </td>
-                    <td data-label="Expiry">{{ user.expiry_date | default('-', true) }}</td>
+                    <td data-label="Expiration" style="font-family: monospace;">{{ user.expiry_date | default('-', true) }}</td>
                     <td data-label="Status">
-                      <span class="badge {{ 'badge--ok' if user.is_active else 'badge--no' }}">
+                      <span class="badge {{ 'badge-green' if user.is_active else 'badge-red' }}">
                         {{ user.status_label | default('Inactive', true) }}
                       </span>
                     </td>
@@ -1398,9 +999,12 @@
             </table>
           </div>
         {% else %}
-          <div class="empty">ยังไม่มีลูกค้า VIP หรือ PRO ในระบบตอนนี้</div>
+          <div style="padding: 40px; text-align: center; color: var(--text-muted); border: 1px dashed rgba(255,255,255,0.1); border-radius: var(--radius-md);">
+            No active premium users detected in the grid.
+          </div>
         {% endif %}
       </section>
+
     </main>
   </div>
 </body>
