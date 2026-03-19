@@ -1,10 +1,28 @@
 import os
+from pathlib import Path
 import psycopg2
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-# ดึง URL จาก Environment Variable
-DB_URL = os.getenv("DATABASE_URL")
+
+def _get_db_url():
+    db_url = (os.getenv("DATABASE_URL") or "").strip()
+    if db_url:
+        return db_url
+
+    env_path = Path(__file__).resolve().parent / ".env"
+    if env_path.exists():
+        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            if key.strip() == "DATABASE_URL":
+                db_url = value.strip()
+                if db_url:
+                    return db_url
+
+    raise RuntimeError("DATABASE_URL is missing. Please set it in environment variables or /root/Apexify/.env")
 DEFAULT_USER_TIMEZONE = "Asia/Bangkok"
 DEFAULT_USER_LANGUAGE = "th"
 DEFAULT_DIGEST_FREQUENCY_HOURS = 4
@@ -118,7 +136,7 @@ def _ensure_user_settings_row(cursor, user_id: str):
 
 def get_connection():
     """สร้างการเชื่อมต่อกับ PostgreSQL"""
-    conn = psycopg2.connect(DB_URL)
+    conn = psycopg2.connect(_get_db_url())
     return conn
 
 def init_db():
