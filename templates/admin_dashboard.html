@@ -3,20 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Apexify Admin - Complete Simple Dark</title>
+  <title>Apexify Admin - Simple Dark Analytics</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
       --bg: #000000;
-      --card: #111111;
-      --border: #222222;
+      --card: #0A0A0A;
+      --border: #1F1F1F;
       --dime-green: #00C076;
       --text-main: #FFFFFF;
-      --text-sub: #888888;
-      --accent-blue: #007AFF;
-      --accent-purple: #AF52DE;
-      --danger: #FF3B30;
+      --text-sub: #8E8E93;
+      --accent-blue: #0A84FF;
+      --accent-purple: #BF5AF2;
+      --danger: #FF453A;
       --radius: 16px;
     }
 
@@ -45,9 +45,9 @@
 
     .main { padding: 48px; max-width: 1400px; margin: 0 auto; width: 100%; }
 
-    /* Components */
+    /* Brand */
     .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 40px; text-decoration: none; color: #fff; font-weight: 800; font-size: 20px; }
-    .brand-icon { width: 32px; height: 32px; background: var(--dime-green); border-radius: 8px; }
+    .brand-icon { width: 32px; height: 32px; background: var(--dime-green); border-radius: 8px; display: grid; place-items: center; color: #000; font-size: 18px; }
 
     .nav-item {
       display: flex; align-items: center; gap: 12px; padding: 12px;
@@ -57,65 +57,69 @@
     .nav-item:hover, .nav-item.active { color: #fff; background: #111; }
     .nav-item.active { color: var(--dime-green); }
 
-    /* Hero Stats */
+    /* Hero Analytics */
     .hero { margin-bottom: 48px; display: flex; justify-content: space-between; align-items: flex-end; }
-    .hero-label { color: var(--text-sub); font-size: 14px; font-weight: 500; }
-    .hero-value { font-size: 48px; font-weight: 800; margin: 8px 0; letter-spacing: -1px; }
-    .hero-sub { color: var(--dime-green); font-weight: 700; font-size: 14px; }
+    .hero-label { color: var(--text-sub); font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+    .hero-value { font-size: 56px; font-weight: 800; margin: 8px 0; letter-spacing: -2px; }
+    .hero-sub { color: var(--dime-green); font-weight: 700; font-size: 15px; }
 
     /* Grid System */
     .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 32px; }
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; margin-bottom: 32px; }
 
     .card {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 24px;
+      transition: all 0.2s ease;
     }
+    .card:hover { border-color: #333; }
 
     .card-label { color: var(--text-sub); font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 12px; }
-    .card-value { font-size: 24px; font-weight: 800; }
+    .card-value { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
     .card-footer { font-size: 12px; color: var(--text-sub); margin-top: 8px; }
 
-    /* Charts */
-    .chart-container { height: 220px; margin-top: 16px; }
-
     /* Simple Progress Bars */
-    .p-bar-row { margin-bottom: 16px; }
-    .p-bar-info { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
-    .p-bar-bg { height: 6px; background: #222; border-radius: 10px; overflow: hidden; }
+    .p-bar-row { margin-bottom: 18px; }
+    .p-bar-info { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+    .p-bar-bg { height: 6px; background: #1A1A1A; border-radius: 10px; overflow: hidden; }
     .p-bar-fill { height: 100%; background: var(--dime-green); border-radius: 10px; transition: width 1s ease; }
 
-    /* Clean Table */
+    /* Clean Tables */
     .table-container { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 32px; }
     .table-header { padding: 20px 24px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+    
     table { width: 100%; border-collapse: collapse; }
-    th { text-align: left; padding: 14px 24px; font-size: 11px; text-transform: uppercase; color: var(--text-sub); border-bottom: 1px solid var(--border); }
-    td { padding: 16px 24px; border-bottom: 1px solid #1a1a1a; font-size: 14px; }
+    th { text-align: left; padding: 14px 24px; font-size: 11px; text-transform: uppercase; color: var(--text-sub); border-bottom: 1px solid var(--border); background: #0F0F0F; }
+    td { padding: 18px 24px; border-bottom: 1px solid #141414; font-size: 14px; }
     tr:last-child td { border-bottom: none; }
+    tr:hover { background: #0F0F0F; }
 
-    .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .badge { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
     .badge-success { background: rgba(0, 192, 118, 0.1); color: var(--dime-green); }
-    .badge-danger { background: rgba(255, 59, 48, 0.1); color: var(--danger); }
-    .badge-blue { background: rgba(0, 122, 255, 0.1); color: var(--accent-blue); }
-    .badge-purple { background: rgba(175, 82, 222, 0.1); color: var(--accent-purple); }
+    .badge-danger { background: rgba(255, 69, 58, 0.1); color: var(--danger); }
+    .badge-blue { background: rgba(10, 132, 255, 0.1); color: var(--accent-blue); }
+    .badge-purple { background: rgba(191, 90, 242, 0.1); color: var(--accent-purple); }
 
     .btn-group { display: flex; gap: 10px; }
     .btn {
-      padding: 10px 16px; border-radius: 10px; border: 1px solid var(--border);
-      background: #111; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; text-decoration: none;
+      padding: 10px 18px; border-radius: 12px; border: 1px solid var(--border);
+      background: #000; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; text-decoration: none;
+      transition: all 0.2s;
     }
+    .btn:hover { background: #111; border-color: #444; }
     .btn-primary { background: #fff; color: #000; border: none; }
+    .btn-primary:hover { background: #E5E5EA; }
 
-    .mono { font-family: monospace; color: var(--text-sub); }
+    .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-sub); }
 
-    @media (max-width: 1000px) {
+    @media (max-width: 1100px) {
       .shell { grid-template-columns: 1fr; }
       .sidebar { display: none; }
       .grid-4, .grid-2 { grid-template-columns: 1fr; }
       .main { padding: 24px; }
-      .hero { flex-direction: column; align-items: flex-start; gap: 20px; }
+      .hero { flex-direction: column; align-items: flex-start; gap: 24px; }
     }
   </style>
 </head>
@@ -128,25 +132,31 @@
   {% set maintenance = maintenance | default({}, true) %}
   {% set expiring = expiring_members | default({}, true) %}
   {% set alerts = price_alerts | default({}, true) %}
-  {% set paid_users = paid_users | default([], true) %}
+  {% set paid_users_list = paid_users | default([], true) %}
   {% set notif = notification_settings | default({}, true) %}
   
   {% set m_rev = user_stats.get("estimated_monthly_revenue", 0) or 0 %}
+  {% set a_rev = m_rev * 12 %}
   {% set total_u = user_stats.get("total_users", 0) or 0 %}
+  {% set free_u = user_stats.get("free_users", 0) or 0 %}
   {% set paid_u = (user_stats.get("vip_users", 0) or 0) + (user_stats.get("pro_users", 0) or 0) %}
   
   <div class="shell">
     <aside class="sidebar">
-      <a href="#" class="brand"><div class="brand-icon"></div> Apexify Admin</a>
+      <a href="#" class="brand"><div class="brand-icon">A</div> Apexify Admin</a>
       <nav style="flex-grow: 1;">
-        <a href="#overview" class="nav-item active">Overview</a>
-        <a href="#performance" class="nav-item">Signal Log</a>
-        <a href="#members" class="nav-item">Member Base</a>
-        <a href="#system" class="nav-item">System</a>
+        <a href="#overview" class="nav-item active">Dashboard</a>
+        <a href="#signals" class="nav-item">Signal Performance</a>
+        <a href="#members" class="nav-item">Premium Matrix</a>
+        <a href="#system" class="nav-item">System Monitor</a>
       </nav>
-      <div style="font-size: 12px; color: var(--text-sub); padding: 20px; background: #111; border-radius: 12px;">
-        Status: <span style="color: {{ 'var(--danger)' if maintenance.get('enabled') else 'var(--dime-green)' }}">● {{ 'Maintenance' if maintenance.get('enabled') else 'Online' }}</span>
-        <div style="margin-top: 8px; font-size: 10px; opacity: 0.6;">Admin: {{ admin_id[:12] if admin_id else 'ROOT' }}</div>
+      <div style="padding: 20px; background: #0A0A0A; border-radius: 16px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--text-sub); text-transform: uppercase; margin-bottom: 8px;">System Status</div>
+        <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px;">
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: {{ 'var(--danger)' if maintenance.get('enabled') else 'var(--dime-green)' }}"></div>
+          {{ 'Maintenance' if maintenance.get('enabled') else 'Online' }}
+        </div>
+        <div style="margin-top: 12px; font-size: 10px; opacity: 0.5;" class="mono">Node: {{ admin_id[:12] if admin_id else 'ROOT' }}</div>
       </div>
     </aside>
 
@@ -154,60 +164,60 @@
       <section class="hero" id="overview">
         <div>
           <p class="hero-label">คาดการณ์รายได้รายปี (ARR)</p>
-          <h1 class="hero-value">฿{{ '{:,.0f}'.format(m_rev * 12) }}</h1>
+          <h1 class="hero-value">฿{{ '{:,.0f}'.format(a_rev) }}</h1>
           <p class="hero-sub">↑ เฉลี่ย ฿{{ '{:,.0f}'.format(m_rev / paid_u if paid_u > 0 else 0) }} / สมาชิกพรีเมียม</p>
         </div>
         <div class="btn-group">
           <form method="post" action="{{ url_for('admin_toggle_maintenance') if (request and request.endpoint and 'admin_toggle_maintenance' in request.endpoint) else '#' }}">
-            <button class="btn" type="submit">{{ 'Turn Off' if maintenance.get('enabled') else 'Enable Maintenance' }}</button>
+            <button class="btn" type="submit">Toggle System</button>
           </form>
           <form method="post" action="{{ url_for('admin_download_backup') if (request and request.endpoint and 'admin_download_backup' in request.endpoint) else '#' }}">
-            <button class="btn btn-primary" type="submit">Download DB</button>
+            <button class="btn btn-primary" type="submit">Backup Data</button>
           </form>
         </div>
       </section>
 
       <div class="grid-4">
         <div class="card">
-          <p class="card-label">Active Subs</p>
-          <p class="card-value">{{ paid_u }}</p>
-          <p class="card-footer">{{ user_stats.get("vip_users", 0) }} VIP / {{ user_stats.get("pro_users", 0) }} PRO</p>
+          <p class="card-label">Monthly Revenue</p>
+          <p class="card-value">฿{{ '{:,.0f}'.format(m_rev) }}</p>
+          <p class="card-footer">จากสมาชิก {{ paid_u }} ราย</p>
         </div>
         <div class="card">
-          <p class="card-label">Alert Traffic</p>
+          <p class="card-label">Active Alerts</p>
           <p class="card-value">{{ alerts.get("total_alerts", 0) }}</p>
           <p class="card-footer">จาก {{ alerts.get("unique_users", 0) }} ผู้ใช้งาน</p>
         </div>
         <div class="card">
           <p class="card-label">Win Rate</p>
           <p class="card-value" style="color: var(--dime-green)">{{ '%.1f'|format(performance.get("win_rate", 0)) }}%</p>
-          <p class="card-footer">สัญญาณแม่นยำล่าสุด</p>
+          <p class="card-footer">จาก {{ performance.get("total_count", 0) }} สัญญาณล่าสุด</p>
         </div>
         <div class="card">
           <p class="card-label">Risk (7 Days)</p>
           <p class="card-value" style="color: var(--danger)">฿{{ '{:,.0f}'.format(expiring.get("revenue_at_risk_7_days", 0)) }}</p>
-          <p class="card-footer">ยอดสมาชิกที่จะหมดอายุ</p>
+          <p class="card-footer">ยอดที่จะหมดอายุใน 7 วัน</p>
         </div>
       </div>
 
       <div class="grid-2">
         <div class="card">
-          <p class="card-label">User Distribution</p>
-          <div class="chart-container"><canvas id="userChart"></canvas></div>
+          <p class="card-label">User distribution</p>
+          <div style="height: 240px;"><canvas id="userChart"></canvas></div>
         </div>
         <div class="card">
-          <p class="card-label">Digest Frequency (Notification)</p>
-          <div class="chart-container"><canvas id="digestChart"></canvas></div>
+          <p class="card-label">Notification Digest Logic</p>
+          <div style="height: 240px;"><canvas id="digestChart"></canvas></div>
         </div>
       </div>
 
       <div class="grid-2">
         <div class="card">
-          <p class="card-label">🔥 Hot Symbols (Watchlist)</p>
-          <div style="margin-top: 16px;">
+          <p class="card-label">🔥 Hot Symbols (Watchlist Focus)</p>
+          <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 16px;">
             {% for item in top_watched.get("items", [])[:5] %}
-              <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #222;">
-                <span style="font-weight: 700;">{{ item.symbol }}</span>
+              <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #1A1A1A;">
+                <span style="font-weight: 800; font-size: 16px;">{{ item.symbol }}</span>
                 <span style="color: var(--dime-green); font-weight: 700;">{{ item.watchers }} Users</span>
               </div>
             {% endfor %}
@@ -215,51 +225,51 @@
         </div>
 
         <div class="card" id="system">
-          <p class="card-label">System Integrity</p>
+          <p class="card-label">System Health Monitor</p>
           <div style="margin-top: 16px;">
             <div class="p-bar-row">
               <div class="p-bar-info"><span>CPU Usage</span><span>{{ sys.get("cpu_usage", 0) }}%</span></div>
               <div class="p-bar-bg"><div class="p-bar-fill" style="width: {{ sys.get('cpu_usage', 0) }}%"></div></div>
             </div>
             <div class="p-bar-row">
-              <div class="p-bar-info"><span>Memory (RAM)</span><span>{{ sys.get("ram_percent", 0) }}%</span></div>
+              <div class="p-bar-info"><span>RAM ({{ '%.1f'|format(sys.get("ram_used_gb", 0)) }} / {{ '%.1f'|format(sys.get("ram_total_gb", 0)) }} GB)</span><span>{{ sys.get("ram_percent", 0) }}%</span></div>
               <div class="p-bar-bg"><div class="p-bar-fill" style="width: {{ sys.get('ram_percent', 0) }}%; background: var(--accent-purple);"></div></div>
             </div>
             <div class="p-bar-row">
-              <div class="p-bar-info"><span>Disk Usage</span><span>{{ sys.get("disk_percent", 0) }}%</span></div>
+              <div class="p-bar-info"><span>Disk Storage</span><span>{{ sys.get("disk_percent", 0) }}%</span></div>
               <div class="p-bar-bg"><div class="p-bar-fill" style="width: {{ sys.get('disk_percent', 0) }}%; background: var(--text-sub);"></div></div>
             </div>
-            <div style="margin-top: 20px; font-size: 13px; font-weight: 700; color: var(--accent-blue);">
-              UPTIME: {{ sys.get("uptime_hours", 0) }} HOURS
+            <div style="margin-top: 24px; padding: 12px; background: rgba(10, 132, 255, 0.05); border-radius: 10px; border: 1px solid rgba(10, 132, 255, 0.1); text-align: center;">
+              <span style="font-size: 12px; color: var(--accent-blue); font-weight: 800;">UPTIME: {{ sys.get("uptime_hours", 0) }} HOURS ONLINE</span>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Signals Table -->
-      <div class="table-container" id="performance">
-        <div class="table-header">Signal Execution Stream <span class="badge badge-blue">Live</span></div>
+      <div class="table-container" id="signals">
+        <div class="table-header">Signal Performance Stream <span class="badge badge-success">Live Feed</span></div>
         <div style="overflow-x: auto;">
           <table>
             <thead>
               <tr>
                 <th>Symbol</th>
-                <th>Logic</th>
+                <th>Logic Path</th>
                 <th>Performance</th>
                 <th>Result</th>
-                <th>Time</th>
+                <th>Execution Time</th>
               </tr>
             </thead>
             <tbody>
-              {% for item in performance.get("entries", [])[:8] %}
+              {% for item in performance.get("entries", [])[:10] %}
                 <tr>
-                  <td style="font-weight: 700;">{{ item.symbol }}</td>
+                  <td style="font-weight: 800;">{{ item.symbol }}</td>
                   <td><span class="badge badge-blue">{{ item.alert_type }}</span></td>
-                  <td style="font-weight: 700; color: {{ 'var(--dime-green)' if (item.diff_pct | default(0)) > 0 else 'var(--danger)' }}">
+                  <td style="font-weight: 800; color: {{ 'var(--dime-green)' if (item.diff_pct | default(0)) > 0 else 'var(--danger)' }}">
                     {{ '%+.2f'|format(item.diff_pct | default(0)) }}%
                   </td>
                   <td><span class="badge {{ 'badge-success' if item.is_win else 'badge-danger' }}">{{ 'WIN' if item.is_win else 'MISS' }}</span></td>
-                  <td class="mono" style="font-size: 12px;">{{ item.timestamp }}</td>
+                  <td class="mono">{{ item.timestamp }}</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -269,19 +279,19 @@
 
       <!-- Members Table -->
       <div class="table-container" id="members">
-        <div class="table-header">Premium User Matrix <span class="badge badge-purple">Active Subs</span></div>
+        <div class="table-header">Premium Member Matrix <span class="badge badge-purple">{{ paid_u }} Active</span></div>
         <div style="overflow-x: auto;">
           <table>
             <thead>
               <tr>
-                <th>User ID</th>
-                <th>Role</th>
+                <th>Identity Hash</th>
+                <th>Clearance</th>
                 <th>Expiration</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
-              {% for user in paid_users %}
+              {% for user in paid_users_list %}
                 <tr>
                   <td class="mono">{{ user.user_id }}</td>
                   <td><span class="badge {{ 'badge-purple' if user.role == 'pro' else 'badge-blue' }}">{{ user.role|upper }}</span></td>
@@ -298,7 +308,8 @@
   </div>
 
   <script>
-    const commonOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } };
+    Chart.defaults.color = '#8E8E93';
+    Chart.defaults.font.family = 'Inter';
 
     // 1. User Distribution
     new Chart(document.getElementById('userChart'), {
@@ -306,12 +317,16 @@
       data: {
         labels: ['Free', 'VIP', 'PRO'],
         datasets: [{
-          data: [{{ user_stats.get("free_users", 0) }}, {{ user_stats.get("vip_users", 0) }}, {{ user_stats.get("pro_users", 0) }}],
-          backgroundColor: ['#222', '#00C076', '#AF52DE'],
-          borderWidth: 0, cutout: '75%'
+          data: [{{ free_u }}, {{ user_stats.get("vip_users", 0) }}, {{ user_stats.get("pro_users", 0) }}],
+          backgroundColor: ['#1C1C1E', '#00C076', '#BF5AF2'],
+          borderWidth: 0, cutout: '80%'
         }]
       },
-      options: { ...commonOptions, plugins: { legend: { display: true, position: 'bottom', labels: { color: '#888', usePointStyle: true, padding: 20 } } } }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 25, font: { weight: '600' } } } }
+      }
     });
 
     // 2. Digest Distribution
@@ -321,14 +336,16 @@
         labels: [{% for b in notif.get("distribution", []) %}'{{ b.label }}',{% endfor %}],
         datasets: [{
           data: [{% for b in notif.get("distribution", []) %}{{ b.count }},{% endfor %}],
-          backgroundColor: '#007AFF', borderRadius: 6
+          backgroundColor: '#0A84FF', borderRadius: 8, barThickness: 24
         }]
       },
       options: {
-        ...commonOptions,
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
         scales: {
-          y: { grid: { color: '#1a1a1a' }, ticks: { color: '#888', stepSize: 1 } },
-          x: { grid: { display: false }, ticks: { color: '#888' } }
+          y: { grid: { color: '#1A1A1A' }, border: { display: false } },
+          x: { grid: { display: false }, border: { display: false } }
         }
       }
     });
