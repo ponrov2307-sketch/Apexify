@@ -105,6 +105,10 @@ def admin_dashboard():
         user_stats=snapshot["user_stats"],
         performance=snapshot["performance"],
         paid_users=snapshot["paid_users"],
+        top_watched=snapshot["top_watched"],
+        expiring_members=snapshot["expiring_members"],
+        price_alerts=snapshot["price_alerts"],
+        notification_settings=snapshot["notification_settings"],
         generated_at=snapshot["generated_at"],
     )
 

@@ -105,6 +105,24 @@ def _format_expiry_date(expiry):
     return str(expiry)[:10]
 
 
+def _coerce_datetime(value):
+    if value is None:
+        return None
+    if hasattr(value, "year") and hasattr(value, "month") and hasattr(value, "day"):
+        return value
+
+    raw = str(value).strip()
+    if not raw:
+        return None
+
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(raw[:19] if fmt.endswith("%S") else raw[:10], fmt)
+        except ValueError:
+            continue
+    return None
+
+
 def get_paid_users_snapshot():
     conn = get_connection()
     cursor = conn.cursor()
@@ -130,6 +148,179 @@ def get_paid_users_snapshot():
         )
 
     return items
+
+
+def get_top_watched_symbols_snapshot(limit=8):
+    row_limit = max(1, int(limit))
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT COUNT(*) FROM watchlists")
+        total_watch_entries = int(cursor.fetchone()[0] or 0)
+
+        cursor.execute("SELECT COUNT(DISTINCT symbol) FROM watchlists")
+        unique_symbols = int(cursor.fetchone()[0] or 0)
+
+        cursor.execute(
+            """
+            SELECT symbol, COUNT(*) AS watcher_count
+            FROM watchlists
+            GROUP BY symbol
+            ORDER BY watcher_count DESC, symbol ASC
+            LIMIT %s
+            """,
+            (row_limit,),
+        )
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
+
+    items = [{"symbol": str(symbol), "watchers": int(watcher_count)} for symbol, watcher_count in rows]
+    return {
+        "total_watch_entries": total_watch_entries,
+        "unique_symbols": unique_symbols,
+        "items": items,
+    }
+
+
+def get_expiring_members_snapshot(limit=8):
+    row_limit = max(1, int(limit))
+    now = datetime.now()
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT user_id, role, expiry_date FROM users WHERE role IN ('pro', 'vip') ORDER BY expiry_date ASC"
+        )
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
+
+    expiring_items = []
+    expiring_3_days = 0
+    expiring_7_days = 0
+    revenue_at_risk_7_days = 0
+
+    for user_id, role, expiry in rows:
+        active_role = check_subscription(user_id)
+        if active_role not in ("vip", "pro"):
+            continue
+
+        expiry_dt = _coerce_datetime(expiry)
+        if expiry_dt is None:
+            continue
+
+        days_left = max(0, int((expiry_dt - now).total_seconds() // 86400))
+        if expiry_dt < now:
+            continue
+
+        if days_left <= 3:
+            expiring_3_days += 1
+        if days_left <= 7:
+            expiring_7_days += 1
+            revenue_at_risk_7_days += PRO_MONTHLY_PRICE if str(role) == "pro" else VIP_MONTHLY_PRICE
+
+        if days_left <= 7:
+            expiring_items.append(
+                {
+                    "user_id": str(user_id),
+                    "role": str(role),
+                    "expiry_date": _format_expiry_date(expiry_dt),
+                    "days_left": days_left,
+                }
+            )
+
+    expiring_items.sort(key=lambda item: (item["days_left"], item["role"], item["user_id"]))
+    return {
+        "expiring_3_days": expiring_3_days,
+        "expiring_7_days": expiring_7_days,
+        "revenue_at_risk_7_days": revenue_at_risk_7_days,
+        "items": expiring_items[:row_limit],
+    }
+
+
+def get_active_price_alerts_snapshot(limit=8):
+    row_limit = max(1, int(limit))
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT COUNT(*) FROM user_price_alerts WHERE is_active = 1")
+        total_alerts = int(cursor.fetchone()[0] or 0)
+
+        cursor.execute("SELECT COUNT(DISTINCT user_id) FROM user_price_alerts WHERE is_active = 1")
+        unique_users = int(cursor.fetchone()[0] or 0)
+
+        cursor.execute(
+            """
+            SELECT symbol, COUNT(*) AS alert_count
+            FROM user_price_alerts
+            WHERE is_active = 1
+            GROUP BY symbol
+            ORDER BY alert_count DESC, symbol ASC
+            LIMIT %s
+            """,
+            (row_limit,),
+        )
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
+
+    items = [{"symbol": str(symbol), "alerts": int(alert_count)} for symbol, alert_count in rows]
+    return {
+        "total_alerts": total_alerts,
+        "unique_users": unique_users,
+        "items": items,
+    }
+
+
+def get_notification_settings_snapshot():
+    digest_buckets = {1: 0, 4: 0, 8: 0, 24: 0}
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT COUNT(*),
+                   COALESCE(SUM(CASE WHEN notifications_enabled = FALSE THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN news_start_hour <> 7 OR news_end_hour <> 22 THEN 1 ELSE 0 END), 0)
+            FROM user_settings
+            """
+        )
+        total_settings, notifications_off, custom_windows = cursor.fetchone()
+
+        cursor.execute(
+            """
+            SELECT digest_frequency_hours, COUNT(*)
+            FROM user_settings
+            GROUP BY digest_frequency_hours
+            ORDER BY digest_frequency_hours ASC
+            """
+        )
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
+
+    for frequency, count in rows:
+        try:
+            digest_buckets[int(frequency)] = int(count)
+        except (TypeError, ValueError):
+            continue
+
+    distribution = [
+        {"label": "1h", "count": digest_buckets[1]},
+        {"label": "4h", "count": digest_buckets[4]},
+        {"label": "8h", "count": digest_buckets[8]},
+        {"label": "24h", "count": digest_buckets[24]},
+    ]
+
+    return {
+        "total_settings": int(total_settings or 0),
+        "notifications_off": int(notifications_off or 0),
+        "custom_windows": int(custom_windows or 0),
+        "distribution": distribution,
+    }
 
 
 def get_performance_snapshot(limit=15):
@@ -221,5 +412,9 @@ def get_admin_dashboard_snapshot(limit=15):
         "user_stats": get_user_stats_snapshot(),
         "performance": get_performance_snapshot(limit=limit),
         "paid_users": get_paid_users_snapshot(),
+        "top_watched": get_top_watched_symbols_snapshot(),
+        "expiring_members": get_expiring_members_snapshot(),
+        "price_alerts": get_active_price_alerts_snapshot(),
+        "notification_settings": get_notification_settings_snapshot(),
         "generated_at": datetime.now(),
     }
