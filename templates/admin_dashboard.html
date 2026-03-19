@@ -3,364 +3,290 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Apexify Admin - Dime Style</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>Apexify Admin - Dime Dark Analytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
-      /* Dime App Color Palette */
+      /* Dime Dark Palette */
+      --bg: #09090B;
+      --card: #121214;
+      --card-hover: #18181B;
+      --border: rgba(255, 255, 255, 0.08);
       --dime-green: #00C076;
-      --dime-green-soft: rgba(0, 192, 118, 0.1);
-      --dime-bg: #F2F4F7;
-      --dime-card: #FFFFFF;
-      --dime-text-main: #1A1C1E;
-      --dime-text-sub: #6C7278;
-      --dime-red: #FF4D4D;
-      --dime-red-soft: rgba(255, 77, 77, 0.1);
-      --dime-blue: #007AFF;
-      --dime-border: #E5E9EB;
+      --dime-green-glow: rgba(0, 192, 118, 0.2);
+      --text-main: #F4F4F5;
+      --text-sub: #A1A1AA;
+      --accent-blue: #3B82F6;
+      --accent-purple: #A855F7;
+      --danger: #EF4444;
       
-      --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.04);
-      --shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.08);
-      
-      --radius-xl: 28px;
-      --radius-lg: 20px;
-      --radius-md: 14px;
-      
-      --font-family: 'Inter', sans-serif;
+      --radius-xl: 24px;
+      --radius-lg: 16px;
+      --shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
     }
 
     * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
-    html { scroll-behavior: smooth; }
-
     body {
       margin: 0;
-      color: var(--dime-text-main);
-      font-family: var(--font-family);
-      background-color: var(--dime-bg);
-      min-height: 100vh;
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
     }
-
-    /* Scrollbar */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 10px; }
 
     /* Layout */
-    .shell {
-      display: grid;
-      grid-template-columns: 260px 1fr;
-      min-height: 100vh;
-    }
-
-    /* Sidebar - Clean Style */
+    .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
     .sidebar {
-      background: var(--dime-card);
-      padding: 40px 24px;
+      background: var(--bg);
+      border-right: 1px solid var(--border);
+      padding: 32px 20px;
       display: flex;
       flex-direction: column;
-      border-right: 1px solid var(--dime-border);
       position: sticky;
       top: 0;
       height: 100vh;
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 48px;
-      text-decoration: none;
-    }
+    .main { padding: 40px; max-width: 1500px; margin: 0 auto; width: 100%; }
 
-    .brand-logo {
-      width: 40px; height: 40px;
-      background: var(--dime-green);
-      border-radius: 12px;
-      display: grid; place-items: center;
-      color: #fff; font-weight: 800; font-size: 20px;
+    /* Brand */
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; text-decoration: none; }
+    .brand-logo { 
+      width: 36px; height: 36px; background: var(--dime-green); border-radius: 10px; 
+      display: grid; place-items: center; color: #000; font-weight: 800; font-size: 18px;
     }
+    .brand-name { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
 
-    .brand-name {
-      font-size: 22px; font-weight: 800; color: var(--dime-text-main);
-      letter-spacing: -0.5px;
-    }
-
-    .nav-list { display: flex; flex-direction: column; gap: 8px; flex-grow: 1; }
-    
+    /* Nav */
+    .nav-list { display: flex; flex-direction: column; gap: 6px; flex-grow: 1; }
     .nav-item {
-      display: flex; align-items: center; gap: 14px;
-      padding: 14px 18px; text-decoration: none;
-      color: var(--dime-text-sub); font-weight: 600;
-      border-radius: var(--radius-md); transition: all 0.2s;
+      display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+      color: var(--text-sub); text-decoration: none; border-radius: 12px;
+      font-weight: 600; font-size: 14px; transition: all 0.2s;
     }
+    .nav-item:hover, .nav-item.active { color: #fff; background: rgba(255,255,255,0.05); }
+    .nav-item.active { color: var(--dime-green); background: var(--dime-green-glow); }
 
-    .nav-item:hover, .nav-item.active {
-      color: var(--dime-green);
-      background: var(--dime-green-soft);
-    }
+    /* Header Summary */
+    .hero-summary { margin-bottom: 48px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .hero-label { color: var(--text-sub); font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+    .hero-value { font-family: 'Space Grotesk', sans-serif; font-size: 56px; margin: 0; letter-spacing: -2px; }
+    .hero-delta { color: var(--dime-green); font-weight: 700; font-size: 16px; margin-top: 8px; display: flex; align-items: center; gap: 4px; }
 
-    .sidebar-footer {
-      padding-top: 24px; border-top: 1px solid var(--dime-border);
-    }
-
-    /* Main Content */
-    .main { padding: 40px 48px; max-width: 1400px; margin: 0 auto; width: 100%; }
-
-    /* Header Section */
-    .header-group { margin-bottom: 40px; }
-    .header-label { color: var(--dime-text-sub); font-size: 14px; font-weight: 500; margin-bottom: 8px; }
-    .header-value { font-size: 48px; font-weight: 800; letter-spacing: -1.5px; margin: 0; }
-    .header-sub-value { color: var(--dime-green); font-weight: 700; font-size: 16px; margin-top: 8px; }
-
-    /* Card Grid */
-    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 32px; }
-    
+    /* Glass Cards */
+    .grid-bento { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 32px; }
     .card {
-      background: var(--dime-card);
-      border-radius: var(--radius-lg);
-      padding: 28px;
-      box-shadow: var(--shadow-soft);
-      transition: transform 0.2s, box-shadow 0.2s;
-      border: 1px solid transparent;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      transition: all 0.3s ease;
     }
+    .card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-2px); background: var(--card-hover); }
 
-    .card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); border-color: var(--dime-green-soft); }
+    .card-title { color: var(--text-sub); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
+    .card-value { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+    .card-sub { font-size: 13px; color: var(--text-sub); }
 
-    .card-label { color: var(--dime-text-sub); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-    .card-value { font-size: 28px; font-weight: 800; margin: 12px 0; letter-spacing: -0.5px; }
-    .card-footer { font-size: 13px; color: var(--dime-text-sub); font-weight: 500; }
+    /* Analytics Section */
+    .analytics-row { display: grid; grid-template-columns: 1fr 1.5fr; gap: 24px; margin-bottom: 32px; }
+    .chart-box { height: 300px; width: 100%; position: relative; margin-top: 20px; }
 
-    /* Telemetry Bars - Dime style */
-    .telemetry-group { display: flex; flex-direction: column; gap: 18px; }
-    .telemetry-item { display: grid; grid-template-columns: 140px 1fr 50px; align-items: center; gap: 16px; }
-    .telemetry-label { font-size: 13px; font-weight: 600; color: var(--dime-text-main); }
-    .telemetry-bar-bg { height: 8px; background: #E9ECEF; border-radius: 10px; overflow: hidden; }
-    .telemetry-bar-fill { height: 100%; background: var(--dime-green); border-radius: 10px; transition: width 1s ease-out; }
-    .telemetry-pct { font-size: 13px; font-weight: 700; color: var(--dime-text-main); text-align: right; }
-
-    /* Analysis Panels */
-    .analysis-bento { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; margin-bottom: 32px; }
-
-    /* Transaction-like Table */
-    .table-card { padding: 0; overflow: hidden; }
-    .table-header { padding: 24px 28px; border-bottom: 1px solid var(--dime-border); display: flex; justify-content: space-between; align-items: center; }
-    .table-title { margin: 0; font-size: 18px; font-weight: 700; }
-    
+    /* Tables */
+    .table-container { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); overflow: hidden; }
+    .table-head { padding: 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
     table { width: 100%; border-collapse: collapse; }
-    th { text-align: left; padding: 16px 28px; color: var(--dime-text-sub); font-size: 12px; font-weight: 700; text-transform: uppercase; background: #FAFAFB; }
-    td { padding: 20px 28px; border-bottom: 1px solid var(--dime-border); font-size: 14px; }
+    th { text-align: left; padding: 16px 24px; color: var(--text-sub); font-size: 11px; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid var(--border); }
+    td { padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 14px; }
     tr:last-child td { border-bottom: none; }
     
-    .symbol-box { font-weight: 800; color: var(--dime-text-main); }
-    .type-badge { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; }
-    .badge-green { background: var(--dime-green-soft); color: var(--dime-green); }
-    .badge-red { background: var(--dime-red-soft); color: var(--dime-red); }
-    .badge-blue { background: rgba(0, 122, 255, 0.1); color: var(--dime-blue); }
+    .symbol-tag { font-weight: 800; color: #fff; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 6px; }
+    .badge { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .bg-green { background: rgba(0, 192, 118, 0.1); color: var(--dime-green); }
+    .bg-red { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+    .bg-blue { background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); }
 
-    /* Actions Header */
-    .actions-bar { display: flex; gap: 12px; }
+    /* Progress Bars */
+    .p-bar-group { display: flex; flex-direction: column; gap: 16px; }
+    .p-bar-item { display: flex; flex-direction: column; gap: 8px; }
+    .p-bar-labels { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+    .p-bar-bg { height: 6px; background: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; }
+    .p-bar-fill { height: 100%; background: var(--dime-green); border-radius: 10px; }
+
+    /* Action Buttons */
+    .btn-group { display: flex; gap: 10px; }
     .btn {
-      padding: 10px 20px; border-radius: 12px; border: 1px solid var(--dime-border);
-      background: #fff; color: var(--dime-text-main); font-weight: 700; font-size: 14px;
-      cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;
-      text-decoration: none;
+      padding: 10px 18px; border-radius: 12px; border: 1px solid var(--border);
+      background: transparent; color: #fff; font-weight: 700; font-size: 13px;
+      cursor: pointer; transition: all 0.2s; text-decoration: none;
     }
-    .btn:hover { background: #F8F9FA; border-color: #D1D5DB; }
-    .btn-primary { background: var(--dime-text-main); color: #fff; border: none; }
-    .btn-primary:hover { background: #000; }
-    .btn-danger { color: var(--dime-red); border-color: var(--dime-red-soft); }
-    .btn-danger:hover { background: var(--dime-red-soft); }
+    .btn:hover { background: rgba(255,255,255,0.05); }
+    .btn-primary { background: #fff; color: #000; border: none; }
+    .btn-primary:hover { background: #E4E4E7; }
 
-    /* Responsive */
-    @media (max-width: 1100px) {
+    @media (max-width: 1200px) {
       .shell { grid-template-columns: 1fr; }
       .sidebar { display: none; }
-      .grid-3, .analysis-bento { grid-template-columns: 1fr; }
-      .main { padding: 24px; }
+      .grid-bento { grid-template-columns: repeat(2, 1fr); }
+      .analytics-row { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Data Extraction & Analysis Logic -->
   {% set user_stats = user_stats | default({}, true) %}
-  {% set expiring_members = expiring_members | default({}, true) %}
-  {% set price_alerts = price_alerts | default({}, true) %}
   {% set performance = performance | default({}, true) %}
   {% set top_watched = top_watched | default({}, true) %}
-  {% set system_health = system_health | default({}, true) %}
   {% set maintenance = maintenance | default({}, true) %}
-
+  {% set sys = system_health | default({}, true) %}
+  {% set expiring = expiring_members | default({}, true) %}
+  
+  {% set monthly_revenue = user_stats.get("estimated_monthly_revenue", 0) or 0 %}
+  {% set annual_revenue = monthly_revenue * 12 %}
   {% set total_u = user_stats.get("total_users", 0) or 0 %}
+  {% set paid_u = (user_stats.get("vip_users", 0) or 0) + (user_stats.get("pro_users", 0) or 0) %}
   {% set free_u = user_stats.get("free_users", 0) or 0 %}
-  {% set vip_u = user_stats.get("vip_users", 0) or 0 %}
-  {% set pro_u = user_stats.get("pro_users", 0) or 0 %}
-  {% set monthly_rev = user_stats.get("estimated_monthly_revenue", 0) or 0 %}
   
-  {# Analysis: Revenue Projection #}
-  {% set annual_run_rate = monthly_rev * 12 %}
-  {% set arpu = (monthly_rev / total_u) if total_u > 0 else 0 %}
-  
-  {# Analysis: Conversion Potential #}
-  {% set total_watch_entries = top_watched.get("total_watch_entries", 0) or 0 %}
-  {% set engagement_score = (total_watch_entries / total_u * 10) if total_u > 0 else 0 %}
-  {% set conv_potential = (free_u * 0.15) | round | int %}{# คาดการณ์ว่า 15% ของ free users ที่ active จะเปลี่ยนเป็น vip #}
-
-  {# System Health #}
-  {% set cpu = system_health.get("cpu_usage", 0) or 0 %}
-  {% set ram = system_health.get("ram_percent", 0) or 0 %}
-  {% set disk = system_health.get("disk_percent", 0) or 0 %}
-  {% set uptime_h = system_health.get("uptime_hours", 0) or 0 %}
+  {# Analytics #}
+  {% set conversion_potential = (free_u * 0.12) | round | int %}
+  {% set win_rate = performance.get("win_rate", 0) or 0 %}
+  {% set revenue_at_risk = expiring.get("revenue_at_risk_7_days", 0) or 0 %}
 
   <div class="shell">
     <aside class="sidebar">
       <a href="#" class="brand">
         <div class="brand-logo">A</div>
-        <span class="brand-name">Apexify</span>
+        <span class="brand-name">Apexify Admin</span>
       </a>
-
       <nav class="nav-list">
-        <a href="#overview" class="nav-item active">Dashboard</a>
-        <a href="#analysis" class="nav-item">Analytics</a>
-        <a href="#performance" class="nav-item">Performance</a>
-        <a href="#users" class="nav-item">Members</a>
-        <a href="#system" class="nav-item">System</a>
+        <a href="#overview" class="nav-item active">Overview</a>
+        <a href="#performance" class="nav-item">Signal Performance</a>
+        <a href="#users" class="nav-item">User Management</a>
+        <a href="#system" class="nav-item">System Integrity</a>
       </nav>
-
-      <div class="sidebar-footer">
-        <div style="font-size: 12px; color: var(--dime-text-sub); margin-bottom: 12px;">Admin Node: {{ admin_id[:12] if admin_id else 'ROOT' }}</div>
-        <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;">
-          <div style="width: 8px; height: 8px; border-radius: 50%; background: {{ 'var(--dime-red)' if maintenance.get('enabled') else 'var(--dime-green)' }}"></div>
-          {{ 'Maintenance' if maintenance.get('enabled') else 'System Online' }}
+      <div style="margin-top: auto; padding: 20px; background: rgba(255,255,255,0.03); border-radius: 16px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--text-sub); text-transform: uppercase; margin-bottom: 8px;">System Mode</div>
+        <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px;">
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: {{ 'var(--danger)' if maintenance.get('enabled') else 'var(--dime-green)' }}"></div>
+          {{ 'Maintenance' if maintenance.get('enabled') else 'Live Environment' }}
         </div>
       </div>
     </aside>
 
     <main class="main">
-      <!-- Dime Style Main Balance Header -->
-      <section class="header-group" id="overview">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-          <div>
-            <p class="header-label">คาดการณ์รายได้รายปี (Annual Run Rate)</p>
-            <h1 class="header-value">฿{{ '{:,.0f}'.format(annual_run_rate) }}</h1>
-            <p class="header-sub-value">↑ เฉลี่ย ฿{{ '{:,.2f}'.format(arpu) }} ต่อผู้ใช้</p>
+      <!-- Main Hero -->
+      <section class="hero-summary" id="overview">
+        <div>
+          <p class="hero-label">คาดการณ์รายได้รายปี (Annual Run Rate)</p>
+          <h1 class="hero-value">฿{{ '{:,.0f}'.format(annual_revenue) }}</h1>
+          <div class="hero-delta">
+            <span>↑ Monthly: ฿{{ '{:,.0f}'.format(monthly_revenue) }}</span>
+            <span style="color: var(--text-sub); font-weight: 400; margin-left: 8px;">• ARR based on {{ paid_u }} active subs</span>
           </div>
-          <div class="actions-bar">
-            <form method="post" action="{{ url_for('admin_toggle_maintenance') if (request and request.endpoint and 'admin_toggle_maintenance' in request.endpoint) else '#' }}">
-              <button class="btn {{ 'btn-danger' if maintenance.get('enabled') else '' }}" type="submit">
-                {{ 'ปิดระบบ' if maintenance.get('enabled') else 'เปิด Maintenance' }}
-              </button>
-            </form>
-            <form method="post" action="{{ url_for('admin_download_backup') if (request and request.endpoint and 'admin_download_backup' in request.endpoint) else '#' }}">
-              <button class="btn btn-primary" type="submit">Download DB</button>
-            </form>
-          </div>
+        </div>
+        <div class="btn-group">
+          <form method="post" action="{{ url_for('admin_toggle_maintenance') if (request and request.endpoint and 'admin_toggle_maintenance' in request.endpoint) else '#' }}">
+            <button class="btn" type="submit">{{ 'Turn Off Maintenance' if maintenance.get('enabled') else 'Engage Maintenance' }}</button>
+          </form>
+          <form method="post" action="{{ url_for('admin_download_backup') if (request and request.endpoint and 'admin_download_backup' in request.endpoint) else '#' }}">
+            <button class="btn btn-primary" type="submit">Download DB</button>
+          </form>
         </div>
       </section>
 
-      <!-- KPI Grid -->
-      <div class="grid-3">
+      <!-- Key Metrics Grid -->
+      <div class="grid-bento">
         <div class="card">
-          <p class="card-label">Monthly Revenue</p>
-          <p class="card-value">฿{{ '{:,.0f}'.format(monthly_rev) }}</p>
-          <p class="card-footer">จากสมาชิกชำระเงิน {{ vip_u + pro_u }} ราย</p>
+          <p class="card-title">User Base</p>
+          <p class="card-value">{{ total_u }}</p>
+          <p class="card-sub">{{ free_u }} Free / {{ paid_u }} Paid</p>
         </div>
         <div class="card">
-          <p class="card-label">Conversion Potential</p>
-          <p class="card-value">{{ conv_potential }} ราย</p>
-          <p class="card-footer">โอกาสจากผู้ใช้ฟรีที่มี Engagement สูง</p>
+          <p class="card-title">Win Rate</p>
+          <p class="card-value" style="color: var(--dime-green)">{{ '%.1f'|format(win_rate) }}%</p>
+          <p class="card-sub">จากสัญญาณล่าสุด {{ performance.get("total_count", 0) }} ตัว</p>
         </div>
         <div class="card">
-          <p class="card-label">Win Rate (Total)</p>
-          <p class="card-value" style="color: var(--dime-green)">{{ '%.1f'|format(performance.get("win_rate", 0)) }}%</p>
-          <p class="card-footer">จาก {{ performance.get("total_count", 0) }} สัญญาณล่าสุด</p>
+          <p class="card-title">Conversion Focus</p>
+          <p class="card-value" style="color: var(--accent-purple)">{{ conversion_potential }}</p>
+          <p class="card-sub">High Engagement Free Users</p>
+        </div>
+        <div class="card">
+          <p class="card-title">Revenue at Risk</p>
+          <p class="card-value" style="color: var(--danger)">฿{{ '{:,.0f}'.format(revenue_at_risk) }}</p>
+          <p class="card-sub">Expiring within 7 days</p>
         </div>
       </div>
 
-      <!-- Advanced Analysis Bento -->
-      <div class="analysis-bento" id="analysis">
-        <!-- Signal Accuracy by Type -->
+      <!-- Analytics Row with Charts -->
+      <div class="analytics-row">
+        <!-- Chart 1: User Distribution -->
         <div class="card">
-          <div class="panel-header">
-            <h3 class="panel-title">Signal Intelligence</h3>
+          <p class="card-title">User Engagement Distribution</p>
+          <div class="chart-box">
+            <canvas id="userChart"></canvas>
           </div>
-          <div class="telemetry-group">
-            {# Grouping Logic Simulation #}
-            {% set logic_stats = [
-              {"label": "RSI / Oversold", "val": 72, "count": 45},
-              {"label": "Golden Cross", "val": 64, "count": 28},
-              {"label": "Price Breakout", "val": 58, "count": 12},
-              {"label": "Volume Surge", "val": 81, "count": 9}
-            ] %}
-            {% for item in logic_stats %}
-              <div class="telemetry-item">
-                <span class="telemetry-label">{{ item.label }}</span>
-                <div class="telemetry-bar-bg">
-                  <div class="telemetry-bar-fill" style="width: {{ item.val }}%; opacity: {{ (item.val/100) + 0.2 }};"></div>
+        </div>
+        <!-- Chart 2: Signal Accuracy by Logic -->
+        <div class="card">
+          <p class="card-title">Signal Success by Algorithm Type</p>
+          <div class="chart-box">
+            <canvas id="logicChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Market & System Row -->
+      <div class="analytics-row">
+        <!-- Market Opportunity List -->
+        <div class="card">
+          <p class="card-title">Hot Market Symbols (Top Watchlist)</p>
+          <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 20px;">
+            {% for item in top_watched.get("items", [])[:6] %}
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid var(--border);">
+                <div>
+                  <span class="symbol-tag">{{ item.symbol }}</span>
+                  <span style="font-size: 12px; color: var(--text-sub); margin-left: 10px;">Market Interest</span>
                 </div>
-                <span class="telemetry-pct">{{ item.val }}%</span>
+                <div style="text-align: right;">
+                  <div style="font-weight: 800; color: var(--dime-green);">{{ item.watchers }}</div>
+                  <div style="font-size: 10px; color: var(--text-sub); text-transform: uppercase;">Watchers</div>
+                </div>
               </div>
             {% endfor %}
           </div>
-          <p style="margin-top: 24px; font-size: 13px; color: var(--dime-text-sub);">
-            * วิเคราะห์ความแม่นยำแยกตามอัลกอริทึม เพื่อปรับปรุงประสิทธิภาพโมเดล AI
-          </p>
         </div>
 
-        <!-- Sales Opportunity -->
-        <div class="card" style="background: var(--dime-text-main); color: #fff;">
-          <p class="card-label" style="color: rgba(255,255,255,0.6)">Sales Opportunity</p>
-          <h3 style="font-size: 24px; margin: 12px 0;">Hot Market Symbols</h3>
-          <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 20px;">
-            {% for item in top_watched.get("items", [])[:4] %}
-              <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                <span style="font-weight: 800; font-size: 16px;">{{ item.symbol }}</span>
-                <span style="color: var(--dime-green); font-weight: 700;">{{ item.watchers }} Users</span>
-              </div>
-            {% endfor %}
-          </div>
-          <p style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 20px;">
-            กลุ่มหุ้นที่มีคนเฝ้าดูมากที่สุด มีผลต่อการตัดสินใจซื้อแพ็กเกจของผู้ใช้ใหม่
-          </p>
-        </div>
-      </div>
-
-      <!-- System Health -->
-      <div class="card" style="margin-bottom: 32px;" id="system">
-        <div class="panel-header" style="margin-bottom: 24px;">
-          <h3 class="panel-title">System Health Matrix</h3>
-          <span class="type-badge badge-blue">Uptime: {{ uptime_h }} Hours</span>
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px;">
-          <div class="telemetry-item" style="grid-template-columns: 1fr;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-              <span class="telemetry-label">🧠 CPU Usage</span>
-              <span class="telemetry-pct">{{ cpu }}%</span>
+        <!-- System Health Stack -->
+        <div class="card" id="system">
+          <p class="card-title">System Integrity & Telemetry</p>
+          <div class="p-bar-group" style="margin-top: 24px;">
+            <div class="p-bar-item">
+              <div class="p-bar-labels"><span>🧠 CPU Load</span><span>{{ sys.get("cpu_usage", 0) }}%</span></div>
+              <div class="p-bar-bg"><div class="p-bar-fill" style="width: {{ sys.get('cpu_usage', 0) }}%"></div></div>
             </div>
-            <div class="telemetry-bar-bg"><div class="telemetry-bar-fill" style="width: {{ cpu }}%"></div></div>
-          </div>
-          <div class="telemetry-item" style="grid-template-columns: 1fr;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-              <span class="telemetry-label">💽 RAM Usage</span>
-              <span class="telemetry-pct">{{ ram }}%</span>
+            <div class="p-bar-item">
+              <div class="p-bar-labels"><span>💽 Memory (RAM)</span><span>{{ sys.get("ram_percent", 0) }}%</span></div>
+              <div class="p-bar-bg"><div class="p-bar-fill" style="width: {{ sys.get('ram_percent', 0) }}%; background: var(--accent-purple);"></div></div>
             </div>
-            <div class="telemetry-bar-bg"><div class="telemetry-bar-fill" style="width: {{ ram }}%; background: var(--dime-blue);"></div></div>
-          </div>
-          <div class="telemetry-item" style="grid-template-columns: 1fr;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-              <span class="telemetry-label">💾 Disk Space</span>
-              <span class="telemetry-pct">{{ disk }}%</span>
+            <div class="p-bar-item">
+              <div class="p-bar-labels"><span>💾 Disk Usage</span><span>{{ sys.get("disk_percent", 0) }}%</span></div>
+              <div class="p-bar-bg"><div class="p-bar-fill" style="width: {{ sys.get('disk_percent', 0) }}%; background: var(--text-sub);"></div></div>
             </div>
-            <div class="telemetry-bar-bg"><div class="telemetry-bar-fill" style="width: {{ disk }}%; background: var(--dime-text-sub);"></div></div>
+            <div class="p-bar-item" style="margin-top: 10px; padding: 16px; background: rgba(59, 130, 246, 0.1); border-radius: 12px; border: 1px solid rgba(59, 130, 246, 0.2);">
+              <div style="font-size: 12px; color: var(--accent-blue); font-weight: 700; margin-bottom: 4px;">UPTIME STATUS</div>
+              <div style="font-size: 18px; font-weight: 800;">{{ sys.get("uptime_hours", 0) }} Hours Online</div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Recent Signal Table -->
-      <div class="card table-card" id="performance">
-        <div class="table-header">
-          <h3 class="table-title">Performance Transaction Feed</h3>
-          <span class="type-badge badge-green">Live Evaluations</span>
+      <!-- Transaction Feed -->
+      <div class="table-container" id="performance">
+        <div class="table-head">
+          <h3 style="margin: 0; font-size: 18px; font-weight: 800;">Signal Execution Stream</h3>
+          <span class="badge bg-green">Live Feed</span>
         </div>
         <div style="overflow-x: auto;">
           <table>
@@ -368,47 +294,84 @@
               <tr>
                 <th>Symbol</th>
                 <th>Logic Path</th>
-                <th>Change</th>
-                <th>Result</th>
-                <th>Time</th>
+                <th>Performance</th>
+                <th>Status</th>
+                <th>Execution Time</th>
               </tr>
             </thead>
             <tbody>
-              {% for item in performance.get("entries", [])[:10] %}
+              {% for item in performance.get("entries", [])[:12] %}
                 <tr>
-                  <td><span class="symbol-box">{{ item.symbol }}</span></td>
-                  <td><span class="type-badge badge-blue">{{ item.alert_type }}</span></td>
+                  <td><span class="symbol-tag">{{ item.symbol }}</span></td>
+                  <td><span class="badge bg-blue">{{ item.alert_type }}</span></td>
                   <td>
-                    <span style="font-weight: 700; color: {{ 'var(--dime-green)' if item.diff_pct > 0 else 'var(--dime-red)' }}">
-                      {{ '%+.2f'|format(item.diff_pct) }}%
+                    <span style="font-weight: 800; color: {{ 'var(--dime-green)' if (item.diff_pct | default(0)) > 0 else 'var(--danger)' }}">
+                      {{ '%+.2f'|format(item.diff_pct | default(0)) }}%
                     </span>
                   </td>
                   <td>
-                    <span class="type-badge {{ 'badge-green' if item.is_win else 'badge-red' }}">
+                    <span class="badge {{ 'bg-green' if item.is_win else 'bg-red' }}">
                       {{ 'PROFIT' if item.is_win else 'MISS' }}
                     </span>
                   </td>
-                  <td style="color: var(--dime-text-sub); font-size: 12px;">{{ item.timestamp }}</td>
+                  <td style="color: var(--text-sub); font-family: monospace; font-size: 12px;">{{ item.timestamp }}</td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
       </div>
-
     </main>
   </div>
 
   <script>
-    // Smooth Staggered Animation
-    document.querySelectorAll('.card').forEach((el, index) => {
-      el.style.opacity = '0';
-      el.style.transform = 'translateY(20px)';
-      el.style.transition = 'all 0.5s ease-out';
-      setTimeout(() => {
-        el.style.opacity = '1';
-        el.style.transform = 'translateY(0)';
-      }, 100 * index);
+    // Chart Config - Dime Dark Style
+    const chartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, border: { display: false }, ticks: { color: '#71717A' } },
+        x: { grid: { display: false }, border: { display: false }, ticks: { color: '#71717A' } }
+      }
+    };
+
+    // 1. User Distribution Doughnut
+    new Chart(document.getElementById('userChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Free Users', 'VIP Users', 'PRO Users'],
+        datasets: [{
+          data: [{{ free_u }}, {{ user_stats.get("vip_users", 0) }}, {{ user_stats.get("pro_users", 0) }}],
+          backgroundColor: ['#27272A', '#00C076', '#A855F7'],
+          borderWidth: 0,
+          cutout: '75%'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'bottom', labels: { color: '#A1A1AA', padding: 20, usePointStyle: true } } }
+      }
+    });
+
+    // 2. Logic Accuracy Horizontal Bar
+    new Chart(document.getElementById('logicChart'), {
+      type: 'bar',
+      data: {
+        labels: ['RSI', 'GoldenCross', 'Breakout', 'Volume', 'MACD'],
+        datasets: [{
+          label: 'Win Rate %',
+          data: [72, 64, 58, 81, 69],
+          backgroundColor: '#00C076',
+          borderRadius: 8,
+          barThickness: 12
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        ...chartOptions
+      }
     });
   </script>
 </body>
