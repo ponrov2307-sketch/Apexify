@@ -134,6 +134,148 @@ def _ensure_user_settings_row(cursor, user_id: str):
         ),
     )
 
+
+def _normalize_watchlist_ticker(symbol: str) -> str:
+    return str(symbol or "").strip().upper()
+
+
+def _normalize_price_alert_condition(condition: str) -> str:
+    raw = str(condition or "").strip().lower()
+    if raw in {"above", ">"}:
+        return "above"
+    if raw in {"below", "<"}:
+        return "below"
+    return "above"
+
+
+def _ensure_watchlist_tables(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS watchlists (
+            user_id TEXT,
+            symbol TEXT,
+            PRIMARY KEY (user_id, symbol)
+        )
+        """
+    )
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_watchlist (
+            id SERIAL PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            ticker TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cursor.execute(
+        "ALTER TABLE user_watchlist ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+    )
+    cursor.execute(
+        """
+        UPDATE user_watchlist
+        SET user_id = TRIM(user_id),
+            ticker = UPPER(TRIM(ticker))
+        WHERE user_id <> TRIM(user_id)
+           OR ticker <> UPPER(TRIM(ticker))
+        """
+    )
+    cursor.execute(
+        """
+        DELETE FROM user_watchlist a
+        USING user_watchlist b
+        WHERE a.ctid < b.ctid
+          AND a.user_id = b.user_id
+          AND a.ticker = b.ticker
+        """
+    )
+    cursor.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS user_watchlist_user_id_ticker_idx
+        ON user_watchlist (user_id, ticker)
+        """
+    )
+
+
+def _merge_legacy_watchlists(cursor):
+    cursor.execute(
+        """
+        INSERT INTO user_watchlist (user_id, ticker)
+        SELECT DISTINCT TRIM(user_id), UPPER(TRIM(symbol))
+        FROM watchlists
+        WHERE COALESCE(TRIM(user_id), '') <> ''
+          AND COALESCE(TRIM(symbol), '') <> ''
+        ON CONFLICT (user_id, ticker) DO NOTHING
+        """
+    )
+
+
+def _get_user_watchlist_items(user_id):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT ticker FROM user_watchlist WHERE user_id=%s ORDER BY ticker ASC",
+        (str(user_id),),
+    )
+    rows = c.fetchall()
+    conn.close()
+    return [row[0] for row in rows]
+
+
+def _add_user_watchlist_item(user_id, symbol):
+    ticker = _normalize_watchlist_ticker(symbol)
+    if not ticker:
+        return False
+
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO user_watchlist (user_id, ticker)
+        VALUES (%s, %s)
+        ON CONFLICT (user_id, ticker) DO NOTHING
+        """,
+        (str(user_id), ticker),
+    )
+    conn.commit()
+    inserted = c.rowcount > 0
+    conn.close()
+    return inserted
+
+
+def _remove_user_watchlist_item(user_id, symbol):
+    ticker = _normalize_watchlist_ticker(symbol)
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "DELETE FROM user_watchlist WHERE user_id=%s AND ticker=%s",
+        (str(user_id), ticker),
+    )
+    conn.commit()
+    conn.close()
+
+
+def _get_watchers_for_ticker(symbol):
+    ticker = _normalize_watchlist_ticker(symbol)
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT user_id FROM user_watchlist WHERE ticker=%s ORDER BY user_id ASC",
+        (ticker,),
+    )
+    rows = c.fetchall()
+    conn.close()
+    return [row[0] for row in rows]
+
+
+def _get_all_watchlist_tickers():
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT DISTINCT ticker FROM user_watchlist ORDER BY ticker ASC")
+    rows = c.fetchall()
+    conn.close()
+    return [row[0] for row in rows]
+
 def get_connection():
     """สร้างการเชื่อมต่อกับ PostgreSQL"""
     conn = psycopg2.connect(_get_db_url())
@@ -166,8 +308,8 @@ def init_db():
 def init_watchlist_db():
     conn = get_connection()
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS watchlists 
-                 (user_id TEXT, symbol TEXT, PRIMARY KEY (user_id, symbol))''')
+    _ensure_watchlist_tables(c)
+    _merge_legacy_watchlists(c)
     conn.commit()
     conn.close()
 
@@ -260,48 +402,19 @@ def increment_usage(user_id):
     conn.close()
 
 def add_watch(user_id, symbol):
-    conn = get_connection()
-    c = conn.cursor()
-    try:
-        c.execute("INSERT INTO watchlists (user_id, symbol) VALUES (%s, %s)", (str(user_id), symbol.upper()))
-        conn.commit()
-        return True
-    except psycopg2.IntegrityError:
-        conn.rollback() 
-        return False 
-    finally:
-        conn.close()
+    return _add_user_watchlist_item(user_id, symbol)
 
 def get_user_watch(user_id):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT symbol FROM watchlists WHERE user_id=%s", (str(user_id),))
-    result = c.fetchall()
-    conn.close()
-    return [row[0] for row in result]
+    return _get_user_watchlist_items(user_id)
 
 def get_users_watching(symbol):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT user_id FROM watchlists WHERE symbol=%s", (symbol.upper(),))
-    result = c.fetchall()
-    conn.close()
-    return [row[0] for row in result]
+    return _get_watchers_for_ticker(symbol)
 
 def get_all_active_symbols():
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT DISTINCT symbol FROM watchlists")
-    result = c.fetchall()
-    conn.close()
-    return [row[0] for row in result]
+    return _get_all_watchlist_tickers()
 
 def remove_watch_db(user_id, symbol):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("DELETE FROM watchlists WHERE user_id=%s AND symbol=%s", (str(user_id), symbol))
-    conn.commit()
-    conn.close()
+    _remove_user_watchlist_item(user_id, symbol)
 
 def get_user_profile(user_id):
     conn = get_connection()
@@ -512,6 +625,7 @@ def init_new_features_db():
     """สร้างตารางใหม่และอัปเดตโครงสร้าง (Migration) สำหรับ PostgreSQL"""
     conn = get_connection()
     c = conn.cursor()
+    _ensure_watchlist_tables(c)
     c.execute('''CREATE TABLE IF NOT EXISTS user_price_alerts
                  (id SERIAL PRIMARY KEY,
                   user_id TEXT,
@@ -548,6 +662,22 @@ def init_new_features_db():
                   alert_price NUMERIC DEFAULT 0,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                   UNIQUE(user_id, ticker))''')
+    _merge_legacy_watchlists(c)
+    c.execute("UPDATE user_price_alerts SET symbol = UPPER(TRIM(symbol)) WHERE COALESCE(symbol, '') <> UPPER(TRIM(symbol))")
+    c.execute("UPDATE user_price_alerts SET condition = 'above' WHERE condition = '>'")
+    c.execute("UPDATE user_price_alerts SET condition = 'below' WHERE condition = '<'")
+    c.execute(
+        """
+        DELETE FROM user_price_alerts a
+        USING user_price_alerts b
+        WHERE a.id < b.id
+          AND a.user_id = b.user_id
+          AND a.symbol = b.symbol
+          AND COALESCE(a.is_active, 1) = 1
+          AND COALESCE(b.is_active, 1) = 1
+        """
+    )
+    c.execute("DELETE FROM user_price_alerts WHERE COALESCE(is_active, 1) <> 1")
     conn.commit()
     
     # 🌟 2. บังคับอัปเดตคอลัมน์ให้ฐานข้อมูลเก่าที่มีอยู่แล้ว (ป้องกัน Error)
@@ -855,8 +985,34 @@ def add_price_alert_db(user_id, symbol, target_price, condition):
     """เพิ่มการตั้งเตือนราคา"""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("INSERT INTO user_price_alerts (user_id, symbol, target_price, condition) VALUES (%s, %s, %s, %s)",
-              (user_id, symbol, target_price, condition))
+    normalized_symbol = _normalize_watchlist_ticker(symbol)
+    normalized_condition = _normalize_price_alert_condition(condition)
+    c.execute(
+        """
+        UPDATE user_price_alerts
+        SET target_price = %s,
+            condition = %s,
+            is_active = 1
+        WHERE id = (
+            SELECT id
+            FROM user_price_alerts
+            WHERE user_id = %s
+              AND symbol = %s
+              AND is_active = 1
+            ORDER BY id DESC
+            LIMIT 1
+        )
+        """,
+        (float(target_price), normalized_condition, str(user_id), normalized_symbol),
+    )
+    if c.rowcount == 0:
+        c.execute(
+            """
+            INSERT INTO user_price_alerts (user_id, symbol, target_price, condition, is_active)
+            VALUES (%s, %s, %s, %s, 1)
+            """,
+            (str(user_id), normalized_symbol, float(target_price), normalized_condition),
+        )
     conn.commit()
     conn.close()
 
@@ -864,16 +1020,22 @@ def get_user_price_alerts_db(user_id):
     """ดึงรายการตั้งเตือนราคา"""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT id, symbol, target_price, condition FROM user_price_alerts WHERE user_id = %s AND is_active = 1", (user_id,))
+    c.execute(
+        "SELECT id, symbol, target_price, condition FROM user_price_alerts WHERE user_id = %s AND is_active = 1 ORDER BY id DESC",
+        (user_id,),
+    )
     alerts = c.fetchall()
     conn.close()
-    return alerts
+    return [
+        (alert_id, symbol, target_price, _normalize_price_alert_condition(condition))
+        for alert_id, symbol, target_price, condition in alerts
+    ]
 
 def remove_price_alert_db(user_id, alert_id):
     """ลบการตั้งเตือนราคา"""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("UPDATE user_price_alerts SET is_active = 0 WHERE id = %s AND user_id = %s", (alert_id, user_id))
+    c.execute("DELETE FROM user_price_alerts WHERE id = %s AND user_id = %s", (alert_id, user_id))
     conn.commit()
     conn.close()
 
@@ -881,16 +1043,19 @@ def get_all_active_price_alerts():
     """ดึงการตั้งเตือนทั้งหมดให้ระบบ alert_system คอยเช็คราคา"""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT id, user_id, symbol, target_price, condition FROM user_price_alerts WHERE is_active = 1")
+    c.execute("SELECT id, user_id, symbol, target_price, condition FROM user_price_alerts WHERE is_active = 1 ORDER BY id DESC")
     alerts = c.fetchall()
     conn.close()
-    return alerts
+    return [
+        (alert_id, watched_user_id, symbol, target_price, _normalize_price_alert_condition(condition))
+        for alert_id, watched_user_id, symbol, target_price, condition in alerts
+    ]
 
 def deactivate_price_alert(alert_id):
     """ปิดการแจ้งเตือนเมื่อราคาถึงเป้าหมายแล้ว"""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("UPDATE user_price_alerts SET is_active = 0 WHERE id = %s", (alert_id,))
+    c.execute("DELETE FROM user_price_alerts WHERE id = %s", (alert_id,))
     conn.commit()
     conn.close()
 # ==========================================
@@ -942,23 +1107,13 @@ def get_user_portfolio(user_id):
 def get_user_watch(user_id: str):
     """ให้เว็บดึง Watchlist ได้แบบเดียวกับบอท"""
     try:
-        with get_connection() as conn:
-            c = conn.cursor()
-            c.execute("SELECT symbol FROM watchlists WHERE user_id=%s", (str(user_id),))
-            rows = c.fetchall()
-            c.close()
-        return [row[0] for row in rows]
-    except Exception as e:
+        return _get_user_watchlist_items(user_id)
+    except Exception:
         return []
 
 def add_watch(user_id: str, symbol: str):
     """ให้เว็บเพิ่ม Watchlist ได้แบบเดียวกับบอท"""
     try:
-        with get_connection() as conn:
-            c = conn.cursor()
-            c.execute("INSERT INTO watchlists (user_id, symbol) VALUES (%s, %s) ON CONFLICT DO NOTHING", (str(user_id), symbol.upper()))
-            conn.commit()
-            c.close()
-        return True
-    except Exception as e:
+        return _add_user_watchlist_item(user_id, symbol)
+    except Exception:
         return False

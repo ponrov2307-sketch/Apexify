@@ -41,6 +41,20 @@
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
 
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: var(--bg-soft); }
+    ::-webkit-scrollbar-thumb { 
+      background: rgba(147, 255, 70, 0.15); 
+      border-radius: 10px; 
+      border: 2px solid var(--bg-soft); 
+    }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(147, 255, 70, 0.35); }
+
+    @keyframes fadeIn { 
+      from { opacity: 0; transform: translateY(15px); } 
+      to { opacity: 1; transform: translateY(0); } 
+    }
+
     body {
       margin: 0;
       color: var(--text);
@@ -57,6 +71,7 @@
       display: grid;
       grid-template-columns: 248px minmax(0, 1fr);
       min-height: 100vh;
+      animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
 
     .sidebar {
@@ -84,7 +99,10 @@
       display: flex;
       align-items: center;
       gap: var(--space-4);
+      transition: transform 0.2s;
     }
+
+    .brand:hover { transform: scale(1.02); }
 
     .brand__icon {
       width: 48px;
@@ -139,6 +157,8 @@
       background: linear-gradient(90deg, rgba(147, 255, 70, 0.16), rgba(147, 255, 70, 0.03));
       box-shadow: inset 0 0 0 1px rgba(147, 255, 70, 0.06);
     }
+
+    .nav__link:active { transform: scale(0.97); }
 
     .nav__icon {
       width: 28px;
@@ -223,19 +243,26 @@
       border-radius: 999px;
       font: 700 14px/1 var(--body);
       cursor: pointer;
-      transition: 180ms ease;
+      transition: all 180ms ease;
     }
 
     .btn:hover {
-      transform: translateY(-1px);
+      transform: translateY(-2px);
       border-color: rgba(147, 255, 70, 0.18);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
+    
+    .btn:active { transform: translateY(0) scale(0.97); }
 
     .btn--primary {
       color: #071106;
       border-color: transparent;
       background: linear-gradient(135deg, var(--green), var(--green-strong));
       box-shadow: var(--glow);
+    }
+
+    .btn--primary:hover {
+      box-shadow: 0 8px 24px rgba(147, 255, 70, 0.25), var(--glow);
     }
 
     .btn--danger {
@@ -256,6 +283,7 @@
       border: 1px solid rgba(147, 255, 70, 0.16);
       background: rgba(147, 255, 70, 0.12);
       color: #dfffc6;
+      animation: fadeIn 0.4s ease-out;
     }
 
     .flash--error {
@@ -278,6 +306,13 @@
       border: 1px solid var(--line);
       background: linear-gradient(180deg, rgba(31, 36, 35, 0.94), rgba(15, 18, 18, 0.98));
       box-shadow: var(--shadow);
+      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6), var(--glow);
+      border-color: rgba(147, 255, 70, 0.2);
     }
 
     .card::after {
@@ -308,6 +343,11 @@
       font-size: 20px;
       background: radial-gradient(circle at 30% 30%, rgba(147, 255, 70, 0.28), rgba(147, 255, 70, 0.06));
       border: 1px solid rgba(147, 255, 70, 0.18);
+      transition: transform 0.2s ease;
+    }
+    
+    .kpi-card:hover .kpi-card__icon {
+      transform: scale(1.08) rotate(3deg);
     }
 
     .kpi-card__label {
@@ -407,6 +447,12 @@
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.05);
       color: var(--muted);
+      transition: background 0.2s, border-color 0.2s;
+    }
+    
+    .meta-row:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(147, 255, 70, 0.15);
     }
 
     .meta-row strong {
@@ -463,6 +509,11 @@
       border-radius: 22px;
       border: 1px solid rgba(255, 255, 255, 0.06);
       background: linear-gradient(180deg, rgba(147, 255, 70, 0.05), transparent 45%), rgba(255, 255, 255, 0.02);
+      transition: border-color 0.2s;
+    }
+    
+    .overview-chart:hover {
+      border-color: rgba(147, 255, 70, 0.2);
     }
 
     .overview-chart svg {
@@ -483,6 +534,12 @@
       border-radius: 16px;
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.05);
+      transition: background 0.2s, border-color 0.2s;
+    }
+    
+    .legend-chip:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(147, 255, 70, 0.15);
     }
 
     .legend-chip__label {
@@ -515,7 +572,10 @@
       place-items: center;
       background: radial-gradient(circle at center, #080c0b 58%, transparent 59%), conic-gradient(var(--green) calc(var(--value) * 1%), rgba(255, 255, 255, 0.09) 0);
       box-shadow: inset 0 0 34px rgba(147, 255, 70, 0.1), 0 0 34px rgba(147, 255, 70, 0.12);
+      transition: filter 0.3s ease;
     }
+    
+    .card:hover .gauge__ring { filter: drop-shadow(0 0 10px rgba(147, 255, 70, 0.15)); }
 
     .gauge__inner {
       width: 130px;
@@ -551,6 +611,12 @@
       border-radius: 18px;
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.05);
+      transition: background 0.2s, border-color 0.2s;
+    }
+    
+    .mini-card:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(147, 255, 70, 0.15);
     }
 
     .mini-card__label {
@@ -577,6 +643,13 @@
       border-radius: 18px;
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.05);
+      transition: background 0.2s, border-color 0.2s, transform 0.2s;
+    }
+    
+    .stack-item:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(147, 255, 70, 0.15);
+      transform: translateX(4px);
     }
 
     .stack-item__top {
@@ -609,7 +682,7 @@
     }
 
     .table-scroll {
-      overflow: hidden;
+      overflow-x: auto;
       border-radius: 20px;
       border: 1px solid var(--line);
       background: rgba(255, 255, 255, 0.02);
@@ -636,6 +709,10 @@
       padding: 18px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       vertical-align: top;
+    }
+
+    tbody tr {
+      transition: background 0.2s;
     }
 
     tbody tr:hover {
@@ -758,56 +835,96 @@
       .table-scroll {
         border: 0;
         background: transparent;
+        overflow-x: visible;
       }
 
       tbody tr {
         display: block;
-        margin-bottom: 12px;
-        padding: 14px 16px;
+        margin-bottom: 16px;
+        padding: 16px;
         border-radius: 18px;
         border: 1px solid var(--line);
         background: rgba(255, 255, 255, 0.03);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
       }
 
       tbody td {
-        padding: 8px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        text-align: right;
+      }
+      
+      tbody tr td:last-child {
         border-bottom: 0;
+        padding-bottom: 0;
+      }
+      
+      tbody tr td:first-child {
+        padding-top: 0;
       }
 
       tbody td::before {
         content: attr(data-label);
         display: block;
-        margin-bottom: 4px;
         color: var(--muted);
         font-size: 11px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
+        font-weight: 600;
+        text-align: left;
+        margin-right: 16px;
       }
     }
   </style>
 </head>
 <body>
-  {% set total_users = user_stats["total_users"] or 0 %}
-  {% set vip_users = user_stats["vip_users"] or 0 %}
-  {% set pro_users = user_stats["pro_users"] or 0 %}
+  {% set user_stats = user_stats | default({}, true) %}
+  {% set expiring_members = expiring_members | default({}, true) %}
+  {% set notification_settings = notification_settings | default({}, true) %}
+  {% set price_alerts = price_alerts | default({}, true) %}
+  {% set system_health = system_health | default({}, true) %}
+  {% set performance = performance | default({}, true) %}
+  {% set top_watched = top_watched | default({}, true) %}
+  {% set maintenance = maintenance | default({}, true) %}
+
+  {% set total_users = user_stats.get("total_users", 0) or 0 %}
+  {% set vip_users = user_stats.get("vip_users", 0) or 0 %}
+  {% set pro_users = user_stats.get("pro_users", 0) or 0 %}
+  {% set estimated_revenue = user_stats.get("estimated_monthly_revenue", 0) or 0 %}
+  
   {% set paid_total = vip_users + pro_users %}
   {% set paid_share = ((paid_total / total_users) * 100) if total_users else 0 %}
-  {% set renewal_risk = ((expiring_members["expiring_7_days"] / paid_total) * 100) if paid_total else 0 %}
+  
+  {% set expiring_7 = expiring_members.get("expiring_7_days", 0) or 0 %}
+  {% set renewal_risk = ((expiring_7 / paid_total) * 100) if paid_total else 0 %}
   {% set renewal_health = (100 - renewal_risk) if paid_total else 100 %}
-  {% set notifications_total = notification_settings["total_settings"] or 0 %}
-  {% set notifications_off_pct = ((notification_settings["notifications_off"] / notifications_total) * 100) if notifications_total else 0 %}
-  {% set alert_load_pct = price_alerts["total_alerts"] if price_alerts["total_alerts"] < 100 else 100 %}
+  
+  {% set notifications_total = notification_settings.get("total_settings", 0) or 0 %}
+  {% set notifications_off = notification_settings.get("notifications_off", 0) or 0 %}
+  {% set notifications_off_pct = ((notifications_off / notifications_total) * 100) if notifications_total else 0 %}
+  
+  {% set total_alerts = price_alerts.get("total_alerts", 0) or 0 %}
+  {% set alert_load_pct = total_alerts if total_alerts < 100 else 100 %}
+  
+  {% set win_rate = performance.get("win_rate", 0) or 0 %}
+  {% set win_count = performance.get("win_count", 0) or 0 %}
+  {% set total_eval_count = performance.get("total_count", 0) or 0 %}
+  
   {% set chart_metrics = [
-    {"label": "CPU", "value": system_health["cpu_usage"] or 0},
-    {"label": "RAM", "value": system_health["ram_percent"] or 0},
-    {"label": "Disk", "value": system_health["disk_percent"] or 0},
+    {"label": "CPU", "value": system_health.get("cpu_usage", 0) or 0},
+    {"label": "RAM", "value": system_health.get("ram_percent", 0) or 0},
+    {"label": "Disk", "value": system_health.get("disk_percent", 0) or 0},
     {"label": "Paid", "value": paid_share},
-    {"label": "Win", "value": performance["win_rate"] or 0},
+    {"label": "Win", "value": win_rate},
     {"label": "Alerts", "value": alert_load_pct}
   ] %}
   {% set chart_ns = namespace(points='') %}
   {% for metric in chart_metrics %}
     {% set metric_value = metric["value"] if metric["value"] < 100 else 100 %}
+    {% set metric_value = metric_value if metric_value > 0 else 0 %}
     {% set x = 70 + (loop.index0 * 115) %}
     {% set y = 260 - (metric_value * 1.9) %}
     {% set chart_ns.points = chart_ns.points ~ x ~ ',' ~ ('%.1f'|format(y)) ~ ' ' %}
@@ -834,11 +951,11 @@
 
       <section class="sidebar-card">
         <div class="eyebrow">Live Admin</div>
-        <div class="sidebar-card__value mono">{{ admin_id }}</div>
+        <div class="sidebar-card__value mono">{{ admin_id | default('ADMIN', true) }}</div>
         <p>
           Last refresh
           {{ generated_at.strftime('%Y-%m-%d %H:%M:%S') if generated_at else '-' }}<br>
-          {% if maintenance["enabled"] %}
+          {% if maintenance.get("enabled") %}
             Maintenance mode is active and only admin is allowed through.
           {% else %}
             System is serving users normally and the web console is online.
@@ -859,13 +976,13 @@
         </div>
 
         <div class="actions">
-          <a class="btn" href="{{ url_for('admin_dashboard') }}">Refresh</a>
-          <form method="post" action="{{ url_for('admin_toggle_maintenance') }}">
-            <button class="btn {{ 'btn--danger' if maintenance['enabled'] else 'btn--primary' }}" type="submit">
-              {{ 'Turn Maintenance Off' if maintenance['enabled'] else 'Turn Maintenance On' }}
+          <a class="btn" href="{{ url_for('admin_dashboard') if 'admin_dashboard' in request.endpoint else '#' }}">Refresh</a>
+          <form method="post" action="{{ url_for('admin_toggle_maintenance') if 'admin_toggle_maintenance' in request.endpoint else '#' }}">
+            <button class="btn {{ 'btn--danger' if maintenance.get('enabled') else 'btn--primary' }}" type="submit">
+              {{ 'Turn Maintenance Off' if maintenance.get('enabled') else 'Turn Maintenance On' }}
             </button>
           </form>
-          <form method="post" action="{{ url_for('admin_download_backup') }}">
+          <form method="post" action="{{ url_for('admin_download_backup') if 'admin_download_backup' in request.endpoint else '#' }}">
             <button class="btn" type="submit">Download Backup</button>
           </form>
         </div>
@@ -873,9 +990,11 @@
 
       <section class="flash-stack">
         {% with flashes = get_flashed_messages(with_categories=true) %}
-          {% for category, message in flashes %}
-            <div class="flash {{ 'flash--error' if category == 'error' else '' }}">{{ message }}</div>
-          {% endfor %}
+          {% if flashes %}
+            {% for category, message in flashes %}
+              <div class="flash {{ 'flash--error' if category == 'error' else '' }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
         {% endwith %}
       </section>
 
@@ -883,7 +1002,7 @@
         <article class="card kpi-card">
           <div>
             <div class="kpi-card__label">Monthly Revenue</div>
-            <div class="kpi-card__value">{{ '{:,.2f}'.format(user_stats["estimated_monthly_revenue"]) }}</div>
+            <div class="kpi-card__value">{{ '{:,.2f}'.format(estimated_revenue) }}</div>
             <div class="kpi-card__meta">บาทต่อเดือนจากสมาชิกแบบชำระเงิน</div>
           </div>
           <div class="kpi-card__icon">$</div>
@@ -901,8 +1020,8 @@
         <article class="card kpi-card">
           <div>
             <div class="kpi-card__label">Active Alerts</div>
-            <div class="kpi-card__value">{{ price_alerts["total_alerts"] }}</div>
-            <div class="kpi-card__meta">{{ price_alerts["unique_users"] }} users are tracking targets</div>
+            <div class="kpi-card__value">{{ total_alerts }}</div>
+            <div class="kpi-card__meta">{{ price_alerts.get("unique_users", 0) }} users are tracking targets</div>
           </div>
           <div class="kpi-card__icon">↗</div>
         </article>
@@ -910,8 +1029,8 @@
         <article class="card kpi-card">
           <div>
             <div class="kpi-card__label">Success Rate</div>
-            <div class="kpi-card__value">{{ '%.0f'|format(performance["win_rate"]) }}%</div>
-            <div class="kpi-card__meta">{{ performance["win_count"] }} wins from {{ performance["total_count"] }} evaluated signals</div>
+            <div class="kpi-card__value">{{ '%.0f'|format(win_rate) }}%</div>
+            <div class="kpi-card__meta">{{ win_count }} wins from {{ total_eval_count }} evaluated signals</div>
           </div>
           <div class="kpi-card__icon">✓</div>
         </article>
@@ -929,10 +1048,10 @@
           </div>
 
           <div class="meta-list">
-            <div class="meta-row"><span>System mode</span><strong>{{ 'Maintenance ON' if maintenance["enabled"] else 'Live' }}</strong></div>
-            <div class="meta-row"><span>Total users</span><strong>{{ user_stats["total_users"] }}</strong></div>
-            <div class="meta-row"><span>Unique watched symbols</span><strong>{{ top_watched["unique_symbols"] }}</strong></div>
-            <div class="meta-row"><span>Uptime</span><strong>{{ system_health["uptime_hours"] }}h</strong></div>
+            <div class="meta-row"><span>System mode</span><strong>{{ 'Maintenance ON' if maintenance.get("enabled") else 'Live' }}</strong></div>
+            <div class="meta-row"><span>Total users</span><strong>{{ total_users }}</strong></div>
+            <div class="meta-row"><span>Unique watched symbols</span><strong>{{ top_watched.get("unique_symbols", 0) }}</strong></div>
+            <div class="meta-row"><span>Uptime</span><strong>{{ system_health.get("uptime_hours", 0) }}h</strong></div>
           </div>
         </article>
 
@@ -946,7 +1065,7 @@
                 เพื่อให้มองออกเร็วว่าควรสนใจ reliability, retention หรือ market traffic ก่อน
               </p>
             </div>
-            <span class="pill pill--success">{{ '%.1f'|format(performance["win_rate"]) }}% signal quality</span>
+            <span class="pill pill--success">{{ '%.1f'|format(win_rate) }}% signal quality</span>
           </div>
 
           <div class="overview-chart">
@@ -955,11 +1074,14 @@
                 <line x1="52" y1="{{ y }}" x2="612" y2="{{ y }}" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
               {% endfor %}
 
+              {% if chart_ns.points %}
               <polyline fill="none" stroke="#93ff46" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="{{ chart_ns.points|trim }}"/>
               <polyline fill="rgba(147,255,70,0.10)" stroke="none" points="70,260 {{ chart_ns.points|trim }} 645,260"/>
+              {% endif %}
 
               {% for metric in chart_metrics %}
                 {% set value = metric["value"] if metric["value"] < 100 else 100 %}
+                {% set value = value if value > 0 else 0 %}
                 {% set x = 70 + (loop.index0 * 115) %}
                 {% set y = 260 - (value * 1.9) %}
                 <circle cx="{{ x }}" cy="{{ '%.1f'|format(y) }}" r="7" fill="#0b0f0f" stroke="#93ff46" stroke-width="3"/>
@@ -972,11 +1094,11 @@
           <div class="overview-legend">
             <div class="legend-chip">
               <div class="legend-chip__label">Watch entries</div>
-              <div class="legend-chip__value">{{ top_watched["total_watch_entries"] }}</div>
+              <div class="legend-chip__value">{{ top_watched.get("total_watch_entries", 0) }}</div>
             </div>
             <div class="legend-chip">
               <div class="legend-chip__label">Revenue at risk</div>
-              <div class="legend-chip__value">{{ '{:,.0f}'.format(expiring_members["revenue_at_risk_7_days"]) }}</div>
+              <div class="legend-chip__value">{{ '{:,.0f}'.format(expiring_members.get("revenue_at_risk_7_days", 0) or 0) }}</div>
             </div>
             <div class="legend-chip">
               <div class="legend-chip__label">Notifications off</div>
@@ -998,8 +1120,8 @@
           </div>
 
           <div>
-            <span class="pill {{ 'pill--danger' if expiring_members['expiring_7_days'] else 'pill--success' }}">
-              {{ expiring_members["expiring_7_days"] }} members within 7 days
+            <span class="pill {{ 'pill--danger' if expiring_7 else 'pill--success' }}">
+              {{ expiring_7 }} members within 7 days
             </span>
             <p class="panel-copy">
               ถ้าตัวเลขนี้ลดลง แปลว่า paid base ค่อนข้างนิ่ง ถ้าพุ่งขึ้นเมื่อไรควรรีบดู renewal flow
@@ -1021,24 +1143,24 @@
           <div class="mini-grid">
             <div class="mini-card">
               <div class="mini-card__label">Watch Entries</div>
-              <div class="mini-card__value">{{ top_watched["total_watch_entries"] }}</div>
+              <div class="mini-card__value">{{ top_watched.get("total_watch_entries", 0) }}</div>
             </div>
             <div class="mini-card">
               <div class="mini-card__label">Unique Symbols</div>
-              <div class="mini-card__value">{{ top_watched["unique_symbols"] }}</div>
+              <div class="mini-card__value">{{ top_watched.get("unique_symbols", 0) }}</div>
             </div>
           </div>
 
-          {% if top_watched["items"] %}
+          {% if top_watched.get("items") %}
             <div class="stack-list">
-              {% for item in top_watched["items"] %}
+              {% for item in top_watched.get("items", []) %}
                 <div class="stack-item">
                   <div class="stack-item__top">
                     <div>
-                      <div class="stack-item__title">{{ item.symbol }}</div>
+                      <div class="stack-item__title">{{ item.symbol | default('N/A', true) }}</div>
                       <div class="stack-item__meta">ความสนใจจากผู้ใช้ในระบบตอนนี้</div>
                     </div>
-                    <div class="stack-item__value">{{ item.watchers }} watchers</div>
+                    <div class="stack-item__value">{{ item.watchers | default(0, true) }} watchers</div>
                   </div>
                 </div>
               {% endfor %}
@@ -1059,24 +1181,24 @@
           <div class="mini-grid">
             <div class="mini-card">
               <div class="mini-card__label">Total Active</div>
-              <div class="mini-card__value">{{ price_alerts["total_alerts"] }}</div>
+              <div class="mini-card__value">{{ total_alerts }}</div>
             </div>
             <div class="mini-card">
               <div class="mini-card__label">Unique Users</div>
-              <div class="mini-card__value">{{ price_alerts["unique_users"] }}</div>
+              <div class="mini-card__value">{{ price_alerts.get("unique_users", 0) }}</div>
             </div>
           </div>
 
-          {% if price_alerts["items"] %}
+          {% if price_alerts.get("items") %}
             <div class="stack-list">
-              {% for item in price_alerts["items"] %}
+              {% for item in price_alerts.get("items", []) %}
                 <div class="stack-item">
                   <div class="stack-item__top">
                     <div>
-                      <div class="stack-item__title">{{ item.symbol }}</div>
+                      <div class="stack-item__title">{{ item.symbol | default('N/A', true) }}</div>
                       <div class="stack-item__meta">จำนวน alerts ที่ยัง active อยู่</div>
                     </div>
-                    <div class="stack-item__value">{{ item.alerts }} alerts</div>
+                    <div class="stack-item__value">{{ item.alerts | default(0, true) }} alerts</div>
                   </div>
                 </div>
               {% endfor %}
@@ -1099,24 +1221,24 @@
           <div class="mini-grid">
             <div class="mini-card">
               <div class="mini-card__label">Within 3 Days</div>
-              <div class="mini-card__value">{{ expiring_members["expiring_3_days"] }}</div>
+              <div class="mini-card__value">{{ expiring_members.get("expiring_3_days", 0) }}</div>
             </div>
             <div class="mini-card">
               <div class="mini-card__label">Within 7 Days</div>
-              <div class="mini-card__value">{{ expiring_members["expiring_7_days"] }}</div>
+              <div class="mini-card__value">{{ expiring_7 }}</div>
             </div>
           </div>
 
-          {% if expiring_members["items"] %}
+          {% if expiring_members.get("items") %}
             <div class="stack-list">
-              {% for item in expiring_members["items"] %}
+              {% for item in expiring_members.get("items", []) %}
                 <div class="stack-item">
                   <div class="stack-item__top">
                     <div>
-                      <div class="stack-item__title">{{ item.user_id }}</div>
-                      <div class="stack-item__meta">{{ item.role|upper }} • expires {{ item.expiry_date }}</div>
+                      <div class="stack-item__title">{{ item.user_id | default('Unknown', true) }}</div>
+                      <div class="stack-item__meta">{{ (item.role | default('user', true)) | upper }} • expires {{ item.expiry_date | default('-', true) }}</div>
                     </div>
-                    <div class="stack-item__value">{{ item.days_left }}d left</div>
+                    <div class="stack-item__value">{{ item.days_left | default(0, true) }}d left</div>
                   </div>
                 </div>
               {% endfor %}
@@ -1137,11 +1259,11 @@
           <div class="mini-grid">
             <div class="mini-card">
               <div class="mini-card__label">Settings Rows</div>
-              <div class="mini-card__value">{{ notification_settings["total_settings"] }}</div>
+              <div class="mini-card__value">{{ notifications_total }}</div>
             </div>
             <div class="mini-card">
               <div class="mini-card__label">Alerts Off</div>
-              <div class="mini-card__value">{{ notification_settings["notifications_off"] }}</div>
+              <div class="mini-card__value">{{ notifications_off }}</div>
             </div>
           </div>
 
@@ -1162,19 +1284,21 @@
                   <div class="stack-item__title">Custom news window</div>
                   <div class="stack-item__meta">ผู้ใช้ที่ตั้งช่วงเวลาอ่านข่าวไม่เหมือนค่ามาตรฐาน</div>
                 </div>
-                <div class="stack-item__value">{{ notification_settings["custom_windows"] }}</div>
+                <div class="stack-item__value">{{ notification_settings.get("custom_windows", 0) }}</div>
               </div>
             </div>
           </div>
 
+          {% if notification_settings.get("distribution") %}
           <div class="mini-grid">
-            {% for bucket in notification_settings["distribution"] %}
+            {% for bucket in notification_settings.get("distribution", []) %}
               <div class="mini-card">
-                <div class="mini-card__label">Digest {{ bucket.label }}</div>
-                <div class="mini-card__value">{{ bucket.count }}</div>
+                <div class="mini-card__label">Digest {{ bucket.label | default('-', true) }}</div>
+                <div class="mini-card__value">{{ bucket.count | default(0, true) }}</div>
               </div>
             {% endfor %}
           </div>
+          {% endif %}
         </article>
       </section>
 
@@ -1188,12 +1312,12 @@
               และตัวไหนยังต้องกลับไปปรับคุณภาพโมเดล
             </p>
           </div>
-          <span class="pill {{ 'pill--success' if performance['win_rate'] >= 50 else 'pill--warn' }}">
-            {{ '%.2f'|format(performance["win_rate"]) }}% win rate
+          <span class="pill {{ 'pill--success' if win_rate >= 50 else 'pill--warn' }}">
+            {{ '%.2f'|format(win_rate) }}% win rate
           </span>
         </div>
 
-        {% if performance["entries"] %}
+        {% if performance.get("entries") %}
           <div class="table-scroll">
             <table>
               <thead>
@@ -1207,13 +1331,13 @@
                 </tr>
               </thead>
               <tbody>
-                {% for item in performance["entries"] %}
+                {% for item in performance.get("entries", []) %}
                   <tr>
-                    <td data-label="Symbol"><strong>{{ item.symbol }}</strong></td>
-                    <td data-label="Signal">{{ item.alert_type }}</td>
-                    <td data-label="Alert Price">{{ '%.2f'|format(item.start_price) }}</td>
-                    <td data-label="Current Price">{{ '%.2f'|format(item.current_price) }}</td>
-                    <td data-label="Result">{{ '%+.2f'|format(item.diff_pct) }}%</td>
+                    <td data-label="Symbol"><strong>{{ item.symbol | default('-', true) }}</strong></td>
+                    <td data-label="Signal">{{ item.alert_type | default('-', true) }}</td>
+                    <td data-label="Alert Price">{{ '%.2f'|format(item.start_price | default(0, true)) }}</td>
+                    <td data-label="Current Price">{{ '%.2f'|format(item.current_price | default(0, true)) }}</td>
+                    <td data-label="Result">{{ '%+.2f'|format(item.diff_pct | default(0, true)) }}%</td>
                     <td data-label="Status">
                       <span class="badge {{ 'badge--ok' if item.is_win else 'badge--no' }}">
                         {{ 'Win' if item.is_win else 'Miss' }}
@@ -1256,16 +1380,16 @@
               <tbody>
                 {% for user in paid_users %}
                   <tr>
-                    <td data-label="User ID"><span class="mono">{{ user.user_id }}</span></td>
+                    <td data-label="User ID"><span class="mono">{{ user.user_id | default('-', true) }}</span></td>
                     <td data-label="Role">
                       <span class="badge {{ 'badge--pro' if user.role == 'pro' else 'badge--vip' }}">
-                        {{ user.role|upper }}
+                        {{ (user.role | default('vip', true)) | upper }}
                       </span>
                     </td>
-                    <td data-label="Expiry">{{ user.expiry_date }}</td>
+                    <td data-label="Expiry">{{ user.expiry_date | default('-', true) }}</td>
                     <td data-label="Status">
                       <span class="badge {{ 'badge--ok' if user.is_active else 'badge--no' }}">
-                        {{ user.status_label }}
+                        {{ user.status_label | default('Inactive', true) }}
                       </span>
                     </td>
                   </tr>

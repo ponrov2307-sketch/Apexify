@@ -155,18 +155,18 @@ def get_top_watched_symbols_snapshot(limit=8):
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT COUNT(*) FROM watchlists")
+        cursor.execute("SELECT COUNT(*) FROM user_watchlist")
         total_watch_entries = int(cursor.fetchone()[0] or 0)
 
-        cursor.execute("SELECT COUNT(DISTINCT symbol) FROM watchlists")
+        cursor.execute("SELECT COUNT(DISTINCT ticker) FROM user_watchlist")
         unique_symbols = int(cursor.fetchone()[0] or 0)
 
         cursor.execute(
             """
-            SELECT symbol, COUNT(*) AS watcher_count
-            FROM watchlists
-            GROUP BY symbol
-            ORDER BY watcher_count DESC, symbol ASC
+            SELECT ticker, COUNT(*) AS watcher_count
+            FROM user_watchlist
+            GROUP BY ticker
+            ORDER BY watcher_count DESC, ticker ASC
             LIMIT %s
             """,
             (row_limit,),
