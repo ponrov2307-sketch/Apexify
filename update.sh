@@ -61,15 +61,12 @@ resolve_python_bin() {
     return 0
   fi
 
-  if [ -x "${APP_DIR}/.venv/bin/python" ]; then
-    PYTHON_BIN="${APP_DIR}/.venv/bin/python"
-    return 0
-  fi
-
-  if [ -x "${APP_DIR}/.venv313/bin/python" ]; then
-    PYTHON_BIN="${APP_DIR}/.venv313/bin/python"
-    return 0
-  fi
+  for candidate in "${APP_DIR}/venv/bin/python" "${APP_DIR}/.venv/bin/python" "${APP_DIR}/.venv313/bin/python"; do
+    if [ -x "${candidate}" ]; then
+      PYTHON_BIN="${candidate}"
+      return 0
+    fi
+  done
 
   if command -v python3 >/dev/null 2>&1; then
     PYTHON_BIN="$(command -v python3)"
@@ -100,6 +97,12 @@ import jwt
 import psutil
 import telebot
 import yfinance
+from dotenv import load_dotenv
+from google import genai
+
+assert hasattr(telebot, "TeleBot"), "telebot module is present but TeleBot is missing"
+assert callable(load_dotenv), "python-dotenv is present but load_dotenv is unavailable"
+assert hasattr(genai, "Client"), "google.genai is present but Client is missing"
 print("runtime imports ok")
 PY
 }
