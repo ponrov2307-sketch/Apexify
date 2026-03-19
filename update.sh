@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-$HOME/Apexify}"
-SERVICE_NAME="${SERVICE_NAME:-apexify-main.service}"
+SERVICE_NAME="${SERVICE_NAME:-apexify.service}"
 ALERT_SERVICE_NAME="${ALERT_SERVICE_NAME:-apexify-alert.service}"
 PORT="${PORT:-8080}"
 LOG_FILE="${LOG_FILE:-/tmp/apexify_update.log}"
