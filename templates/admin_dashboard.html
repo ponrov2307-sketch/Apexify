@@ -6,184 +6,462 @@
   <title>Apexify Admin Dashboard</title>
   <style>
     :root {
-      --bg: #f5efe5;
-      --panel: #fffaf2;
-      --panel-strong: #fff7ec;
-      --text: #2b2319;
-      --muted: #6f6355;
-      --line: #decdb6;
-      --primary: #bb5a2a;
-      --primary-dark: #93441d;
-      --success: #2f7f5f;
-      --danger: #b74835;
-      --shadow: 0 20px 60px rgba(63, 40, 16, 0.12);
+      --color-bg: #f4efe8;
+      --color-bg-glow: rgba(200, 107, 51, 0.18);
+      --color-surface: rgba(255, 252, 246, 0.9);
+      --color-surface-strong: #141a22;
+      --color-surface-soft: #efe6d8;
+      --color-card: #fffaf3;
+      --color-text: #1d2330;
+      --color-text-inverse: #f6f1ea;
+      --color-muted: #716b7d;
+      --color-border: rgba(128, 110, 86, 0.18);
+      --color-line: rgba(128, 110, 86, 0.12);
+      --color-accent: #c86b33;
+      --color-accent-strong: #a44a28;
+      --color-accent-soft: rgba(200, 107, 51, 0.12);
+      --color-teal: #146c63;
+      --color-success: #278056;
+      --color-success-soft: rgba(39, 128, 86, 0.13);
+      --color-danger: #c04e40;
+      --color-danger-soft: rgba(192, 78, 64, 0.13);
+      --color-shadow: 0 28px 60px rgba(38, 29, 18, 0.14);
+      --radius-xl: 30px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-7: 28px;
+      --space-8: 32px;
+      --container: 1280px;
+      --font-sans: "Aptos", "Trebuchet MS", "Segoe UI", sans-serif;
+      --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
-      font-family: Georgia, "Times New Roman", serif;
-      color: var(--text);
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      color: var(--color-text);
       background:
-        radial-gradient(circle at top right, rgba(187, 90, 42, 0.12), transparent 24%),
-        radial-gradient(circle at top left, rgba(47, 127, 95, 0.10), transparent 20%),
-        linear-gradient(180deg, #f9f4eb 0%, var(--bg) 100%);
+        radial-gradient(circle at top left, rgba(20, 108, 99, 0.16), transparent 28%),
+        radial-gradient(circle at 90% 0%, var(--color-bg-glow), transparent 24%),
+        linear-gradient(180deg, #faf6ef 0%, #f4efe8 52%, #efe9e0 100%);
     }
 
-    .wrap {
-      width: min(1180px, calc(100% - 24px));
-      margin: 24px auto 40px;
+    .dashboard {
+      width: min(var(--container), calc(100% - 24px));
+      margin: 18px auto 44px;
     }
 
-    .hero, .card, .table-card {
-      background: rgba(255, 250, 242, 0.92);
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      box-shadow: var(--shadow);
+    .dashboard__hero {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
+      gap: var(--space-5);
+      margin-bottom: var(--space-5);
+    }
+
+    .dashboard__hero::before {
+      content: "";
+      position: absolute;
+      inset: auto 12% -18px 12%;
+      height: 60px;
+      background: rgba(26, 20, 14, 0.1);
+      filter: blur(24px);
+      z-index: -1;
+    }
+
+    .hero-panel,
+    .hero-summary,
+    .panel,
+    .table-panel {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--color-shadow);
+      overflow: hidden;
       backdrop-filter: blur(10px);
     }
 
-    .hero {
-      padding: 28px;
-      display: grid;
-      gap: 18px;
+    .hero-panel {
+      position: relative;
+      padding: var(--space-8);
+      color: var(--color-text-inverse);
+      background:
+        radial-gradient(circle at 85% 15%, rgba(255, 196, 121, 0.14), transparent 22%),
+        radial-gradient(circle at 0% 100%, rgba(20, 108, 99, 0.2), transparent 24%),
+        linear-gradient(140deg, #131922 0%, #1b2431 52%, #32211b 100%);
     }
 
-    .hero-top {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      align-items: flex-start;
-      flex-wrap: wrap;
-    }
-
-    .eyebrow {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
-
-    h1 {
-      margin: 0 0 8px;
-      font-size: clamp(30px, 6vw, 48px);
-      line-height: 1;
-    }
-
-    .hero p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 16px;
-      line-height: 1.6;
-      max-width: 720px;
-    }
-
-    .status-pill {
+    .hero-panel__eyebrow,
+    .hero-summary__eyebrow,
+    .panel__eyebrow {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      border-radius: 999px;
-      font-size: 14px;
-      font-weight: 700;
-      border: 1px solid currentColor;
+      gap: 10px;
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
     }
 
-    .status-pill.success { color: var(--success); background: rgba(47, 127, 95, 0.08); }
-    .status-pill.danger { color: var(--danger); background: rgba(183, 72, 53, 0.08); }
+    .hero-panel__eyebrow {
+      margin-bottom: var(--space-4);
+      color: rgba(246, 241, 234, 0.72);
+    }
 
-    .action-row {
+    .hero-panel__eyebrow::before {
+      content: "";
+      width: 34px;
+      height: 1px;
+      background: rgba(246, 241, 234, 0.34);
+    }
+
+    .hero-panel__title,
+    .hero-summary__title,
+    .panel__title {
+      margin: 0;
+      font-family: var(--font-display);
+      line-height: 1.02;
+      letter-spacing: -0.04em;
+    }
+
+    .hero-panel__title {
+      max-width: 11ch;
+      font-size: clamp(42px, 6.2vw, 74px);
+    }
+
+    .hero-panel__copy,
+    .panel__subtitle,
+    .summary-card__text {
+      line-height: 1.7;
+    }
+
+    .hero-panel__copy {
+      margin: var(--space-5) 0 0;
+      max-width: 62ch;
+      color: rgba(246, 241, 234, 0.8);
+      font-size: 16px;
+    }
+
+    .hero-panel__actions {
       display: flex;
-      gap: 12px;
       flex-wrap: wrap;
+      gap: var(--space-3);
+      margin-top: var(--space-6);
     }
 
-    .action-row form { margin: 0; }
+    .hero-panel__actions form,
+    .action-form {
+      margin: 0;
+    }
 
-    button, .ghost {
+    .btn {
+      appearance: none;
       border: 0;
-      border-radius: 14px;
-      padding: 12px 16px;
+      border-radius: 999px;
+      padding: 13px 18px;
       font: inherit;
       font-weight: 700;
-      cursor: pointer;
-      transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+      line-height: 1;
       text-decoration: none;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-    }
-
-    button:hover, .ghost:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 14px 30px rgba(88, 49, 15, 0.14);
-    }
-
-    .primary {
-      color: #fff;
-      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    }
-
-    .secondary {
-      color: var(--text);
-      background: var(--panel-strong);
-      border: 1px solid var(--line);
-    }
-
-    .flash-list {
-      display: grid;
-      gap: 10px;
-      margin-top: 14px;
-    }
-
-    .flash {
-      padding: 14px 16px;
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--text);
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
-      margin-top: 18px;
-    }
-
-    .card {
-      padding: 22px;
-    }
-
-    .card h2, .table-card h2 {
-      margin: 0 0 16px;
-      font-size: 22px;
-    }
-
-    .metric {
-      display: grid;
       gap: 8px;
+      cursor: pointer;
+      transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 28px rgba(11, 10, 14, 0.18);
+    }
+
+    .btn--primary {
+      color: #fff8f1;
+      background: linear-gradient(135deg, var(--color-accent), var(--color-accent-strong));
+    }
+
+    .btn--ghost {
+      color: var(--color-text-inverse);
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    .btn--light {
+      color: var(--color-text);
+      background: rgba(255, 250, 243, 0.9);
+      border: 1px solid rgba(255, 250, 243, 0.28);
+    }
+
+    .hero-panel__meta,
+    .summary-grid,
+    .split-list,
+    .highlight-grid,
+    .section-grid {
+      display: grid;
+      gap: var(--space-4);
+    }
+
+    .hero-panel__meta {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: var(--space-7);
+    }
+
+    .meta-chip,
+    .summary-stat,
+    .mini-card,
+    .highlight-card {
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-line);
+    }
+
+    .meta-chip {
+      padding: var(--space-4);
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.09);
+    }
+
+    .meta-chip__label,
+    .summary-stat__label,
+    .mini-card__label,
+    .highlight-card__label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .meta-chip__label {
+      color: rgba(246, 241, 234, 0.58);
+    }
+
+    .meta-chip__value {
+      display: block;
+      color: var(--color-text-inverse);
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
+    .hero-summary {
+      padding: var(--space-7);
+      display: grid;
+      gap: var(--space-4);
+      background: rgba(255, 250, 243, 0.82);
+    }
+
+    .hero-summary__header,
+    .panel__header,
+    .metric-row__top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-4);
+    }
+
+    .hero-summary__eyebrow,
+    .panel__eyebrow,
+    .summary-card__title,
+    .metric-row__label {
+      color: var(--color-muted);
+    }
+
+    .hero-summary__title,
+    .panel__title {
+      font-size: 32px;
+    }
+
+    .status-badge,
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 13px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1;
+      border: 1px solid currentColor;
+    }
+
+    .status-badge::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 0 4px currentColor;
+      opacity: 0.18;
+    }
+
+    .status-badge--live,
+    .pill--active,
+    .pill--win {
+      color: var(--color-success);
+      background: var(--color-success-soft);
+    }
+
+    .status-badge--maintenance,
+    .pill--expired,
+    .pill--loss {
+      color: var(--color-danger);
+      background: var(--color-danger-soft);
+    }
+
+    .summary-card,
+    .panel,
+    .table-panel {
+      background: rgba(255, 251, 245, 0.84);
+    }
+
+    .summary-card {
+      padding: var(--space-5);
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(128, 110, 86, 0.1);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 247, 238, 0.92));
+    }
+
+    .summary-stat,
+    .mini-card,
+    .highlight-card {
+      padding: var(--space-4);
+      background: var(--color-card);
+    }
+
+    .summary-grid,
+    .split-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .summary-stat__value,
+    .mini-card__value,
+    .highlight-card__value {
+      display: block;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .summary-stat__value {
+      font-size: clamp(22px, 3vw, 30px);
+    }
+
+    .mini-card__value {
+      font-size: 28px;
+    }
+
+    .highlight-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: var(--space-5);
+    }
+
+    .highlight-card {
+      box-shadow: var(--color-shadow);
+    }
+
+    .highlight-card__value {
+      margin-bottom: 10px;
+      font-family: var(--font-display);
+      font-size: clamp(28px, 4vw, 42px);
+      letter-spacing: -0.03em;
+    }
+
+    .highlight-card__hint,
+    .summary-stat__hint,
+    .mini-card__hint,
+    .panel__subtitle,
+    .empty,
+    .notice {
+      color: var(--color-muted);
+      font-size: 14px;
+    }
+
+    .notice-list {
+      display: grid;
+      gap: var(--space-3);
+      margin-bottom: var(--space-5);
+    }
+
+    .notice {
+      padding: var(--space-4) var(--space-5);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-line);
+      background: rgba(255, 252, 246, 0.78);
+      line-height: 1.65;
+    }
+
+    .notice--success {
+      border-color: rgba(39, 128, 86, 0.18);
+      background: rgba(39, 128, 86, 0.08);
+    }
+
+    .notice--error {
+      border-color: rgba(192, 78, 64, 0.18);
+      background: rgba(192, 78, 64, 0.08);
+    }
+
+    .section-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-bottom: var(--space-5);
+    }
+
+    .panel,
+    .table-panel {
+      padding: var(--space-7);
+    }
+
+    .metric-list {
+      display: grid;
+      gap: var(--space-4);
     }
 
     .metric-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 10px 0;
-      border-bottom: 1px dashed var(--line);
+      display: grid;
+      gap: 10px;
     }
 
-    .metric-row:last-child { border-bottom: 0; }
-    .metric-label { color: var(--muted); }
-    .metric-value { font-weight: 700; text-align: right; }
+    .metric-row__value {
+      font-weight: 800;
+      text-align: right;
+    }
 
-    .table-card {
-      padding: 22px;
-      margin-top: 18px;
+    .meter {
+      position: relative;
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(128, 110, 86, 0.12);
       overflow: hidden;
+    }
+
+    .meter__fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--color-teal), #28a58d);
+    }
+
+    .meter__fill--warm {
+      background: linear-gradient(90deg, var(--color-accent), #f3a64c);
+    }
+
+    .meter__fill--danger {
+      background: linear-gradient(90deg, var(--color-danger), #ee8a6d);
+    }
+
+    .table-scroll {
+      overflow: hidden;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-line);
+      background: rgba(255, 255, 255, 0.74);
     }
 
     table {
@@ -193,213 +471,484 @@
     }
 
     thead th {
+      padding: 16px 18px;
       text-align: left;
-      padding: 0 0 12px;
-      color: var(--muted);
       font-size: 12px;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      border-bottom: 1px solid var(--line);
+      color: var(--color-muted);
+      background: rgba(239, 230, 216, 0.62);
+      border-bottom: 1px solid var(--color-line);
     }
 
     tbody td {
-      padding: 14px 0;
-      border-bottom: 1px solid rgba(222, 205, 182, 0.5);
+      padding: 18px;
       vertical-align: top;
+      border-bottom: 1px solid var(--color-line);
     }
 
-    tbody tr:last-child td { border-bottom: 0; }
-
-    .tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 700;
-      border: 1px solid var(--line);
-      background: #fff;
+    tbody tr:last-child td {
+      border-bottom: 0;
     }
 
-    .tag.pro { color: #8c4b18; }
-    .tag.vip { color: #2b6f8d; }
-    .tag.active { color: var(--success); }
-    .tag.expired { color: var(--danger); }
-    .tag.win { color: var(--success); }
-    .tag.loss { color: var(--danger); }
+    tbody tr:hover {
+      background: rgba(255, 247, 238, 0.72);
+    }
 
-    .muted { color: var(--muted); }
-    .mono { font-family: "Courier New", monospace; }
+    .pill--vip {
+      color: #0c7282;
+      background: rgba(12, 114, 130, 0.1);
+    }
+
+    .pill--pro {
+      color: #9b4b1f;
+      background: rgba(155, 75, 31, 0.1);
+    }
+
+    .mono {
+      font-family: "Consolas", "SFMono-Regular", "Courier New", monospace;
+      word-break: break-all;
+    }
+
     .empty {
-      color: var(--muted);
-      padding: 12px 0 4px;
+      padding: var(--space-5);
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.7);
+      line-height: 1.7;
+      border: 1px dashed rgba(128, 110, 86, 0.22);
+    }
+
+    @media (max-width: 1120px) {
+      .dashboard__hero,
+      .section-grid,
+      .highlight-grid {
+        grid-template-columns: 1fr;
+      }
     }
 
     @media (max-width: 860px) {
-      .grid { grid-template-columns: 1fr; }
-      table, thead, tbody, th, td, tr { display: block; }
-      thead { display: none; }
+      .dashboard {
+        width: min(var(--container), calc(100% - 16px));
+      }
+
+      .hero-panel,
+      .hero-summary,
+      .panel,
+      .table-panel {
+        padding: var(--space-6);
+        border-radius: 24px;
+      }
+
+      .hero-panel__meta,
+      .summary-grid,
+      .split-list {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-summary__header,
+      .panel__header,
+      .metric-row__top {
+        flex-direction: column;
+      }
+
+      table,
+      thead,
+      tbody,
+      tr,
+      th,
+      td {
+        display: block;
+      }
+
+      thead {
+        display: none;
+      }
+
+      .table-scroll {
+        background: transparent;
+        border: 0;
+      }
+
       tbody tr {
-        padding: 14px 0;
-        border-bottom: 1px solid var(--line);
+        margin-bottom: var(--space-3);
+        padding: var(--space-4);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--color-line);
+        background: rgba(255, 255, 255, 0.76);
       }
+
+      tbody tr:last-child {
+        margin-bottom: 0;
+      }
+
       tbody td {
+        padding: 8px 0;
         border-bottom: 0;
-        padding: 6px 0;
       }
+
       tbody td::before {
         content: attr(data-label);
         display: block;
-        color: var(--muted);
-        font-size: 12px;
         margin-bottom: 4px;
+        color: var(--color-muted);
+        font-size: 11px;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
       }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <section class="hero">
-      <div class="hero-top">
+  {% set total_users = user_stats.total_users or 0 %}
+  {% set vip_share = (user_stats.vip_users / total_users * 100) if total_users else 0 %}
+  {% set pro_share = (user_stats.pro_users / total_users * 100) if total_users else 0 %}
+  {% set cpu_fill_class = 'meter__fill meter__fill--danger' if system_health.cpu_usage >= 85 else 'meter__fill meter__fill--warm' if system_health.cpu_usage >= 65 else 'meter__fill' %}
+  {% set ram_fill_class = 'meter__fill meter__fill--danger' if system_health.ram_percent >= 85 else 'meter__fill meter__fill--warm' if system_health.ram_percent >= 65 else 'meter__fill' %}
+  {% set disk_fill_class = 'meter__fill meter__fill--danger' if system_health.disk_percent >= 85 else 'meter__fill meter__fill--warm' if system_health.disk_percent >= 65 else 'meter__fill' %}
+  {% set win_fill_class = 'meter__fill meter__fill--danger' if performance.win_rate < 40 else 'meter__fill meter__fill--warm' if performance.win_rate < 65 else 'meter__fill' %}
+
+  <main class="dashboard">
+    <section class="dashboard__hero">
+      <article class="hero-panel">
+        <div class="hero-panel__eyebrow">Apexify Control Room</div>
+        <h1 class="hero-panel__title">Admin Dashboard</h1>
+        <p class="hero-panel__copy">
+          ภาพรวมชุดเดียวกับเมนูแอดมินใน Telegram แบบเรียลไทม์
+          เอาไว้ดูสถานะระบบ ลูกค้า และผลงานสัญญาณในหน้าเดียวโดยไม่ต้องสลับหลายจุด
+        </p>
+
+        <div class="hero-panel__actions">
+          <a class="btn btn--light" href="{{ url_for('admin_dashboard') }}">Refresh Dashboard</a>
+          <form method="post" action="{{ url_for('admin_toggle_maintenance') }}">
+            <button class="btn btn--primary" type="submit">
+              {{ 'ปิด Maintenance' if maintenance.enabled else 'เปิด Maintenance' }}
+            </button>
+          </form>
+          <form method="post" action="{{ url_for('admin_download_backup') }}">
+            <button class="btn btn--ghost" type="submit">Download Backup</button>
+          </form>
+        </div>
+
+        <div class="hero-panel__meta">
+          <div class="meta-chip">
+            <span class="meta-chip__label">Admin ID</span>
+            <span class="meta-chip__value mono">{{ admin_id }}</span>
+          </div>
+          <div class="meta-chip">
+            <span class="meta-chip__label">Last Refresh</span>
+            <span class="meta-chip__value">{{ generated_at.strftime('%Y-%m-%d %H:%M:%S') if generated_at else '-' }}</span>
+          </div>
+          <div class="meta-chip">
+            <span class="meta-chip__label">Paid Base</span>
+            <span class="meta-chip__value">{{ user_stats.vip_users + user_stats.pro_users }} active members</span>
+          </div>
+        </div>
+      </article>
+
+      <aside class="hero-summary">
+        <div class="hero-summary__header">
+          <div>
+            <div class="hero-summary__eyebrow">Live Ops Status</div>
+            <h2 class="hero-summary__title">System Snapshot</h2>
+          </div>
+          <div class="status-badge {{ 'status-badge--maintenance' if maintenance.enabled else 'status-badge--live' }}">
+            {{ 'Maintenance ON' if maintenance.enabled else 'System Live' }}
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <h3 class="summary-card__title">สถานะล่าสุด</h3>
+          <p class="summary-card__text">{{ maintenance.description }}</p>
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-stat">
+            <span class="summary-stat__label">Total Users</span>
+            <span class="summary-stat__value">{{ user_stats.total_users }}</span>
+            <span class="summary-stat__hint">ฐานผู้ใช้งานทั้งหมดในระบบ</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-stat__label">Monthly Revenue</span>
+            <span class="summary-stat__value">{{ '{:,.0f}'.format(user_stats.estimated_monthly_revenue) }}</span>
+            <span class="summary-stat__hint">ประมาณการรายได้ขั้นต่ำต่อเดือน</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-stat__label">Signal Win Rate</span>
+            <span class="summary-stat__value">{{ '%.1f'|format(performance.win_rate) }}%</span>
+            <span class="summary-stat__hint">คำนวณจาก {{ performance.total_count }} alerts ล่าสุด</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-stat__label">Server Uptime</span>
+            <span class="summary-stat__value">{{ system_health.uptime_hours }}</span>
+            <span class="summary-stat__hint">ชั่วโมงที่เครื่องทำงานต่อเนื่อง</span>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="notice-list">
+      {% with flashes = get_flashed_messages(with_categories=true) %}
+        {% for category, message in flashes %}
+          <article class="notice {{ 'notice--error' if category == 'error' else 'notice--success' }}">{{ message }}</article>
+        {% endfor %}
+      {% endwith %}
+    </section>
+
+    <section class="highlight-grid">
+      <article class="highlight-card">
+        <span class="highlight-card__label">Free Users</span>
+        <span class="highlight-card__value">{{ user_stats.free_users }}</span>
+        <div class="highlight-card__hint">ผู้ใช้ที่ยังไม่ได้อยู่ในแผนชำระเงิน</div>
+      </article>
+      <article class="highlight-card">
+        <span class="highlight-card__label">VIP Share</span>
+        <span class="highlight-card__value">{{ '%.1f'|format(vip_share) }}%</span>
+        <div class="highlight-card__hint">{{ user_stats.vip_users }} คน จากฐานทั้งหมด</div>
+      </article>
+      <article class="highlight-card">
+        <span class="highlight-card__label">PRO Share</span>
+        <span class="highlight-card__value">{{ '%.1f'|format(pro_share) }}%</span>
+        <div class="highlight-card__hint">{{ user_stats.pro_users }} คน พร้อมรับ feature เต็มรูปแบบ</div>
+      </article>
+      <article class="highlight-card">
+        <span class="highlight-card__label">Signals Won</span>
+        <span class="highlight-card__value">{{ performance.win_count }}</span>
+        <div class="highlight-card__hint">จำนวนสัญญาณที่เข้าเป้าจากชุดที่ประเมินได้</div>
+      </article>
+    </section>
+
+    <section class="section-grid">
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <div class="panel__eyebrow">Infrastructure</div>
+            <h2 class="panel__title">System Health</h2>
+            <p class="panel__subtitle">ดูภาระเครื่องแบบเร็วๆ ผ่านกราฟ usage ที่อ่านง่ายขึ้น เพื่อรู้ทันว่าควรระวังจุดไหนก่อนระบบสะดุด</p>
+          </div>
+        </div>
+
+        <div class="metric-list">
+          <div class="metric-row">
+            <div class="metric-row__top">
+              <span class="metric-row__label">CPU Usage</span>
+              <span class="metric-row__value">{{ '%.0f'|format(system_health.cpu_usage) }}%</span>
+            </div>
+            <div class="meter"><span class="{{ cpu_fill_class }}" style="width: {{ '%.0f'|format(system_health.cpu_usage) }}%;"></span></div>
+          </div>
+          <div class="metric-row">
+            <div class="metric-row__top">
+              <span class="metric-row__label">RAM Usage</span>
+              <span class="metric-row__value">{{ '%.2f'|format(system_health.ram_used_gb) }} / {{ '%.2f'|format(system_health.ram_total_gb) }} GB</span>
+            </div>
+            <div class="meter"><span class="{{ ram_fill_class }}" style="width: {{ '%.0f'|format(system_health.ram_percent) }}%;"></span></div>
+          </div>
+          <div class="metric-row">
+            <div class="metric-row__top">
+              <span class="metric-row__label">Disk Usage</span>
+              <span class="metric-row__value">{{ '%.0f'|format(system_health.disk_percent) }}%</span>
+            </div>
+            <div class="meter"><span class="{{ disk_fill_class }}" style="width: {{ '%.0f'|format(system_health.disk_percent) }}%;"></span></div>
+          </div>
+          <div class="metric-row">
+            <div class="metric-row__top">
+              <span class="metric-row__label">Uptime</span>
+              <span class="metric-row__value">{{ system_health.uptime_hours }} ชั่วโมง</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <div class="panel__eyebrow">Commercial Snapshot</div>
+            <h2 class="panel__title">Business Overview</h2>
+            <p class="panel__subtitle">ดูภาพฐานลูกค้าและสัดส่วนแพ็กเกจให้จบใน section เดียว พร้อมตัวเลขรายได้ขั้นต่ำที่คาดได้ทันที</p>
+          </div>
+        </div>
+
+        <div class="split-list">
+          <div class="mini-card">
+            <span class="mini-card__label">All Users</span>
+            <span class="mini-card__value">{{ user_stats.total_users }}</span>
+            <div class="mini-card__hint">จำนวนผู้ใช้ทั้งหมดที่ลงทะเบียนแล้ว</div>
+          </div>
+          <div class="mini-card">
+            <span class="mini-card__label">Free</span>
+            <span class="mini-card__value">{{ user_stats.free_users }}</span>
+            <div class="mini-card__hint">ฐานที่ยังมีโอกาสแปลงเป็น paid</div>
+          </div>
+          <div class="mini-card">
+            <span class="mini-card__label">VIP</span>
+            <span class="mini-card__value">{{ user_stats.vip_users }}</span>
+            <div class="mini-card__hint">แพ็กเกจระดับกลางที่ยัง active</div>
+          </div>
+          <div class="mini-card">
+            <span class="mini-card__label">PRO</span>
+            <span class="mini-card__value">{{ user_stats.pro_users }}</span>
+            <div class="mini-card__hint">กลุ่มสมาชิกที่ใช้ feature เต็มสุด</div>
+          </div>
+        </div>
+
+        <div class="metric-list" style="margin-top: 20px;">
+          <div class="metric-row">
+            <div class="metric-row__top">
+              <span class="metric-row__label">Estimated Monthly Revenue</span>
+              <span class="metric-row__value">{{ '{:,.2f}'.format(user_stats.estimated_monthly_revenue) }} บาท</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <div class="panel__eyebrow">Operations</div>
+            <h2 class="panel__title">Maintenance & Actions</h2>
+            <p class="panel__subtitle">สรุปผลกระทบของ maintenance mode ให้เห็นชัด พร้อมบริบทที่ต้องใช้เวลาเปิดดูระบบจากมือถือหรือหน้าเว็บสั้นๆ</p>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <h3 class="summary-card__title">Maintenance Mode</h3>
+          <p class="summary-card__text">
+            ตอนนี้ระบบอยู่ในสถานะ <strong>{{ maintenance.label }}</strong><br>
+            {{ maintenance.description }}
+          </p>
+        </div>
+
+        <div class="metric-list" style="margin-top: 20px;">
+          <div class="metric-row">
+            <div class="metric-row__top">
+              <span class="metric-row__label">Admin Access</span>
+              <span class="metric-row__value mono">{{ admin_id }}</span>
+            </div>
+          </div>
+          <div class="metric-row">
+            <div class="metric-row__top">
+              <span class="metric-row__label">Snapshot Generated</span>
+              <span class="metric-row__value">{{ generated_at.strftime('%Y-%m-%d %H:%M:%S') if generated_at else '-' }}</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <div class="panel__eyebrow">Signal Quality</div>
+            <h2 class="panel__title">Performance</h2>
+            <p class="panel__subtitle">มองภาพสั้นว่าระบบสัญญาณช่วงล่าสุดแม่นแค่ไหน พร้อมตัวเลขที่สำคัญที่สุดต่อการดูคุณภาพ alerts</p>
+          </div>
+        </div>
+
+        <div class="metric-list">
+          <div class="metric-row">
+            <div class="metric-row__top">
+              <span class="metric-row__label">Total Evaluated Signals</span>
+              <span class="metric-row__value">{{ performance.total_count }}</span>
+            </div>
+          </div>
+          <div class="metric-row">
+            <div class="metric-row__top">
+              <span class="metric-row__label">Signals Hit Target</span>
+              <span class="metric-row__value">{{ performance.win_count }}</span>
+            </div>
+          </div>
+          <div class="metric-row">
+            <div class="metric-row__top">
+              <span class="metric-row__label">Win Rate</span>
+              <span class="metric-row__value">{{ '%.2f'|format(performance.win_rate) }}%</span>
+            </div>
+            <div class="meter"><span class="{{ win_fill_class }}" style="width: {{ '%.0f'|format(performance.win_rate) }}%;"></span></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="table-panel">
+      <div class="panel__header">
         <div>
-          <div class="eyebrow">Apexify Control Room</div>
-          <h1>Admin Dashboard</h1>
-          <p>ภาพรวมนี้ดึงข้อมูลจากชุดเดียวกับเมนูแอดมินใน Telegram เพื่อให้สถานะบนเว็บกับบอทตรงกันจริงแบบเรียลไทม์</p>
-        </div>
-        <div class="status-pill {{ 'danger' if maintenance.enabled else 'success' }}">
-          {{ 'Maintenance ON' if maintenance.enabled else 'Maintenance OFF' }}
+          <div class="panel__eyebrow">Recent Signals</div>
+          <h2 class="panel__title">Performance ล่าสุด</h2>
+          <p class="panel__subtitle">เช็กย้อนหลังว่าระบบแจ้งเตือนตัวไหนเข้าเป้า ตัวไหนควรจับตาเรื่องคุณภาพสัญญาณมากขึ้น</p>
         </div>
       </div>
 
-      <div class="action-row">
-        <a class="ghost secondary" href="{{ url_for('admin_dashboard') }}">Refresh</a>
-        <form method="post" action="{{ url_for('admin_toggle_maintenance') }}">
-          <button class="primary" type="submit">{{ 'ปิด Maintenance' if maintenance.enabled else 'เปิด Maintenance' }}</button>
-        </form>
-        <form method="post" action="{{ url_for('admin_download_backup') }}">
-          <button class="secondary" type="submit">Download Backup</button>
-        </form>
-      </div>
-
-      <div class="flash-list">
-        {% with flashes = get_flashed_messages(with_categories=true) %}
-          {% for category, message in flashes %}
-            <div class="flash">{{ message }}</div>
-          {% endfor %}
-        {% endwith %}
-        <div class="flash">Admin ID: <span class="mono">{{ admin_id }}</span> • สถานะล่าสุด: {{ maintenance.description }}</div>
-        <div class="flash">อัปเดตเมื่อ {{ generated_at.strftime('%Y-%m-%d %H:%M:%S') if generated_at else '-' }}</div>
-      </div>
-    </section>
-
-    <section class="grid">
-      <article class="card">
-        <h2>System Health</h2>
-        <div class="metric">
-          <div class="metric-row"><span class="metric-label">CPU Usage</span><span class="metric-value">{{ '%.0f'|format(system_health.cpu_usage) }}%</span></div>
-          <div class="metric-row"><span class="metric-label">RAM Usage</span><span class="metric-value">{{ '%.2f'|format(system_health.ram_used_gb) }} GB / {{ '%.2f'|format(system_health.ram_total_gb) }} GB ({{ '%.0f'|format(system_health.ram_percent) }}%)</span></div>
-          <div class="metric-row"><span class="metric-label">Disk Usage</span><span class="metric-value">{{ '%.0f'|format(system_health.disk_percent) }}%</span></div>
-          <div class="metric-row"><span class="metric-label">Uptime</span><span class="metric-value">{{ system_health.uptime_hours }} ชั่วโมง</span></div>
-        </div>
-      </article>
-
-      <article class="card">
-        <h2>Usage Stats</h2>
-        <div class="metric">
-          <div class="metric-row"><span class="metric-label">ผู้ใช้งานทั้งหมด</span><span class="metric-value">{{ user_stats.total_users }}</span></div>
-          <div class="metric-row"><span class="metric-label">สายฟรี</span><span class="metric-value">{{ user_stats.free_users }}</span></div>
-          <div class="metric-row"><span class="metric-label">VIP Active</span><span class="metric-value">{{ user_stats.vip_users }}</span></div>
-          <div class="metric-row"><span class="metric-label">PRO Active</span><span class="metric-value">{{ user_stats.pro_users }}</span></div>
-          <div class="metric-row"><span class="metric-label">ประมาณการรายได้ขั้นต่ำ</span><span class="metric-value">{{ '{:,.2f}'.format(user_stats.estimated_monthly_revenue) }} บาท/เดือน</span></div>
-        </div>
-      </article>
-
-      <article class="card">
-        <h2>Maintenance</h2>
-        <div class="metric">
-          <div class="metric-row"><span class="metric-label">สถานะ</span><span class="metric-value">{{ maintenance.label }}</span></div>
-          <div class="metric-row"><span class="metric-label">ผลกระทบ</span><span class="metric-value">{{ maintenance.description }}</span></div>
-        </div>
-      </article>
-
-      <article class="card">
-        <h2>Performance</h2>
-        <div class="metric">
-          <div class="metric-row"><span class="metric-label">สัญญาณที่ประเมินได้</span><span class="metric-value">{{ performance.total_count }}</span></div>
-          <div class="metric-row"><span class="metric-label">จำนวนที่เข้าเป้า</span><span class="metric-value">{{ performance.win_count }}</span></div>
-          <div class="metric-row"><span class="metric-label">Win Rate</span><span class="metric-value">{{ '%.2f'|format(performance.win_rate) }}%</span></div>
-        </div>
-      </article>
-    </section>
-
-    <section class="table-card">
-      <h2>Performance ล่าสุด</h2>
       {% if performance.entries %}
-        <table>
-          <thead>
-            <tr>
-              <th>Symbol</th>
-              <th>Signal</th>
-              <th>เตือนที่</th>
-              <th>ปัจจุบัน</th>
-              <th>ผลลัพธ์</th>
-              <th>สถานะ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in performance.entries %}
+        <div class="table-scroll">
+          <table>
+            <thead>
               <tr>
-                <td data-label="Symbol"><strong>{{ item.symbol }}</strong></td>
-                <td data-label="Signal">{{ item.alert_type }}</td>
-                <td data-label="เตือนที่">{{ '%.2f'|format(item.start_price) }}</td>
-                <td data-label="ปัจจุบัน">{{ '%.2f'|format(item.current_price) }}</td>
-                <td data-label="ผลลัพธ์">{{ '%+.2f'|format(item.diff_pct) }}%</td>
-                <td data-label="สถานะ">
-                  <span class="tag {{ 'win' if item.is_win else 'loss' }}">{{ 'Win' if item.is_win else 'Miss' }}</span>
-                </td>
+                <th>Symbol</th>
+                <th>Signal</th>
+                <th>Alert Price</th>
+                <th>Current Price</th>
+                <th>Result</th>
+                <th>Status</th>
               </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {% for item in performance.entries %}
+                <tr>
+                  <td data-label="Symbol"><strong>{{ item.symbol }}</strong></td>
+                  <td data-label="Signal">{{ item.alert_type }}</td>
+                  <td data-label="Alert Price">{{ '%.2f'|format(item.start_price) }}</td>
+                  <td data-label="Current Price">{{ '%.2f'|format(item.current_price) }}</td>
+                  <td data-label="Result">{{ '%+.2f'|format(item.diff_pct) }}%</td>
+                  <td data-label="Status">
+                    <span class="pill {{ 'pill--win' if item.is_win else 'pill--loss' }}">{{ 'Win' if item.is_win else 'Miss' }}</span>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       {% else %}
-        <div class="empty">ยังไม่มีประวัติแจ้งเตือนที่คำนวณผลได้</div>
+        <div class="empty">ยังไม่มีประวัติ performance ที่คำนวณผลได้ในตอนนี้</div>
       {% endif %}
     </section>
 
-    <section class="table-card">
-      <h2>VIP / PRO Users</h2>
+    <section class="table-panel">
+      <div class="panel__header">
+        <div>
+          <div class="panel__eyebrow">Membership Base</div>
+          <h2 class="panel__title">VIP / PRO Users</h2>
+          <p class="panel__subtitle">สรุปรายชื่อลูกค้าที่อยู่ในแผนชำระเงิน พร้อมวันหมดอายุและสถานะใช้งานปัจจุบัน</p>
+        </div>
+      </div>
+
       {% if paid_users %}
-        <table>
-          <thead>
-            <tr>
-              <th>User ID</th>
-              <th>Role</th>
-              <th>Expiry</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for user in paid_users %}
+        <div class="table-scroll">
+          <table>
+            <thead>
               <tr>
-                <td data-label="User ID"><span class="mono">{{ user.user_id }}</span></td>
-                <td data-label="Role">
-                  <span class="tag {{ user.role }}">{{ user.role|upper }}</span>
-                </td>
-                <td data-label="Expiry">{{ user.expiry_date }}</td>
-                <td data-label="Status">
-                  <span class="tag {{ 'active' if user.is_active else 'expired' }}">{{ user.status_label }}</span>
-                </td>
+                <th>User ID</th>
+                <th>Role</th>
+                <th>Expiry</th>
+                <th>Status</th>
               </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {% for user in paid_users %}
+                <tr>
+                  <td data-label="User ID"><span class="mono">{{ user.user_id }}</span></td>
+                  <td data-label="Role">
+                    <span class="pill {{ 'pill--pro' if user.role == 'pro' else 'pill--vip' }}">{{ user.role|upper }}</span>
+                  </td>
+                  <td data-label="Expiry">{{ user.expiry_date }}</td>
+                  <td data-label="Status">
+                    <span class="pill {{ 'pill--active' if user.is_active else 'pill--expired' }}">{{ user.status_label }}</span>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       {% else %}
-        <div class="empty">ยังไม่มีลูกค้า VIP หรือ PRO ในระบบ</div>
+        <div class="empty">ยังไม่มีลูกค้า VIP หรือ PRO ในระบบตอนนี้</div>
       {% endif %}
     </section>
-  </div>
+  </main>
 </body>
 </html>
