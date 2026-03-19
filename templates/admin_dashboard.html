@@ -5,983 +5,204 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Apexify Admin Dashboard</title>
   <style>
-    :root {
-      --color-bg: #f4efe8;
-      --color-bg-glow: rgba(200, 107, 51, 0.18);
-      --color-surface: rgba(255, 252, 246, 0.9);
-      --color-surface-strong: #141a22;
-      --color-surface-soft: #efe6d8;
-      --color-card: #fffaf3;
-      --color-text: #1d2330;
-      --color-text-inverse: #f6f1ea;
-      --color-muted: #716b7d;
-      --color-border: rgba(128, 110, 86, 0.18);
-      --color-line: rgba(128, 110, 86, 0.12);
-      --color-accent: #c86b33;
-      --color-accent-strong: #a44a28;
-      --color-accent-soft: rgba(200, 107, 51, 0.12);
-      --color-teal: #146c63;
-      --color-success: #278056;
-      --color-success-soft: rgba(39, 128, 86, 0.13);
-      --color-danger: #c04e40;
-      --color-danger-soft: rgba(192, 78, 64, 0.13);
-      --color-shadow: 0 28px 60px rgba(38, 29, 18, 0.14);
-      --radius-xl: 30px;
-      --radius-lg: 22px;
-      --radius-md: 16px;
-      --radius-sm: 12px;
-      --space-3: 12px;
-      --space-4: 16px;
-      --space-5: 20px;
-      --space-6: 24px;
-      --space-7: 28px;
-      --space-8: 32px;
-      --container: 1280px;
-      --font-sans: "Aptos", "Trebuchet MS", "Segoe UI", sans-serif;
-      --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: var(--font-sans);
-      color: var(--color-text);
-      background:
-        radial-gradient(circle at top left, rgba(20, 108, 99, 0.16), transparent 28%),
-        radial-gradient(circle at 90% 0%, var(--color-bg-glow), transparent 24%),
-        linear-gradient(180deg, #faf6ef 0%, #f4efe8 52%, #efe9e0 100%);
-    }
-
-    .dashboard {
-      width: min(var(--container), calc(100% - 24px));
-      margin: 18px auto 44px;
-    }
-
-    .dashboard__hero {
-      position: relative;
-      display: grid;
-      grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
-      gap: var(--space-5);
-      margin-bottom: var(--space-5);
-    }
-
-    .dashboard__hero::before {
-      content: "";
-      position: absolute;
-      inset: auto 12% -18px 12%;
-      height: 60px;
-      background: rgba(26, 20, 14, 0.1);
-      filter: blur(24px);
-      z-index: -1;
-    }
-
-    .hero-panel,
-    .hero-summary,
-    .panel,
-    .table-panel {
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--color-shadow);
-      overflow: hidden;
-      backdrop-filter: blur(10px);
-    }
-
-    .hero-panel {
-      position: relative;
-      padding: var(--space-8);
-      color: var(--color-text-inverse);
-      background:
-        radial-gradient(circle at 85% 15%, rgba(255, 196, 121, 0.14), transparent 22%),
-        radial-gradient(circle at 0% 100%, rgba(20, 108, 99, 0.2), transparent 24%),
-        linear-gradient(140deg, #131922 0%, #1b2431 52%, #32211b 100%);
-    }
-
-    .hero-panel__eyebrow,
-    .hero-summary__eyebrow,
-    .panel__eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 12px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-    }
-
-    .hero-panel__eyebrow {
-      margin-bottom: var(--space-4);
-      color: rgba(246, 241, 234, 0.72);
-    }
-
-    .hero-panel__eyebrow::before {
-      content: "";
-      width: 34px;
-      height: 1px;
-      background: rgba(246, 241, 234, 0.34);
-    }
-
-    .hero-panel__title,
-    .hero-summary__title,
-    .panel__title {
-      margin: 0;
-      font-family: var(--font-display);
-      line-height: 1.02;
-      letter-spacing: -0.04em;
-    }
-
-    .hero-panel__title {
-      max-width: 11ch;
-      font-size: clamp(42px, 6.2vw, 74px);
-    }
-
-    .hero-panel__copy,
-    .panel__subtitle,
-    .summary-card__text {
-      line-height: 1.7;
-    }
-
-    .hero-panel__copy {
-      margin: var(--space-5) 0 0;
-      max-width: 62ch;
-      color: rgba(246, 241, 234, 0.8);
-      font-size: 16px;
-    }
-
-    .hero-panel__actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-3);
-      margin-top: var(--space-6);
-    }
-
-    .hero-panel__actions form,
-    .action-form {
-      margin: 0;
-    }
-
-    .btn {
-      appearance: none;
-      border: 0;
-      border-radius: 999px;
-      padding: 13px 18px;
-      font: inherit;
-      font-weight: 700;
-      line-height: 1;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      cursor: pointer;
-      transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, background 0.14s ease;
-    }
-
-    .btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 16px 28px rgba(11, 10, 14, 0.18);
-    }
-
-    .btn--primary {
-      color: #fff8f1;
-      background: linear-gradient(135deg, var(--color-accent), var(--color-accent-strong));
-    }
-
-    .btn--ghost {
-      color: var(--color-text-inverse);
-      background: rgba(255, 255, 255, 0.07);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-    }
-
-    .btn--light {
-      color: var(--color-text);
-      background: rgba(255, 250, 243, 0.9);
-      border: 1px solid rgba(255, 250, 243, 0.28);
-    }
-
-    .hero-panel__meta,
-    .summary-grid,
-    .split-list,
-    .highlight-grid,
-    .section-grid {
-      display: grid;
-      gap: var(--space-4);
-    }
-
-    .hero-panel__meta {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      margin-top: var(--space-7);
-    }
-
-    .meta-chip,
-    .summary-stat,
-    .mini-card,
-    .highlight-card {
-      border-radius: var(--radius-md);
-      border: 1px solid var(--color-line);
-    }
-
-    .meta-chip {
-      padding: var(--space-4);
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(255, 255, 255, 0.09);
-    }
-
-    .meta-chip__label,
-    .summary-stat__label,
-    .mini-card__label,
-    .highlight-card__label {
-      display: block;
-      margin-bottom: 8px;
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .meta-chip__label {
-      color: rgba(246, 241, 234, 0.58);
-    }
-
-    .meta-chip__value {
-      display: block;
-      color: var(--color-text-inverse);
-      font-weight: 700;
-      line-height: 1.4;
-    }
-
-    .hero-summary {
-      padding: var(--space-7);
-      display: grid;
-      gap: var(--space-4);
-      background: rgba(255, 250, 243, 0.82);
-    }
-
-    .hero-summary__header,
-    .panel__header,
-    .metric-row__top {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--space-4);
-    }
-
-    .hero-summary__eyebrow,
-    .panel__eyebrow,
-    .summary-card__title,
-    .metric-row__label {
-      color: var(--color-muted);
-    }
-
-    .hero-summary__title,
-    .panel__title {
-      font-size: 32px;
-    }
-
-    .status-badge,
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 9px 13px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 800;
-      line-height: 1;
-      border: 1px solid currentColor;
-    }
-
-    .status-badge::before {
-      content: "";
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: currentColor;
-      box-shadow: 0 0 0 4px currentColor;
-      opacity: 0.18;
-    }
-
-    .status-badge--live,
-    .pill--active,
-    .pill--win {
-      color: var(--color-success);
-      background: var(--color-success-soft);
-    }
-
-    .status-badge--maintenance,
-    .pill--expired,
-    .pill--loss {
-      color: var(--color-danger);
-      background: var(--color-danger-soft);
-    }
-
-    .summary-card,
-    .panel,
-    .table-panel {
-      background: rgba(255, 251, 245, 0.84);
-    }
-
-    .summary-card {
-      padding: var(--space-5);
-      border-radius: var(--radius-lg);
-      border: 1px solid rgba(128, 110, 86, 0.1);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 247, 238, 0.92));
-    }
-
-    .summary-stat,
-    .mini-card,
-    .highlight-card {
-      padding: var(--space-4);
-      background: var(--color-card);
-    }
-
-    .summary-grid,
-    .split-list {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .summary-stat__value,
-    .mini-card__value,
-    .highlight-card__value {
-      display: block;
-      font-weight: 800;
-      line-height: 1;
-    }
-
-    .summary-stat__value {
-      font-size: clamp(22px, 3vw, 30px);
-    }
-
-    .mini-card__value {
-      font-size: 28px;
-    }
-
-    .highlight-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      margin-bottom: var(--space-5);
-    }
-
-    .highlight-card {
-      box-shadow: var(--color-shadow);
-    }
-
-    .highlight-card__value {
-      margin-bottom: 10px;
-      font-family: var(--font-display);
-      font-size: clamp(28px, 4vw, 42px);
-      letter-spacing: -0.03em;
-    }
-
-    .highlight-card__hint,
-    .summary-stat__hint,
-    .mini-card__hint,
-    .panel__subtitle,
-    .empty,
-    .notice {
-      color: var(--color-muted);
-      font-size: 14px;
-    }
-
-    .notice-list {
-      display: grid;
-      gap: var(--space-3);
-      margin-bottom: var(--space-5);
-    }
-
-    .notice {
-      padding: var(--space-4) var(--space-5);
-      border-radius: var(--radius-md);
-      border: 1px solid var(--color-line);
-      background: rgba(255, 252, 246, 0.78);
-      line-height: 1.65;
-    }
-
-    .notice--success {
-      border-color: rgba(39, 128, 86, 0.18);
-      background: rgba(39, 128, 86, 0.08);
-    }
-
-    .notice--error {
-      border-color: rgba(192, 78, 64, 0.18);
-      background: rgba(192, 78, 64, 0.08);
-    }
-
-    .section-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      margin-bottom: var(--space-5);
-    }
-
-    .panel,
-    .table-panel {
-      padding: var(--space-7);
-    }
-
-    .metric-list {
-      display: grid;
-      gap: var(--space-4);
-    }
-
-    .metric-row {
-      display: grid;
-      gap: 10px;
-    }
-
-    .metric-row__value {
-      font-weight: 800;
-      text-align: right;
-    }
-
-    .meter {
-      position: relative;
-      width: 100%;
-      height: 10px;
-      border-radius: 999px;
-      background: rgba(128, 110, 86, 0.12);
-      overflow: hidden;
-    }
-
-    .meter__fill {
-      position: absolute;
-      inset: 0 auto 0 0;
-      height: 100%;
-      border-radius: inherit;
-      background: linear-gradient(90deg, var(--color-teal), #28a58d);
-    }
-
-    .meter__fill--warm {
-      background: linear-gradient(90deg, var(--color-accent), #f3a64c);
-    }
-
-    .meter__fill--danger {
-      background: linear-gradient(90deg, var(--color-danger), #ee8a6d);
-    }
-
-    .table-scroll {
-      overflow: hidden;
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--color-line);
-      background: rgba(255, 255, 255, 0.74);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-    }
-
-    thead th {
-      padding: 16px 18px;
-      text-align: left;
-      font-size: 12px;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--color-muted);
-      background: rgba(239, 230, 216, 0.62);
-      border-bottom: 1px solid var(--color-line);
-    }
-
-    tbody td {
-      padding: 18px;
-      vertical-align: top;
-      border-bottom: 1px solid var(--color-line);
-    }
-
-    tbody tr:last-child td {
-      border-bottom: 0;
-    }
-
-    tbody tr:hover {
-      background: rgba(255, 247, 238, 0.72);
-    }
-
-    .pill--vip {
-      color: #0c7282;
-      background: rgba(12, 114, 130, 0.1);
-    }
-
-    .pill--pro {
-      color: #9b4b1f;
-      background: rgba(155, 75, 31, 0.1);
-    }
-
-    .mono {
-      font-family: "Consolas", "SFMono-Regular", "Courier New", monospace;
-      word-break: break-all;
-    }
-
-    .empty {
-      padding: var(--space-5);
-      border-radius: var(--radius-lg);
-      background: rgba(255, 255, 255, 0.7);
-      line-height: 1.7;
-      border: 1px dashed rgba(128, 110, 86, 0.22);
-    }
-
-    .stack-list {
-      display: grid;
-      gap: var(--space-3);
-      margin-top: 20px;
-    }
-
-    .stack-item {
-      padding: var(--space-4);
-      border-radius: var(--radius-md);
-      border: 1px solid var(--color-line);
-      background: rgba(255, 255, 255, 0.76);
-    }
-
-    .stack-item__top {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--space-4);
-    }
-
-    .stack-item__title {
-      font-weight: 800;
-      line-height: 1.35;
-    }
-
-    .stack-item__meta {
-      margin-top: 6px;
-      color: var(--color-muted);
-      font-size: 14px;
-      line-height: 1.6;
-    }
-
-    @media (max-width: 1120px) {
-      .dashboard__hero,
-      .section-grid,
-      .highlight-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 860px) {
-      .dashboard {
-        width: min(var(--container), calc(100% - 16px));
-      }
-
-      .hero-panel,
-      .hero-summary,
-      .panel,
-      .table-panel {
-        padding: var(--space-6);
-        border-radius: 24px;
-      }
-
-      .hero-panel__meta,
-      .summary-grid,
-      .split-list {
-        grid-template-columns: 1fr;
-      }
-
-      .hero-summary__header,
-      .panel__header,
-      .metric-row__top,
-      .stack-item__top {
-        flex-direction: column;
-      }
-
-      table,
-      thead,
-      tbody,
-      tr,
-      th,
-      td {
-        display: block;
-      }
-
-      thead {
-        display: none;
-      }
-
-      .table-scroll {
-        background: transparent;
-        border: 0;
-      }
-
-      tbody tr {
-        margin-bottom: var(--space-3);
-        padding: var(--space-4);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--color-line);
-        background: rgba(255, 255, 255, 0.76);
-      }
-
-      tbody tr:last-child {
-        margin-bottom: 0;
-      }
-
-      tbody td {
-        padding: 8px 0;
-        border-bottom: 0;
-      }
-
-      tbody td::before {
-        content: attr(data-label);
-        display: block;
-        margin-bottom: 4px;
-        color: var(--color-muted);
-        font-size: 11px;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-      }
-    }
+    :root{--bg:#060908;--bg2:#0b100f;--panel:#121716;--panel2:#181f1d;--text:#f4f7f2;--muted:#99a39b;--line:rgba(255,255,255,.07);--green:#8dfc3c;--green2:#68e420;--green-soft:rgba(141,252,60,.12);--cyan:#58e6d6;--red:#ff7d7d;--red-soft:rgba(255,125,125,.12);--amber:#f3c45e;--amber-soft:rgba(243,196,94,.14);--shadow:0 24px 60px rgba(0,0,0,.38);--glow:0 0 0 1px rgba(141,252,60,.18),0 0 26px rgba(141,252,60,.08);--r-xl:28px;--r-lg:22px;--r-md:16px;--s2:8px;--s3:12px;--s4:16px;--s5:20px;--s6:24px;--s7:28px;--s8:32px;--body:"Aptos","Segoe UI Variable Text","Trebuchet MS",sans-serif;--display:"Aptos Display","Segoe UI Variable Display","Trebuchet MS",sans-serif}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:var(--body);color:var(--text);background:radial-gradient(circle at 0 0,rgba(141,252,60,.14),transparent 16%),radial-gradient(circle at 100% 0,rgba(88,230,214,.08),transparent 12%),linear-gradient(180deg,var(--bg),#0a0d0d)}
+    .shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}.sidebar{padding:24px;border-right:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.02),transparent),#0b0f0f;display:flex;flex-direction:column;gap:28px}.brand{display:flex;gap:12px;align-items:center}.brand__icon{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:radial-gradient(circle at 30% 30%,rgba(141,252,60,.28),rgba(141,252,60,.08));color:var(--green);box-shadow:var(--glow);font-weight:800}.brand__title{margin:0;font:800 22px/1 var(--display);letter-spacing:-.03em}.brand__sub{margin-top:4px;color:var(--muted);font-size:13px}
+    .nav{display:grid;gap:8px}.nav a{text-decoration:none;color:var(--muted);padding:14px 16px;border-radius:16px;border:1px solid transparent;background:transparent}.nav a:hover,.nav a.active{color:var(--text);border-color:rgba(141,252,60,.14);background:linear-gradient(90deg,rgba(141,252,60,.14),rgba(141,252,60,.02))}.help{margin-top:auto;padding:20px;border-radius:24px;background:linear-gradient(180deg,rgba(141,252,60,.08),rgba(255,255,255,.02));border:1px solid rgba(141,252,60,.14);box-shadow:var(--glow)}.help .label{color:var(--green);font-size:12px;letter-spacing:.12em;text-transform:uppercase}.help .value{margin:8px 0 0;font-size:28px;font-weight:800}.help p{margin:10px 0 0;color:var(--muted);line-height:1.6;font-size:14px}
+    .main{padding:24px}.topbar{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;margin-bottom:20px}.eyebrow{color:var(--green);font-size:12px;text-transform:uppercase;letter-spacing:.14em;margin-bottom:8px}.title{margin:0;font:800 clamp(32px,4vw,46px)/.98 var(--display);letter-spacing:-.04em}.copy{margin:10px 0 0;max-width:62ch;color:var(--muted);line-height:1.7}.actions{display:flex;flex-wrap:wrap;gap:12px}.actions form{margin:0}
+    .btn{appearance:none;border:0;border-radius:999px;padding:13px 18px;font:700 14px/1 var(--body);color:var(--text);background:rgba(255,255,255,.04);border:1px solid var(--line);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.btn.primary{color:#071005;background:linear-gradient(135deg,var(--green),var(--green2));border:0;box-shadow:var(--glow)}.btn.danger{background:rgba(255,125,125,.12);border-color:rgba(255,125,125,.18);color:#ffe8e8}
+    .notice-list{display:grid;gap:12px;margin-bottom:20px}.notice{padding:14px 18px;border-radius:16px;background:var(--green-soft);border:1px solid rgba(141,252,60,.14);color:#dcf8ca}.notice.error{background:var(--red-soft);border-color:rgba(255,125,125,.16);color:#ffd7d7}
+    .card,.table-card{background:linear-gradient(180deg,rgba(24,29,28,.96),rgba(14,18,18,.97));border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);position:relative;overflow:hidden}.card:after,.table-card:after{content:"";position:absolute;left:18px;right:18px;bottom:0;height:1px;background:linear-gradient(90deg,transparent,rgba(141,252,60,.5),transparent)}
+    .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:20px}.kpi{padding:20px;display:flex;justify-content:space-between;gap:16px;box-shadow:var(--glow),var(--shadow)}.kpi__icon{width:48px;height:48px;border-radius:16px;display:grid;place-items:center;color:var(--green);background:radial-gradient(circle at 30% 30%,rgba(141,252,60,.26),rgba(141,252,60,.08));border:1px solid rgba(141,252,60,.18)}.kpi__label{color:var(--muted);font-size:15px;margin-bottom:8px}.kpi__value{font-size:clamp(24px,2.6vw,36px);font-weight:800;letter-spacing:-.04em}.kpi__hint{margin-top:8px;color:var(--green);font-size:13px}
+    .hero{display:grid;grid-template-columns:300px 1fr 270px;gap:16px;margin-bottom:20px}.welcome,.overview,.gauge,.block,.table-card{padding:24px}.section-label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.14em;margin-bottom:8px}.section-title{margin:0;font:800 30px/1.02 var(--display);letter-spacing:-.04em}.section-copy{margin:10px 0 0;color:var(--muted);line-height:1.7}
+    .welcome{display:grid;gap:20px;align-content:space-between;box-shadow:var(--glow),var(--shadow)}.avatar{width:128px;height:128px;margin:0 auto;border-radius:28px;display:grid;place-items:center;color:var(--green);font-size:58px;background:radial-gradient(circle at 50% 35%,rgba(141,252,60,.18),transparent 58%),rgba(141,252,60,.05);border:1px solid rgba(141,252,60,.22);box-shadow:0 0 22px rgba(141,252,60,.14)}.welcome h3{margin:0;text-align:center;font:800 34px/1.04 var(--display);letter-spacing:-.04em}.welcome h3 span{color:var(--green)}.welcome p{text-align:center}.meta{display:grid;gap:10px}.meta__row{display:flex;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);color:var(--muted)}.meta__row strong{color:var(--text)}
+    .overview{display:grid;gap:20px}.overview__head,.table-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.pill{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:800;line-height:1;border:1px solid currentColor}.pill.success{color:var(--green);background:var(--green-soft)}.pill.warn{color:var(--amber);background:var(--amber-soft)}.pill.danger{color:var(--red);background:var(--red-soft)}.pill.cyan{color:var(--cyan);background:rgba(88,230,214,.12)}
+    .chart{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;align-items:end;min-height:240px;padding-top:10px}.bar{display:grid;gap:10px;justify-items:center}.bar__value{font-size:13px;font-weight:700}.bar__track{width:100%;min-height:190px;padding:10px 8px;border-radius:18px;display:flex;align-items:end;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04)}.bar__fill{width:100%;min-height:14px;border-radius:14px 14px 10px 10px;background:linear-gradient(180deg,var(--green),rgba(104,228,32,.78));box-shadow:0 0 18px rgba(141,252,60,.24)}.bar__label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    .gauge{text-align:center;display:grid;gap:20px;align-content:center}.ring{--value:0;width:210px;height:210px;margin:0 auto;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at center,#080d0c 58%,transparent 59%),conic-gradient(var(--green) calc(var(--value)*1%),rgba(255,255,255,.08) 0);box-shadow:inset 0 0 28px rgba(141,252,60,.1),0 0 28px rgba(141,252,60,.12)}.ring__inner{width:126px;height:126px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 50% 20%,rgba(141,252,60,.08),rgba(8,12,12,.96));border:1px solid rgba(255,255,255,.05)}.ring__value{font-size:40px;font-weight:800;letter-spacing:-.04em}
+    .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:20px}.mini{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.mini__card{padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05)}.mini__label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}.mini__value{font-size:26px;font-weight:800;letter-spacing:-.03em}
+    .list{display:grid;gap:12px;margin-top:18px}.item{display:flex;justify-content:space-between;gap:16px;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05)}.item__title{font-weight:800;line-height:1.4}.item__meta{margin-top:6px;color:var(--muted);font-size:14px;line-height:1.6}.item__value{color:var(--green);font-weight:800;flex-shrink:0}
+    .table-card{margin-bottom:20px}.table-scroll{overflow:hidden;border-radius:18px;border:1px solid var(--line);background:rgba(255,255,255,.02)}table{width:100%;border-collapse:collapse;font-size:14px}thead th{padding:16px 18px;text-align:left;color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02)}tbody td{padding:18px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:top}tbody tr:hover{background:rgba(141,252,60,.04)}tbody tr:last-child td{border-bottom:0}
+    .badge{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:800;border:1px solid currentColor;line-height:1}.badge.pro{color:var(--green);background:var(--green-soft)}.badge.vip{color:var(--cyan);background:rgba(88,230,214,.12)}.badge.ok{color:var(--green);background:var(--green-soft)}.badge.no{color:var(--red);background:var(--red-soft)}.mono{font-family:"Consolas","SFMono-Regular","Courier New",monospace;word-break:break-all}.empty{padding:18px;border-radius:18px;border:1px dashed rgba(255,255,255,.09);background:rgba(255,255,255,.02);color:var(--muted);line-height:1.7}
+    @media (max-width:1220px){.kpis,.grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{grid-template-columns:1fr}}
+    @media (max-width:980px){.shell{grid-template-columns:1fr}.sidebar{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:760px){.main,.sidebar{padding:16px}.topbar,.actions,.overview__head,.table-head{flex-direction:column}.kpis,.grid2,.mini{grid-template-columns:1fr}.chart{grid-template-columns:repeat(3,minmax(0,1fr))}table,thead,tbody,tr,th,td{display:block}thead{display:none}.table-scroll{border:0;background:transparent}tbody tr{display:block;margin-bottom:12px;padding:14px 16px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.03)}tbody td{padding:8px 0;border-bottom:0}tbody td::before{content:attr(data-label);display:block;margin-bottom:4px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}}
   </style>
 </head>
 <body>
   {% set total_users = user_stats.total_users or 0 %}
-  {% set vip_share = (user_stats.vip_users / total_users * 100) if total_users else 0 %}
-  {% set pro_share = (user_stats.pro_users / total_users * 100) if total_users else 0 %}
-  {% set cpu_fill_class = 'meter__fill meter__fill--danger' if system_health.cpu_usage >= 85 else 'meter__fill meter__fill--warm' if system_health.cpu_usage >= 65 else 'meter__fill' %}
-  {% set ram_fill_class = 'meter__fill meter__fill--danger' if system_health.ram_percent >= 85 else 'meter__fill meter__fill--warm' if system_health.ram_percent >= 65 else 'meter__fill' %}
-  {% set disk_fill_class = 'meter__fill meter__fill--danger' if system_health.disk_percent >= 85 else 'meter__fill meter__fill--warm' if system_health.disk_percent >= 65 else 'meter__fill' %}
-  {% set win_fill_class = 'meter__fill meter__fill--danger' if performance.win_rate < 40 else 'meter__fill meter__fill--warm' if performance.win_rate < 65 else 'meter__fill' %}
-
-  <main class="dashboard">
-    <section class="dashboard__hero">
-      <article class="hero-panel">
-        <div class="hero-panel__eyebrow">Apexify Control Room</div>
-        <h1 class="hero-panel__title">Admin Dashboard</h1>
-        <p class="hero-panel__copy">
-          ภาพรวมชุดเดียวกับเมนูแอดมินใน Telegram แบบเรียลไทม์
-          เอาไว้ดูสถานะระบบ ลูกค้า และผลงานสัญญาณในหน้าเดียวโดยไม่ต้องสลับหลายจุด
-        </p>
-
-        <div class="hero-panel__actions">
-          <a class="btn btn--light" href="{{ url_for('admin_dashboard') }}">Refresh Dashboard</a>
-          <form method="post" action="{{ url_for('admin_toggle_maintenance') }}">
-            <button class="btn btn--primary" type="submit">
-              {{ 'ปิด Maintenance' if maintenance.enabled else 'เปิด Maintenance' }}
-            </button>
-          </form>
-          <form method="post" action="{{ url_for('admin_download_backup') }}">
-            <button class="btn btn--ghost" type="submit">Download Backup</button>
-          </form>
-        </div>
-
-        <div class="hero-panel__meta">
-          <div class="meta-chip">
-            <span class="meta-chip__label">Admin ID</span>
-            <span class="meta-chip__value mono">{{ admin_id }}</span>
-          </div>
-          <div class="meta-chip">
-            <span class="meta-chip__label">Last Refresh</span>
-            <span class="meta-chip__value">{{ generated_at.strftime('%Y-%m-%d %H:%M:%S') if generated_at else '-' }}</span>
-          </div>
-          <div class="meta-chip">
-            <span class="meta-chip__label">Paid Base</span>
-            <span class="meta-chip__value">{{ user_stats.vip_users + user_stats.pro_users }} active members</span>
-          </div>
-        </div>
-      </article>
-
-      <aside class="hero-summary">
-        <div class="hero-summary__header">
-          <div>
-            <div class="hero-summary__eyebrow">Live Ops Status</div>
-            <h2 class="hero-summary__title">System Snapshot</h2>
-          </div>
-          <div class="status-badge {{ 'status-badge--maintenance' if maintenance.enabled else 'status-badge--live' }}">
-            {{ 'Maintenance ON' if maintenance.enabled else 'System Live' }}
-          </div>
-        </div>
-
-        <div class="summary-card">
-          <h3 class="summary-card__title">สถานะล่าสุด</h3>
-          <p class="summary-card__text">{{ maintenance.description }}</p>
-        </div>
-
-        <div class="summary-grid">
-          <div class="summary-stat">
-            <span class="summary-stat__label">Total Users</span>
-            <span class="summary-stat__value">{{ user_stats.total_users }}</span>
-            <span class="summary-stat__hint">ฐานผู้ใช้งานทั้งหมดในระบบ</span>
-          </div>
-          <div class="summary-stat">
-            <span class="summary-stat__label">Monthly Revenue</span>
-            <span class="summary-stat__value">{{ '{:,.0f}'.format(user_stats.estimated_monthly_revenue) }}</span>
-            <span class="summary-stat__hint">ประมาณการรายได้ขั้นต่ำต่อเดือน</span>
-          </div>
-          <div class="summary-stat">
-            <span class="summary-stat__label">Signal Win Rate</span>
-            <span class="summary-stat__value">{{ '%.1f'|format(performance.win_rate) }}%</span>
-            <span class="summary-stat__hint">คำนวณจาก {{ performance.total_count }} alerts ล่าสุด</span>
-          </div>
-          <div class="summary-stat">
-            <span class="summary-stat__label">Server Uptime</span>
-            <span class="summary-stat__value">{{ system_health.uptime_hours }}</span>
-            <span class="summary-stat__hint">ชั่วโมงที่เครื่องทำงานต่อเนื่อง</span>
-          </div>
-        </div>
-      </aside>
-    </section>
-
-    <section class="notice-list">
-      {% with flashes = get_flashed_messages(with_categories=true) %}
-        {% for category, message in flashes %}
-          <article class="notice {{ 'notice--error' if category == 'error' else 'notice--success' }}">{{ message }}</article>
-        {% endfor %}
-      {% endwith %}
-    </section>
-
-    <section class="highlight-grid">
-      <article class="highlight-card">
-        <span class="highlight-card__label">Free Users</span>
-        <span class="highlight-card__value">{{ user_stats.free_users }}</span>
-        <div class="highlight-card__hint">ผู้ใช้ที่ยังไม่ได้อยู่ในแผนชำระเงิน</div>
-      </article>
-      <article class="highlight-card">
-        <span class="highlight-card__label">VIP Share</span>
-        <span class="highlight-card__value">{{ '%.1f'|format(vip_share) }}%</span>
-        <div class="highlight-card__hint">{{ user_stats.vip_users }} คน จากฐานทั้งหมด</div>
-      </article>
-      <article class="highlight-card">
-        <span class="highlight-card__label">PRO Share</span>
-        <span class="highlight-card__value">{{ '%.1f'|format(pro_share) }}%</span>
-        <div class="highlight-card__hint">{{ user_stats.pro_users }} คน พร้อมรับ feature เต็มรูปแบบ</div>
-      </article>
-      <article class="highlight-card">
-        <span class="highlight-card__label">Signals Won</span>
-        <span class="highlight-card__value">{{ performance.win_count }}</span>
-        <div class="highlight-card__hint">จำนวนสัญญาณที่เข้าเป้าจากชุดที่ประเมินได้</div>
-      </article>
-    </section>
-
-    <section class="section-grid">
-      <article class="panel">
-        <div class="panel__header">
-          <div>
-            <div class="panel__eyebrow">Infrastructure</div>
-            <h2 class="panel__title">System Health</h2>
-            <p class="panel__subtitle">ดูภาระเครื่องแบบเร็วๆ ผ่านกราฟ usage ที่อ่านง่ายขึ้น เพื่อรู้ทันว่าควรระวังจุดไหนก่อนระบบสะดุด</p>
-          </div>
-        </div>
-
-        <div class="metric-list">
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">CPU Usage</span>
-              <span class="metric-row__value">{{ '%.0f'|format(system_health.cpu_usage) }}%</span>
-            </div>
-            <div class="meter"><span class="{{ cpu_fill_class }}" style="width: {{ '%.0f'|format(system_health.cpu_usage) }}%;"></span></div>
-          </div>
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">RAM Usage</span>
-              <span class="metric-row__value">{{ '%.2f'|format(system_health.ram_used_gb) }} / {{ '%.2f'|format(system_health.ram_total_gb) }} GB</span>
-            </div>
-            <div class="meter"><span class="{{ ram_fill_class }}" style="width: {{ '%.0f'|format(system_health.ram_percent) }}%;"></span></div>
-          </div>
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Disk Usage</span>
-              <span class="metric-row__value">{{ '%.0f'|format(system_health.disk_percent) }}%</span>
-            </div>
-            <div class="meter"><span class="{{ disk_fill_class }}" style="width: {{ '%.0f'|format(system_health.disk_percent) }}%;"></span></div>
-          </div>
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Uptime</span>
-              <span class="metric-row__value">{{ system_health.uptime_hours }} ชั่วโมง</span>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div class="panel__header">
-          <div>
-            <div class="panel__eyebrow">Commercial Snapshot</div>
-            <h2 class="panel__title">Business Overview</h2>
-            <p class="panel__subtitle">ดูภาพฐานลูกค้าและสัดส่วนแพ็กเกจให้จบใน section เดียว พร้อมตัวเลขรายได้ขั้นต่ำที่คาดได้ทันที</p>
-          </div>
-        </div>
-
-        <div class="split-list">
-          <div class="mini-card">
-            <span class="mini-card__label">All Users</span>
-            <span class="mini-card__value">{{ user_stats.total_users }}</span>
-            <div class="mini-card__hint">จำนวนผู้ใช้ทั้งหมดที่ลงทะเบียนแล้ว</div>
-          </div>
-          <div class="mini-card">
-            <span class="mini-card__label">Free</span>
-            <span class="mini-card__value">{{ user_stats.free_users }}</span>
-            <div class="mini-card__hint">ฐานที่ยังมีโอกาสแปลงเป็น paid</div>
-          </div>
-          <div class="mini-card">
-            <span class="mini-card__label">VIP</span>
-            <span class="mini-card__value">{{ user_stats.vip_users }}</span>
-            <div class="mini-card__hint">แพ็กเกจระดับกลางที่ยัง active</div>
-          </div>
-          <div class="mini-card">
-            <span class="mini-card__label">PRO</span>
-            <span class="mini-card__value">{{ user_stats.pro_users }}</span>
-            <div class="mini-card__hint">กลุ่มสมาชิกที่ใช้ feature เต็มสุด</div>
-          </div>
-        </div>
-
-        <div class="metric-list" style="margin-top: 20px;">
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Estimated Monthly Revenue</span>
-              <span class="metric-row__value">{{ '{:,.2f}'.format(user_stats.estimated_monthly_revenue) }} บาท</span>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div class="panel__header">
-          <div>
-            <div class="panel__eyebrow">Operations</div>
-            <h2 class="panel__title">Maintenance & Actions</h2>
-            <p class="panel__subtitle">สรุปผลกระทบของ maintenance mode ให้เห็นชัด พร้อมบริบทที่ต้องใช้เวลาเปิดดูระบบจากมือถือหรือหน้าเว็บสั้นๆ</p>
-          </div>
-        </div>
-
-        <div class="summary-card">
-          <h3 class="summary-card__title">Maintenance Mode</h3>
-          <p class="summary-card__text">
-            ตอนนี้ระบบอยู่ในสถานะ <strong>{{ maintenance.label }}</strong><br>
-            {{ maintenance.description }}
-          </p>
-        </div>
-
-        <div class="metric-list" style="margin-top: 20px;">
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Admin Access</span>
-              <span class="metric-row__value mono">{{ admin_id }}</span>
-            </div>
-          </div>
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Snapshot Generated</span>
-              <span class="metric-row__value">{{ generated_at.strftime('%Y-%m-%d %H:%M:%S') if generated_at else '-' }}</span>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div class="panel__header">
-          <div>
-            <div class="panel__eyebrow">Signal Quality</div>
-            <h2 class="panel__title">Performance</h2>
-            <p class="panel__subtitle">มองภาพสั้นว่าระบบสัญญาณช่วงล่าสุดแม่นแค่ไหน พร้อมตัวเลขที่สำคัญที่สุดต่อการดูคุณภาพ alerts</p>
-          </div>
-        </div>
-
-        <div class="metric-list">
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Total Evaluated Signals</span>
-              <span class="metric-row__value">{{ performance.total_count }}</span>
-            </div>
-          </div>
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Signals Hit Target</span>
-              <span class="metric-row__value">{{ performance.win_count }}</span>
-            </div>
-          </div>
-          <div class="metric-row">
-            <div class="metric-row__top">
-              <span class="metric-row__label">Win Rate</span>
-              <span class="metric-row__value">{{ '%.2f'|format(performance.win_rate) }}%</span>
-            </div>
-            <div class="meter"><span class="{{ win_fill_class }}" style="width: {{ '%.0f'|format(performance.win_rate) }}%;"></span></div>
-          </div>
-        </div>
-      </article>
-    </section>
-
-    <section class="table-panel">
-      <div class="panel__header">
-        <div>
-          <div class="panel__eyebrow">Recent Signals</div>
-          <h2 class="panel__title">Performance ล่าสุด</h2>
-          <p class="panel__subtitle">เช็กย้อนหลังว่าระบบแจ้งเตือนตัวไหนเข้าเป้า ตัวไหนควรจับตาเรื่องคุณภาพสัญญาณมากขึ้น</p>
-        </div>
+  {% set paid_total = user_stats.vip_users + user_stats.pro_users %}
+  {% set paid_share = (paid_total / total_users * 100) if total_users else 0 %}
+  {% set renewal_risk = (expiring_members.expiring_7_days / paid_total * 100) if paid_total else 0 %}
+  {% set notifications_total = notification_settings.total_settings or 0 %}
+  {% set notifications_off_pct = (notification_settings.notifications_off / notifications_total * 100) if notifications_total else 0 %}
+  {% set alert_bar = price_alerts.total_alerts if price_alerts.total_alerts < 100 else 100 %}
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand__icon">A</div><div><div class="brand__title">Apexify</div><div class="brand__sub">Admin Control Surface</div></div></div>
+      <nav class="nav">
+        <a class="active" href="#overview">Dashboard</a>
+        <a href="#attention">Attention</a>
+        <a href="#notifications">Notifications</a>
+        <a href="#signals">Signals</a>
+        <a href="#members">Members</a>
+        <a href="#actions">Actions</a>
+      </nav>
+      <div class="help">
+        <div class="label">Live Admin</div>
+        <div class="value mono">{{ admin_id }}</div>
+        <p>Last refresh {{ generated_at.strftime('%Y-%m-%d %H:%M:%S') if generated_at else '-' }}<br>{% if maintenance.enabled %}Maintenance mode is active{% else %}System is serving users normally{% endif %}</p>
       </div>
+    </aside>
 
-      {% if performance.entries %}
+    <main class="main">
+      <header class="topbar" id="actions">
+        <div>
+          <div class="eyebrow">Apexify Admin Dashboard</div>
+          <h1 class="title">Control the room. Read the signals.</h1>
+          <p class="copy">หน้าใหม่โทน dark neon แบบ control room ใช้ข้อมูลจริงจากระบบเดิมทั้งหมด เพื่อให้เห็นทั้งภาพธุรกิจ ระบบ และแรงกดดันที่ต้องรีบจัดการในหน้าเดียว</p>
+        </div>
+        <div class="actions">
+          <a class="btn" href="{{ url_for('admin_dashboard') }}">Refresh</a>
+          <form method="post" action="{{ url_for('admin_toggle_maintenance') }}"><button class="btn {{ 'danger' if maintenance.enabled else 'primary' }}" type="submit">{{ 'Turn Maintenance Off' if maintenance.enabled else 'Turn Maintenance On' }}</button></form>
+          <form method="post" action="{{ url_for('admin_download_backup') }}"><button class="btn" type="submit">Download Backup</button></form>
+        </div>
+      </header>
+
+      <section class="notice-list">
+        {% with flashes = get_flashed_messages(with_categories=true) %}
+          {% for category, message in flashes %}
+            <div class="notice {{ 'error' if category == 'error' else '' }}">{{ message }}</div>
+          {% endfor %}
+        {% endwith %}
+      </section>
+
+      <section class="kpis">
+        <article class="card kpi"><div><div class="kpi__label">Monthly Revenue</div><div class="kpi__value">{{ '{:,.2f}'.format(user_stats.estimated_monthly_revenue) }}</div><div class="kpi__hint">บาท / เดือน</div></div><div class="kpi__icon">$</div></article>
+        <article class="card kpi"><div><div class="kpi__label">Paid Members</div><div class="kpi__value">{{ paid_total }}</div><div class="kpi__hint">{{ '%.1f'|format(paid_share) }}% of all users</div></div><div class="kpi__icon">◎</div></article>
+        <article class="card kpi"><div><div class="kpi__label">Active Alerts</div><div class="kpi__value">{{ price_alerts.total_alerts }}</div><div class="kpi__hint">{{ price_alerts.unique_users }} users tracking targets</div></div><div class="kpi__icon">↗</div></article>
+        <article class="card kpi"><div><div class="kpi__label">Success Rate</div><div class="kpi__value">{{ '%.0f'|format(performance.win_rate) }}%</div><div class="kpi__hint">{{ performance.win_count }} wins / {{ performance.total_count }} evaluated</div></div><div class="kpi__icon">✓</div></article>
+      </section>
+
+      <section class="hero" id="overview">
+        <article class="card welcome">
+          <div>
+            <div class="avatar">◌</div>
+            <h3>Welcome back, <span>Admin</span></h3>
+            <p class="section-copy">เปิดมาแล้วเห็นเลยว่าต้องสนใจเรื่องไหนก่อน ทั้งสุขภาพระบบ รายได้ สมาชิก และแรงกดดันจาก alerts ที่กำลัง active อยู่</p>
+          </div>
+          <div class="meta">
+            <div class="meta__row"><span>System status</span><strong>{{ 'Maintenance ON' if maintenance.enabled else 'Live' }}</strong></div>
+            <div class="meta__row"><span>Total users</span><strong>{{ user_stats.total_users }}</strong></div>
+            <div class="meta__row"><span>Watched symbols</span><strong>{{ top_watched.unique_symbols }}</strong></div>
+          </div>
+        </article>
+
+        <article class="card overview">
+          <div class="overview__head">
+            <div><div class="section-label">Operations Overview</div><h3 class="section-title">What needs attention now</h3><p class="section-copy">กราฟนี้แปลงสุขภาพระบบและแรงเคลื่อนไหวของฐานผู้ใช้ให้ดูง่ายในสไตล์ dashboard</p></div>
+            <span class="pill success">{{ '%.1f'|format(performance.win_rate) }}% signal quality</span>
+          </div>
+          <div class="chart">
+            <div class="bar"><div class="bar__value">{{ '%.0f'|format(system_health.cpu_usage) }}%</div><div class="bar__track"><div class="bar__fill" style="height: {{ '%.0f'|format(system_health.cpu_usage) }}%;"></div></div><div class="bar__label">CPU</div></div>
+            <div class="bar"><div class="bar__value">{{ '%.0f'|format(system_health.ram_percent) }}%</div><div class="bar__track"><div class="bar__fill" style="height: {{ '%.0f'|format(system_health.ram_percent) }}%;"></div></div><div class="bar__label">RAM</div></div>
+            <div class="bar"><div class="bar__value">{{ '%.0f'|format(system_health.disk_percent) }}%</div><div class="bar__track"><div class="bar__fill" style="height: {{ '%.0f'|format(system_health.disk_percent) }}%;"></div></div><div class="bar__label">Disk</div></div>
+            <div class="bar"><div class="bar__value">{{ '%.0f'|format(paid_share) }}%</div><div class="bar__track"><div class="bar__fill" style="height: {{ '%.0f'|format(paid_share) }}%;"></div></div><div class="bar__label">Paid</div></div>
+            <div class="bar"><div class="bar__value">{{ '%.0f'|format(performance.win_rate) }}%</div><div class="bar__track"><div class="bar__fill" style="height: {{ '%.0f'|format(performance.win_rate) }}%;"></div></div><div class="bar__label">Win</div></div>
+            <div class="bar"><div class="bar__value">{{ price_alerts.total_alerts }}</div><div class="bar__track"><div class="bar__fill" style="height: {{ alert_bar }}%;"></div></div><div class="bar__label">Alerts</div></div>
+          </div>
+        </article>
+
+        <article class="card gauge">
+          <div><div class="section-label">Renewal Risk</div><h3 class="section-title">Members expiring soon</h3></div>
+          <div class="ring" style="--value: {{ '%.0f'|format(renewal_risk) }};"><div class="ring__inner"><div class="ring__value">{{ '%.0f'|format(renewal_risk) }}%</div></div></div>
+          <div><span class="pill {{ 'danger' if expiring_members.expiring_7_days else 'success' }}">{{ expiring_members.expiring_7_days }} users within 7 days</span><p class="section-copy">Revenue at risk {{ '{:,.0f}'.format(expiring_members.revenue_at_risk_7_days) }} บาท หากไม่ต่ออายุ</p></div>
+        </article>
+      </section>
+
+      <section class="grid2" id="attention">
+        <article class="card block">
+          <div class="section-label">Market Attention</div>
+          <h3 class="section-title">Top Watched Symbols</h3>
+          <p class="section-copy">หุ้นที่ถูกจับตามากที่สุด เหมาะสำหรับดู demand ฝั่ง content และ alerts</p>
+          <div class="mini"><div class="mini__card"><div class="mini__label">Watch Entries</div><div class="mini__value">{{ top_watched.total_watch_entries }}</div></div><div class="mini__card"><div class="mini__label">Unique Symbols</div><div class="mini__value">{{ top_watched.unique_symbols }}</div></div></div>
+          {% if top_watched.items %}<div class="list">{% for item in top_watched.items %}<div class="item"><div><div class="item__title">{{ item.symbol }}</div><div class="item__meta">ความสนใจจากผู้ใช้ในระบบตอนนี้</div></div><div class="item__value">{{ item.watchers }} watchers</div></div>{% endfor %}</div>{% else %}<div class="empty">ยังไม่มีข้อมูล watchlist ในระบบ</div>{% endif %}
+        </article>
+
+        <article class="card block">
+          <div class="section-label">Alert Load</div>
+          <h3 class="section-title">Active Price Alerts</h3>
+          <p class="section-copy">ดูว่าตอนนี้มีผู้ใช้กี่คนผูก alert ไว้ และ symbol ไหนมีโอกาสเด้งแจ้งเตือนสูงสุด</p>
+          <div class="mini"><div class="mini__card"><div class="mini__label">Total Active</div><div class="mini__value">{{ price_alerts.total_alerts }}</div></div><div class="mini__card"><div class="mini__label">Unique Users</div><div class="mini__value">{{ price_alerts.unique_users }}</div></div></div>
+          {% if price_alerts.items %}<div class="list">{% for item in price_alerts.items %}<div class="item"><div><div class="item__title">{{ item.symbol }}</div><div class="item__meta">จำนวน alerts ที่ยัง active อยู่</div></div><div class="item__value">{{ item.alerts }} alerts</div></div>{% endfor %}</div>{% else %}<div class="empty">ตอนนี้ยังไม่มี active price alerts</div>{% endif %}
+        </article>
+      </section>
+
+      <section class="grid2" id="notifications">
+        <article class="card block">
+          <div class="section-label">Retention Watch</div>
+          <h3 class="section-title">Expiring Soon</h3>
+          <p class="section-copy">รายชื่อลูกค้าที่ใกล้หมดอายุและมีผลต่อ retention มากที่สุดใน 7 วันถัดไป</p>
+          <div class="mini"><div class="mini__card"><div class="mini__label">Within 3 Days</div><div class="mini__value">{{ expiring_members.expiring_3_days }}</div></div><div class="mini__card"><div class="mini__label">Within 7 Days</div><div class="mini__value">{{ expiring_members.expiring_7_days }}</div></div></div>
+          {% if expiring_members.items %}<div class="list">{% for item in expiring_members.items %}<div class="item"><div><div class="item__title">{{ item.user_id }}</div><div class="item__meta">{{ item.role|upper }} • expires {{ item.expiry_date }}</div></div><div class="item__value">{{ item.days_left }}d left</div></div>{% endfor %}</div>{% else %}<div class="empty">ยังไม่มีสมาชิกที่กำลังจะหมดอายุใน 7 วันข้างหน้า</div>{% endif %}
+        </article>
+
+        <article class="card block">
+          <div class="section-label">Notification Control</div>
+          <h3 class="section-title">Settings Snapshot</h3>
+          <p class="section-copy">เช็กว่าผู้ใช้เปิดแจ้งเตือนแบบไหน ปิด alerts ไว้เท่าไร และตั้งช่วงข่าว custom มากแค่ไหน</p>
+          <div class="mini"><div class="mini__card"><div class="mini__label">Settings Rows</div><div class="mini__value">{{ notification_settings.total_settings }}</div></div><div class="mini__card"><div class="mini__label">Alerts Off</div><div class="mini__value">{{ notification_settings.notifications_off }}</div></div></div>
+          <div class="list">
+            <div class="item"><div><div class="item__title">Notifications disabled</div><div class="item__meta">สัดส่วนผู้ใช้ที่เลือกปิด notifications ทั้งหมด</div></div><div class="item__value">{{ '%.1f'|format(notifications_off_pct) }}%</div></div>
+            <div class="item"><div><div class="item__title">Custom news window</div><div class="item__meta">ผู้ใช้ที่ตั้งช่วงเวลาอ่านข่าวไม่เหมือนค่า default</div></div><div class="item__value">{{ notification_settings.custom_windows }}</div></div>
+          </div>
+          <div class="mini">{% for bucket in notification_settings.distribution %}<div class="mini__card"><div class="mini__label">Digest {{ bucket.label }}</div><div class="mini__value">{{ bucket.count }}</div></div>{% endfor %}</div>
+        </article>
+      </section>
+
+      <section class="table-card" id="signals">
+        <div class="table-head"><div><div class="section-label">Recent Signals</div><h3 class="section-title">Performance Feed</h3><p class="section-copy">สไตล์ transaction table แต่ใช้กับสัญญาณจริงของระบบ เพื่อเห็นตัวที่เข้าเป้าและตัวที่ยังต้องปรับคุณภาพ</p></div><span class="pill {{ 'success' if performance.win_rate >= 50 else 'warn' }}">{{ '%.2f'|format(performance.win_rate) }}% win rate</span></div>
+        {% if performance.entries %}
         <div class="table-scroll">
           <table>
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Signal</th>
-                <th>Alert Price</th>
-                <th>Current Price</th>
-                <th>Result</th>
-                <th>Status</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Symbol</th><th>Signal</th><th>Alert Price</th><th>Current Price</th><th>Result</th><th>Status</th></tr></thead>
             <tbody>
               {% for item in performance.entries %}
-                <tr>
-                  <td data-label="Symbol"><strong>{{ item.symbol }}</strong></td>
-                  <td data-label="Signal">{{ item.alert_type }}</td>
-                  <td data-label="Alert Price">{{ '%.2f'|format(item.start_price) }}</td>
-                  <td data-label="Current Price">{{ '%.2f'|format(item.current_price) }}</td>
-                  <td data-label="Result">{{ '%+.2f'|format(item.diff_pct) }}%</td>
-                  <td data-label="Status">
-                    <span class="pill {{ 'pill--win' if item.is_win else 'pill--loss' }}">{{ 'Win' if item.is_win else 'Miss' }}</span>
-                  </td>
-                </tr>
+              <tr>
+                <td data-label="Symbol"><strong>{{ item.symbol }}</strong></td>
+                <td data-label="Signal">{{ item.alert_type }}</td>
+                <td data-label="Alert Price">{{ '%.2f'|format(item.start_price) }}</td>
+                <td data-label="Current Price">{{ '%.2f'|format(item.current_price) }}</td>
+                <td data-label="Result">{{ '%+.2f'|format(item.diff_pct) }}%</td>
+                <td data-label="Status"><span class="badge {{ 'ok' if item.is_win else 'no' }}">{{ 'Win' if item.is_win else 'Miss' }}</span></td>
+              </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-      {% else %}
-        <div class="empty">ยังไม่มีประวัติ performance ที่คำนวณผลได้ในตอนนี้</div>
-      {% endif %}
-    </section>
+        {% else %}<div class="empty">ยังไม่มีประวัติ performance ที่คำนวณผลได้ในตอนนี้</div>{% endif %}
+      </section>
 
-    <section class="table-panel">
-      <div class="panel__header">
-        <div>
-          <div class="panel__eyebrow">Membership Base</div>
-          <h2 class="panel__title">VIP / PRO Users</h2>
-          <p class="panel__subtitle">สรุปรายชื่อลูกค้าที่อยู่ในแผนชำระเงิน พร้อมวันหมดอายุและสถานะใช้งานปัจจุบัน</p>
-        </div>
-      </div>
-
-      {% if paid_users %}
+      <section class="table-card" id="members">
+        <div class="table-head"><div><div class="section-label">Membership Base</div><h3 class="section-title">VIP / PRO Members</h3><p class="section-copy">สรุปรายชื่อลูกค้าที่อยู่ในแผนชำระเงิน พร้อมวันหมดอายุและสถานะล่าสุดในรูปแบบที่อ่านเร็วกว่าเดิม</p></div><span class="pill cyan">{{ paid_total }} active paid users</span></div>
+        {% if paid_users %}
         <div class="table-scroll">
           <table>
-            <thead>
-              <tr>
-                <th>User ID</th>
-                <th>Role</th>
-                <th>Expiry</th>
-                <th>Status</th>
-              </tr>
-            </thead>
+            <thead><tr><th>User ID</th><th>Role</th><th>Expiry</th><th>Status</th></tr></thead>
             <tbody>
               {% for user in paid_users %}
-                <tr>
-                  <td data-label="User ID"><span class="mono">{{ user.user_id }}</span></td>
-                  <td data-label="Role">
-                    <span class="pill {{ 'pill--pro' if user.role == 'pro' else 'pill--vip' }}">{{ user.role|upper }}</span>
-                  </td>
-                  <td data-label="Expiry">{{ user.expiry_date }}</td>
-                  <td data-label="Status">
-                    <span class="pill {{ 'pill--active' if user.is_active else 'pill--expired' }}">{{ user.status_label }}</span>
-                  </td>
-                </tr>
+              <tr>
+                <td data-label="User ID"><span class="mono">{{ user.user_id }}</span></td>
+                <td data-label="Role"><span class="badge {{ 'pro' if user.role == 'pro' else 'vip' }}">{{ user.role|upper }}</span></td>
+                <td data-label="Expiry">{{ user.expiry_date }}</td>
+                <td data-label="Status"><span class="badge {{ 'ok' if user.is_active else 'no' }}">{{ user.status_label }}</span></td>
+              </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-      {% else %}
-        <div class="empty">ยังไม่มีลูกค้า VIP หรือ PRO ในระบบตอนนี้</div>
-      {% endif %}
-    </section>
-  </main>
+        {% else %}<div class="empty">ยังไม่มีลูกค้า VIP หรือ PRO ในระบบตอนนี้</div>{% endif %}
+      </section>
+    </main>
+  </div>
 </body>
 </html>
