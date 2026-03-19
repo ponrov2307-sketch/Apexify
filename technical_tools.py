@@ -1,11 +1,19 @@
-import matplotlib
-matplotlib.use('Agg') # ป้องกัน Error บน Server ที่ไม่มีหน้าจอ
-import matplotlib.pyplot as plt
-import mplfinance as mpf
 import yfinance as yf
 import pandas as pd
 import io
 import requests
+
+
+def _load_chart_modules():
+    import matplotlib
+
+    # ป้องกัน Error บน Server ที่ไม่มีหน้าจอ และเลื่อนการ import
+    # ไปตอนที่ต้องสร้างกราฟจริงเท่านั้น
+    matplotlib.use('Agg')
+
+    import mplfinance as mpf
+
+    return mpf
 
 def get_fear_and_greed_index():
     try:
@@ -137,6 +145,7 @@ def calculate_technical_indicators(symbol, generate_chart=True):
             }
 
             if generate_chart:
+                mpf = _load_chart_modules()
                 buf = io.BytesIO()
                 
                 mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit', volume='in')
