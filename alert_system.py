@@ -415,12 +415,10 @@ def broadcast_hourly_urgent_news(bot_instance):
         
         if title and summary:
             title = _normalize_news_title(title)
-            selected_item = next((item for item in fresh_news if item["title"] == title), None)
-            source_label = selected_item.get("source", "Unknown Source") if selected_item else "Unknown Source"
             if not _claim_dispatch_once("flash_news", title):
                 return
             summary = _compact_news_text(summary, max_chars=180, max_lines=2)
-            msg = f"🚨 **Flash News**\n📰 *{source_label}*\n📌 **{title}**\n📝 {summary}"
+            msg = f"🚨 **Flash News**\n📌 **{title}**\n📝 {summary}"
             sent_pro_news.add(title)
             
             # ป้องกันหน่วยความจำเต็ม
@@ -509,13 +507,11 @@ def check_and_broadcast_pro_news(bot_instance):
             summary = item.get('summary', '')
             
             if title and summary:
-                selected_item = next((news for news in fresh_news if news["title"] == title), None)
-                source_label = selected_item.get("source", "Unknown Source") if selected_item else "Unknown Source"
                 if not _claim_dispatch_once("digest_news", title):
                     continue
                 summary = _compact_news_text(summary, max_chars=140, max_lines=2)
                 digest_sections.append(
-                    f"**{len(digest_sections) + 1}. {title}**\n📰 *{source_label}*\n{summary}"
+                    f"**{len(digest_sections) + 1}. {title}**\n{summary}"
                 )
                 sent_pro_news.add(title)
         if not digest_sections:
