@@ -189,9 +189,9 @@
           <p class="card-footer">จาก {{ alerts.get("unique_users", 0) }} ผู้ใช้งาน</p>
         </div>
         <div class="card">
-          <p class="card-label">Win Rate</p>
+          <p class="card-label">Win Rate (Resolved)</p>
           <p class="card-value" style="color: var(--dime-green)">{{ '%.1f'|format(performance.get("win_rate", 0)) }}%</p>
-          <p class="card-footer">จาก {{ performance.get("total_count", 0) }} สัญญาณล่าสุด</p>
+          <p class="card-footer">ปิดผล {{ performance.get("resolved_count", 0) }} | pending {{ performance.get("pending_count", 0) }} | avg edge {{ '%+.2f'|format(performance.get("average_edge_pct", 0)) }}%</p>
         </div>
         <div class="card">
           <p class="card-label">Risk (7 Days)</p>
@@ -255,25 +255,69 @@
               <tr>
                 <th>Symbol</th>
                 <th>Logic Path</th>
-                <th>Performance</th>
+                <th>Window</th>
+                <th>Edge</th>
                 <th>Result</th>
-                <th>Execution Time</th>
+                <th>Alert Time</th>
               </tr>
             </thead>
             <tbody>
               {% for item in performance.get("entries", [])[:10] %}
                 <tr>
                   <td style="font-weight: 800;">{{ item.symbol }}</td>
-                  <td><span class="badge badge-blue">{{ item.alert_type }}</span></td>
-                  <td style="font-weight: 800; color: {{ 'var(--dime-green)' if (item.diff_pct | default(0)) > 0 else 'var(--danger)' }}">
-                    {{ '%+.2f'|format(item.diff_pct | default(0)) }}%
+                  <td>
+                    <span class="badge badge-blue">{{ item.alert_type }}</span>
+                    <div style="margin-top: 8px; color: var(--text-sub); font-size: 12px;">{{ item.direction_label }}</div>
                   </td>
-                  <td><span class="badge {{ 'badge-success' if item.is_win else 'badge-danger' }}">{{ 'WIN' if item.is_win else 'MISS' }}</span></td>
+                  <td>
+                    <div style="font-weight: 700;">{{ item.horizon_label }}</div>
+                    <div style="margin-top: 8px; color: var(--text-sub); font-size: 12px;">Due {{ item.evaluation_due_at }}</div>
+                  </td>
+                  <td style="font-weight: 800; color: {{ 'var(--dime-green)' if item.status == 'win' else ('var(--danger)' if item.status == 'loss' else 'var(--text-sub)') }}">
+                    {% if item.diff_pct is not none %}
+                      {{ '%+.2f'|format(item.diff_pct) }}%
+                    {% else %}
+                      Pending
+                    {% endif %}
+                  </td>
+                  <td><span class="badge {{ 'badge-success' if item.status == 'win' else ('badge-danger' if item.status == 'loss' else 'badge-blue') }}">{{ item.status_label }}</span></td>
                   <td class="mono">{{ item.timestamp }}</td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <p class="card-label">Signal Quality Breakdown</p>
+          <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 16px;">
+            {% for item in performance.get("breakdown", [])[:6] %}
+              <div style="display: grid; grid-template-columns: minmax(0, 1.4fr) auto auto; gap: 12px; align-items: center; padding-bottom: 12px; border-bottom: 1px solid #1A1A1A;">
+                <div>
+                  <div style="font-weight: 800;">{{ item.alert_type }}</div>
+                  <div style="margin-top: 6px; color: var(--text-sub); font-size: 12px;">Horizon {{ item.horizon_label }}</div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-weight: 800; color: var(--dime-green);">{{ '%.1f'|format(item.win_rate) }}%</div>
+                  <div style="margin-top: 6px; color: var(--text-sub); font-size: 12px;">{{ item.resolved_count }} resolved</div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-weight: 800; color: {{ 'var(--dime-green)' if item.average_edge_pct >= 0 else 'var(--danger)' }};">{{ '%+.2f'|format(item.average_edge_pct) }}%</div>
+                  <div style="margin-top: 6px; color: var(--text-sub); font-size: 12px;">avg edge</div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="card">
+          <p class="card-label">Accuracy Method</p>
+          <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px; color: var(--text-sub); line-height: 1.7;">
+            <div>วัดจากราคา ณ ตอนแจ้งเทียบกับราคาปิดผลเมื่อครบกรอบเวลาของสัญญาณ ไม่ได้เทียบกับราคาปัจจุบันลอยๆ แล้ว</div>
+            <div>สัญญาณขาขึ้นนับชนะเมื่อราคาปิดผลสูงกว่าราคาแจ้งเตือน ส่วนสัญญาณขาลงนับชนะเมื่อราคาปิดผลต่ำกว่าเดิม</div>
+            <div>Average Edge คือผลตอบแทนแบบปรับทิศทางแล้ว จึงอ่านได้ตรงๆ ว่าค่าเป็นบวกหมายถึงสัญญาณทำงานไปในทางที่ควรเป็น</div>
+          </div>
         </div>
       </div>
 

@@ -806,19 +806,33 @@ def handle_performance(message):
             bot.edit_message_text("❌ ยังไม่มีประวัติการแจ้งเตือนในระบบครับ", message.chat.id, status_msg.message_id)
             return
 
-        report_text = "🎯 **สรุปผลงานความแม่นยำ Apexify (ล่าสุด)** 🎯\n\n"
+        report_text = "🎯 **สรุปผลงานความแม่นยำ Apexify**\n\n"
+        report_text += (
+            f"• ปิดผลแล้ว: **{snapshot.get('resolved_count', 0)}** สัญญาณ\n"
+            f"• รอปิดผล: **{snapshot.get('pending_count', 0)}** สัญญาณ\n"
+            f"• Win Rate: **{snapshot.get('win_rate', 0):.2f}%**\n"
+            f"• Average Edge: **{snapshot.get('average_edge_pct', 0):+.2f}%**\n\n"
+        )
         for item in snapshot["entries"]:
-            emoji = "✅" if item["is_win"] else "❌"
+            status_label = item.get("status_label", "PENDING")
+            emoji = "✅" if status_label == "WIN" else ("❌" if status_label == "LOSS" else "⏳")
+            performance_text = f"{item['diff_pct']:+.2f}%" if item.get("diff_pct") is not None else "รอปิดผล"
+            resolved_price = f"{item['current_price']:.2f}" if item.get("current_price") is not None else "-"
             report_text += (
-                f"{emoji} **{item['symbol']}** ({item['alert_type']})\n"
-                f"   เตือน: {item['start_price']:.2f} ➡️ ปัจจุบัน: {item['current_price']:.2f} ({item['diff_pct']:+.2f}%)\n\n"
+                f"{emoji} **{item['symbol']}** ({item['alert_type']}) [{item.get('horizon_label', '-')}]\n"
+                f"   สถานะ: {status_label} | มุมมอง: {item.get('direction_label', '-')}\n"
+                f"   ราคาเตือน: {item['start_price']:.2f} | ราคาปิดผล: {resolved_price}\n"
+                f"   Edge: {performance_text} | ครบกำหนด: {item.get('evaluation_due_at', '-')}\n\n"
             )
-        
-        if snapshot["total_count"] > 0:
-            report_text += (
-                f"🏆 **อัตราชนะรวม (Win Rate):** "
-                f"{snapshot['win_rate']:.2f}% ({snapshot['win_count']}/{snapshot['total_count']})"
-            )
+
+        if snapshot.get("breakdown"):
+            report_text += "📊 **แยกตามประเภทสัญญาณ**\n"
+            for item in snapshot["breakdown"][:4]:
+                report_text += (
+                    f"• {item['alert_type']}: {item['win_rate']:.1f}% "
+                    f"จาก {item['resolved_count']} สัญญาณ "
+                    f"(avg edge {item['average_edge_pct']:+.2f}%)\n"
+                )
         bot.edit_message_text(report_text, message.chat.id, status_msg.message_id, parse_mode="Markdown")
     except Exception as e:
         bot.edit_message_text(f"❌ Error: {e}", message.chat.id, status_msg.message_id)
