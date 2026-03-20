@@ -2,12 +2,18 @@ import io
 import os
 import time
 import zipfile
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import psutil
 import yfinance as yf
 
-from database import check_subscription, get_connection
+from database import (
+    check_subscription,
+    get_connection,
+    get_due_pending_alert_logs,
+    get_recent_alert_logs,
+    resolve_alert_log,
+)
 
 ALLOWED_SYMBOL_SUFFIXES = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
 VIP_MONTHLY_PRICE = 299
@@ -121,6 +127,120 @@ def _coerce_datetime(value):
         except ValueError:
             continue
     return None
+
+
+def _format_horizon_label(hours):
+    try:
+        horizon_hours = int(hours)
+    except (TypeError, ValueError):
+        return "-"
+    if horizon_hours % 24 == 0:
+        days = horizon_hours // 24
+        return f"{days}d" if days > 0 else "0d"
+    return f"{horizon_hours}h"
+
+
+def _format_status_label(status):
+    normalized = str(status or "pending").strip().lower()
+    if normalized == "win":
+        return "WIN"
+    if normalized == "loss":
+        return "LOSS"
+    return "PENDING"
+
+
+def _get_alert_price_histories(logs):
+    if not logs:
+        return {}
+
+    grouped = {}
+    for item in logs:
+        symbol = _normalize_symbol(item.get("symbol"))
+        start_dt = _coerce_datetime(item.get("timestamp")) or datetime.now() - timedelta(days=5)
+        due_dt = _coerce_datetime(item.get("evaluation_due_at")) or (datetime.now() + timedelta(days=1))
+        bucket = grouped.setdefault(symbol, {"start": start_dt, "end": due_dt})
+        if start_dt < bucket["start"]:
+            bucket["start"] = start_dt
+        if due_dt > bucket["end"]:
+            bucket["end"] = due_dt
+
+    histories = {}
+    for symbol, window in grouped.items():
+        try:
+            history = yf.Ticker(symbol).history(
+                start=(window["start"] - timedelta(days=2)).date().isoformat(),
+                end=(window["end"] + timedelta(days=3)).date().isoformat(),
+                auto_adjust=False,
+            )
+            if not history.empty:
+                histories[symbol] = history
+        except Exception:
+            continue
+    return histories
+
+
+def _resolve_due_alert_logs():
+    pending_logs = get_due_pending_alert_logs(limit=200)
+    histories = _get_alert_price_histories(pending_logs)
+
+    for item in pending_logs:
+        symbol = _normalize_symbol(item.get("symbol"))
+        history = histories.get(symbol)
+        if history is None or history.empty:
+            continue
+
+        start_price = float(item.get("price_at_alert") or 0)
+        if start_price <= 0:
+            continue
+
+        due_dt = _coerce_datetime(item.get("evaluation_due_at"))
+        alert_dt = _coerce_datetime(item.get("timestamp"))
+        if due_dt is None or alert_dt is None:
+            continue
+
+        resolution_row = None
+        resolution_index = None
+        for idx, row in history.iterrows():
+            idx_dt = idx.to_pydatetime() if hasattr(idx, "to_pydatetime") else idx
+            if hasattr(idx_dt, "tzinfo") and idx_dt.tzinfo is not None:
+                idx_dt = idx_dt.replace(tzinfo=None)
+            if idx_dt.date() >= due_dt.date():
+                resolution_row = row
+                resolution_index = idx_dt
+                break
+
+        if resolution_row is None or resolution_index is None:
+            continue
+
+        window = history.loc[alert_dt.date().isoformat():resolution_index.date().isoformat()]
+        if window.empty:
+            continue
+
+        resolved_price = float(resolution_row.get("Close", start_price))
+        raw_return_pct = ((resolved_price - start_price) / start_price) * 100
+        direction = str(item.get("direction") or "up").lower()
+        edge_pct = raw_return_pct if direction == "up" else -raw_return_pct
+
+        max_high = float(window["High"].max()) if "High" in window else resolved_price
+        min_low = float(window["Low"].min()) if "Low" in window else resolved_price
+        if direction == "up":
+            max_favorable_pct = ((max_high - start_price) / start_price) * 100
+            max_adverse_pct = max(0.0, ((start_price - min_low) / start_price) * 100)
+        else:
+            max_favorable_pct = ((start_price - min_low) / start_price) * 100
+            max_adverse_pct = max(0.0, ((max_high - start_price) / start_price) * 100)
+
+        status = "win" if edge_pct > 0 else "loss"
+        resolve_alert_log(
+            item["id"],
+            resolved_price=resolved_price,
+            resolved_at=resolution_index,
+            status=status,
+            raw_return_pct=raw_return_pct,
+            edge_pct=edge_pct,
+            max_favorable_pct=max_favorable_pct,
+            max_adverse_pct=max_adverse_pct,
+        )
 
 
 def get_paid_users_snapshot():

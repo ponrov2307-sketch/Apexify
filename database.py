@@ -682,6 +682,120 @@ def claim_slip_and_add_subscription(user_id: str, ref_no: str, role: str, days: 
         conn.close()
 
 # ==========================================
+def get_due_pending_alert_logs(limit=200):
+    row_limit = max(1, int(limit))
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            SELECT id, symbol, alert_type, price_at_alert, timestamp,
+                   direction, horizon_hours, evaluation_due_at
+            FROM alert_logs
+            WHERE COALESCE(status, 'pending') = 'pending'
+              AND evaluation_due_at IS NOT NULL
+              AND evaluation_due_at <= %s
+            ORDER BY evaluation_due_at ASC
+            LIMIT %s
+            """,
+            (datetime.now(), row_limit),
+        )
+        rows = c.fetchall()
+        return [
+            {
+                "id": int(row[0]),
+                "symbol": str(row[1]),
+                "alert_type": str(row[2]),
+                "price_at_alert": float(row[3]),
+                "timestamp": row[4],
+                "direction": str(row[5] or "up"),
+                "horizon_hours": int(row[6] or 24),
+                "evaluation_due_at": row[7],
+            }
+            for row in rows
+        ]
+    finally:
+        conn.close()
+
+
+def resolve_alert_log(log_id, resolved_price, resolved_at, status, raw_return_pct, edge_pct, max_favorable_pct, max_adverse_pct):
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            UPDATE alert_logs
+            SET resolved_price = %s,
+                resolved_at = %s,
+                status = %s,
+                return_pct = %s,
+                edge_pct = %s,
+                max_favorable_pct = %s,
+                max_adverse_pct = %s
+            WHERE id = %s
+            """,
+            (
+                float(resolved_price),
+                resolved_at,
+                str(status),
+                float(raw_return_pct),
+                float(edge_pct),
+                float(max_favorable_pct),
+                float(max_adverse_pct),
+                int(log_id),
+            ),
+        )
+        conn.commit()
+    except psycopg2.Error as e:
+        print(f"Alert resolve error: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+def get_recent_alert_logs(limit=100):
+    row_limit = max(1, int(limit))
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            SELECT id, symbol, alert_type, price_at_alert, timestamp,
+                   direction, horizon_hours, evaluation_due_at,
+                   resolved_at, resolved_price, status,
+                   return_pct, edge_pct, max_favorable_pct, max_adverse_pct
+            FROM alert_logs
+            ORDER BY id DESC
+            LIMIT %s
+            """,
+            (row_limit,),
+        )
+        rows = c.fetchall()
+        return [
+            {
+                "id": int(row[0]),
+                "symbol": str(row[1]),
+                "alert_type": str(row[2]),
+                "price_at_alert": float(row[3]),
+                "timestamp": row[4],
+                "direction": str(row[5] or "up"),
+                "horizon_hours": int(row[6] or 24),
+                "evaluation_due_at": row[7],
+                "resolved_at": row[8],
+                "resolved_price": row[9],
+                "status": str(row[10] or "pending"),
+                "return_pct": row[11],
+                "edge_pct": row[12],
+                "max_favorable_pct": row[13],
+                "max_adverse_pct": row[14],
+            }
+            for row in rows
+        ]
+    finally:
+        conn.close()
+
+
+# ==========================================
 # 🌟 ฟังก์ชันจัดการแบนผู้ใช้ (Blacklist)
 # ==========================================
 def ban_user(user_id):
@@ -719,9 +833,33 @@ def log_alert(symbol, alert_type, price):
     conn = get_connection()
     c = conn.cursor()
     try:
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        c.execute("INSERT INTO alert_logs (symbol, alert_type, price_at_alert, timestamp) VALUES (%s, %s, %s, %s)",
-                  (str(symbol), str(alert_type), float(price), now_str))
+        now = datetime.now()
+        rule = get_alert_signal_rule(alert_type)
+        c.execute(
+            """
+            INSERT INTO alert_logs (
+                symbol,
+                alert_type,
+                price_at_alert,
+                timestamp,
+                direction,
+                horizon_hours,
+                evaluation_due_at,
+                status
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                str(symbol),
+                str(alert_type),
+                float(price),
+                now.strftime('%Y-%m-%d %H:%M:%S'),
+                rule["direction"],
+                int(rule["horizon_hours"]),
+                now + timedelta(hours=int(rule["horizon_hours"])),
+                "pending",
+            ),
+        )
         conn.commit()
     except psycopg2.Error as e:
         print(f"❌ Error logging alert: {e}")
