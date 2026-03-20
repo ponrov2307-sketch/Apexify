@@ -10,6 +10,13 @@ PYTHON_BIN="${PYTHON_BIN:-}"
 REQUIREMENTS_STATE_FILE="${REQUIREMENTS_STATE_FILE:-$APP_DIR/.requirements-sync-state}"
 FORCE_PIP_SYNC="${FORCE_PIP_SYNC:-0}"
 
+if [ ! -d "${APP_DIR}" ]; then
+  echo "ERROR: APP_DIR not found: ${APP_DIR}"
+  exit 1
+fi
+
+cd "${APP_DIR}"
+
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
@@ -145,11 +152,16 @@ health_check_local_web() {
   local admin_url="http://127.0.0.1:${PORT}/admin"
 
   if command -v curl >/dev/null 2>&1; then
-    curl -fsS "${root_url}" >/dev/null
-    local admin_status
-    admin_status="$(curl -s -o /dev/null -w "%{http_code}" "${admin_url}")"
-    [ "${admin_status}" = "403" ]
-    return 0
+    local attempt
+    for attempt in {1..15}; do
+      if curl -fsS "${root_url}" >/dev/null 2>&1; then
+        local admin_status
+        admin_status="$(curl -s -o /dev/null -w "%{http_code}" "${admin_url}")"
+        [ "${admin_status}" = "403" ] && return 0
+      fi
+      sleep 2
+    done
+    return 1
   fi
 
   "${PYTHON_BIN}" - <<'PY'
@@ -157,6 +169,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
+import time
 
 port = os.environ.get("PORT", "8080")
 checks = [
@@ -164,14 +177,25 @@ checks = [
     (f"http://127.0.0.1:{port}/admin", 403),
 ]
 
-for url, expected in checks:
-    try:
-        with urllib.request.urlopen(url, timeout=5) as response:
-            status = response.status
-    except urllib.error.HTTPError as exc:
-        status = exc.code
-    if status != expected:
-        sys.exit(1)
+for _ in range(15):
+    all_ok = True
+    for url, expected in checks:
+        try:
+            with urllib.request.urlopen(url, timeout=5) as response:
+                status = response.status
+        except urllib.error.HTTPError as exc:
+            status = exc.code
+        except Exception:
+            all_ok = False
+            break
+        if status != expected:
+            all_ok = False
+            break
+    if all_ok:
+        raise SystemExit(0)
+    time.sleep(2)
+
+raise SystemExit(1)
 PY
 }
 
