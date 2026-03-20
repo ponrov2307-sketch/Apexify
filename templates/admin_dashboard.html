@@ -111,6 +111,16 @@
     .btn:hover { background: #111; border-color: #444; }
     .btn-primary { background: #fff; color: #000; border: none; }
     .btn-primary:hover { background: #E5E5EA; }
+    .flash-stack { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+    .flash {
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .flash-success { background: rgba(0, 192, 118, 0.08); color: var(--dime-green); border-color: rgba(0, 192, 118, 0.22); }
+    .flash-error { background: rgba(255, 69, 58, 0.08); color: var(--danger); border-color: rgba(255, 69, 58, 0.22); }
 
     .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-sub); }
 
@@ -161,6 +171,16 @@
     </aside>
 
     <main class="main">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-stack">
+            {% for category, message in messages %}
+              <div class="flash {{ 'flash-error' if category == 'error' else 'flash-success' }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
       <section class="hero" id="overview">
         <div>
           <p class="hero-label">คาดการณ์รายได้รายปี (ARR)</p>
@@ -168,10 +188,10 @@
           <p class="hero-sub">↑ เฉลี่ย ฿{{ '{:,.0f}'.format(m_rev / paid_u if paid_u > 0 else 0) }} / สมาชิกพรีเมียม</p>
         </div>
         <div class="btn-group">
-          <form method="post" action="{{ url_for('admin_toggle_maintenance') if (request and request.endpoint and 'admin_toggle_maintenance' in request.endpoint) else '#' }}">
-            <button class="btn" type="submit">Toggle System</button>
+          <form method="post" action="{{ url_for('admin_toggle_maintenance') }}">
+            <button class="btn" type="submit">{{ 'Disable Maintenance' if maintenance.get('enabled') else 'Enable Maintenance' }}</button>
           </form>
-          <form method="post" action="{{ url_for('admin_download_backup') if (request and request.endpoint and 'admin_download_backup' in request.endpoint) else '#' }}">
+          <form method="post" action="{{ url_for('admin_download_backup') }}">
             <button class="btn btn-primary" type="submit">Backup Data</button>
           </form>
         </div>

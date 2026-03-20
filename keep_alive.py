@@ -96,7 +96,23 @@ def admin_dashboard():
     if not _has_valid_admin_session():
         abort(403)
 
-    snapshot = get_admin_dashboard_snapshot(limit=15)
+    try:
+        snapshot = get_admin_dashboard_snapshot(limit=15)
+    except Exception as exc:
+        flash(f"โหลดข้อมูล dashboard ไม่สำเร็จบางส่วน: {exc}", "error")
+        snapshot = {
+            "maintenance": {"enabled": False},
+            "system_health": {},
+            "user_stats": {},
+            "performance": {},
+            "paid_users": [],
+            "top_watched": {},
+            "expiring_members": {},
+            "price_alerts": {},
+            "notification_settings": {},
+            "generated_at": None,
+        }
+
     return render_template(
         "admin_dashboard.html",
         admin_id=str(ADMIN_ID or "").strip(),
