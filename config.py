@@ -56,6 +56,9 @@ def _to_int(name, default):
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 ADMIN_ID = os.getenv("ADMIN_ID")
+SLIPOK_BRANCH_ID = (os.getenv("SLIPOK_BRANCH_ID") or "").strip()
+SLIPOK_API_KEY = (os.getenv("SLIPOK_API_KEY") or "").strip()
+SLIPOK_TIMEOUT_SECONDS = _to_int("SLIPOK_TIMEOUT_SECONDS", 15)
 
 # Dashboard magic login (optional; should not crash bot when missing)
 BOT_DASHBOARD_LOGIN_ENABLED = _to_bool("BOT_DASHBOARD_LOGIN_ENABLED", True)
