@@ -445,66 +445,114 @@ def get_notification_settings_snapshot():
 
 def get_performance_snapshot(limit=15):
     row_limit = max(1, int(limit))
-    conn = get_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(
-            "SELECT symbol, alert_type, price_at_alert, timestamp FROM alert_logs ORDER BY id DESC LIMIT %s",
-            (row_limit,),
-        )
-        logs = cursor.fetchall()
-    finally:
-        conn.close()
+    summary_limit = max(60, row_limit * 4)
+
+    _resolve_due_alert_logs()
+    logs = get_recent_alert_logs(limit=summary_limit)
 
     entries = []
+    breakdown = {}
     win_count = 0
-    total_count = 0
+    loss_count = 0
+    pending_count = 0
+    resolved_count = 0
+    edge_sum = 0.0
 
-    for symbol, alert_type, start_price, timestamp in logs:
-        try:
-            ticker = yf.Ticker(_normalize_symbol(symbol))
-            history = ticker.history(period="1d")
-            if history.empty:
-                continue
+    for item in logs:
+        status = str(item.get("status") or "pending").lower()
+        direction = str(item.get("direction") or "up").lower()
+        horizon_label = _format_horizon_label(item.get("horizon_hours"))
+        alert_type_label = str(item.get("alert_type") or "").replace("_", " ")
+        alert_time = _coerce_datetime(item.get("timestamp"))
+        due_time = _coerce_datetime(item.get("evaluation_due_at"))
+        resolved_time = _coerce_datetime(item.get("resolved_at"))
+        resolved_price = item.get("resolved_price")
+        raw_return_pct = item.get("return_pct")
+        edge_pct = item.get("edge_pct")
+        max_favorable_pct = item.get("max_favorable_pct")
+        max_adverse_pct = item.get("max_adverse_pct")
 
-            current_price = float(history["Close"].iloc[-1])
-            diff_pct = ((current_price - float(start_price)) / float(start_price)) * 100
-
-            is_win = False
-            display_diff_pct = diff_pct
-            upper_type = str(alert_type or "").upper()
-            if any(token in upper_type for token in ("OVERSOLD", "GOLDEN_CROSS", "BREAK_RES")):
-                if diff_pct > 0:
-                    is_win = True
-            elif any(token in upper_type for token in ("OVERBOUGHT", "DEATH_CROSS", "BREAK_SUP")):
-                if diff_pct < 0:
-                    is_win = True
-                display_diff_pct = -diff_pct
-
-            if is_win:
+        if status == "pending":
+            pending_count += 1
+        else:
+            resolved_count += 1
+            if status == "win":
                 win_count += 1
-            total_count += 1
+            else:
+                loss_count += 1
+            try:
+                edge_sum += float(edge_pct or 0.0)
+            except (TypeError, ValueError):
+                pass
 
+            bucket = breakdown.setdefault(
+                alert_type_label,
+                {
+                    "alert_type": alert_type_label,
+                    "resolved_count": 0,
+                    "win_count": 0,
+                    "edge_sum": 0.0,
+                    "horizon_label": horizon_label,
+                },
+            )
+            bucket["resolved_count"] += 1
+            if status == "win":
+                bucket["win_count"] += 1
+            bucket["edge_sum"] += float(edge_pct or 0.0)
+
+        if len(entries) < row_limit:
             entries.append(
                 {
-                    "symbol": str(symbol),
-                    "alert_type": str(alert_type).replace("_", " "),
-                    "start_price": float(start_price),
-                    "current_price": current_price,
-                    "diff_pct": display_diff_pct,
-                    "is_win": is_win,
-                    "timestamp": str(timestamp),
+                    "symbol": str(item.get("symbol") or ""),
+                    "alert_type": alert_type_label,
+                    "start_price": float(item.get("price_at_alert") or 0.0),
+                    "current_price": float(resolved_price or 0.0) if resolved_price is not None else None,
+                    "diff_pct": float(edge_pct or 0.0) if edge_pct is not None else None,
+                    "raw_return_pct": float(raw_return_pct or 0.0) if raw_return_pct is not None else None,
+                    "is_win": status == "win",
+                    "status": status,
+                    "status_label": _format_status_label(status),
+                    "timestamp": alert_time.strftime("%Y-%m-%d %H:%M") if alert_time else str(item.get("timestamp") or "-"),
+                    "evaluation_due_at": due_time.strftime("%Y-%m-%d %H:%M") if due_time else "-",
+                    "resolved_at": resolved_time.strftime("%Y-%m-%d %H:%M") if resolved_time else "-",
+                    "horizon_label": horizon_label,
+                    "direction_label": "Bullish" if direction == "up" else "Bearish",
+                    "max_favorable_pct": float(max_favorable_pct or 0.0) if max_favorable_pct is not None else None,
+                    "max_adverse_pct": float(max_adverse_pct or 0.0) if max_adverse_pct is not None else None,
                 }
             )
-        except Exception:
-            continue
 
-    win_rate = (win_count / total_count * 100) if total_count else 0.0
+    breakdown_items = []
+    for bucket in breakdown.values():
+        resolved = int(bucket["resolved_count"] or 0)
+        win_total = int(bucket["win_count"] or 0)
+        breakdown_items.append(
+            {
+                "alert_type": bucket["alert_type"],
+                "resolved_count": resolved,
+                "win_rate": (win_total / resolved * 100) if resolved else 0.0,
+                "average_edge_pct": (bucket["edge_sum"] / resolved) if resolved else 0.0,
+                "horizon_label": bucket["horizon_label"],
+            }
+        )
+
+    breakdown_items.sort(
+        key=lambda item: (-item["resolved_count"], -item["win_rate"], item["alert_type"])
+    )
+
+    win_rate = (win_count / resolved_count * 100) if resolved_count else 0.0
+    average_edge_pct = (edge_sum / resolved_count) if resolved_count else 0.0
     return {
         "entries": entries,
         "win_count": win_count,
-        "total_count": total_count,
+        "loss_count": loss_count,
+        "pending_count": pending_count,
+        "resolved_count": resolved_count,
+        "total_count": resolved_count,
+        "sample_size": len(logs),
         "win_rate": win_rate,
+        "average_edge_pct": average_edge_pct,
+        "breakdown": breakdown_items[:6],
     }
 
 
