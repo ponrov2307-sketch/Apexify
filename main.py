@@ -1664,20 +1664,28 @@ def handle_main(message):
         return
 
     report = generate_apexify_report(tech_data, role=role)
-    
+
     if user_id != ADMIN_ID and role == 'free':
         increment_usage(user_id)
         report += f"\n\n🎁 **Trial:** {usage + 1}/10"
-    else:
-        report += f"\n\n💎 **{role.upper()} Member**"
 
     correct_symbol = tech_data['symbol']
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton(f"⭐ เพิ่ม {correct_symbol} เข้า Watchlist", callback_data=f"addwatch_{correct_symbol}"))
 
     bot.delete_message(message.chat.id, load_msg.message_id)
-    
-    if len(report) > 1000:
+
+    if role in ['vip', 'pro']:
+        if chart is not None:
+            try:
+                bot.send_photo(message.chat.id, chart)
+            except Exception:
+                pass
+        try:
+            bot.send_message(message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
+        except Exception:
+            bot.send_message(message.chat.id, report, reply_markup=markup)
+    elif len(report) > 1000:
         bot.send_photo(message.chat.id, chart)
         try:
             bot.send_message(message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
@@ -1687,7 +1695,7 @@ def handle_main(message):
         try:
             bot.send_photo(message.chat.id, chart, caption=report, parse_mode="Markdown", reply_markup=markup)
         except Exception:
-            chart.seek(0) 
+            chart.seek(0)
             bot.send_photo(message.chat.id, chart)
             bot.send_message(message.chat.id, report, reply_markup=markup)
 

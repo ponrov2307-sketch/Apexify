@@ -4,6 +4,9 @@ import io
 import requests
 
 
+ALLOWED_MARKET_SUFFIXES = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+
+
 def _load_chart_modules():
     import matplotlib
 
@@ -74,20 +77,164 @@ def calculate_indicators(data):
     
     return data
 
+
+def _normalize_market_symbol(symbol):
+    clean_symbol = str(symbol or "").strip().upper()
+    if "." in clean_symbol and not clean_symbol.endswith(ALLOWED_MARKET_SUFFIXES):
+        clean_symbol = clean_symbol.replace(".", "-")
+    return clean_symbol
+
+
+def _safe_float(value):
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    if pd.isna(result):
+        return None
+    return result
+
+
+def _safe_pct(numerator, denominator):
+    if denominator in (None, 0):
+        return None
+    try:
+        return (float(numerator) / float(denominator)) * 100
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def _compute_poc_price(data, bins=10):
+    if data is None or data.empty:
+        return None
+
+    recent = data.dropna(subset=['Close', 'Volume']).tail(min(60, len(data)))
+    if len(recent) < 5:
+        return None
+
+    unique_prices = int(recent['Close'].nunique())
+    if unique_prices < 2:
+        return _safe_float(recent['Close'].iloc[-1])
+
+    try:
+        price_bins = pd.cut(recent['Close'], bins=max(2, min(bins, unique_prices)))
+        vol_profile = recent.groupby(price_bins, observed=False)['Volume'].sum()
+        if vol_profile.empty:
+            return None
+        poc_bin = vol_profile.idxmax()
+        return _safe_float(poc_bin.mid)
+    except Exception:
+        return None
+
+
+def _build_interval_snapshot(data, label):
+    if data is None or data.empty or len(data) < 8:
+        return {
+            'label': label,
+            'available': False,
+            'history_len': 0 if data is None else int(len(data)),
+        }
+
+    calc_data = calculate_indicators(data.copy())
+    latest = calc_data.iloc[-1]
+    recent = calc_data.tail(min(20, len(calc_data)))
+    first_close = _safe_float(recent['Close'].iloc[0]) if not recent.empty else None
+    latest_close = _safe_float(latest.get('Close'))
+    support = _safe_float(recent['Low'].min()) if 'Low' in recent and not recent.empty else None
+    resistance = _safe_float(recent['High'].max()) if 'High' in recent and not recent.empty else None
+    poc_price = _compute_poc_price(calc_data)
+    avg_volume = None
+    if 'Volume' in calc_data and len(calc_data) >= 5:
+        avg_volume = _safe_float(calc_data['Volume'].tail(min(20, len(calc_data))).mean())
+    latest_volume = _safe_float(latest.get('Volume'))
+    volume_ratio = None
+    if latest_volume is not None and avg_volume not in (None, 0):
+        volume_ratio = latest_volume / avg_volume
+
+    consolidation_pct = None
+    if latest_close not in (None, 0) and support is not None and resistance is not None:
+        consolidation_pct = ((resistance - support) / latest_close) * 100
+
+    close_vs_ema20_pct = None
+    ema20 = _safe_float(latest.get('EMA20'))
+    if latest_close not in (None, 0) and ema20 not in (None, 0):
+        close_vs_ema20_pct = ((latest_close - ema20) / ema20) * 100
+
+    close_vs_poc_pct = None
+    if latest_close not in (None, 0) and poc_price not in (None, 0):
+        close_vs_poc_pct = ((latest_close - poc_price) / poc_price) * 100
+
+    return {
+        'label': label,
+        'available': True,
+        'history_len': int(len(calc_data)),
+        'price': latest_close,
+        'rsi': _safe_float(latest.get('RSI')),
+        'macd': _safe_float(latest.get('MACD')),
+        'signal': _safe_float(latest.get('Signal_Line')),
+        'ema20': ema20,
+        'ema50': _safe_float(latest.get('EMA50')),
+        'ema200': _safe_float(latest.get('EMA200')),
+        'volume': latest_volume,
+        'avg_volume': avg_volume,
+        'volume_ratio': volume_ratio,
+        'support': support,
+        'resistance': resistance,
+        'poc': poc_price,
+        'consolidation_pct': consolidation_pct,
+        'close_change_pct': _safe_pct((latest_close - first_close) if latest_close is not None and first_close is not None else None, first_close),
+        'close_vs_ema20_pct': close_vs_ema20_pct,
+        'close_vs_poc_pct': close_vs_poc_pct,
+    }
+
+
+def build_multitimeframe_trade_context(symbol):
+    clean_symbol = _normalize_market_symbol(symbol)
+    ticker = yf.Ticker(clean_symbol)
+
+    try:
+        daily_data = ticker.history(period="1y", interval="1d", auto_adjust=False)
+    except Exception:
+        daily_data = pd.DataFrame()
+
+    try:
+        weekly_data = ticker.history(period="5y", interval="1wk", auto_adjust=False)
+    except Exception:
+        weekly_data = pd.DataFrame()
+
+    try:
+        monthly_data = ticker.history(period="10y", interval="1mo", auto_adjust=False)
+    except Exception:
+        monthly_data = pd.DataFrame()
+
+    day_snapshot = _build_interval_snapshot(daily_data, 'day')
+    week_snapshot = _build_interval_snapshot(weekly_data, 'week')
+    month_snapshot = _build_interval_snapshot(monthly_data, 'month')
+
+    daily_rsi = day_snapshot.get('rsi')
+    daily_volume_ratio = day_snapshot.get('volume_ratio')
+    week_volume_ratio = week_snapshot.get('volume_ratio')
+    is_extreme_volatility = (
+        (daily_rsi is not None and (daily_rsi > 85 or daily_rsi < 15))
+        or (daily_volume_ratio is not None and daily_volume_ratio >= 3.5)
+        or (week_volume_ratio is not None and week_volume_ratio >= 3.0)
+    )
+
+    return {
+        'symbol': clean_symbol,
+        'price': day_snapshot.get('price') or week_snapshot.get('price') or month_snapshot.get('price'),
+        'day': day_snapshot,
+        'week': week_snapshot,
+        'month': month_snapshot,
+        'is_extreme_volatility': is_extreme_volatility,
+    }
+
 def calculate_technical_indicators(symbol, generate_chart=True):
     import time
     
     for attempt in range(2):
         try:
-            clean_symbol = symbol.strip().upper()
-            
-            
-            # 1. จัดการหุ้นคลาส B (อเมริกา) และรองรับตลาดหุ้นทั่วโลก
-            # เพิ่มนามสกุลของตลาดหุ้นต่างๆ (ไทย, ออสเตรเลีย, ลอนดอน, ฮ่องกง, ญี่ปุ่น, เยอรมนี, สิงคโปร์ ฯลฯ)
-            allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
-            
-            if "." in clean_symbol and not clean_symbol.endswith(allowed_suffixes):
-                clean_symbol = clean_symbol.replace(".", "-")
+            clean_symbol = _normalize_market_symbol(symbol)
             
             # 2. ดึงข้อมูลจริง 1 ปี
             ticker = yf.Ticker(clean_symbol)
