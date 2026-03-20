@@ -37,6 +37,7 @@ MAX_DIGEST_ITEMS = 2
 MORNING_MACRO_ASSETS = {
     "SPY": "SPY ETF",
     "QQQ": "QQQ ETF",
+    "GC=F": "ทองคำโลก",
     "CL=F": "น้ำมัน WTI",
     "DX-Y.NYB": "Dollar Index",
 }
@@ -841,7 +842,7 @@ def send_morning_briefing(bot_instance):
             
             ข้อมูลตลาดเมื่อคืน: S&P500={sp500_close:.2f}, Bitcoin={btc_close:.2f}, ทองคำ={gold_close:.2f}
             สินทรัพย์มหภาคที่ต้องจับตา:
-            {macro_assets_text or "ไม่มีข้อมูล ETF น้ำมัน หรือดอลลาร์เพิ่มจากระบบ"}
+            {macro_assets_text or "ไม่มีข้อมูล ETF ทองคำ น้ำมัน หรือดอลลาร์เพิ่มจากระบบ"}
             หุ้นที่น่าจับตาเมื่อคืน:
             {movers_text or "ไม่มีข้อมูลเพิ่มจากหุ้นที่ระบบติดตาม"}
             พาดหัวข่าวสำคัญ:
@@ -860,7 +861,7 @@ def send_morning_briefing(bot_instance):
                 else ""
             )
             macro_assets_section = (
-                f"🌍 **ETF / น้ำมัน / ดอลลาร์:**\n{macro_assets_text}\n\n"
+                f"🌍 **ETF / ทองคำ / น้ำมัน / ดอลลาร์:**\n{macro_assets_text}\n\n"
                 if macro_assets_text
                 else ""
             )
