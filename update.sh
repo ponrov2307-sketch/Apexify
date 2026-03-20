@@ -49,7 +49,7 @@ pulse() {
 need_env_keys() {
   local bad=0
   : > "$LOG_FILE"
-  for k in TELEGRAM_TOKEN ADMIN_ID GEMINI_API_KEY DATABASE_URL BOT_WEB_BASE_URL FLASK_SECRET_KEY DASHBOARD_LOGIN_SECRET; do
+  for k in TELEGRAM_TOKEN ADMIN_ID GEMINI_API_KEY DATABASE_URL BOT_WEB_BASE_URL FLASK_SECRET_KEY DASHBOARD_LOGIN_SECRET SLIPOK_BRANCH_ID SLIPOK_API_KEY; do
     if ! grep -q "^${k}=" .env; then
       echo "missing env: $k" >> "$LOG_FILE"
       bad=1
@@ -254,7 +254,7 @@ step "📦 [7/11] Syncing Python dependencies" \
      "install_requirements" "false"
 
 step "🧪 [8/11] Running Python warp-syntax check" \
-     "\"\$PYTHON_BIN\" -m py_compile main.py config.py dashboard_login.py keep_alive.py admin_service.py alert_system.py database.py ai_analyzer.py technical_tools.py" "false"
+     "\"\$PYTHON_BIN\" -m py_compile main.py config.py dashboard_login.py keep_alive.py admin_service.py alert_system.py database.py ai_analyzer.py technical_tools.py slipok_service.py" "false"
 
 step "🧰 [9/11] Verifying runtime imports" \
      "verify_runtime_imports" "false"

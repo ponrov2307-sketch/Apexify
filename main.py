@@ -2,11 +2,7 @@ from email.mime import message
 from pnl_generator import generate_pnl_card
 import telebot
 import logging
-import json
-import PIL.Image
-import io
 import yfinance as yf
-import requests
 import random
 import string
 import time
@@ -36,8 +32,9 @@ from admin_service import (
     toggle_maintenance_status,
 )
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
-from ai_analyzer import generate_apexify_report, analyze_payment_slip
+from ai_analyzer import generate_apexify_report
 from alert_system import broadcast_hourly_urgent_news, check_and_broadcast_pro_news
+from slipok_service import verify_payment_slip
 from curl_cffi import requests as cffi_requests
 
 telebot.logger.setLevel(logging.DEBUG)
@@ -835,16 +832,27 @@ def handle_payment_slip_check(message):
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        ai_result = analyze_payment_slip(downloaded_file)
-        result = json.loads(ai_result.replace('```json', '').replace('```', ''))
-        
-        if result.get('is_slip'):
-            amount = float(result.get('amount', 0))
-            ref_no = result.get('ref_no', '').strip()
-            
-            if not ref_no or ref_no == "" or ref_no.lower() == "none":
-                bot.edit_message_text("⚠️ Apexify อ่าน 'เลขที่อ้างอิง' บนสลิปไม่ชัดเจน โปรดถ่ายให้เห็นชัดๆ ครับ", message.chat.id, progress_msg.message_id)
+        slip_result = verify_payment_slip(downloaded_file, filename=f"telegram-slip-{message.message_id}.jpg")
+        status = slip_result.get('status')
+        ref_no = str(slip_result.get('trans_ref') or '').strip()
+        amount = float(slip_result.get('amount') or 0)
+        provider_code = slip_result.get('provider_code')
+        provider_message = str(slip_result.get('message') or '').strip()
+
+        if status == 'verified':
+            if not ref_no:
+                bot.edit_message_text(
+                    "⚠️ Apexify ตรวจสลิปได้แล้ว แต่ไม่พบเลขอ้างอิงธุรกรรม กรุณาส่งสลิปใหม่ที่เห็นข้อมูลชัดเจนครับ",
+                    message.chat.id,
+                    progress_msg.message_id,
+                )
+                bot.send_message(
+                    ADMIN_ID,
+                    f"⚠️ **SlipOK ตรวจผ่านแต่ ref หาย** User `{user_id}` ยอด `{amount:,.2f}` บาท",
+                    parse_mode="Markdown",
+                )
                 return
+
             slip_packages = {
                 4990: ('pro', 365, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"),
                 2990: ('vip', 365, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายปี)**\n⏰ หมดอายุ: {expiry}"),
@@ -854,10 +862,20 @@ def handle_payment_slip_check(message):
             package_info = slip_packages.get(amount)
             if not package_info:
                 bot.edit_message_text(
-                    f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** ({amount:,.2f} บาท)\nกรุณาโอนให้ตรงราคา (299, 499, 2990, 4990)", # 🌟 อย่าลืมแก้ตัวเลขแจ้งเตือนตรงนี้ด้วยครับ
-                    message.chat.id, progress_msg.message_id, parse_mode="Markdown"
+                    f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** ({amount:,.2f} บาท)\nกรุณาโอนให้ตรงราคา (299, 499, 2990, 4990)",
+                    message.chat.id,
+                    progress_msg.message_id,
+                    parse_mode="Markdown",
                 )
-                bot.send_message(ADMIN_ID, f"⚠️ **ยอดผิดปกติ!** User `{user_id}` โอน {amount:,.2f} บาท", parse_mode="Markdown")
+                bot.send_message(
+                    ADMIN_ID,
+                    (
+                        f"⚠️ **ยอดผิดปกติจาก SlipOK** User `{user_id}` โอน `{amount:,.2f}` บาท\n"
+                        f"Ref: `{ref_no}`\n"
+                        f"ผู้โอน: `{slip_result.get('sender_display_name') or '-'}`"
+                    ),
+                    parse_mode="Markdown",
+                )
                 return
 
             target_role, subscription_days, message_template = package_info
@@ -868,19 +886,120 @@ def handle_payment_slip_check(message):
                 subscription_days,
             )
             if claim_status == "duplicate":
-                bot.edit_message_text("❌ **สลิปนี้ถูกใช้งานไปแล้ว!**\nไม่อนุญาตให้ใช้สลิปซ้ำครับ", message.chat.id, progress_msg.message_id, parse_mode="Markdown")
-                bot.send_message(ADMIN_ID, f"🚨 **ทุจริต!** User `{user_id}` ส่งสลิปซ้ำ (Ref: `{ref_no}`)", parse_mode="Markdown")
+                bot.edit_message_text(
+                    "❌ **สลิปนี้ถูกใช้งานไปแล้ว!**\nไม่อนุญาตให้ใช้สลิปซ้ำครับ",
+                    message.chat.id,
+                    progress_msg.message_id,
+                    parse_mode="Markdown",
+                )
+                bot.send_message(
+                    ADMIN_ID,
+                    f"🚨 **ทุจริต!** User `{user_id}` ส่งสลิปซ้ำ (Ref: `{ref_no}`)",
+                    parse_mode="Markdown",
+                )
                 return
             if claim_status != "success" or not expiry:
-                bot.edit_message_text("⚠️ Apexify ตรวจสอบสลิปได้แล้ว แต่ยังไม่สามารถอัปเดตสิทธิ์ได้ กรุณาลองใหม่อีกครั้ง", message.chat.id, progress_msg.message_id)
+                bot.edit_message_text(
+                    "⚠️ Apexify ตรวจสอบสลิปได้แล้ว แต่ยังไม่สามารถอัปเดตสิทธิ์ได้ กรุณาลองใหม่อีกครั้ง",
+                    message.chat.id,
+                    progress_msg.message_id,
+                )
+                bot.send_message(
+                    ADMIN_ID,
+                    f"⚠️ **อัปเดตสิทธิ์ไม่สำเร็จหลัง SlipOK ผ่าน** User `{user_id}` Ref `{ref_no}`",
+                    parse_mode="Markdown",
+                )
                 return
 
             msg_text = message_template.format(expiry=expiry)
             bot.delete_message(message.chat.id, progress_msg.message_id)
             bot.reply_to(message, msg_text, parse_mode="Markdown")
-            bot.send_message(ADMIN_ID, f"💰 เงินเข้า! User `{user_id}` โอน {amount} บาท")
-        else:
-            bot.edit_message_text("❌ รูปนี้ไม่ใช่สลิปโอนเงินที่ถูกต้องครับ", message.chat.id, progress_msg.message_id)
+            bot.send_message(
+                ADMIN_ID,
+                (
+                    f"💰 เงินเข้า! User `{user_id}` โอน `{amount:,.2f}` บาท\n"
+                    f"Ref: `{ref_no}`\n"
+                    f"ผู้โอน: `{slip_result.get('sender_display_name') or '-'}`"
+                ),
+                parse_mode="Markdown",
+            )
+            return
+
+        if status == 'duplicate':
+            bot.edit_message_text(
+                "❌ **สลิปนี้ถูกใช้งานไปแล้ว!**\nไม่อนุญาตให้ใช้สลิปซ้ำครับ",
+                message.chat.id,
+                progress_msg.message_id,
+                parse_mode="Markdown",
+            )
+            bot.send_message(
+                ADMIN_ID,
+                f"🚨 **SlipOK แจ้งสลิปซ้ำ** User `{user_id}` Ref `{ref_no or '-'}`",
+                parse_mode="Markdown",
+            )
+            return
+
+        if status == 'receiver_mismatch':
+            bot.edit_message_text(
+                "❌ **สลิปนี้โอนไปยังบัญชีปลายทางไม่ตรงกับร้าน**\nกรุณาตรวจสอบบัญชีรับเงินและส่งสลิปใหม่ครับ",
+                message.chat.id,
+                progress_msg.message_id,
+                parse_mode="Markdown",
+            )
+            bot.send_message(
+                ADMIN_ID,
+                (
+                    f"🚨 **บัญชีปลายทางไม่ตรง** User `{user_id}`\n"
+                    f"Ref: `{ref_no or '-'}`\n"
+                    f"ข้อความ: `{provider_message or '-'}`"
+                ),
+                parse_mode="Markdown",
+            )
+            return
+
+        if status == 'delayed':
+            retry_after_minutes = slip_result.get('retry_after_minutes') or 8
+            bot.edit_message_text(
+                (
+                    f"⏳ **สลิปนี้ยังอยู่ระหว่างรอธนาคารยืนยัน**\n"
+                    f"กรุณารอประมาณ {retry_after_minutes} นาที แล้วส่งสลิปเดิมมาใหม่อีกครั้งครับ"
+                ),
+                message.chat.id,
+                progress_msg.message_id,
+                parse_mode="Markdown",
+            )
+            return
+
+        if status in {'invalid_slip', 'amount_mismatch'}:
+            bot.edit_message_text(
+                "❌ รูปนี้ไม่ใช่สลิปโอนเงินที่ตรวจสอบได้ หรือข้อมูลบนสลิปไม่ถูกต้องครับ",
+                message.chat.id,
+                progress_msg.message_id,
+            )
+            return
+
+        if status in {'auth_or_quota_error', 'provider_error', 'network_error', 'config_error'}:
+            bot.edit_message_text(
+                "⚠️ ระบบตรวจสลิปอัตโนมัติขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งในภายหลังครับ",
+                message.chat.id,
+                progress_msg.message_id,
+            )
+            bot.send_message(
+                ADMIN_ID,
+                (
+                    f"⚠️ **SlipOK error** status=`{status}` code=`{provider_code}`\n"
+                    f"User `{user_id}`\n"
+                    f"Message: `{provider_message or '-'}`"
+                ),
+                parse_mode="Markdown",
+            )
+            return
+
+        bot.edit_message_text(
+            "⚠️ Apexify ไม่สามารถยืนยันสลิปนี้ได้ กรุณาลองใหม่อีกครั้งครับ",
+            message.chat.id,
+            progress_msg.message_id,
+        )
     except Exception as e:
         bot.edit_message_text("⚠️ Apexify ไม่สามารถอ่านสลิปได้ โปรดถ่ายให้ชัดเจนอีกครั้ง", message.chat.id, progress_msg.message_id)
 
