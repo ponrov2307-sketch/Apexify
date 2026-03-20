@@ -616,6 +616,78 @@ def _position_trailing_note_from_bias(plan_bias):
     return "แนะนำขยับจุดป้องกันความเสี่ยงขึ้นมาบริเวณทุนหรือใกล้แนวรับหลัก เพื่อไม่ให้กำไรที่ได้กลับกลายเป็นขาดทุน"
 
 
+def _build_member_snapshot(context):
+    day = context.get("day", {})
+    symbol = context.get("symbol", "UNKNOWN")
+    price = _safe_optional_float(context.get("price") or day.get("price"))
+    ema20 = _safe_optional_float(day.get("ema20"))
+    rsi = _safe_optional_float(day.get("rsi"))
+    macd = _safe_optional_float(day.get("macd"))
+    signal = _safe_optional_float(day.get("signal"))
+    volume = _safe_optional_float(day.get("volume"))
+    avg_volume = _safe_optional_float(day.get("avg_volume"))
+    support = _safe_optional_float(day.get("support"))
+    resistance = _safe_optional_float(day.get("resistance"))
+    poc = _safe_optional_float(day.get("poc"))
+    bb_lower = _safe_optional_float(day.get("bb_lower"))
+    bb_upper = _safe_optional_float(day.get("bb_upper"))
+
+    momentum = "🟢 ขาขึ้น Bullish" if price is not None and ema20 is not None and price > ema20 else "🔴 ขาลง Bearish"
+    if rsi is None:
+        rsi_status = "⚪️ ข้อมูลไม่เพียงพอ"
+    elif rsi > 70:
+        rsi_status = "🔴 ตึงไปนิด Overbought"
+    elif rsi < 30:
+        rsi_status = "🟢 โซนของถูก Oversold"
+    else:
+        rsi_status = "⚪️ กลางๆ รอดูเชิง Neutral"
+
+    if macd is None or signal is None:
+        macd_status = "⚪️ ข้อมูลไม่เพียงพอ"
+        macd_detail = "N/A"
+    else:
+        macd_status = "🟢 มีแรงส่ง Positive" if macd > signal else "🔴 แรงเริ่มแผ่ว Negative"
+        macd_detail = f"MACD: {macd:.2f} | Signal: {signal:.2f}"
+
+    obv_trend = str(day.get("obv_trend") or "flat").lower()
+    if obv_trend == "up":
+        volume_status = "📈 มีคนแอบเก็บของ Inflow"
+    elif obv_trend == "down":
+        volume_status = "📉 ระวังแรงรินขาย Outflow"
+    else:
+        volume_status = "➖ นิ่งๆ ทรงตัว"
+
+    trend_detail = "N/A"
+    if price is not None and ema20 not in (None, 0):
+        trend_detail = f"{((price - ema20) / ema20) * 100:+.2f}% vs EMA20"
+
+    volume_detail = "N/A"
+    if volume is not None and avg_volume is not None:
+        volume_detail = f"Vol: {_format_compact_number(volume)} | Avg20: {_format_compact_number(avg_volume)}"
+
+    lines = [
+        f"🤖 *Apexify สแกนหุ้น: {symbol}*",
+        f"🏷 *ราคาล่าสุด:* {_format_price(price)}",
+        "━━━━━━━━━━━━━━━",
+        "*📊 สุขภาพหุ้นตอนนี้*",
+        f"• 🌊 *เทรนด์หลัก:* {momentum} ({trend_detail})",
+        f"• 🌡️ *RSI (ความร้อนแรง):* {rsi_status} ({_format_price(rsi)})",
+        f"• ⚡️ *MACD (โมเมนตัม):* {macd_status} ({macd_detail})",
+        f"• 💰 *Volume (กระแสเงิน):* {volume_status} ({volume_detail})",
+        "",
+        "*🎯 โซนราคาที่ต้องจับตา*",
+        f"• 🟢 *แนวรับ:* {_format_price(support)}",
+        f"• 🔴 *แนวต้าน (จุดวัดใจ):* {_format_price(resistance)}",
+    ]
+
+    if poc is not None:
+        lines.append(f"• 🟡 *โซนคนกระจุกตัว (POC):* {_format_price(poc)} (จุดสำคัญ)")
+    if bb_lower is not None and bb_upper is not None:
+        lines.append(f"• 🟡 *กรอบแกว่งตัว (BB):* {_format_price(bb_lower)} - {_format_price(bb_upper)}")
+
+    return "\n".join(lines)
+
+
 def _fallback_context_from_tech_data(tech_data):
     def pick(*keys):
         for key in keys:
@@ -639,6 +711,9 @@ def _fallback_context_from_tech_data(tech_data):
         "support": pick("support"),
         "resistance": pick("resistance"),
         "poc": pick("poc_price"),
+        "bb_lower": pick("lower_band", "bb_lower"),
+        "bb_upper": pick("upper_band", "bb_upper"),
+        "obv_trend": pick("obv_trend"),
         "consolidation_pct": None,
         "close_change_pct": None,
     }
@@ -656,6 +731,10 @@ def _fallback_context_from_tech_data(tech_data):
 def _render_vip_report(context, trends, analysis):
     return "\n".join(
         [
+            _build_member_snapshot(context),
+            "",
+            DISCLAIMER_TEXT,
+            "",
             "👑 *AI Trade Setup & Analysis (Exclusive for VIP)* 👑",
             "",
             "*📊 สแกนเทรนด์ 3 ระยะ (Trend Radar):*",
@@ -675,6 +754,10 @@ def _render_pro_report(context, trends, deterministic_plan, analysis):
 
     return "\n".join(
         [
+            _build_member_snapshot(context),
+            "",
+            DISCLAIMER_TEXT,
+            "",
             "👑 *AI Trade Setup & Analysis (Exclusive for PRO)* 👑",
             "",
             "*📊 สแกนเทรนด์ 3 ระยะ (Trend Radar):*",

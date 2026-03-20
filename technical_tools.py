@@ -164,6 +164,19 @@ def _build_interval_snapshot(data, label):
     if latest_close not in (None, 0) and poc_price not in (None, 0):
         close_vs_poc_pct = ((latest_close - poc_price) / poc_price) * 100
 
+    bb_upper = _safe_float(latest.get('BB_Upper'))
+    bb_lower = _safe_float(latest.get('BB_Lower'))
+    obv_trend = "flat"
+    if 'OBV' in calc_data and len(calc_data) >= 2:
+        recent_obv = calc_data['OBV'].tail(min(5, len(calc_data)))
+        first_obv = _safe_float(recent_obv.iloc[0])
+        latest_obv = _safe_float(recent_obv.iloc[-1])
+        if first_obv is not None and latest_obv is not None:
+            if latest_obv > first_obv:
+                obv_trend = "up"
+            elif latest_obv < first_obv:
+                obv_trend = "down"
+
     return {
         'label': label,
         'available': True,
@@ -185,6 +198,9 @@ def _build_interval_snapshot(data, label):
         'close_change_pct': _safe_pct((latest_close - first_close) if latest_close is not None and first_close is not None else None, first_close),
         'close_vs_ema20_pct': close_vs_ema20_pct,
         'close_vs_poc_pct': close_vs_poc_pct,
+        'bb_upper': bb_upper,
+        'bb_lower': bb_lower,
+        'obv_trend': obv_trend,
     }
 
 
