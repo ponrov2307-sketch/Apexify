@@ -1,4 +1,5 @@
 ﻿import time
+import hashlib
 from datetime import datetime, timedelta
 import telebot
 import requests 
@@ -17,6 +18,7 @@ from curl_cffi import requests as cffi_requests
 import asyncio
 import edge_tts
 import re
+from urllib.parse import urlparse
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -51,6 +53,85 @@ def _compact_news_text(text, max_chars=180, max_lines=2):
     if " " in trimmed:
         trimmed = trimmed.rsplit(" ", 1)[0]
     return f"{trimmed}…"
+
+
+def _normalize_news_title(title):
+    raw = str(title or "").strip()
+    if not raw:
+        return ""
+    raw = re.sub(r"\s+", " ", raw)
+    raw = re.sub(r"\s*-\s*Google News\s*$", "", raw, flags=re.IGNORECASE)
+    return raw.strip()
+
+
+def _normalize_news_source(source):
+    raw = str(source or "").strip()
+    raw = re.sub(r"\s+", " ", raw)
+    return raw or "Unknown Source"
+
+
+def _extract_news_source(item, title="", link=""):
+    source_elem = item.find("source")
+    if source_elem is not None and source_elem.text:
+        return _normalize_news_source(source_elem.text)
+
+    normalized_title = _normalize_news_title(title)
+    if " - " in normalized_title:
+        maybe_source = normalized_title.rsplit(" - ", 1)[-1]
+        if maybe_source and len(maybe_source) <= 60:
+            return _normalize_news_source(maybe_source)
+
+    hostname = urlparse(str(link or "")).netloc.replace("www.", "").strip()
+    if hostname:
+        return _normalize_news_source(hostname)
+
+    return "Unknown Source"
+
+
+def _build_dispatch_key(category, raw_key):
+    normalized = re.sub(r"\s+", " ", str(raw_key or "").strip().lower())
+    digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()
+    return f"{category}:{digest}"
+
+
+def _claim_dispatch_once(category, raw_key):
+    dispatch_key = _build_dispatch_key(category, raw_key)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS dispatch_log (
+                dispatch_key TEXT PRIMARY KEY,
+                category TEXT NOT NULL,
+                raw_key TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        cur.execute("DELETE FROM dispatch_log WHERE created_at < NOW() - INTERVAL '14 days'")
+        cur.execute(
+            """
+            INSERT INTO dispatch_log (dispatch_key, category, raw_key)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (dispatch_key) DO NOTHING
+            RETURNING dispatch_key
+            """,
+            (dispatch_key, str(category or "").strip(), str(raw_key or "").strip()),
+        )
+        claimed = cur.fetchone() is not None
+        conn.commit()
+        return claimed
+    except Exception:
+        conn.rollback()
+        return False
+    finally:
+        cur.close()
+        conn.close()
+
+
+def _current_thai_date_str():
+    return (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
 
 def send_alert_to_users(symbol, message, alert_type="tech"):
     users = get_users_watching(symbol)
@@ -244,7 +325,7 @@ def get_fresh_global_news():
         "https://www.investing.com/rss/news_301.rss",
         "https://www.investing.com/rss/market_overview.rss"
     ]
-    news_list = []
+    raw_news = []
     seen_titles = set()
     for url in urls:
         try:
@@ -254,13 +335,37 @@ def get_fresh_global_news():
                 title_elem = item.find('title')
                 link_elem = item.find('link')
                 if title_elem is not None:
-                    title = title_elem.text.strip()
+                    title = _normalize_news_title(title_elem.text)
                     link = link_elem.text.strip() if link_elem is not None else ""
-                    if title not in sent_pro_news and title not in seen_titles:
-                        news_list.append({"title": title, "link": link})
+                    source = _extract_news_source(item, title=title, link=link)
+                    if title and title not in sent_pro_news and title not in seen_titles:
+                        raw_news.append({"title": title, "link": link, "source": source})
                         seen_titles.add(title)
         except Exception: pass
-    return news_list
+
+    if not raw_news:
+        return []
+
+    source_buckets = {}
+    for item in raw_news:
+        source_buckets.setdefault(item["source"], []).append(item)
+
+    balanced_news = []
+    depth = 0
+    while len(balanced_news) < MAX_FLASH_HEADLINES:
+        added = False
+        for source in source_buckets:
+            bucket = source_buckets[source]
+            if depth < len(bucket):
+                balanced_news.append(bucket[depth])
+                added = True
+                if len(balanced_news) >= MAX_FLASH_HEADLINES:
+                    break
+        if not added:
+            break
+        depth += 1
+
+    return balanced_news
 
 # ==========================================
 # 🌟 ระบบส่งข่าวด่วนรายชั่วโมง (Flash News) - [อัปเกรดระบบดักจับ Error]
@@ -273,15 +378,17 @@ def broadcast_hourly_urgent_news(bot_instance):
         except: pass
         return
     
-    titles = [n['title'] for n in fresh_news]
-    titles_str = "\n".join([f"- {t}" for t in titles[:MAX_FLASH_HEADLINES]]) # ลดจำนวนลงกัน AI งง
+    titles_str = "\n".join(
+        [f"- [{n.get('source', 'Unknown Source')}] {n['title']}" for n in fresh_news[:MAX_FLASH_HEADLINES]]
+    )
     
     prompt = f"""
     คุณคือนักวิเคราะห์การเงินระดับโลก 
     นี่คือพาดหัวข่าวล่าสุด:
     {titles_str}
     
-    เลือกข่าวที่ "ด่วนและสำคัญที่สุดในเชิงเศรษฐกิจ" เพียง 1 ข่าว 
+    เลือกข่าวที่ "ด่วนและสำคัญที่สุดในเชิงเศรษฐกิจ" เพียง 1 ข่าว
+    โดยพิจารณาความน่าเชื่อถือของสำนักข่าวด้วย
     และสรุปเนื้อข่าวแบบสั้นมาก 1-2 บรรทัด (เป็นภาษาไทย) ห้ามใส่ลิงก์
     (ถ้าข่าวมีความรุนแรงหรือสงคราม ให้สรุปเฉพาะผลกระทบทางเศรษฐกิจเท่านั้น)
     
@@ -307,8 +414,13 @@ def broadcast_hourly_urgent_news(bot_instance):
         summary = analysis.get('summary') or analysis.get('content') or analysis.get('description') or ''
         
         if title and summary:
+            title = _normalize_news_title(title)
+            selected_item = next((item for item in fresh_news if item["title"] == title), None)
+            source_label = selected_item.get("source", "Unknown Source") if selected_item else "Unknown Source"
+            if not _claim_dispatch_once("flash_news", title):
+                return
             summary = _compact_news_text(summary, max_chars=180, max_lines=2)
-            msg = f"🚨 **Flash News**\n📌 **{title}**\n📝 {summary}"
+            msg = f"🚨 **Flash News**\n📰 *{source_label}*\n📌 **{title}**\n📝 {summary}"
             sent_pro_news.add(title)
             
             # ป้องกันหน่วยความจำเต็ม
@@ -348,15 +460,17 @@ def check_and_broadcast_pro_news(bot_instance):
     fresh_news = get_fresh_global_news()
     if not fresh_news: return
     
-    titles = [n['title'] for n in fresh_news]
-    titles_str = "\n".join([f"- {t}" for t in titles[:MAX_DIGEST_HEADLINES]])
+    titles_str = "\n".join(
+        [f"- [{n.get('source', 'Unknown Source')}] {n['title']}" for n in fresh_news[:MAX_DIGEST_HEADLINES]]
+    )
     
     prompt = f"""
     คุณคือนักวิเคราะห์การเงิน 
     นี่คือพาดหัวข่าวล่าสุด:
     {titles_str}
     
-    เลือกข่าวเชิงเศรษฐกิจ/การลงทุน ที่ "สำคัญที่สุด" 2 ข่าว 
+    เลือกข่าวเชิงเศรษฐกิจ/การลงทุน ที่ "สำคัญที่สุด" 2 ข่าว
+    พยายามให้มาจากคนละสำนักข่าวถ้าเป็นไปได้
     สรุปเนื้อหาแต่ละข่าวแบบสั้น กระชับ ข่าวละ 1-2 บรรทัด (ภาษาไทย)
     (เน้นเรื่องเศรษฐกิจ หลีกเลี่ยงเนื้อหาความรุนแรง)
     
@@ -391,12 +505,18 @@ def check_and_broadcast_pro_news(bot_instance):
         digest_sections = []
 
         for item in analysis_list[:MAX_DIGEST_ITEMS]:
-            title = item.get('original_title', '')
+            title = _normalize_news_title(item.get('original_title', ''))
             summary = item.get('summary', '')
             
             if title and summary:
+                selected_item = next((news for news in fresh_news if news["title"] == title), None)
+                source_label = selected_item.get("source", "Unknown Source") if selected_item else "Unknown Source"
+                if not _claim_dispatch_once("digest_news", title):
+                    continue
                 summary = _compact_news_text(summary, max_chars=140, max_lines=2)
-                digest_sections.append(f"**{len(digest_sections) + 1}. {title}**\n{summary}")
+                digest_sections.append(
+                    f"**{len(digest_sections) + 1}. {title}**\n📰 *{source_label}*\n{summary}"
+                )
                 sent_pro_news.add(title)
         if not digest_sections:
             conn.close()
@@ -507,6 +627,9 @@ def generate_podcast_script(market_info):
         return "สวัสดีครับนักลงทุน วันนี้ตลาดทรงตัว ขอให้เทรดอย่างระมัดระวังนะครับ"
 
 async def create_and_send_podcast(bot_instance):
+    if not _claim_dispatch_once("morning_podcast", _current_thai_date_str()):
+        print("⏭️ [Podcast] ข้ามการส่งซ้ำของวันนี้")
+        return
     print("🌍 [Podcast] กำลังสร้างสคริปต์และอัดเสียง...")
     market_info = get_podcast_market_data()
     script = generate_podcast_script(market_info)
@@ -545,12 +668,18 @@ async def create_and_send_podcast(bot_instance):
 # ==========================================
 def send_morning_briefing(bot_instance):
     try:
+        if not _claim_dispatch_once("morning_briefing", _current_thai_date_str()):
+            print("⏭️ [Morning Briefing] ข้ามการส่งซ้ำของวันนี้")
+            return
         sp500 = yf.Ticker('^GSPC').history(period='1d')
         btc = yf.Ticker('BTC-USD').history(period='1d')
         gold = yf.Ticker('GC=F').history(period='1d') 
         
         fresh_news = get_fresh_global_news()
-        news_titles = "\n".join([f"- {n['title']}" for n in fresh_news[:5]]) if fresh_news else "ไม่มีข่าวเด่น"
+        news_titles = (
+            "\n".join([f"- [{n.get('source', 'Unknown Source')}] {n['title']}" for n in fresh_news[:5]])
+            if fresh_news else "ไม่มีข่าวเด่น"
+        )
         
         if not sp500.empty and not btc.empty:
             sp500_close = sp500['Close'].iloc[-1]
@@ -657,7 +786,6 @@ def send_daily_portfolio_summary(bot_instance):
     from database import get_user_portfolio, get_connection # ระวังการ import
     from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
     import yfinance as yf
-    import time
     
     conn = get_connection()
     cur = conn.cursor()

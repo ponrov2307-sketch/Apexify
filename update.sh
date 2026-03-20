@@ -176,9 +176,25 @@ PY
 }
 
 restart_alert_worker() {
+  cleanup_stray_alert_processes() {
+    local service_pid="${1:-0}"
+    while IFS= read -r line; do
+      local pid
+      pid="$(printf '%s\n' "$line" | awk '{print $1}')"
+      if [ -z "${pid}" ] || [ "${pid}" = "${service_pid}" ]; then
+        continue
+      fi
+      kill "${pid}" >/dev/null 2>&1 || true
+    done < <(pgrep -af 'alert_system.py' || true)
+  }
+
   if [ -n "${ALERT_SERVICE_NAME}" ]; then
     systemctl restart "${ALERT_SERVICE_NAME}"
     systemctl is-active --quiet "${ALERT_SERVICE_NAME}"
+    sleep 2
+    local service_pid
+    service_pid="$(systemctl show -p MainPID --value "${ALERT_SERVICE_NAME}" 2>/dev/null || echo 0)"
+    cleanup_stray_alert_processes "${service_pid}"
     return 0
   fi
 
