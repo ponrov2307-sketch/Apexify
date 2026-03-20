@@ -309,7 +309,7 @@ def check_hot_news(symbol):
             link_elem = items[0].find('link')
             if title_elem is None: return
             
-            title = title_elem.text.strip()
+            title = _normalize_news_title(title_elem.text)
             link = link_elem.text if link_elem is not None else f"https://news.google.com/search?q={search_term}"
 
             if not title: return
@@ -341,6 +341,11 @@ def check_hot_news(symbol):
                         max_chars=100,
                         max_lines=1,
                     )
+                    dispatch_key = f"{symbol}|{title}"
+                    if not _claim_dispatch_once("stock_news", dispatch_key):
+                        sent_stock_news_history[symbol].add(title)
+                        last_stock_news_sent_at[symbol] = now
+                        return
                     
                     emoji_status = "🚀 เชิงบวก" if sentiment == "BULLISH" else "🩸 เชิงลบ" if sentiment == "BEARISH" else "⚪️ กลางๆ"
                     
