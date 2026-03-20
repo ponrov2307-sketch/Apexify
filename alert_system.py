@@ -34,6 +34,24 @@ STOCK_NEWS_COOLDOWN_SECONDS = 4 * 3600
 MAX_FLASH_HEADLINES = 12
 MAX_DIGEST_HEADLINES = 12
 MAX_DIGEST_ITEMS = 2
+MORNING_MOVER_UNIVERSE = {
+    "AAPL": "Apple",
+    "MSFT": "Microsoft",
+    "NVDA": "NVIDIA",
+    "TSLA": "Tesla",
+    "META": "Meta",
+    "AMZN": "Amazon",
+    "GOOGL": "Alphabet",
+    "AMD": "AMD",
+    "NFLX": "Netflix",
+    "PLTR": "Palantir",
+}
+MORNING_BRIEFING_LEGAL_DISCLAIMER = (
+    "⚠️ **ข้อจำกัดความรับผิดชอบ:** ข้อมูลนี้จัดทำขึ้นเพื่อวัตถุประสงค์ในการให้ข้อมูลทั่วไปเท่านั้น "
+    "ไม่ถือเป็นคำแนะนำการลงทุน การเสนอขาย หรือการชักชวนให้ซื้อหรือขายหลักทรัพย์ "
+    "สินทรัพย์ดิจิทัล หรือผลิตภัณฑ์ทางการเงินใด ๆ ผู้ลงทุนควรศึกษาข้อมูลเพิ่มเติม "
+    "ประเมินความเสี่ยง และใช้ดุลยพินิจของตนเองก่อนตัดสินใจลงทุน"
+)
 
 
 def _compact_news_text(text, max_chars=180, max_lines=2):
@@ -128,6 +146,92 @@ def _claim_dispatch_once(category, raw_key):
     finally:
         cur.close()
         conn.close()
+
+
+def _get_morning_market_movers_text():
+    try:
+        history = yf.download(
+            tickers=list(MORNING_MOVER_UNIVERSE.keys()),
+            period="5d",
+            interval="1d",
+            auto_adjust=False,
+            progress=False,
+            group_by="ticker",
+            threads=False,
+        )
+    except Exception:
+        return ""
+
+    if history is None or getattr(history, "empty", True):
+        return ""
+
+    movers = []
+    for symbol, display_name in MORNING_MOVER_UNIVERSE.items():
+        try:
+            symbol_history = history[symbol].dropna()
+            if len(symbol_history) < 2:
+                continue
+
+            last_close = float(symbol_history["Close"].iloc[-1])
+            prev_close = float(symbol_history["Close"].iloc[-2])
+            if prev_close <= 0:
+                continue
+
+            pct_change = ((last_close - prev_close) / prev_close) * 100
+            volume_ratio = 0.0
+
+            if "Volume" in symbol_history.columns:
+                last_volume = float(symbol_history["Volume"].iloc[-1] or 0)
+                avg_volume = float(symbol_history["Volume"].iloc[:-1].tail(4).mean() or 0)
+                if avg_volume > 0:
+                    volume_ratio = last_volume / avg_volume
+
+            movers.append(
+                {
+                    "symbol": symbol,
+                    "display_name": display_name,
+                    "last_close": last_close,
+                    "pct_change": pct_change,
+                    "volume_ratio": volume_ratio,
+                }
+            )
+        except Exception:
+            continue
+
+    if not movers:
+        return ""
+
+    top_gainer = max(movers, key=lambda item: item["pct_change"])
+    top_loser = min(movers, key=lambda item: item["pct_change"])
+
+    lines = [
+        (
+            f"📈 เด่นสุด: {top_gainer['display_name']} ({top_gainer['symbol']}) "
+            f"{top_gainer['pct_change']:+.2f}% ปิด {top_gainer['last_close']:,.2f} ดอลลาร์"
+        )
+    ]
+
+    used_symbols = {top_gainer["symbol"]}
+    if top_loser["symbol"] not in used_symbols:
+        lines.append(
+            (
+                f"📉 อ่อนสุด: {top_loser['display_name']} ({top_loser['symbol']}) "
+                f"{top_loser['pct_change']:+.2f}% ปิด {top_loser['last_close']:,.2f} ดอลลาร์"
+            )
+        )
+        used_symbols.add(top_loser["symbol"])
+
+    remaining = [item for item in movers if item["symbol"] not in used_symbols]
+    if remaining:
+        notable = max(remaining, key=lambda item: (item["volume_ratio"], abs(item["pct_change"])))
+        if notable["volume_ratio"] >= 1.3 or abs(notable["pct_change"]) >= 4.0:
+            if notable["volume_ratio"] >= 1.3:
+                tail = f"วอลุ่มสูงกว่าค่าเฉลี่ยราว {notable['volume_ratio']:.1f} เท่า"
+            else:
+                tail = f"แกว่ง {notable['pct_change']:+.2f}% ในคืนเดียว"
+            lines.append(f"👀 น่าจับตา: {notable['display_name']} ({notable['symbol']}) {tail}")
+
+    return "\n".join(lines)
 
 
 def _current_thai_date_str():
@@ -699,6 +803,7 @@ def send_morning_briefing(bot_instance):
             sp500_close = sp500['Close'].iloc[-1]
             btc_close = btc['Close'].iloc[-1]
             gold_close = gold['Close'].iloc[-1] if not gold.empty else 0
+            movers_text = _get_morning_market_movers_text()
             
             # 🌟 อัปเดต Prompt ใหม่ บังคับให้สั้นและห้ามทวนคำสั่ง!
             prompt = f"""
@@ -706,6 +811,8 @@ def send_morning_briefing(bot_instance):
             จงสรุปแนวโน้มตลาดเช้านี้สั้นๆ แบบฟันธงเพื่อส่งให้เทรดเดอร์ (ความยาวไม่เกิน 4 บรรทัดเท่านั้น!)
             
             ข้อมูลตลาดเมื่อคืน: S&P500={sp500_close:.2f}, Bitcoin={btc_close:.2f}, ทองคำ={gold_close:.2f}
+            หุ้นที่น่าจับตาเมื่อคืน:
+            {movers_text or "ไม่มีข้อมูลเพิ่มจากหุ้นที่ระบบติดตาม"}
             พาดหัวข่าวสำคัญ:
             {news_titles}
             
@@ -716,6 +823,11 @@ def send_morning_briefing(bot_instance):
             """
             ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             summary = ai_check.text.strip()
+            movers_section = (
+                f"📈 **หุ้นน่าจับตาคืนก่อน:**\n{movers_text}\n\n"
+                if movers_text
+                else ""
+            )
             
             msg = (
                 f"🌅 **Apexify Morning Briefing** 🌅\n\n"
@@ -723,9 +835,10 @@ def send_morning_briefing(bot_instance):
                 f"• S&P 500: {sp500_close:,.2f}\n"
                 f"• Bitcoin: {btc_close:,.2f}\n"
                 f"• ทองคำโลก (Gold): {gold_close:,.2f}\n\n"
+                f"{movers_section}"
                 f"🤖 **มุมมอง Apexify วันนี้:**\n{summary}\n\n"
                 f"🔥 *ขอให้พอร์ตเขียวๆ ตลอดวันครับ!*\n\n"
-                f"⚠️ **คำเตือน:** การลงทุนมีความเสี่ยง โปรดใช้วิจารณญาณ"
+                f"{MORNING_BRIEFING_LEGAL_DISCLAIMER}"
             )
             
             conn = get_connection()
