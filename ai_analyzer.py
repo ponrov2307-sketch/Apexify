@@ -616,7 +616,72 @@ def _position_trailing_note_from_bias(plan_bias):
     return "แนะนำขยับจุดป้องกันความเสี่ยงขึ้นมาบริเวณทุนหรือใกล้แนวรับหลัก เพื่อไม่ให้กำไรที่ได้กลับกลายเป็นขาดทุน"
 
 
-def _build_member_snapshot(context):
+def _calculate_conviction_score(context, trends):
+    dominant_bias = _choose_dominant_bias(trends)
+    day = context.get("day", {})
+    score = 50
+
+    weights = {"day": 16, "week": 12, "month": 10}
+    for timeframe, weight in weights.items():
+        bias = trends.get(timeframe, {}).get("bias", "neutral")
+        if dominant_bias == "neutral":
+            if bias == "neutral":
+                score += max(3, weight // 4)
+        else:
+            if bias == dominant_bias:
+                score += weight
+            elif bias == "neutral":
+                score += max(2, weight // 5)
+            else:
+                score -= weight
+
+    rsi = _safe_optional_float(day.get("rsi"))
+    if rsi is not None:
+        if 45 <= rsi <= 65:
+            score += 6
+        elif rsi > 85 or rsi < 15:
+            score -= 10
+        elif rsi > 75 or rsi < 25:
+            score -= 6
+
+    volume_ratio = _safe_optional_float(day.get("volume_ratio"))
+    if volume_ratio is not None:
+        if volume_ratio >= 1.8:
+            score += 8
+        elif volume_ratio >= 1.2:
+            score += 5
+        elif volume_ratio < 0.7:
+            score -= 5
+
+    price = _safe_optional_float(context.get("price") or day.get("price"))
+    ema20 = _safe_optional_float(day.get("ema20"))
+    if price is not None and ema20 not in (None, 0):
+        if dominant_bias == "bullish" and price > ema20:
+            score += 5
+        elif dominant_bias == "bearish" and price < ema20:
+            score += 5
+        elif dominant_bias in ("bullish", "bearish"):
+            score -= 4
+
+    score = max(20, min(95, score))
+    if score >= 80:
+        return score, "สูงมาก", "🔥"
+    if score >= 68:
+        return score, "ค่อนข้างสูง", "🚀"
+    if score >= 55:
+        return score, "ปานกลาง", "⚖️"
+    return score, "ระวัง", "🛡️"
+
+
+def _build_trend_badges(trends):
+    return "⏱️ Day {day} • 📅 Week {week} • 🔭 Month {month}".format(
+        day=trends.get("day", {}).get("status_emoji", "⚪️"),
+        week=trends.get("week", {}).get("status_emoji", "⚪️"),
+        month=trends.get("month", {}).get("status_emoji", "⚪️"),
+    )
+
+
+def _build_member_snapshot(context, trends, tier):
     day = context.get("day", {})
     symbol = context.get("symbol", "UNKNOWN")
     price = _safe_optional_float(context.get("price") or day.get("price"))
@@ -665,9 +730,15 @@ def _build_member_snapshot(context):
     if volume is not None and avg_volume is not None:
         volume_detail = f"Vol: {_format_compact_number(volume)} | Avg20: {_format_compact_number(avg_volume)}"
 
+    conviction_score, conviction_label, conviction_emoji = _calculate_conviction_score(context, trends)
+    tier_badge = "👑 PRO Control Room" if tier == "pro" else "💎 VIP Control Room"
+
     lines = [
+        tier_badge,
         f"🤖 *Apexify สแกนหุ้น: {symbol}*",
         f"🏷 *ราคาล่าสุด:* {_format_price(price)}",
+        f"🧭 *Trend Badges:* {_build_trend_badges(trends)}",
+        f"🎖 *Conviction Score:* {conviction_emoji} {conviction_score}/100 • {conviction_label}",
         "━━━━━━━━━━━━━━━",
         "*📊 สุขภาพหุ้นตอนนี้*",
         f"• 🌊 *เทรนด์หลัก:* {momentum} ({trend_detail})",
@@ -731,7 +802,7 @@ def _fallback_context_from_tech_data(tech_data):
 def _render_vip_report(context, trends, analysis):
     return "\n".join(
         [
-            _build_member_snapshot(context),
+            _build_member_snapshot(context, trends, "vip"),
             "",
             DISCLAIMER_TEXT,
             "",
@@ -754,7 +825,7 @@ def _render_pro_report(context, trends, deterministic_plan, analysis):
 
     return "\n".join(
         [
-            _build_member_snapshot(context),
+            _build_member_snapshot(context, trends, "pro"),
             "",
             DISCLAIMER_TEXT,
             "",
