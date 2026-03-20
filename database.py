@@ -28,6 +28,16 @@ DEFAULT_USER_LANGUAGE = "th"
 DEFAULT_DIGEST_FREQUENCY_HOURS = 4
 DEFAULT_NEWS_START_HOUR = 7
 DEFAULT_NEWS_END_HOUR = 22
+ALERT_SIGNAL_RULES = {
+    "RSI_OVERSOLD": {"direction": "up", "horizon_hours": 24},
+    "RSI_OVERBOUGHT": {"direction": "down", "horizon_hours": 24},
+    "EMA_GOLDEN_CROSS": {"direction": "up", "horizon_hours": 72},
+    "EMA_DEATH_CROSS": {"direction": "down", "horizon_hours": 72},
+    "BREAKOUT_BREAK_RES": {"direction": "up", "horizon_hours": 48},
+    "BREAKOUT_BREAK_SUP": {"direction": "down", "horizon_hours": 48},
+    "WHALE_BUY_SPIKE": {"direction": "up", "horizon_hours": 24},
+    "WHALE_SELL_SPIKE": {"direction": "down", "horizon_hours": 24},
+}
 ALLOWED_TIMEZONES = (
     "Asia/Bangkok",
     "UTC",
@@ -146,6 +156,106 @@ def _normalize_price_alert_condition(condition: str) -> str:
     if raw in {"below", "<"}:
         return "below"
     return "above"
+
+
+def _coerce_local_datetime(value):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            return value.astimezone(timezone.utc).replace(tzinfo=None)
+        return value
+
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+
+    normalized = raw.replace("T", " ").replace("Z", "")
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        chunk = normalized[:19] if "H" in fmt else normalized[:10]
+        try:
+            return datetime.strptime(chunk, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def get_alert_signal_rule(alert_type):
+    upper_type = str(alert_type or "").strip().upper()
+    if upper_type in ALERT_SIGNAL_RULES:
+        rule = ALERT_SIGNAL_RULES[upper_type]
+        return {
+            "direction": rule["direction"],
+            "horizon_hours": int(rule["horizon_hours"]),
+        }
+
+    if any(token in upper_type for token in ("OVERSOLD", "GOLDEN_CROSS", "BREAK_RES", "BUY_SPIKE")):
+        return {"direction": "up", "horizon_hours": 24}
+    if any(token in upper_type for token in ("OVERBOUGHT", "DEATH_CROSS", "BREAK_SUP", "SELL_SPIKE")):
+        return {"direction": "down", "horizon_hours": 24}
+    return {"direction": "up", "horizon_hours": 24}
+
+
+def _ensure_alert_log_schema(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alert_logs (
+            id SERIAL PRIMARY KEY,
+            symbol TEXT,
+            alert_type TEXT,
+            price_at_alert REAL,
+            timestamp TEXT
+        )
+        """
+    )
+    cursor.execute("ALTER TABLE alert_logs ADD COLUMN IF NOT EXISTS direction TEXT")
+    cursor.execute("ALTER TABLE alert_logs ADD COLUMN IF NOT EXISTS horizon_hours INTEGER")
+    cursor.execute("ALTER TABLE alert_logs ADD COLUMN IF NOT EXISTS evaluation_due_at TIMESTAMP")
+    cursor.execute("ALTER TABLE alert_logs ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP")
+    cursor.execute("ALTER TABLE alert_logs ADD COLUMN IF NOT EXISTS resolved_price REAL")
+    cursor.execute("ALTER TABLE alert_logs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending'")
+    cursor.execute("ALTER TABLE alert_logs ADD COLUMN IF NOT EXISTS return_pct REAL")
+    cursor.execute("ALTER TABLE alert_logs ADD COLUMN IF NOT EXISTS edge_pct REAL")
+    cursor.execute("ALTER TABLE alert_logs ADD COLUMN IF NOT EXISTS max_favorable_pct REAL")
+    cursor.execute("ALTER TABLE alert_logs ADD COLUMN IF NOT EXISTS max_adverse_pct REAL")
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_alert_logs_status_due
+        ON alert_logs (status, evaluation_due_at)
+        """
+    )
+
+
+def _backfill_alert_log_metadata(cursor):
+    cursor.execute(
+        """
+        SELECT id, alert_type, timestamp, direction, horizon_hours, evaluation_due_at, status
+        FROM alert_logs
+        WHERE direction IS NULL
+           OR horizon_hours IS NULL
+           OR evaluation_due_at IS NULL
+           OR status IS NULL
+        """
+    )
+    rows = cursor.fetchall()
+    for log_id, alert_type, timestamp_raw, direction, horizon_hours, evaluation_due_at, status in rows:
+        rule = get_alert_signal_rule(alert_type)
+        alert_time = _coerce_local_datetime(timestamp_raw) or datetime.now()
+        direction_value = direction or rule["direction"]
+        horizon_value = int(horizon_hours or rule["horizon_hours"])
+        due_value = evaluation_due_at or (alert_time + timedelta(hours=horizon_value))
+        status_value = status or "pending"
+        cursor.execute(
+            """
+            UPDATE alert_logs
+            SET direction = %s,
+                horizon_hours = %s,
+                evaluation_due_at = %s,
+                status = %s
+            WHERE id = %s
+            """,
+            (direction_value, horizon_value, due_value, status_value, int(log_id)),
+        )
 
 
 def _ensure_watchlist_tables(cursor):
@@ -298,8 +408,8 @@ def init_db():
                  (ref_no TEXT PRIMARY KEY, user_id TEXT, date_used TEXT)''')
 
     # 🌟 ตารางใหม่: เก็บประวัติสัญญาณเพื่อใช้วัดความแม่นยำ (Accuracy Log)
-    c.execute('''CREATE TABLE IF NOT EXISTS alert_logs 
-                 (id SERIAL PRIMARY KEY, symbol TEXT, alert_type TEXT, price_at_alert REAL, timestamp TEXT)''')
+    _ensure_alert_log_schema(c)
+    _backfill_alert_log_metadata(c)
                  
     conn.commit()
     conn.close()
