@@ -34,6 +34,12 @@ STOCK_NEWS_COOLDOWN_SECONDS = 4 * 3600
 MAX_FLASH_HEADLINES = 12
 MAX_DIGEST_HEADLINES = 12
 MAX_DIGEST_ITEMS = 2
+MORNING_MACRO_ASSETS = {
+    "SPY": "SPY ETF",
+    "QQQ": "QQQ ETF",
+    "CL=F": "น้ำมัน WTI",
+    "DX-Y.NYB": "Dollar Index",
+}
 MORNING_MOVER_UNIVERSE = {
     "AAPL": "Apple",
     "MSFT": "Microsoft",
@@ -230,6 +236,28 @@ def _get_morning_market_movers_text():
             else:
                 tail = f"แกว่ง {notable['pct_change']:+.2f}% ในคืนเดียว"
             lines.append(f"👀 น่าจับตา: {notable['display_name']} ({notable['symbol']}) {tail}")
+
+    return "\n".join(lines)
+
+
+def _get_morning_macro_assets_text():
+    lines = []
+    for symbol, label in MORNING_MACRO_ASSETS.items():
+        try:
+            history = yf.Ticker(symbol).history(period="5d")
+            if history is None or history.empty or len(history) < 2:
+                continue
+
+            last_close = float(history["Close"].iloc[-1])
+            prev_close = float(history["Close"].iloc[-2])
+            if prev_close <= 0:
+                continue
+
+            pct_change = ((last_close - prev_close) / prev_close) * 100
+            emoji = "🟢" if pct_change >= 0 else "🔴"
+            lines.append(f"{emoji} {label}: {last_close:,.2f} ({pct_change:+.2f}%)")
+        except Exception:
+            continue
 
     return "\n".join(lines)
 
@@ -804,6 +832,7 @@ def send_morning_briefing(bot_instance):
             btc_close = btc['Close'].iloc[-1]
             gold_close = gold['Close'].iloc[-1] if not gold.empty else 0
             movers_text = _get_morning_market_movers_text()
+            macro_assets_text = _get_morning_macro_assets_text()
             
             # 🌟 อัปเดต Prompt ใหม่ บังคับให้สั้นและห้ามทวนคำสั่ง!
             prompt = f"""
@@ -811,6 +840,8 @@ def send_morning_briefing(bot_instance):
             จงสรุปแนวโน้มตลาดเช้านี้สั้นๆ แบบฟันธงเพื่อส่งให้เทรดเดอร์ (ความยาวไม่เกิน 4 บรรทัดเท่านั้น!)
             
             ข้อมูลตลาดเมื่อคืน: S&P500={sp500_close:.2f}, Bitcoin={btc_close:.2f}, ทองคำ={gold_close:.2f}
+            สินทรัพย์มหภาคที่ต้องจับตา:
+            {macro_assets_text or "ไม่มีข้อมูล ETF น้ำมัน หรือดอลลาร์เพิ่มจากระบบ"}
             หุ้นที่น่าจับตาเมื่อคืน:
             {movers_text or "ไม่มีข้อมูลเพิ่มจากหุ้นที่ระบบติดตาม"}
             พาดหัวข่าวสำคัญ:
@@ -828,6 +859,11 @@ def send_morning_briefing(bot_instance):
                 if movers_text
                 else ""
             )
+            macro_assets_section = (
+                f"🌍 **ETF / น้ำมัน / ดอลลาร์:**\n{macro_assets_text}\n\n"
+                if macro_assets_text
+                else ""
+            )
             
             msg = (
                 f"🌅 **Apexify Morning Briefing** 🌅\n\n"
@@ -835,6 +871,7 @@ def send_morning_briefing(bot_instance):
                 f"• S&P 500: {sp500_close:,.2f}\n"
                 f"• Bitcoin: {btc_close:,.2f}\n"
                 f"• ทองคำโลก (Gold): {gold_close:,.2f}\n\n"
+                f"{macro_assets_section}"
                 f"{movers_section}"
                 f"🤖 **มุมมอง Apexify วันนี้:**\n{summary}\n\n"
                 f"🔥 *ขอให้พอร์ตเขียวๆ ตลอดวันครับ!*\n\n"
