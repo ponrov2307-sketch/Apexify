@@ -426,21 +426,20 @@ def send_welcome(message):
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(KeyboardButton("📊 วิเคราะห์หุ้น"), KeyboardButton("📱 เปิดเมนูหลัก"))
     markup.add(KeyboardButton("💎 บัญชี / VIP"))
-    markup.add(KeyboardButton("⚙️ ตั้งค่าแจ้งเตือน"))
-    markup.add(KeyboardButton("🌐 เปิด Dashboard อัตโนมัติ"))
-    
+
     if user_id == ADMIN_ID:
         markup.add(KeyboardButton("👑 แผงควบคุมแอดมิน"))
-    
+
     welcome_text = (
-        f"⚡️ ยินดีต้อนรับคุณ **{full_name}** สู่ **Apexify** ระบบวิเคราะห์หุ้นอัจฉริยะ\n\n"
-        "🎁 **รับสิทธิ์ทดลองใช้งานฟรี 10 ครั้ง!**\n"
-        "พิมพ์ชื่อหุ้นที่ต้องการวิเคราะห์ส่งมาได้เลยครับ (รองรับทั่วโลก 🌍):\n"
-        "🇺🇸 สหรัฐอเมริกา: `AAPL`, `TSLA`, `NVDA`\n"
-        "🇹🇭 ไทย: `PTT.BK`, `AOT.BK`\n"
-        "🦘 ออสเตรเลีย: `BHP.AX`, `CBA.AX`\n"
-        "🇬🇧 ลอนดอน: `HSBA.L` | 🇯🇵 ญี่ปุ่น: `7203.T`\n\n"
-        "👇 *กดปุ่มด้านล่างเพื่อเลือกใช้งานฟีเจอร์ต่างๆ*"
+        f"⚡️ ยินดีต้อนรับคุณ **{full_name}** สู่ **Apexify!**\n\n"
+        "🤖 บอทวิเคราะห์หุ้นด้วย AI — รองรับหุ้นทั่วโลก, แจ้งเตือนสัญญาณเทคนิค, สรุปข่าวตลาดรายวัน\n\n"
+        "🎁 **ทดลองใช้ฟรี 10 ครั้ง** ไม่ต้องสมัคร\n\n"
+        "**เริ่มต้น 3 ขั้นตอน:**\n"
+        "1️⃣ พิมพ์ชื่อหุ้น → รับรายงานวิเคราะห์ทันที\n"
+        "   `AAPL` `TSLA` `NVDA` `PTT.BK` `AOT.BK`\n"
+        "2️⃣ กด ⭐ ใต้รายงาน → เพิ่มเข้า Watchlist\n"
+        "3️⃣ รับแจ้งเตือนสัญญาณ & ข่าวอัตโนมัติ\n\n"
+        "👇 กด **📱 เปิดเมนูหลัก** เพื่อดูฟีเจอร์ทั้งหมด"
     )
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
 
@@ -500,43 +499,50 @@ def handle_portfolio(message):
         total_invested = 0
         current_value = 0
         
-        msg = f"📈 <b>สรุปพอร์ตลงทุนของคุณ (Apex Wealth Master)</b>\n\n"
-        
+        rows = []
         for asset in portfolio:
             ticker = asset['ticker']
             shares = asset['shares']
             avg_cost = asset['avg_cost']
-            
+
             try:
                 allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
                 clean_ticker = ticker.replace(".", "-") if "." in ticker and not ticker.endswith(allowed_suffixes) else ticker
                 live_price = float(yf.Ticker(clean_ticker).fast_info.last_price)
             except Exception:
-                live_price = avg_cost 
-            
+                live_price = avg_cost
+
             invested = shares * avg_cost
             current = shares * live_price
             profit = current - invested
             profit_pct = (profit / invested * 100) if invested > 0 else 0
-            
+
             total_invested += invested
             current_value += current
-            
-            icon = "🟢" if profit >= 0 else "🔴"
-            msg += f"{icon} <b>{ticker}</b>\n"
-            msg += f"   • จำนวน: {shares:,.4f} หุ้น\n"
-            msg += f"   • ทุนเฉลี่ย: {avg_cost:,.2f} | ล่าสุด: {live_price:,.2f}\n"
-            msg += f"   • กำไร: {profit:,.2f} ({profit_pct:,.2f}%)\n\n"
-        
+            rows.append((ticker, shares, avg_cost, live_price, profit, profit_pct))
+
         total_profit = current_value - total_invested
         total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
         total_icon = "🟢" if total_profit >= 0 else "🔴"
-        
-        msg += f"====================\n"
-        msg += f"💰 <b>มูลค่าพอร์ตรวม (Net Worth):</b> {current_value:,.2f}\n"
-        msg += f"💵 <b>ต้นทุนรวม (Invested):</b> {total_invested:,.2f}\n"
-        msg += f"{total_icon} <b>กำไรรวม (Total Return):</b> {total_profit:,.2f} ({total_profit_pct:,.2f}%)\n"
-        
+
+        lines = [f"💼 <b>พอร์ตลงทุน</b>  ({len(rows)} หลักทรัพย์)\n"]
+        for ticker, shares, avg_cost, live_price, profit, profit_pct in rows:
+            icon = "🟢" if profit >= 0 else "🔴"
+            sign = "+" if profit >= 0 else ""
+            lines.append(
+                f"{icon} <b>{ticker}</b>  {shares:,.4g} หุ้น\n"
+                f"   ทุน {avg_cost:,.2f}  →  ล่าสุด {live_price:,.2f}\n"
+                f"   {sign}{profit:,.2f}  ({sign}{profit_pct:.2f}%)\n"
+            )
+
+        lines.append(
+            f"─────────────────────\n"
+            f"💰 <b>มูลค่ารวม:</b> {current_value:,.2f}\n"
+            f"💵 <b>ต้นทุนรวม:</b> {total_invested:,.2f}\n"
+            f"{total_icon} <b>กำไร/ขาดทุนรวม:</b> {'+' if total_profit >= 0 else ''}{total_profit:,.2f}  ({'+' if total_profit_pct >= 0 else ''}{total_profit_pct:.2f}%)"
+        )
+
+        msg = "\n".join(lines)
         bot.edit_message_text(msg, chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='HTML')
         
     except Exception as e:
@@ -1164,6 +1170,58 @@ def inline_callbacks(call):
     elif call.data == 'menu_dashboard':
         send_dashboard_login_link(user_id)
 
+    elif call.data == 'hub_today':
+        try:
+            load_msg = bot.send_message(user_id, "📅 กำลังรวบรวมข้อมูลวันนี้...")
+            from datetime import datetime as _dt
+            thai_now = _dt.utcnow() + timedelta(hours=7)
+            date_str = thai_now.strftime("%d %b %Y")
+
+            # ตลาด
+            indices = {"SET": "^SET.BK", "S&P500": "^GSPC", "Bitcoin": "BTC-USD", "Gold": "GC=F"}
+            market_lines = []
+            for name, sym in indices.items():
+                try:
+                    data = yf.Ticker(sym).history(period="5d")
+                    if len(data) >= 2:
+                        c_now = data['Close'].iloc[-1]
+                        c_prev = data['Close'].iloc[-2]
+                        pct = (c_now - c_prev) / c_prev * 100
+                        arrow = "🟢" if pct >= 0 else "🔴"
+                        market_lines.append(f"{arrow} {name}: {c_now:,.2f} ({pct:+.2f}%)")
+                except Exception:
+                    pass
+            market_text = "\n".join(market_lines) if market_lines else "ไม่สามารถดึงข้อมูลได้"
+
+            # Watchlist scan (ถ้ามี)
+            watch_list = get_user_watch(user_id)
+            watch_text = ""
+            if watch_list:
+                watch_lines = []
+                for sym in watch_list[:5]:
+                    try:
+                        td, _, err = calculate_technical_indicators(sym, generate_chart=False)
+                        if err or not td:
+                            continue
+                        trend = "🟢" if td['ema20'] > td['ema50'] else "🔴"
+                        rsi = td['rsi']
+                        rsi_note = " ⚠️ Oversold" if rsi < 30 else (" ⚠️ Overbought" if rsi > 70 else "")
+                        watch_lines.append(f"{trend} {sym}: {td['price']:.2f} | RSI {rsi:.0f}{rsi_note}")
+                    except Exception:
+                        pass
+                if watch_lines:
+                    watch_text = "\n\n📋 *Watchlist ของฉัน:*\n" + "\n".join(watch_lines)
+
+            msg = (
+                f"📅 *สรุปวันนี้ — {date_str}*\n\n"
+                f"🌍 *ตลาดล่าสุด:*\n{market_text}"
+                f"{watch_text}\n\n"
+                f"💡 กด 📰 ข่าวด่วน เพื่อดูข่าววันนี้เพิ่มเติม"
+            )
+            bot.edit_message_text(msg, user_id, load_msg.message_id, parse_mode="Markdown")
+        except Exception as e:
+            bot.edit_message_text(f"❌ ดึงข้อมูลล้มเหลว: {e}", user_id, load_msg.message_id)
+
     elif call.data == 'hub_market':
         try:
             load_msg = bot.send_message(user_id, "🌍 กำลังดึงข้อมูลสภาวะตลาดโลก...")
@@ -1230,14 +1288,50 @@ def inline_callbacks(call):
         try:
             my_list = get_user_watch(user_id)
             if not my_list:
-                bot.send_message(user_id, "📋 Watchlist ว่างเปล่า พิมพ์ชื่อหุ้นแล้วกด ⭐ ใต้กราฟครับ")
+                bot.send_message(
+                    user_id,
+                    "📋 *Watchlist ของฉัน*\n\n"
+                    "ยังไม่มีหุ้นในรายการ\n\n"
+                    "*วิธีเพิ่ม:* พิมพ์ชื่อหุ้น → กด ⭐ ใต้รายงานวิเคราะห์\n\n"
+                    "บอทจะแจ้งเตือนสัญญาณเทคนิค (RSI, EMA Cross) ของหุ้นในรายการให้อัตโนมัติครับ",
+                    parse_mode="Markdown"
+                )
                 return
             markup = InlineKeyboardMarkup()
             for symbol in my_list:
                 markup.add(InlineKeyboardButton(f"❌ ลบ {symbol}", callback_data=f"delwatch_{symbol}"))
-            bot.send_message(user_id, "📋 **จัดการ Watchlist ของคุณ:**", parse_mode="Markdown", reply_markup=markup)
+            watch_info = (
+                f"📋 *Watchlist ของฉัน* ({len(my_list)} ตัว)\n\n"
+                "บอทติดตามและแจ้งเตือนสัญญาณอัตโนมัติสำหรับหุ้นเหล่านี้\n"
+                "กดปุ่มด้านล่างเพื่อลบออกจากรายการ:"
+            )
+            bot.send_message(user_id, watch_info, parse_mode="Markdown", reply_markup=markup)
         except Exception as e:
             bot.send_message(user_id, f"❌ Error: {e}")
+
+    elif call.data == 'hub_home':
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("📅 สรุปวันนี้", callback_data="hub_today"),
+            InlineKeyboardButton("🌍 สภาวะตลาดโลก", callback_data="hub_market")
+        )
+        markup.add(
+            InlineKeyboardButton("📰 ข่าวด่วนลงทุน", callback_data="hub_news"),
+            InlineKeyboardButton("📋 Watchlist ของฉัน", callback_data="hub_watchlist")
+        )
+        markup.add(
+            InlineKeyboardButton("🚀 สแกนหุ้น (VIP)", callback_data="hub_scan"),
+            InlineKeyboardButton("💼 พอร์ตลงทุน", callback_data="hub_portfolio")
+        )
+        markup.add(
+            InlineKeyboardButton("🔥 หุ้นเด่น (PRO)", callback_data="hub_screener"),
+            InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert")
+        )
+        markup.add(
+            InlineKeyboardButton("⚙️ ตั้งค่าการแจ้งเตือน", callback_data="settings_open"),
+            InlineKeyboardButton("🌐 Web Dashboard", callback_data="menu_dashboard")
+        )
+        bot.send_message(user_id, "📱 **Apexify Hub**\nเลือกฟีเจอร์ที่ต้องการได้เลยครับ:", parse_mode="Markdown", reply_markup=markup)
 
     # 🌟 [เพิ่มใหม่] แจ้งเตือนวิธีดูพอร์ตลงทุนเมื่อกดจากเมนู
     elif call.data == 'hub_portfolio':
@@ -1397,9 +1491,6 @@ def inline_callbacks(call):
             handle_force_backup(mock_msg)
         elif call.data == 'admin_web_dashboard':
             send_admin_dashboard_link(user_id)
-        elif call.data == 'admin_quiz':
-            handle_quiz(mock_msg)
-            
         elif call.data == 'admin_guide_user':
             guide = (
                 "📖 **คู่มือจัดการสมาชิก (คัดลอกคำสั่งไปพิมพ์ได้เลย)**\n\n"
@@ -1476,58 +1567,6 @@ def handle_earnings(message):
         bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูลงบการเงิน: {e}", message.chat.id, load_msg.message_id) 
 
 # 🌟 ตัวแปรเก็บสถานะการตอบควิซ
-quiz_data = {
-    "question": "ถ้าเกิดสัญญาณ 'Golden Cross' (EMA50 ตัดขึ้นเหนือ EMA200) บ่งบอกถึงสภาวะตลาดแบบใด?",
-    "options": ["ตลาดกำลังเข้าสู่ขาลงระยะยาว", "ตลาดกำลังเข้าสู่ขาขึ้นระยะยาว", "ตลาดจะไซด์เวย์ไม่ไปไหน"],
-    "answer": 1
-}
-users_played_quiz = set()
-
-@bot.message_handler(commands=['quiz'])
-def handle_quiz(message):
-    user_id = str(message.chat.id)
-    if not is_allowed(user_id): return
-    
-    if user_id in users_played_quiz:
-        bot.reply_to(message, "⏳ วันนี้คุณร่วมสนุกกับควิซไปแล้วครับ พรุ่งนี้มาทายกันใหม่นะ!")
-        return
-        
-    markup = InlineKeyboardMarkup(row_width=1)
-    for i, opt in enumerate(quiz_data["options"]):
-        markup.add(InlineKeyboardButton(opt, callback_data=f"quiz_{i}"))
-        
-    msg = (
-        "🎮 **Daily Trading Quiz (ทายใจตลาด)** 🎮\n\n"
-        f"❓ **คำถามวันนี้:**\n{quiz_data['question']}\n\n"
-        "*(ลองตอบดูนะครับ ตอบผิดไม่เป็นไร ถือว่าได้ความรู้ไปใช้เทรดจริง!)*"
-    )
-    bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith('quiz_'))
-def quiz_callback(call):
-    user_id = str(call.message.chat.id)
-    bot.answer_callback_query(call.id)
-    
-    if user_id in users_played_quiz:
-        bot.send_message(user_id, "⏳ คุณตอบคำถามของวันนี้ไปแล้วครับ รอเล่นคำถามใหม่พรุ่งนี้นะ!")
-        return
-        
-    users_played_quiz.add(user_id)
-    
-    chosen_idx = int(call.data.split('_')[1])
-    correct_idx = quiz_data["answer"]
-    
-    if chosen_idx == correct_idx:
-        bot.edit_message_text(
-            f"✅ **ถูกต้องครับ! เก่งมาก!** 🎉\n\nคำถาม: {quiz_data['question']}\nคำตอบ: {quiz_data['options'][correct_idx]}",
-            call.message.chat.id, call.message.message_id, parse_mode="Markdown"
-        )
-    else:
-        bot.edit_message_text(
-            f"❌ **ยังไม่ถูกน้าา** 😅\n\nคำถาม: {quiz_data['question']}\nคำตอบที่ถูกคือ: **{quiz_data['options'][correct_idx]}**\n\nไม่เป็นไรครับ เก็บความรู้ไว้ใช้เทรด พรุ่งนี้มาลุยกันใหม่!",
-            call.message.chat.id, call.message.message_id, parse_mode="Markdown"
-        )          
-
 # ==========================================
 # 🌟 ตัวรับข้อความหลัก (Main Handler)
 # ==========================================
@@ -1565,27 +1604,27 @@ def handle_main(message):
     elif text == "📱 เปิดเมนูหลัก":
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
-            InlineKeyboardButton("🌍 สภาวะตลาดโลก", callback_data="hub_market"),
-            InlineKeyboardButton("📰 ข่าวด่วนลงทุน", callback_data="hub_news")
+            InlineKeyboardButton("📅 สรุปวันนี้", callback_data="hub_today"),
+            InlineKeyboardButton("🌍 สภาวะตลาดโลก", callback_data="hub_market")
         )
         markup.add(
-            InlineKeyboardButton("📋 จัดการ Watchlist", callback_data="hub_watchlist"),
-            InlineKeyboardButton("🚀 สแกนหุ้น (VIP)", callback_data="hub_scan")
-        )
-        # 🌟 เพิ่มปุ่มพอร์ตลงทุนเข้าเมนูหลัก
-        markup.add(
-            InlineKeyboardButton("💼 ดูพอร์ตลงทุน", callback_data="hub_portfolio"),
-            InlineKeyboardButton("🔥 หุ้นเด่น (PRO)", callback_data="hub_screener")
+            InlineKeyboardButton("📰 ข่าวด่วนลงทุน", callback_data="hub_news"),
+            InlineKeyboardButton("📋 Watchlist ของฉัน", callback_data="hub_watchlist")
         )
         markup.add(
-            InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert"),
-            InlineKeyboardButton("🌐 เปิด Web Dashboard", callback_data="menu_dashboard")
+            InlineKeyboardButton("🚀 สแกนหุ้น (VIP)", callback_data="hub_scan"),
+            InlineKeyboardButton("💼 พอร์ตลงทุน", callback_data="hub_portfolio")
         )
         markup.add(
-            InlineKeyboardButton("⚙️ ตั้งค่าการแจ้งเตือน", callback_data="settings_open")
+            InlineKeyboardButton("🔥 หุ้นเด่น (PRO)", callback_data="hub_screener"),
+            InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert")
         )
-        
-        msg = "📱 **Apexify Hub (เมนูหลัก)**\nเลือกฟีเจอร์ที่คุณต้องการใช้งานได้เลยครับ:"
+        markup.add(
+            InlineKeyboardButton("⚙️ ตั้งค่าการแจ้งเตือน", callback_data="settings_open"),
+            InlineKeyboardButton("🌐 Web Dashboard", callback_data="menu_dashboard")
+        )
+
+        msg = "📱 **Apexify Hub**\nเลือกฟีเจอร์ที่ต้องการได้เลยครับ:"
         bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
         return
         
@@ -1651,9 +1690,6 @@ def handle_main(message):
             InlineKeyboardButton("🌐 เปิด Admin Dashboard", callback_data="admin_web_dashboard")
         )
         markup.add(
-            InlineKeyboardButton("🎮 เล่น Daily Quiz", callback_data="admin_quiz")
-        )
-        markup.add(
             InlineKeyboardButton("📖 คู่มือจัดการสมาชิก & โค้ด", callback_data="admin_guide_user")
         )
         markup.add(
@@ -1690,8 +1726,14 @@ def handle_main(message):
         report += f"\n\n🎁 **Trial:** {usage + 1}/10"
 
     correct_symbol = tech_data['symbol']
-    markup = InlineKeyboardMarkup()
+    markup = InlineKeyboardMarkup(row_width=2)
     markup.add(InlineKeyboardButton(f"⭐ เพิ่ม {correct_symbol} เข้า Watchlist", callback_data=f"addwatch_{correct_symbol}"))
+    markup.add(
+        InlineKeyboardButton("💼 ดูพอร์ต", callback_data="hub_portfolio"),
+        InlineKeyboardButton("📱 เมนูหลัก", callback_data="hub_home")
+    )
+    if role in ('vip', 'pro'):
+        markup.add(InlineKeyboardButton(f"🔔 ตั้งเตือนราคา {correct_symbol}", callback_data="hub_price_alert"))
 
     bot.delete_message(message.chat.id, load_msg.message_id)
 

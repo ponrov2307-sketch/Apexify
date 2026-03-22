@@ -7,11 +7,11 @@ import requests
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY, gemini_client
 from technical_tools import calculate_technical_indicators
 import psycopg2
-from database import (get_all_active_symbols, get_users_watching, init_db, check_subscription, 
+from database import (get_all_active_symbols, get_users_watching, init_db, check_subscription,
                       get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert,
                       auto_downgrade_expired_users, init_new_features_db,
                       should_send_user_notification, mark_digest_sent,
-                      reset_daily_free_usage)
+                      reset_daily_free_usage, get_expiring_subscriptions)
 import json
 import xml.etree.ElementTree as ET 
 import yfinance as yf
@@ -1088,6 +1088,33 @@ def send_daily_portfolio_summary(bot_instance):
             
     if count > 0: print(f"✅ ส่งสรุปพอร์ตสำเร็จ {count} คน")
 
+# ==========================================
+# 🔔 แจ้งเตือนผู้ใช้ที่แพ็กเกจใกล้หมดอายุ
+# ==========================================
+def send_expiry_warnings(bot_instance):
+    """แจ้งเตือน VIP/PRO ที่หมดอายุใน 3 วัน และ 1 วัน"""
+    for days_left in (3, 1):
+        try:
+            users = get_expiring_subscriptions(days_left)
+        except Exception as e:
+            print(f"[expiry_warnings] get_expiring_subscriptions error: {e}")
+            continue
+        for user_id, role, expiry_date in users:
+            role_label = "💎 VIP" if role == "vip" else "👑 PRO"
+            day_word = "3 วัน" if days_left == 3 else "พรุ่งนี้"
+            msg = (
+                f"⚠️ **แพ็กเกจของคุณใกล้หมดอายุแล้ว!**\n\n"
+                f"📦 แพ็กเกจ: {role_label}\n"
+                f"⏰ หมดอายุ: {str(expiry_date)[:10]}\n"
+                f"📅 เหลือเวลา: {day_word}\n\n"
+                f"กดปุ่ม **💎 บัญชี / VIP** เพื่อต่ออายุและใช้งานต่อเนื่องได้เลยครับ!"
+            )
+            try:
+                bot_instance.send_message(user_id, msg, parse_mode="Markdown")
+            except Exception as e:
+                print(f"[expiry_warnings] send to {user_id} failed: {e}")
+    print(f"[expiry_warnings] ส่งแจ้งเตือนหมดอายุเรียบร้อย")
+
 # 👇 จุดสังเกต: วางไว้เหนือบรรทัดนี้
 if __name__ == "__main__":
     init_db()
@@ -1111,7 +1138,8 @@ if __name__ == "__main__":
     last_portfolio_summary_date = None
 
     last_downgrade_date = None # 🌟 เพิ่มตัวแปรสำหรับเช็ควันที่ปรับยศ
-    
+    last_expiry_warning_date = None
+
     while True:
         current_time = time.time()
         thai_time = datetime.utcnow() + timedelta(hours=7)
@@ -1122,7 +1150,9 @@ if __name__ == "__main__":
             auto_downgrade_expired_users()
             print(f"🧹 [{current_date_str}] Auto-Downgrade: อัปเดต DB ปรับยศคนหมดอายุเรียบร้อย")
             reset_daily_free_usage()
+            send_expiry_warnings(bot)
             last_downgrade_date = current_date_str
+            last_expiry_warning_date = current_date_str
             
         # 🌅 ส่ง Morning Briefing (08:30 น.)
         if thai_time.hour == 8 and thai_time.minute >= 30:

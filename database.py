@@ -574,6 +574,21 @@ def get_all_users():
     conn.close()
     return [row[0] for row in result]
 
+def get_expiring_subscriptions(days_before: int):
+    """Return list of (user_id, role, expiry_date) expiring in exactly `days_before` days."""
+    conn = get_connection()
+    c = conn.cursor()
+    target = (datetime.now() + timedelta(days=days_before)).strftime('%Y-%m-%d')
+    c.execute(
+        "SELECT user_id, role, expiry_date FROM users "
+        "WHERE role IN ('vip', 'pro') AND expiry_date IS NOT NULL "
+        "AND expiry_date::date = %s::date",
+        (target,)
+    )
+    result = c.fetchall()
+    conn.close()
+    return result
+
 def add_promo_code(code, days, max_uses, role_type='vip'):
     conn = get_connection()
     c = conn.cursor()
