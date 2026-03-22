@@ -580,8 +580,9 @@ def broadcast_hourly_urgent_news(bot_instance):
                     try:
                         bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
                         count += 1
-                        time.sleep(0.5) 
-                    except Exception: pass
+                        time.sleep(0.5)
+                    except Exception as e:
+                        print(f"[FlashNews] ส่งให้ {pro[0]} ไม่สำเร็จ: {e}")
             conn.close()
 
         else:
@@ -675,8 +676,8 @@ def check_and_broadcast_pro_news(bot_instance):
                 bot_instance.send_message(uid, msg, parse_mode='Markdown')
                 sent_to_users.add(uid)
                 time.sleep(0.5)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[Digest] ส่งให้ {uid} ไม่สำเร็จ: {e}")
         for uid in sent_to_users:
             mark_digest_sent(uid)
         conn.close()
@@ -715,8 +716,8 @@ def check_custom_price_alerts():
             try:
                 tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
                 if not err and tech_data: current_prices[sym] = tech_data['price']
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[PriceAlert] ดึงราคา {sym} ไม่สำเร็จ: {e}")
             
     for alert in bot_alerts:
         a_id, user_id, symbol, target_price, condition = alert
@@ -753,27 +754,42 @@ def check_custom_price_alerts():
 # 🎙️ ฟีเจอร์ AI Podcast สรุปตลาดตอนเช้า (08:00 น.)
 # ==========================================
 def get_podcast_market_data():
-    def _fetch(ticker_sym):
+    def _fetch_with_change(ticker_sym):
         try:
-            val = yf.Ticker(ticker_sym).history(period='2d')['Close'].iloc[-1]
-            return None if math.isnan(val) else val
+            hist = yf.Ticker(ticker_sym).history(period='5d')['Close']
+            if len(hist) < 2:
+                return None, None
+            prev = hist.iloc[-2]
+            curr = hist.iloc[-1]
+            if math.isnan(curr) or math.isnan(prev) or prev == 0:
+                return None, None
+            return float(curr), float((curr - prev) / prev * 100)
         except Exception:
-            return None
+            return None, None
 
-    sp500 = _fetch('^GSPC')
-    btc   = _fetch('BTC-USD')
-    gold  = _fetch('GC=F')
+    tickers = [
+        ('^GSPC',   'S&P 500',     'จุด'),
+        ('^SET.BK', 'SET Index',   'จุด'),
+        ('BTC-USD', 'Bitcoin',     'ดอลลาร์'),
+        ('GC=F',    'ทองคำโลก',   'ดอลลาร์'),
+        ('CL=F',    'น้ำมันดิบ',  'ดอลลาร์'),
+    ]
 
-    date_str = datetime.now().strftime('%d %b %Y')
-    parts = [f"ข้อมูล ณ วันที่ {date_str}:"]
-    if sp500: parts.append(f"S&P 500 ปิดที่ {sp500:,.0f} จุด")
-    if btc:   parts.append(f"Bitcoin อยู่ที่ {btc:,.0f} ดอลลาร์")
-    if gold:  parts.append(f"ทองคำโลกอยู่ที่ {gold:,.0f} ดอลลาร์")
+    date_str = (datetime.utcnow() + timedelta(hours=7)).strftime('%d %b %Y')
+    parts = [f"ข้อมูลตลาด ณ วันที่ {date_str}:"]
+    for sym, label, unit in tickers:
+        price, chg = _fetch_with_change(sym)
+        if price is None:
+            continue
+        direction = "ขึ้น" if chg >= 0 else "ลง"
+        parts.append(
+            f"{label} อยู่ที่ {price:,.0f} {unit} ({direction} {abs(chg):.1f}%)"
+        )
 
     if len(parts) == 1:
         print("⚠️ [Podcast] ดึงข้อมูลตลาดไม่ได้เลย ตลาดอาจยังไม่เปิด")
         return "ข้อมูลตลาดยังไม่พร้อม ตลาดอาจยังไม่เปิดหรือเน็ตมีปัญหา"
-    return ', '.join(parts)
+    return ' | '.join(parts)
 
 def _clean_podcast_script(text: str) -> str:
     import re
@@ -862,8 +878,8 @@ async def create_and_send_podcast(bot_instance):
                         )
                     count += 1
                     await asyncio.sleep(0.5)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[Podcast] ส่งให้ {user_id} ไม่สำเร็จ: {e}")
 
         if count > 0:
             print(f"✅ [Podcast] ส่งเสียงสำเร็จ {count} คน")
@@ -957,7 +973,8 @@ def send_morning_briefing(bot_instance):
                         bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
                         count += 1
                         time.sleep(0.5)
-                    except Exception: pass
+                    except Exception as e:
+                        print(f"[MorningBriefing] ส่งให้ {pro[0]} ไม่สำเร็จ: {e}")
                     
             cur.close()
             conn.close()
@@ -1007,7 +1024,8 @@ def check_xd_alerts():
                 try:
                     bot.send_message(pro[0], msg, parse_mode='Markdown')
                     time.sleep(0.5)
-                except Exception: pass
+                except Exception as e:
+                    print(f"[XDAlert] ส่งให้ {pro[0]} ไม่สำเร็จ: {e}")
         cur.close()
         conn.close()
 # ==========================================
@@ -1043,8 +1061,8 @@ def send_daily_portfolio_summary(bot_instance):
             
         total_invested = 0
         current_value = 0
-        msg = f"🔔 **สรุปพอร์ตลงทุน (Apex Wealth Master)** 🔔\n\n"
-        
+        rows = []
+
         for asset in portfolio:
             ticker = asset['ticker']
             shares = asset['shares']
@@ -1055,35 +1073,41 @@ def send_daily_portfolio_summary(bot_instance):
                 live_price = float(yf.Ticker(clean_ticker).fast_info.last_price)
             except Exception:
                 live_price = avg_cost
-                
+
             invested = shares * avg_cost
             current = shares * live_price
             profit = current - invested
             profit_pct = (profit / invested * 100) if invested > 0 else 0
-            
             total_invested += invested
             current_value += current
-            
-            icon = "🟢" if profit >= 0 else "🔴"
-            msg += f"{icon} **{ticker}** : {profit:,.2f} ({profit_pct:,.2f}%)\n"
-            
+            rows.append((ticker, shares, avg_cost, live_price, profit, profit_pct))
+
         total_profit = current_value - total_invested
         total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
         total_icon = "🟢" if total_profit >= 0 else "🔴"
-        
-        msg += f"\n====================\n"
-        msg += f"💰 **มูลค่าพอร์ตรวม:** {current_value:,.2f}\n"
-        msg += f"💵 **ต้นทุนรวม:** {total_invested:,.2f}\n"
-        msg += f"{total_icon} **กำไร/ขาดทุนรวม:** {total_profit:,.2f} ({total_profit_pct:,.2f}%)\n"
-        
-        markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("Open Dashboard Login", callback_data="menu_dashboard"))
-        
-        try:  # 👈 เติมคำว่า try: ตรงบรรทัดนี้ครับ! (ย่อหน้าให้ตรงกับ markup)
-            bot_instance.send_message(user_id, msg, parse_mode='Markdown', reply_markup=markup)
+
+        lines = [f"🔔 <b>สรุปพอร์ตประจำวัน</b>  ({len(rows)} หลักทรัพย์)\n"]
+        for t, s, ac, lp, pf, pp in rows:
+            icon = "🟢" if pf >= 0 else "🔴"
+            sign = "+" if pf >= 0 else ""
+            lines.append(
+                f"{icon} <b>{t}</b>  {s:,.4g} หุ้น\n"
+                f"   ทุน {ac:,.2f}  →  ล่าสุด {lp:,.2f}\n"
+                f"   {sign}{pf:,.2f}  ({sign}{pp:.2f}%)\n"
+            )
+        lines.append(
+            f"─────────────────────\n"
+            f"💰 <b>มูลค่ารวม:</b> {current_value:,.2f}\n"
+            f"💵 <b>ต้นทุนรวม:</b> {total_invested:,.2f}\n"
+            f"{total_icon} <b>กำไร/ขาดทุนรวม:</b> {'+' if total_profit >= 0 else ''}{total_profit:,.2f}  ({'+' if total_profit_pct >= 0 else ''}{total_profit_pct:.2f}%)"
+        )
+
+        try:
+            bot_instance.send_message(user_id, "\n".join(lines), parse_mode='HTML')
             count += 1
             time.sleep(0.5)
-        except Exception: pass
+        except Exception as e:
+            print(f"[PortfolioSummary] ส่งให้ {user_id} ไม่สำเร็จ: {e}")
 
             
     if count > 0: print(f"✅ ส่งสรุปพอร์ตสำเร็จ {count} คน")
