@@ -1,12 +1,14 @@
+import asyncio
 import os
 import time
 from threading import Thread
 
-from flask import Flask, abort, flash, redirect, render_template, request, send_file, session, url_for
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, send_file, session, url_for
 
-from admin_service import build_local_backup_zip, get_admin_dashboard_snapshot, toggle_maintenance_status
-from config import ADMIN_DASHBOARD_LOGIN_SECRET, ADMIN_ID, BOT_WEB_BASE_URL, FLASK_SECRET_KEY
+from admin_service import build_local_backup_zip, get_admin_dashboard_snapshot, get_user_info_snapshot, toggle_maintenance_status
+from config import ADMIN_DASHBOARD_LOGIN_SECRET, ADMIN_ID, BOT_WEB_BASE_URL, FLASK_SECRET_KEY, TELEGRAM_TOKEN
 from dashboard_login import verify_admin_dashboard_token
+from database import add_subscription, ban_user, get_all_users, unban_user
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = FLASK_SECRET_KEY or ADMIN_DASHBOARD_LOGIN_SECRET or os.urandom(32)
@@ -43,6 +45,30 @@ def _has_valid_admin_session():
     return is_valid
 
 
+def _get_bot():
+    import telebot
+    return telebot.TeleBot(TELEGRAM_TOKEN)
+
+
+def _do_web_broadcast(msg_text, user_ids):
+    import time as _time
+    bot = _get_bot()
+    success, fail = 0, 0
+    for uid in user_ids:
+        try:
+            bot.send_message(uid, f"📢 **ประกาศจาก Apexify:**\n\n{msg_text}", parse_mode="Markdown")
+            success += 1
+            _time.sleep(0.1)
+        except Exception:
+            try:
+                bot.send_message(uid, f"📢 ประกาศจาก Apexify:\n\n{msg_text}")
+                success += 1
+                _time.sleep(0.1)
+            except Exception:
+                fail += 1
+    return success, fail
+
+
 @app.route("/")
 def home():
     return "🚀 Apexify Bot Web Service is Online!"
@@ -59,15 +85,15 @@ def forbidden(_error):
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>Access Denied</title>
           <style>
-            body { font-family: Arial, sans-serif; background: #f7f1e8; color: #2c241b; display: grid; place-items: center; min-height: 100vh; margin: 0; }
-            .card { max-width: 420px; background: #fffaf2; border: 1px solid #e3d4bf; border-radius: 18px; padding: 28px; box-shadow: 0 20px 50px rgba(64, 44, 16, 0.12); }
-            h1 { margin-top: 0; font-size: 28px; }
-            p { line-height: 1.5; margin-bottom: 0; }
+            body { font-family: Arial, sans-serif; background: #0D1117; color: #E6EDF3; display: grid; place-items: center; min-height: 100vh; margin: 0; }
+            .card { max-width: 420px; background: #161B22; border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 28px; box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
+            h1 { margin-top: 0; font-size: 28px; color: #FF453A; }
+            p { line-height: 1.5; margin-bottom: 0; color: #8B949E; }
           </style>
         </head>
         <body>
           <div class="card">
-            <h1>Access denied</h1>
+            <h1>403 — Access Denied</h1>
             <p>This admin dashboard is available for the configured Apexify admin account only.</p>
           </div>
         </body>
@@ -159,6 +185,127 @@ def admin_download_backup():
         as_attachment=True,
         download_name=filename,
     )
+
+
+@app.route("/admin/actions/broadcast", methods=["POST"])
+def admin_broadcast():
+    if not _has_valid_admin_session():
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+
+    msg_text = (request.json or {}).get("message", "").strip()
+    audience = (request.json or {}).get("audience", "all")
+    if not msg_text:
+        return jsonify({"ok": False, "error": "ข้อความว่าง"})
+
+    all_users = get_all_users()
+    if audience == "vip_pro":
+        from database import check_subscription
+        user_ids = [u for u in all_users if check_subscription(u) in ("vip", "pro")]
+    elif audience == "pro":
+        from database import check_subscription
+        user_ids = [u for u in all_users if check_subscription(u) == "pro"]
+    else:
+        user_ids = all_users
+
+    result = {"ok": True, "sent": 0, "fail": 0, "total": len(user_ids)}
+
+    def _run():
+        s, f = _do_web_broadcast(msg_text, user_ids)
+        result["sent"] = s
+        result["fail"] = f
+
+    t = Thread(target=_run, daemon=True)
+    t.start()
+    t.join(timeout=30)
+    return jsonify(result)
+
+
+@app.route("/admin/actions/add_role", methods=["POST"])
+def admin_add_role():
+    if not _has_valid_admin_session():
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+
+    data = request.json or {}
+    user_id = str(data.get("user_id", "")).strip()
+    role = data.get("role", "").strip().lower()
+    try:
+        days = int(data.get("days", 30))
+    except (TypeError, ValueError):
+        days = 30
+
+    if not user_id or role not in ("vip", "pro"):
+        return jsonify({"ok": False, "error": "ข้อมูลไม่ถูกต้อง"})
+
+    try:
+        expiry = add_subscription(user_id, role, days)
+        return jsonify({"ok": True, "expiry": str(expiry)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/admin/api/user/<user_id>")
+def admin_user_lookup(user_id):
+    if not _has_valid_admin_session():
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+
+    info = get_user_info_snapshot(user_id)
+    if not info:
+        return jsonify({"ok": False, "error": "ไม่พบผู้ใช้"})
+    return jsonify({"ok": True, "user": info})
+
+
+@app.route("/admin/actions/force_briefing", methods=["POST"])
+def admin_force_briefing():
+    if not _has_valid_admin_session():
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+
+    from alert_system import bot as alert_bot, send_morning_briefing
+    Thread(target=send_morning_briefing, args=(alert_bot, True), daemon=True).start()
+    return jsonify({"ok": True, "message": "Morning Briefing กำลังส่ง..."})
+
+
+@app.route("/admin/actions/force_podcast", methods=["POST"])
+def admin_force_podcast():
+    if not _has_valid_admin_session():
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+
+    from alert_system import bot as alert_bot, create_and_send_podcast
+
+    def _run_podcast():
+        asyncio.run(create_and_send_podcast(alert_bot, force=True))
+
+    Thread(target=_run_podcast, daemon=True).start()
+    return jsonify({"ok": True, "message": "Podcast กำลังสร้างและส่ง..."})
+
+
+@app.route("/admin/actions/ban_user", methods=["POST"])
+def admin_ban_user():
+    if not _has_valid_admin_session():
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+
+    user_id = str((request.json or {}).get("user_id", "")).strip()
+    if not user_id:
+        return jsonify({"ok": False, "error": "ไม่มี user_id"})
+    try:
+        ban_user(user_id)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/admin/actions/unban_user", methods=["POST"])
+def admin_unban_user():
+    if not _has_valid_admin_session():
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+
+    user_id = str((request.json or {}).get("user_id", "")).strip()
+    if not user_id:
+        return jsonify({"ok": False, "error": "ไม่มี user_id"})
+    try:
+        unban_user(user_id)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 
 def run():

@@ -573,6 +573,40 @@ def build_local_backup_zip():
     return True, zip_filename, zip_buffer, "ok"
 
 
+def get_user_info_snapshot(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT user_id, username, role, expiry_date, status, registered_date FROM users WHERE user_id=%s",
+        (str(user_id),)
+    )
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        conn.close()
+        return None
+    uid, uname, role, expiry, status, reg_date = row
+    cur.execute("SELECT COUNT(*) FROM user_watchlist WHERE user_id=%s", (str(user_id),))
+    watchlist_count = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM portfolios WHERE user_id=%s", (str(user_id),))
+    portfolio_count = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM price_alerts WHERE user_id=%s AND active=TRUE", (str(user_id),))
+    alert_count = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    return {
+        "user_id": uid,
+        "username": uname or "Unknown",
+        "role": role or "free",
+        "expiry_date": str(expiry) if expiry else None,
+        "status": status or "active",
+        "registered_date": str(reg_date) if reg_date else None,
+        "watchlist_count": watchlist_count,
+        "portfolio_count": portfolio_count,
+        "active_alerts": alert_count,
+    }
+
+
 def get_admin_dashboard_snapshot(limit=15):
     return {
         "maintenance": get_maintenance_snapshot(),

@@ -946,9 +946,9 @@ def generate_podcast_script(market_info):
             "วันนี้เลยเป็นวันที่ควรโฟกัสกับการคุมจังหวะและวางแผนให้รอบคอบ ขอให้ทุกคนลงทุนอย่างมีสติและเริ่มวันด้วยพลังที่ดีครับ"
         )
 
-async def create_and_send_podcast(bot_instance):
+async def create_and_send_podcast(bot_instance, force=False):
     try:
-        if not _claim_dispatch_once("morning_podcast", _current_thai_date_str()):
+        if not force and not _claim_dispatch_once("morning_podcast", _current_thai_date_str()):
             print("⏭️ [Podcast] ข้ามการส่งซ้ำของวันนี้")
             return
         print("🌍 [Podcast] กำลังสร้างสคริปต์และอัดเสียง...")
@@ -1064,9 +1064,9 @@ def _get_upcoming_economic_events(days_ahead=3):
 # ==========================================
 # 🌟 ฟีเจอร์ Morning Apexify Briefing (08:30 น.)
 # ==========================================
-def send_morning_briefing(bot_instance):
+def send_morning_briefing(bot_instance, force=False):
     try:
-        if not _claim_dispatch_once("morning_briefing", _current_thai_date_str()):
+        if not force and not _claim_dispatch_once("morning_briefing", _current_thai_date_str()):
             print("⏭️ [Morning Briefing] ข้ามการส่งซ้ำของวันนี้")
             return
         sp500 = yf.Ticker('^GSPC').history(period='1d')
