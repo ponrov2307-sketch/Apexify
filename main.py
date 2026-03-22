@@ -6,6 +6,7 @@ import yfinance as yf
 import random
 import string
 import time
+import threading
 import xml.etree.ElementTree as ET 
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from keep_alive import keep_alive 
@@ -157,6 +158,10 @@ def is_allowed(user_id):
         user_message_tracking[user_id] = []
         
     user_message_tracking[user_id] = [t for t in user_message_tracking[user_id] if now - t < 10]
+    if not user_message_tracking[user_id]:
+        # No recent messages at all — clean up the key and allow
+        del user_message_tracking[user_id]
+        return True
     user_message_tracking[user_id].append(now)
     
     if len(user_message_tracking[user_id]) > 5:
@@ -678,28 +683,39 @@ def handle_del_alert(message):
 @bot.message_handler(commands=['ban'])
 def handle_ban(message):
     if str(message.chat.id) != ADMIN_ID: return
+    args = message.text.split()
+    if len(args) < 2:
+        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: `/ban [รหัสผู้ใช้]`", parse_mode="Markdown")
+        return
     try:
-        target_user = message.text.split()[1]
+        target_user = args[1]
         ban_user(target_user)
         bot.reply_to(message, f"🚫 **แบนสำเร็จ:** เตะ User `{target_user}` ออกจากระบบถาวรแล้ว!", parse_mode="Markdown")
-    except:
+    except (IndexError, ValueError):
         bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: `/ban [รหัสผู้ใช้]`", parse_mode="Markdown")
 
 @bot.message_handler(commands=['unban'])
 def handle_unban(message):
     if str(message.chat.id) != ADMIN_ID: return
+    args = message.text.split()
+    if len(args) < 2:
+        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: `/unban [รหัสผู้ใช้]`", parse_mode="Markdown")
+        return
     try:
-        target_user = message.text.split()[1]
+        target_user = args[1]
         unban_user(target_user)
         bot.reply_to(message, f"✅ **ปลดแบนสำเร็จ:** ให้โอกาส User `{target_user}` กลับมาใช้งานได้แล้ว", parse_mode="Markdown")
-    except:
+    except (IndexError, ValueError):
         bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: `/unban [รหัสผู้ใช้]`", parse_mode="Markdown")
 
 @bot.message_handler(commands=['gencode'])
 def handle_gencode(message):
     if str(message.chat.id) != ADMIN_ID: return
+    args = message.text.split()
+    if len(args) < 3:
+        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: /gencode [จำนวนวัน] [จำนวนคนที่ใช้ได้] [vip/pro]")
+        return
     try:
-        args = message.text.split()
         days = int(args[1])
         max_uses = int(args[2])
         role_type = args[3].lower() if len(args) > 3 else 'vip'
@@ -752,15 +768,8 @@ def handle_add_role(message):
         except:
             bot.reply_to(message, "❌ รูปแบบ: /addrole [user_id] [vip/pro] [days]")
 
-@bot.message_handler(commands=['broadcast'])
-def handle_broadcast(message):
-    user_id = str(message.chat.id)
-    if user_id != ADMIN_ID: return
-    msg_text = message.text.replace('/broadcast', '').strip()
-    if not msg_text: return
-    users = get_all_users()
+def _do_broadcast(message, users, msg_text):
     success, fail = 0, 0
-    bot.reply_to(message, f"⏳ กำลังส่งข้อความหาผู้ใช้ {len(users)} คน...")
     for uid in users:
         try:
             # ลองส่งแบบจัดหน้าตา (Markdown) ก่อน
@@ -774,8 +783,18 @@ def handle_broadcast(message):
                 success += 1
                 time.sleep(0.1)
             except Exception:
-                fail += 1 
+                fail += 1
     bot.reply_to(message, f"✅ บรอดแคสต์สำเร็จ: {success} คน\n❌ ล้มเหลว: {fail} คน")
+
+@bot.message_handler(commands=['broadcast'])
+def handle_broadcast(message):
+    user_id = str(message.chat.id)
+    if user_id != ADMIN_ID: return
+    msg_text = message.text.replace('/broadcast', '').strip()
+    if not msg_text: return
+    users = get_all_users()
+    bot.reply_to(message, f"⏳ กำลังส่งข้อความหาผู้ใช้ {len(users)} คน... (รันอยู่เบื้องหลัง)")
+    threading.Thread(target=_do_broadcast, args=(message, users, msg_text), daemon=True).start()
 
 @bot.message_handler(commands=['stats'])
 def handle_stats(message):

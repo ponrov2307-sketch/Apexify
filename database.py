@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import psycopg2
+import psycopg2.pool
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -386,9 +387,21 @@ def _get_all_watchlist_tickers():
     conn.close()
     return [row[0] for row in rows]
 
+_pool = None
+
+def _get_pool():
+    global _pool
+    if _pool is None:
+        _pool = psycopg2.pool.ThreadedConnectionPool(2, 10, _get_db_url())
+    return _pool
+
 def get_connection():
-    """สร้างการเชื่อมต่อกับ PostgreSQL"""
-    conn = psycopg2.connect(_get_db_url())
+    """ดึงการเชื่อมต่อจาก pool (conn.close() คืน connection กลับ pool อัตโนมัติ)"""
+    pool = _get_pool()
+    conn = pool.getconn()
+    def _return_to_pool():
+        pool.putconn(conn)
+    conn.close = _return_to_pool
     return conn
 
 def init_db():
@@ -558,30 +571,40 @@ def add_promo_code(code, days, max_uses, role_type='vip'):
 def redeem_code(user_id, code):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT days, max_uses, current_uses, used_by, role_type FROM promo_codes WHERE code=%s", (code,))
-    result = c.fetchone()
-    
-    if result:
-        days, max_uses, current_uses, used_by, role_type = result
-        used_by_list = used_by.split(',') if used_by else []
-        
-        if str(user_id) in used_by_list:
-            conn.close()
-            return False, "already_used_by_you", None, None
-            
-        if current_uses < max_uses:
-            new_used_by = used_by + f"{user_id},"
-            c.execute("UPDATE promo_codes SET current_uses = current_uses + 1, used_by=%s WHERE code=%s", (new_used_by, code))
-            conn.commit()
-            
-            expiry = add_subscription(user_id, role_type, days)
-            conn.close()
-            return True, days, expiry, role_type
-        else:
-            conn.close()
-            return False, "fully_used", None, None
-            
+
+    # Atomic UPDATE: only succeeds if under limit AND user hasn't used it yet
+    c.execute("""
+        UPDATE promo_codes
+        SET current_uses = current_uses + 1,
+            used_by = COALESCE(used_by, '') || %s || ','
+        WHERE code = %s
+          AND current_uses < max_uses
+          AND (used_by IS NULL OR used_by NOT LIKE %s)
+    """, (str(user_id), code, f"%{user_id}%"))
+    rows_updated = c.rowcount
+    conn.commit()
+
+    if rows_updated == 1:
+        # Success — fetch role_type and days to complete subscription
+        c.execute("SELECT days, role_type FROM promo_codes WHERE code=%s", (code,))
+        row = c.fetchone()
+        conn.close()
+        if not row:
+            return False, None, None, None
+        days, role_type = row
+        expiry = add_subscription(user_id, role_type, days)
+        return True, days, expiry, role_type
+
+    # Update didn't go through — find out why
+    c.execute("SELECT current_uses, max_uses, used_by FROM promo_codes WHERE code=%s", (code,))
+    row = c.fetchone()
     conn.close()
+    if row is None:
+        return False, None, None, None  # Code doesn't exist
+    current_uses, max_uses, used_by = row
+    if used_by and str(user_id) in used_by:
+        return False, "already_used_by_you", None, None
+    return False, "fully_used", None, None
 
 def get_user_stats():
     conn = get_connection()
