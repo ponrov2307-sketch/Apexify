@@ -247,8 +247,10 @@ def admin_add_role():
 def admin_user_lookup(user_id):
     if not _has_valid_admin_session():
         return jsonify({"ok": False, "error": "unauthorized"}), 403
-
-    info = get_user_info_snapshot(user_id)
+    try:
+        info = get_user_info_snapshot(user_id)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
     if not info:
         return jsonify({"ok": False, "error": "ไม่พบผู้ใช้"})
     return jsonify({"ok": True, "user": info})
@@ -259,9 +261,19 @@ def admin_force_briefing():
     if not _has_valid_admin_session():
         return jsonify({"ok": False, "error": "unauthorized"}), 403
 
-    from alert_system import bot as alert_bot, send_morning_briefing
-    Thread(target=send_morning_briefing, args=(alert_bot, True), daemon=True).start()
-    return jsonify({"ok": True, "message": "Morning Briefing กำลังส่ง..."})
+    try:
+        from alert_system import bot as alert_bot, send_morning_briefing
+
+        def _run():
+            try:
+                send_morning_briefing(alert_bot, force=True)
+            except Exception as e:
+                print(f"[Force Briefing] Error: {e}")
+
+        Thread(target=_run, daemon=True).start()
+        return jsonify({"ok": True, "message": "Morning Briefing กำลังส่ง..."})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 
 @app.route("/admin/actions/force_podcast", methods=["POST"])
@@ -269,13 +281,59 @@ def admin_force_podcast():
     if not _has_valid_admin_session():
         return jsonify({"ok": False, "error": "unauthorized"}), 403
 
-    from alert_system import bot as alert_bot, create_and_send_podcast
+    try:
+        from alert_system import bot as alert_bot, create_and_send_podcast
 
-    def _run_podcast():
-        asyncio.run(create_and_send_podcast(alert_bot, force=True))
+        def _run_podcast():
+            try:
+                asyncio.run(create_and_send_podcast(alert_bot, force=True))
+            except Exception as e:
+                print(f"[Force Podcast] Error: {e}")
 
-    Thread(target=_run_podcast, daemon=True).start()
-    return jsonify({"ok": True, "message": "Podcast กำลังสร้างและส่ง..."})
+        Thread(target=_run_podcast, daemon=True).start()
+        return jsonify({"ok": True, "message": "Podcast กำลังสร้างและส่ง..."})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/admin/actions/force_flash_news", methods=["POST"])
+def admin_force_flash_news():
+    if not _has_valid_admin_session():
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+
+    try:
+        from alert_system import bot as alert_bot, broadcast_hourly_urgent_news
+
+        def _run():
+            try:
+                broadcast_hourly_urgent_news(alert_bot)
+            except Exception as e:
+                print(f"[Force Flash News] Error: {e}")
+
+        Thread(target=_run, daemon=True).start()
+        return jsonify({"ok": True, "message": "Flash News กำลังส่ง..."})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/admin/actions/force_digest_news", methods=["POST"])
+def admin_force_digest_news():
+    if not _has_valid_admin_session():
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+
+    try:
+        from alert_system import bot as alert_bot, check_and_broadcast_pro_news
+
+        def _run():
+            try:
+                check_and_broadcast_pro_news(alert_bot)
+            except Exception as e:
+                print(f"[Force Digest News] Error: {e}")
+
+        Thread(target=_run, daemon=True).start()
+        return jsonify({"ok": True, "message": "Digest News กำลังส่ง..."})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 
 @app.route("/admin/actions/ban_user", methods=["POST"])

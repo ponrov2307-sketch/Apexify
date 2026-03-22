@@ -318,11 +318,13 @@
     <div class="form-group">
       <label class="form-label">เลือกสิ่งที่จะส่ง</label>
       <select class="form-select" id="fs-type">
-        <option value="briefing">🌅 Morning Briefing</option>
-        <option value="podcast">🎙️ Podcast</option>
+        <option value="briefing">🌅 Morning Briefing (VIP+PRO)</option>
+        <option value="podcast">🎙️ Podcast (VIP+PRO)</option>
+        <option value="flash_news">⚡ Flash News (PRO)</option>
+        <option value="digest_news">📰 Digest News (VIP+PRO)</option>
       </select>
     </div>
-    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">⚠️ จะส่งทันทีแม้ส่งไปแล้วในวันนี้</p>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">⚠️ Briefing/Podcast จะส่งทันทีแม้ส่งไปแล้วในวันนี้</p>
     <button class="btn btn-amber" id="fs-btn" onclick="doForceSend()" style="width:100%">
       <span class="spinner" id="fs-spinner"></span> ส่งเดี๋ยวนี้
     </button>
@@ -820,17 +822,22 @@
   // ── Force Send ──
   async function doForceSend() {
     const type = document.getElementById('fs-type').value;
+    const urlMap = {
+      briefing: '/admin/actions/force_briefing',
+      podcast: '/admin/actions/force_podcast',
+      flash_news: '/admin/actions/force_flash_news',
+      digest_news: '/admin/actions/force_digest_news',
+    };
     setLoading('fs-btn', 'fs-spinner', true);
     try {
-      const url = type === 'briefing' ? '/admin/actions/force_briefing' : '/admin/actions/force_podcast';
-      const d = await apiFetch(url, {});
+      const d = await apiFetch(urlMap[type], {});
       if (d.ok) {
         showResult('fs-result', true, `✅ ${d.message}`);
         showToast(d.message, 'info');
       } else {
         showResult('fs-result', false, d.error || 'เกิดข้อผิดพลาด');
       }
-    } catch(e) { showResult('fs-result', false, 'Network error'); }
+    } catch(e) { showResult('fs-result', false, 'Network error: ' + e.message); }
     setLoading('fs-btn', 'fs-spinner', false);
   }
 

@@ -590,7 +590,7 @@ def get_user_info_snapshot(user_id):
     watchlist_count = cur.fetchone()[0]
     cur.execute("SELECT COUNT(*) FROM portfolios WHERE user_id=%s", (str(user_id),))
     portfolio_count = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM price_alerts WHERE user_id=%s AND active=TRUE", (str(user_id),))
+    cur.execute("SELECT COUNT(*) FROM user_price_alerts WHERE user_id=%s AND is_active=1", (str(user_id),))
     alert_count = cur.fetchone()[0]
     cur.close()
     conn.close()
