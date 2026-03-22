@@ -1,5 +1,6 @@
 ﻿import time
 import hashlib
+import math
 from datetime import datetime, timedelta
 import telebot
 import requests 
@@ -29,7 +30,7 @@ sent_xd_alerts = set()
 
 FLASH_NEWS_INTERVAL_SECONDS = 3 * 3600
 DIGEST_NEWS_CHECK_INTERVAL_SECONDS = 3600
-STOCK_NEWS_COOLDOWN_SECONDS = 4 * 3600
+STOCK_NEWS_COOLDOWN_SECONDS = 2 * 3600
 MAX_FLASH_HEADLINES = 12
 MAX_DIGEST_HEADLINES = 12
 MAX_DIGEST_ITEMS = 2
@@ -324,7 +325,7 @@ def check_hot_news(symbol):
             {{
                 "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
                 "severity": "HIGH" (เฉพาะข่าวด่วนที่มีผลกระทบรุนแรงต่อราคาหุ้นจริงๆ เท่านั้น นอกนั้นให้ตอบ LOW),
-                "reason": "วิเคราะห์ผลกระทบสั้นมาก 1 ประโยค (ภาษาไทย ไม่เกิน 80 ตัวอักษร)"
+                "reason": "อธิบายว่าข่าวนี้กระทบราคาหุ้นอย่างไร และนักลงทุนควรระวังหรือจับตาอะไร 2-3 ประโยค (ภาษาไทย)"
             }}
             """
             
@@ -363,8 +364,10 @@ def check_hot_news(symbol):
                     if len(sent_stock_news_history[symbol]) > 50:
                         sent_stock_news_history[symbol].clear()
                         
-            except json.JSONDecodeError: pass
-    except Exception: pass
+            except json.JSONDecodeError as e:
+                print(f"⚠️ [StockNews] JSON decode ล้มเหลวสำหรับ {symbol}: {e}")
+    except Exception as e:
+        print(f"❌ [StockNews] check_hot_news ล้มเหลวสำหรับ {symbol}: {e}")
 
 def check_market_conditions():
     active_symbols = get_all_active_symbols()
@@ -449,7 +452,8 @@ def check_market_conditions():
                 last_alert_state[symbol]['whale'] = 'normal'
 
             time.sleep(2)
-        except Exception: pass
+        except Exception as e:
+            print(f"❌ [MarketConditions] ล้มเหลวสำหรับ {symbol}: {e}")
 
 # ==========================================
 # 🌟 ฟังก์ชันดึงข่าวรวมจากทุกสำนัก
@@ -478,7 +482,8 @@ def get_fresh_global_news():
                     if title and title not in sent_pro_news and title not in seen_titles:
                         raw_news.append({"title": title, "link": link, "source": source})
                         seen_titles.add(title)
-        except Exception: pass
+        except Exception as e:
+            print(f"⚠️ [GlobalNews] ดึง RSS ล้มเหลวสำหรับ {url}: {e}")
 
     if not raw_news:
         return []
@@ -521,19 +526,19 @@ def broadcast_hourly_urgent_news(bot_instance):
     )
     
     prompt = f"""
-    คุณคือนักวิเคราะห์การเงินระดับโลก 
+    คุณคือนักวิเคราะห์การเงินระดับโลก
     นี่คือพาดหัวข่าวล่าสุด:
     {titles_str}
-    
+
     เลือกข่าวที่ "ด่วนและสำคัญที่สุดในเชิงเศรษฐกิจ" เพียง 1 ข่าว
     โดยพิจารณาความน่าเชื่อถือของสำนักข่าวด้วย
-    และสรุปเนื้อข่าวแบบสั้นมาก 1-2 บรรทัด (เป็นภาษาไทย) ห้ามใส่ลิงก์
-    (ถ้าข่าวมีความรุนแรงหรือสงคราม ให้สรุปเฉพาะผลกระทบทางเศรษฐกิจเท่านั้น)
-    
+    (ถ้าข่าวมีความรุนแรงหรือสงคราม ให้สรุปเฉพาะผลกระทบทางเศรษฐกิจเท่านั้น ห้ามใส่ลิงก์)
+
     ตอบกลับในรูปแบบ JSON เท่านั้น:
     {{
         "original_title": "พาดหัวข่าวที่เลือก",
-        "summary": "สรุปเนื้อข่าว 1-2 บรรทัด แบบอ่านจบเร็ว"
+        "summary": "อธิบายว่าเกิดอะไรขึ้นและทำไมถึงสำคัญ 3-4 บรรทัด (ภาษาไทย)",
+        "impact": "ผลกระทบต่อตลาดและนักลงทุนโดยตรง 1-2 ประโยค (ภาษาไทย)"
     }}
     """
     try:
@@ -550,13 +555,16 @@ def broadcast_hourly_urgent_news(bot_instance):
         # 🌟 2. รองรับ Key หลายรูปแบบ (เผื่อ AI ดื้อเปลี่ยนชื่อ Key เอง)
         title = analysis.get('original_title') or analysis.get('title') or analysis.get('headline') or ''
         summary = analysis.get('summary') or analysis.get('content') or analysis.get('description') or ''
-        
+        impact = analysis.get('impact', '')
+
         if title and summary:
             title = _normalize_news_title(title)
             if not _claim_dispatch_once("flash_news", title):
                 return
-            summary = _compact_news_text(summary, max_chars=180, max_lines=2)
-            msg = f"🚨 **Flash News**\n📌 **{title}**\n📝 {summary}"
+            summary = _compact_news_text(summary, max_chars=400, max_lines=5)
+            impact = _compact_news_text(impact, max_chars=150, max_lines=2) if impact else ''
+            impact_line = f"\n\n⚡️ *ผลกระทบ:* {impact}" if impact else ''
+            msg = f"🚨 **Flash News**\n📌 **{title}**\n\n📝 {summary}{impact_line}"
             sent_pro_news.add(title)
             
             # ป้องกันหน่วยความจำเต็ม
@@ -602,20 +610,20 @@ def check_and_broadcast_pro_news(bot_instance):
     )
     
     prompt = f"""
-    คุณคือนักวิเคราะห์การเงิน 
+    คุณคือนักวิเคราะห์การเงิน
     นี่คือพาดหัวข่าวล่าสุด:
     {titles_str}
-    
+
     เลือกข่าวเชิงเศรษฐกิจ/การลงทุน ที่ "สำคัญที่สุด" 2 ข่าว
     พยายามให้มาจากคนละสำนักข่าวถ้าเป็นไปได้
-    สรุปเนื้อหาแต่ละข่าวแบบสั้น กระชับ ข่าวละ 1-2 บรรทัด (ภาษาไทย)
     (เน้นเรื่องเศรษฐกิจ หลีกเลี่ยงเนื้อหาความรุนแรง)
-    
+
     ตอบกลับในรูปแบบ JSON Array เท่านั้น:
     [
         {{
             "original_title": "พาดหัวข่าวต้นฉบับที่เลือก",
-            "summary": "สรุปเนื้อข่าว 1-2 บรรทัด"
+            "summary": "อธิบายว่าเกิดอะไรขึ้นและทำไมสำคัญ 3-4 บรรทัด (ภาษาไทย)",
+            "impact": "ผลกระทบต่อตลาดและนักลงทุน 1-2 ประโยค (ภาษาไทย)"
         }}
     ]
     """
@@ -648,9 +656,11 @@ def check_and_broadcast_pro_news(bot_instance):
             if title and summary:
                 if not _claim_dispatch_once("digest_news", title):
                     continue
-                summary = _compact_news_text(summary, max_chars=140, max_lines=2)
+                summary = _compact_news_text(summary, max_chars=400, max_lines=5)
+                impact = _compact_news_text(item.get('impact', ''), max_chars=150, max_lines=2)
+                impact_line = f"\n⚡️ *ผลกระทบ:* {impact}" if impact else ''
                 digest_sections.append(
-                    f"**{len(digest_sections) + 1}. {title}**\n{summary}"
+                    f"**{len(digest_sections) + 1}. {title}**\n{summary}{impact_line}"
                 )
                 sent_pro_news.add(title)
         if not digest_sections:
@@ -742,39 +752,75 @@ def check_custom_price_alerts():
 # 🎙️ ฟีเจอร์ AI Podcast สรุปตลาดตอนเช้า (08:00 น.)
 # ==========================================
 def get_podcast_market_data():
-    try:
-        sp500 = yf.Ticker('^GSPC').history(period='1d')['Close'].iloc[-1]
-        btc = yf.Ticker('BTC-USD').history(period='1d')['Close'].iloc[-1]
-        gold = yf.Ticker('GC=F').history(period='1d')['Close'].iloc[-1]
-        return f"ดัชนี เอสแอนด์พี 500 ปิดที่ {sp500:,.0f} จุด, บิตคอยน์อยู่ที่ {btc:,.0f} ดอลลาร์, และราคาทองคำโลกอยู่ที่ {gold:,.0f} ดอลลาร์"
-    except Exception as e:
-        return "ตลาดหุ้นอเมริกาและคริปโตมีการทรงตัว"
+    def _fetch(ticker_sym):
+        try:
+            val = yf.Ticker(ticker_sym).history(period='2d')['Close'].iloc[-1]
+            return None if math.isnan(val) else val
+        except Exception:
+            return None
+
+    sp500 = _fetch('^GSPC')
+    btc   = _fetch('BTC-USD')
+    gold  = _fetch('GC=F')
+
+    date_str = datetime.now().strftime('%d %b %Y')
+    parts = [f"ข้อมูล ณ วันที่ {date_str}:"]
+    if sp500: parts.append(f"S&P 500 ปิดที่ {sp500:,.0f} จุด")
+    if btc:   parts.append(f"Bitcoin อยู่ที่ {btc:,.0f} ดอลลาร์")
+    if gold:  parts.append(f"ทองคำโลกอยู่ที่ {gold:,.0f} ดอลลาร์")
+
+    if len(parts) == 1:
+        print("⚠️ [Podcast] ดึงข้อมูลตลาดไม่ได้เลย ตลาดอาจยังไม่เปิด")
+        return "ข้อมูลตลาดยังไม่พร้อม ตลาดอาจยังไม่เปิดหรือเน็ตมีปัญหา"
+    return ', '.join(parts)
+
+def _clean_podcast_script(text: str) -> str:
+    import re
+    text = text.replace('*', '').replace('#', '')
+    text = re.sub(r'\([^)]*\)', '', text)
+    text = re.sub(r'\[[^\]]*\]', '', text)
+    lines = text.splitlines()
+    lines = [l for l in lines if not re.match(r'^\s*[^\n]{1,30}:\s*$', l)]
+    return '\n'.join(lines).strip()
 
 def generate_podcast_script(market_info):
+    # ดึงพาดหัวข่าวล่าสุดใส่ใน context
+    try:
+        recent_news = get_fresh_global_news()
+        news_context = "\n".join([f"- {n['title']}" for n in recent_news[:5]]) if recent_news else "ไม่มีข่าวล่าสุด"
+    except Exception:
+        news_context = "ไม่มีข่าวล่าสุด"
+
     prompt = f"""
-    คุณคือนักจัดรายการพอดแคสต์การเงินชื่อ Apexify
-    จงเขียนสคริปต์พอดแคสต์สรุปตลาดเช้าแบบเล่าเป็นรายการจริง ความยาวประมาณ 2.5 ถึง 4 นาที
+    คุณคือนักจัดรายการวิทยุการลงทุนชื่อ 'Apex AI' กำลังออกอากาศรายการ 'Apexify Morning Briefing'
 
-    ข้อมูลตลาดล่าสุด: {market_info}
+    ข้อมูลตลาดวันนี้: {market_info}
 
-    สิ่งที่ต้องทำ:
-    - เปิดรายการแบบเป็นกันเองและดึงคนฟังให้อยากฟังต่อ
-    - เล่าภาพรวมตลาดเมื่อคืนให้ละเอียดพอสมควร ไม่ใช่แค่บอกตัวเลข
-    - อธิบายความหมายของตัวเลขต่อ sentiment ตลาด สินทรัพย์เสี่ยง และบรรยากาศการลงทุนวันนี้
-    - ชี้ประเด็นที่นักลงทุนควรจับตาต่อในวันนี้แบบเข้าใจง่าย
-    - ปิดท้ายด้วยกำลังใจหรือมุมคิดสั้นๆ สำหรับนักลงทุน
+    พาดหัวข่าวสำคัญล่าสุด:
+    {news_context}
 
-    ข้อบังคับ:
-    - ใช้ภาษาพูดธรรมชาติ สนุก น่าเชื่อถือ และฟังเหมือนรายการเช้าจริง
-    - ลงรายละเอียดข่าวและบริบทให้มากกว่าปัจจุบัน
-    - ห้ามใช้ bullet point ห้ามใช้หัวข้อย่อย ห้ามใช้ดอกจันหรือแฮชแท็ก
-    - อ่านตัวเลขแบบกลมๆ ฟังง่าย ลดทศนิยมที่ไม่จำเป็น
-    - อย่างน้อย 10 ประโยคเต็ม และควรมี 3 ย่อหน้าขึ้นไป
+    ตอบกลับมาเฉพาะบทพูดที่จะอ่านออกอากาศได้ทันที ความยาวประมาณ 2.5 ถึง 4 นาที
+    ห้ามมีคำอธิบาย ห้ามมี label ห้ามมีวงเล็บ ห้ามมีหัวข้อ ห้ามบอกว่ากำลังจะทำอะไร เริ่มพูดได้เลย
+
+    เนื้อหาที่ต้องครอบคลุมแบบเนียนๆ:
+    1. ทักทายยามเช้าแบบเป็นกันเอง
+    2. เล่าภาพรวมตลาดให้ละเอียดกว่าการบอกตัวเลขเฉยๆ
+    3. อธิบายความหมายของตัวเลขต่ออารมณ์ตลาด เงินทุน และสินทรัพย์เสี่ยง
+    4. เชื่อมโยงกับข่าวสำคัญล่าสุด ว่ามีผลกับการลงทุนวันนี้อย่างไร
+    5. ปิดด้วยมุมคิดหรือกำลังใจสำหรับนักลงทุน
+
+    ข้อกำหนด:
+    - ใช้ภาษาพูดธรรมชาติ น่าฟัง มีพลัง ไม่เวอร์
+    - อธิบายตลาดเหมือนเล่าให้คนฟังตอนขับรถตอนเช้า
+    - ห้ามใช้ Bullet Point ดอกจัน แฮชแท็ก หัวข้อย่อย วงเล็บ หรือ label ทุกชนิด
+    - อ่านตัวเลขแบบกลมๆ ฟังง่าย
+    - อย่างน้อย 3 ย่อหน้า และ 10 ประโยค
     """
     try:
         res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-        return res.text.strip()
-    except Exception:
+        return _clean_podcast_script(res.text)
+    except Exception as e:
+        print(f"❌ [Podcast] generate_podcast_script ล้มเหลว: {e}")
         return (
             "สวัสดีตอนเช้าครับนักลงทุนทุกท่าน เช้านี้ภาพรวมตลาดยังอยู่ในโหมดติดตามทิศทางต่อ "
             "แม้ตัวเลขสำคัญหลายตัวจะยังไม่ได้เหวี่ยงแรงมาก แต่ก็สะท้อนว่าตลาดกำลังเลือกทางกันอยู่ "
