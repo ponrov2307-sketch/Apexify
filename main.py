@@ -1673,7 +1673,7 @@ def handle_main(message):
 
     usage = get_usage(user_id)
     if user_id != ADMIN_ID and role == 'free' and usage >= 10:
-        bot.reply_to(message, "🔒 โควต้าฟรีหมดแล้ว กดเข้าเมนู [💎 บัญชี / VIP] เพื่อสมัครใช้งานต่อครับ!")
+        bot.reply_to(message, "🔒 โควต้าฟรีวันนี้หมดแล้ว (10/10)\n\n⏰ โควต้าจะรีเซ็ตใหม่อัตโนมัติตอนเที่ยงคืน หรือกดเข้าเมนู [💎 บัญชี / VIP] เพื่อสมัครใช้งานไม่จำกัดครับ!")
         return
 
     load_msg = bot.reply_to(message, f"🔍 กำลังวิเคราะห์ {symbol}...")
