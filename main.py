@@ -1173,7 +1173,7 @@ def inline_callbacks(call):
     elif call.data == 'hub_today':
         try:
             load_msg = bot.send_message(user_id, "📅 กำลังรวบรวมข้อมูลวันนี้...")
-            from datetime import datetime as _dt
+            from datetime import datetime as _dt, timedelta
             thai_now = _dt.utcnow() + timedelta(hours=7)
             date_str = thai_now.strftime("%d %b %Y")
 
