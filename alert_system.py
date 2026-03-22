@@ -993,6 +993,73 @@ async def create_and_send_podcast(bot_instance):
         except Exception:
             pass
 
+# US Economic Calendar 2026 — อัปเดตทุกต้นปี
+ECONOMIC_CALENDAR_2026 = [
+    # (date_str, event_name, importance)  importance: 🔴=high 🟡=medium
+    ("2026-01-07",  "NFP (ตลาดแรงงาน)",          "🔴"),
+    ("2026-01-15",  "CPI (เงินเฟ้อ)",              "🔴"),
+    ("2026-01-28",  "FOMC Meeting เริ่ม",          "🔴"),
+    ("2026-01-29",  "FOMC ประกาศดอกเบี้ย",        "🔴"),
+    ("2026-02-04",  "NFP (ตลาดแรงงาน)",           "🔴"),
+    ("2026-02-12",  "CPI (เงินเฟ้อ)",              "🔴"),
+    ("2026-02-27",  "PCE (เงินเฟ้อ Fed ชอบ)",     "🟡"),
+    ("2026-03-06",  "NFP (ตลาดแรงงาน)",           "🔴"),
+    ("2026-03-12",  "CPI (เงินเฟ้อ)",              "🔴"),
+    ("2026-03-18",  "FOMC Meeting เริ่ม",          "🔴"),
+    ("2026-03-19",  "FOMC ประกาศดอกเบี้ย",        "🔴"),
+    ("2026-03-27",  "PCE (เงินเฟ้อ Fed ชอบ)",     "🟡"),
+    ("2026-04-02",  "NFP (ตลาดแรงงาน)",           "🔴"),
+    ("2026-04-14",  "CPI (เงินเฟ้อ)",              "🔴"),
+    ("2026-04-29",  "FOMC Meeting เริ่ม",          "🔴"),
+    ("2026-04-30",  "FOMC ประกาศดอกเบี้ย",        "🔴"),
+    ("2026-05-01",  "NFP (ตลาดแรงงาน)",           "🔴"),
+    ("2026-05-13",  "CPI (เงินเฟ้อ)",              "🔴"),
+    ("2026-05-29",  "PCE (เงินเฟ้อ Fed ชอบ)",     "🟡"),
+    ("2026-06-05",  "NFP (ตลาดแรงงาน)",           "🔴"),
+    ("2026-06-11",  "CPI (เงินเฟ้อ)",              "🔴"),
+    ("2026-06-17",  "FOMC Meeting เริ่ม",          "🔴"),
+    ("2026-06-18",  "FOMC ประกาศดอกเบี้ย",        "🔴"),
+    ("2026-06-26",  "PCE (เงินเฟ้อ Fed ชอบ)",     "🟡"),
+    ("2026-07-02",  "NFP (ตลาดแรงงาน)",           "🔴"),
+    ("2026-07-15",  "CPI (เงินเฟ้อ)",              "🔴"),
+    ("2026-07-29",  "FOMC Meeting เริ่ม",          "🔴"),
+    ("2026-07-30",  "FOMC ประกาศดอกเบี้ย",        "🔴"),
+    ("2026-08-07",  "NFP (ตลาดแรงงาน)",           "🔴"),
+    ("2026-08-13",  "CPI (เงินเฟ้อ)",              "🔴"),
+    ("2026-08-28",  "PCE (เงินเฟ้อ Fed ชอบ)",     "🟡"),
+    ("2026-09-04",  "NFP (ตลาดแรงงาน)",           "🔴"),
+    ("2026-09-10",  "CPI (เงินเฟ้อ)",              "🔴"),
+    ("2026-09-16",  "FOMC Meeting เริ่ม",          "🔴"),
+    ("2026-09-17",  "FOMC ประกาศดอกเบี้ย",        "🔴"),
+    ("2026-09-25",  "PCE (เงินเฟ้อ Fed ชอบ)",     "🟡"),
+    ("2026-10-02",  "NFP (ตลาดแรงงาน)",           "🔴"),
+    ("2026-10-15",  "CPI (เงินเฟ้อ)",              "🔴"),
+    ("2026-10-28",  "FOMC Meeting เริ่ม",          "🔴"),
+    ("2026-10-29",  "FOMC ประกาศดอกเบี้ย",        "🔴"),
+    ("2026-11-06",  "NFP (ตลาดแรงงาน)",           "🔴"),
+    ("2026-11-12",  "CPI (เงินเฟ้อ)",              "🔴"),
+    ("2026-11-25",  "PCE (เงินเฟ้อ Fed ชอบ)",     "🟡"),
+    ("2026-12-04",  "NFP (ตลาดแรงงาน)",           "🔴"),
+    ("2026-12-09",  "FOMC Meeting เริ่ม",          "🔴"),
+    ("2026-12-10",  "FOMC ประกาศดอกเบี้ย + CPI",  "🔴"),
+]
+
+def _get_upcoming_economic_events(days_ahead=3):
+    today = datetime.now().date()
+    upcoming = []
+    for date_str, event, importance in ECONOMIC_CALENDAR_2026:
+        event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        delta = (event_date - today).days
+        if 0 <= delta <= days_ahead:
+            if delta == 0:
+                label = "วันนี้"
+            elif delta == 1:
+                label = "พรุ่งนี้"
+            else:
+                label = f"อีก {delta} วัน"
+            upcoming.append(f"{importance} **{event}** ({label})")
+    return upcoming
+
 # ==========================================
 # ==========================================
 # 🌟 ฟีเจอร์ Morning Apexify Briefing (08:30 น.)
@@ -1049,7 +1116,12 @@ def send_morning_briefing(bot_instance):
                 if macro_assets_text
                 else ""
             )
-            
+            econ_events = _get_upcoming_economic_events(days_ahead=3)
+            econ_section = (
+                "📅 **เหตุการณ์เศรษฐกิจใกล้นี้:**\n" + "\n".join(f"• {e}" for e in econ_events) + "\n\n"
+                if econ_events else ""
+            )
+
             msg = (
                 f"🌅 **Apexify Morning Briefing** 🌅\n\n"
                 f"📊 **สรุปตลาดโลกเมื่อคืน:**\n"
@@ -1058,6 +1130,7 @@ def send_morning_briefing(bot_instance):
                 f"• ทองคำโลก (Gold): {gold_close:,.2f}\n\n"
                 f"{macro_assets_section}"
                 f"{movers_section}"
+                f"{econ_section}"
                 f"🤖 **มุมมอง Apexify วันนี้:**\n{summary}\n\n"
                 f"🔥 *ขอให้พอร์ตเขียวๆ ตลอดวันครับ!*\n\n"
                 f"{MORNING_BRIEFING_LEGAL_DISCLAIMER}"
