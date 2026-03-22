@@ -395,14 +395,22 @@ def _get_pool():
         _pool = psycopg2.pool.ThreadedConnectionPool(2, 10, _get_db_url())
     return _pool
 
+class _PooledConnection:
+    """Wrapper ที่ทำให้ conn.close() คืน connection กลับ pool แทนที่จะปิดจริง"""
+    def __init__(self, pool, conn):
+        self._pool = pool
+        self._conn = conn
+
+    def close(self):
+        self._pool.putconn(self._conn)
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
 def get_connection():
     """ดึงการเชื่อมต่อจาก pool (conn.close() คืน connection กลับ pool อัตโนมัติ)"""
     pool = _get_pool()
-    conn = pool.getconn()
-    def _return_to_pool():
-        pool.putconn(conn)
-    conn.close = _return_to_pool
-    return conn
+    return _PooledConnection(pool, pool.getconn())
 
 def init_db():
     conn = get_connection()
