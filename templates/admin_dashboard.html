@@ -504,13 +504,13 @@
     <div class="two-col" id="system">
       <div class="card">
         <div class="card-title"><span class="dot dot-amber"></span>Hot Symbols — Watchlist Focus</div>
-        {% set syms = top_watched.items or [] %}
-        {% set max_count = syms[0].watchers if syms else 1 %}
+        {% set syms = top_watched['items'] if top_watched else [] %}
+        {% set max_count = syms[0]['watchers'] if syms else 1 %}
         {% for item in syms %}
         <div class="sym-row">
-          <span class="sym-name">{{ item.symbol }}</span>
-          <div class="sym-bar"><div class="sym-bar-fill" style="width:{{ (item.watchers / max_count * 100)|round }}%"></div></div>
-          <span class="sym-count">{{ item.watchers }} watchers</span>
+          <span class="sym-name">{{ item['symbol'] }}</span>
+          <div class="sym-bar"><div class="sym-bar-fill" style="width:{{ (item['watchers'] / max_count * 100)|round }}%"></div></div>
+          <span class="sym-count">{{ item['watchers'] }} watchers</span>
         </div>
         {% else %}
         <p style="color:var(--text-muted);font-size:13px">ไม่มีข้อมูล</p>
