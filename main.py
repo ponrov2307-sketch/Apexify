@@ -1536,7 +1536,9 @@ def handle_main(message):
     
     text = message.text.strip()
     role = check_subscription(user_id)
-    
+    if str(user_id) == str(ADMIN_ID):
+        role = 'pro'
+
     global user_command_history
     if user_id not in user_command_history:
         user_command_history[user_id] = []
