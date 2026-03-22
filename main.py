@@ -1333,17 +1333,61 @@ def inline_callbacks(call):
         )
         bot.send_message(user_id, "📱 **Apexify Hub**\nเลือกฟีเจอร์ที่ต้องการได้เลยครับ:", parse_mode="Markdown", reply_markup=markup)
 
-    # 🌟 [เพิ่มใหม่] แจ้งเตือนวิธีดูพอร์ตลงทุนเมื่อกดจากเมนู
     elif call.data == 'hub_portfolio':
-        msg = (
-            "📈 **การจัดการพอร์ตลงทุน (Apex Wealth Master)**\n\n"
-            "• **วิธีเพิ่มหุ้นเข้าพอร์ต:**\n"
-            "พิมพ์ `/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]`\n"
-            "*(เช่น `/add PTT.BK 100 32.50`)*\n\n"
-            "• **วิธีดูสรุปพอร์ตทั้งหมด:**\n"
-            "พิมพ์ `/portfolio` หรือ `/port` และ`/pnl`เพื่อสร้างการ์ดโชว์หุ้น ในแชทได้เลยครับ!"
-        )
-        bot.send_message(user_id, msg, parse_mode="Markdown")
+        load_msg = bot.send_message(user_id, "⏳ กำลังดึงข้อมูลพอร์ต...")
+        try:
+            portfolio = get_user_portfolio(user_id)
+            if not portfolio:
+                bot.edit_message_text(
+                    "💼 <b>พอร์ตลงทุน</b>\n\nยังไม่มีหุ้นในพอร์ต\n\n"
+                    "เพิ่มหุ้นด้วยคำสั่ง:\n<code>/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]</code>\n"
+                    "เช่น <code>/add PTT.BK 100 32.50</code>",
+                    chat_id=user_id, message_id=load_msg.message_id, parse_mode='HTML'
+                )
+            else:
+                total_invested = 0
+                current_value = 0
+                rows = []
+                for asset in portfolio:
+                    ticker = asset['ticker']
+                    shares = asset['shares']
+                    avg_cost = asset['avg_cost']
+                    try:
+                        allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+                        clean_ticker = ticker.replace(".", "-") if "." in ticker and not ticker.endswith(allowed_suffixes) else ticker
+                        live_price = float(yf.Ticker(clean_ticker).fast_info.last_price)
+                    except Exception:
+                        live_price = avg_cost
+                    invested = shares * avg_cost
+                    current = shares * live_price
+                    profit = current - invested
+                    profit_pct = (profit / invested * 100) if invested > 0 else 0
+                    total_invested += invested
+                    current_value += current
+                    rows.append((ticker, shares, avg_cost, live_price, profit, profit_pct))
+
+                total_profit = current_value - total_invested
+                total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
+                total_icon = "🟢" if total_profit >= 0 else "🔴"
+
+                lines = [f"💼 <b>พอร์ตลงทุน</b>  ({len(rows)} หลักทรัพย์)\n"]
+                for ticker, shares, avg_cost, live_price, profit, profit_pct in rows:
+                    icon = "🟢" if profit >= 0 else "🔴"
+                    sign = "+" if profit >= 0 else ""
+                    lines.append(
+                        f"{icon} <b>{ticker}</b>  {shares:,.4g} หุ้น\n"
+                        f"   ทุน {avg_cost:,.2f}  →  ล่าสุด {live_price:,.2f}\n"
+                        f"   {sign}{profit:,.2f}  ({sign}{profit_pct:.2f}%)\n"
+                    )
+                lines.append(
+                    f"─────────────────────\n"
+                    f"💰 <b>มูลค่ารวม:</b> {current_value:,.2f}\n"
+                    f"💵 <b>ต้นทุนรวม:</b> {total_invested:,.2f}\n"
+                    f"{total_icon} <b>กำไร/ขาดทุนรวม:</b> {'+' if total_profit >= 0 else ''}{total_profit:,.2f}  ({'+' if total_profit_pct >= 0 else ''}{total_profit_pct:.2f}%)"
+                )
+                bot.edit_message_text("\n".join(lines), chat_id=user_id, message_id=load_msg.message_id, parse_mode='HTML')
+        except Exception as e:
+            bot.edit_message_text(f"❌ เกิดข้อผิดพลาด: {e}", chat_id=user_id, message_id=load_msg.message_id)
         
     elif call.data == 'hub_scan':
         try:
