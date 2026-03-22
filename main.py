@@ -1044,6 +1044,8 @@ def inline_callbacks(call):
     user_id = str(call.message.chat.id)
     if not is_allowed(user_id): return
     role = check_subscription(user_id)
+    if str(user_id) == str(ADMIN_ID):
+        role = 'pro'
     bot.answer_callback_query(call.id)
 
     if call.data == 'settings_open' or call.data.startswith('settings_'):
