@@ -54,7 +54,7 @@ def _clean_script(text: str) -> str:
     text = re.sub(r'\[[^\]]*\]', '', text)
     # ลบบรรทัดที่ลงท้ายด้วย : (มักเป็น label เช่น "ส่วนที่ 1:" "เนื้อหา:")
     lines = text.splitlines()
-    lines = [l for l in lines if not re.match(r'^\s*[\w\s]+:\s*$', l)]
+    lines = [l for l in lines if not re.match(r'^\s*[^\n]{1,30}:\s*$', l)]
     return '\n'.join(lines).strip()
 
 def generate_script(market_info):
