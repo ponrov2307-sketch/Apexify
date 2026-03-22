@@ -520,16 +520,16 @@
         <div class="card-title"><span class="dot dot-blue"></span>System Health</div>
         {% if system_health %}
         <div class="progress-row">
-          <div class="progress-meta"><span>CPU</span><span>{{ system_health.cpu_pct or 0 }}%</span></div>
-          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.cpu_pct or 0 }}%;background:{% if (system_health.cpu_pct or 0) > 80 %}var(--danger){% elif (system_health.cpu_pct or 0) > 60 %}var(--amber){% else %}var(--green){% endif %}"></div></div>
+          <div class="progress-meta"><span>CPU</span><span>{{ system_health.cpu_usage or 0 }}%</span></div>
+          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.cpu_usage or 0 }}%;background:{% if (system_health.cpu_usage or 0) > 80 %}var(--danger){% elif (system_health.cpu_usage or 0) > 60 %}var(--amber){% else %}var(--green){% endif %}"></div></div>
         </div>
         <div class="progress-row">
-          <div class="progress-meta"><span>RAM</span><span>{{ system_health.ram_used_gb or 0 }} / {{ system_health.ram_total_gb or 0 }} GB ({{ system_health.ram_pct or 0 }}%)</span></div>
-          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.ram_pct or 0 }}%;background:{% if (system_health.ram_pct or 0) > 80 %}var(--danger){% elif (system_health.ram_pct or 0) > 60 %}var(--amber){% else %}var(--blue){% endif %}"></div></div>
+          <div class="progress-meta"><span>RAM</span><span>{{ "%.1f"|format(system_health.ram_used_gb or 0) }} / {{ "%.1f"|format(system_health.ram_total_gb or 0) }} GB ({{ system_health.ram_percent or 0 }}%)</span></div>
+          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.ram_percent or 0 }}%;background:{% if (system_health.ram_percent or 0) > 80 %}var(--danger){% elif (system_health.ram_percent or 0) > 60 %}var(--amber){% else %}var(--blue){% endif %}"></div></div>
         </div>
         <div class="progress-row">
-          <div class="progress-meta"><span>Disk</span><span>{{ system_health.disk_pct or 0 }}%</span></div>
-          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.disk_pct or 0 }}%;background:{% if (system_health.disk_pct or 0) > 80 %}var(--danger){% elif (system_health.disk_pct or 0) > 60 %}var(--amber){% else %}var(--purple){% endif %}"></div></div>
+          <div class="progress-meta"><span>Disk</span><span>{{ system_health.disk_percent or 0 }}%</span></div>
+          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.disk_percent or 0 }}%;background:{% if (system_health.disk_percent or 0) > 80 %}var(--danger){% elif (system_health.disk_percent or 0) > 60 %}var(--amber){% else %}var(--purple){% endif %}"></div></div>
         </div>
         <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted)">
           ⏱ Uptime: <strong style="color:var(--text)">{{ system_health.uptime_hours or 0 }} ชั่วโมง</strong>
