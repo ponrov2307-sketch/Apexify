@@ -534,6 +534,15 @@ def increment_usage(user_id):
     conn.commit()
     conn.close()
 
+def reset_daily_free_usage():
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("UPDATE users SET usage_count = 0 WHERE role = 'free'")
+    rows = c.rowcount
+    conn.commit()
+    conn.close()
+    print(f"🔄 รีเซ็ตโควต้าฟรีรายวัน: {rows} คน")
+
 def add_watch(user_id, symbol):
     return _add_user_watchlist_item(user_id, symbol)
 

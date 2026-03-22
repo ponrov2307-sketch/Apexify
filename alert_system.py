@@ -10,7 +10,8 @@ import psycopg2
 from database import (get_all_active_symbols, get_users_watching, init_db, check_subscription, 
                       get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert,
                       auto_downgrade_expired_users, init_new_features_db,
-                      should_send_user_notification, mark_digest_sent) # 🌟 เพิ่มชื่อฟังก์ชันนี้ต่อท้ายเข้าไป
+                      should_send_user_notification, mark_digest_sent,
+                      reset_daily_free_usage)
 import json
 import xml.etree.ElementTree as ET 
 import yfinance as yf
@@ -1120,6 +1121,7 @@ if __name__ == "__main__":
         if thai_time.hour == 0 and last_downgrade_date != current_date_str:
             auto_downgrade_expired_users()
             print(f"🧹 [{current_date_str}] Auto-Downgrade: อัปเดต DB ปรับยศคนหมดอายุเรียบร้อย")
+            reset_daily_free_usage()
             last_downgrade_date = current_date_str
             
         # 🌅 ส่ง Morning Briefing (08:30 น.)
