@@ -800,38 +800,74 @@ def _clean_podcast_script(text: str) -> str:
     lines = [l for l in lines if not re.match(r'^\s*[^\n]{1,30}:\s*$', l)]
     return '\n'.join(lines).strip()
 
+def get_stock_spotlight_news():
+    """ดึงข่าวรายหุ้น 2-3 ตัวที่น่าสนใจสำหรับ podcast"""
+    watchlist = [
+        ('NVDA', 'Nvidia'),
+        ('AAPL', 'Apple'),
+        ('TSLA', 'Tesla'),
+        ('META', 'Meta'),
+        ('AMZN', 'Amazon'),
+        ('PTT.BK', 'PTT'),
+        ('MSFT', 'Microsoft'),
+    ]
+    results = []
+    for sym, name in watchlist:
+        if len(results) >= 3:
+            break
+        try:
+            news_items = yf.Ticker(sym).news
+            if not news_items:
+                continue
+            headline = news_items[0].get('title', '').strip()
+            if headline:
+                results.append(f"{name} ({sym}): {headline}")
+        except Exception as e:
+            print(f"[Podcast] ดึงข่าว {sym} ไม่สำเร็จ: {e}")
+    return results
+
+
 def generate_podcast_script(market_info):
-    # ดึงพาดหัวข่าวล่าสุดใส่ใน context
+    # ข่าวภาพรวมตลาด
     try:
         recent_news = get_fresh_global_news()
         news_context = "\n".join([f"- {n['title']}" for n in recent_news[:5]]) if recent_news else "ไม่มีข่าวล่าสุด"
     except Exception:
         news_context = "ไม่มีข่าวล่าสุด"
 
+    # ข่าวรายหุ้น
+    try:
+        stock_news = get_stock_spotlight_news()
+        stock_news_context = "\n".join([f"- {s}" for s in stock_news]) if stock_news else "ไม่มีข้อมูล"
+    except Exception:
+        stock_news_context = "ไม่มีข้อมูล"
+
     prompt = f"""
     คุณคือนักจัดรายการวิทยุการลงทุนชื่อ 'Apex AI' กำลังออกอากาศรายการ 'Apexify Morning Briefing'
 
     ข้อมูลตลาดวันนี้: {market_info}
 
-    พาดหัวข่าวสำคัญล่าสุด:
+    พาดหัวข่าวภาพรวมตลาดล่าสุด:
     {news_context}
 
-    ตอบกลับมาเฉพาะบทพูดที่จะอ่านออกอากาศได้ทันที ความยาวประมาณ 2.5 ถึง 4 นาที
+    ข่าวรายหุ้นสำคัญ (เลือกเล่า 2-3 ตัวที่น่าสนใจที่สุด):
+    {stock_news_context}
+
+    ตอบกลับมาเฉพาะบทพูดที่จะอ่านออกอากาศได้ทันที ความยาวประมาณ 3 ถึง 4 นาที
     ห้ามมีคำอธิบาย ห้ามมี label ห้ามมีวงเล็บ ห้ามมีหัวข้อ ห้ามบอกว่ากำลังจะทำอะไร เริ่มพูดได้เลย
 
     เนื้อหาที่ต้องครอบคลุมแบบเนียนๆ:
     1. ทักทายยามเช้าแบบเป็นกันเอง
-    2. เล่าภาพรวมตลาดให้ละเอียดกว่าการบอกตัวเลขเฉยๆ
-    3. อธิบายความหมายของตัวเลขต่ออารมณ์ตลาด เงินทุน และสินทรัพย์เสี่ยง
-    4. เชื่อมโยงกับข่าวสำคัญล่าสุด ว่ามีผลกับการลงทุนวันนี้อย่างไร
-    5. ปิดด้วยมุมคิดหรือกำลังใจสำหรับนักลงทุน
+    2. เล่าภาพรวมตลาดพร้อมความหมายของตัวเลข ไม่ใช่แค่บอกตัวเลขเฉยๆ
+    3. เจาะข่าวรายหุ้น 2-3 ตัวที่มีข่าวน่าสนใจ อธิบายว่ากระทบนักลงทุนอย่างไร
+    4. ปิดด้วยมุมคิดหรือกำลังใจสำหรับนักลงทุน
 
     ข้อกำหนด:
     - ใช้ภาษาพูดธรรมชาติ น่าฟัง มีพลัง ไม่เวอร์
-    - อธิบายตลาดเหมือนเล่าให้คนฟังตอนขับรถตอนเช้า
+    - อธิบายเหมือนเล่าให้คนฟังตอนขับรถตอนเช้า
     - ห้ามใช้ Bullet Point ดอกจัน แฮชแท็ก หัวข้อย่อย วงเล็บ หรือ label ทุกชนิด
     - อ่านตัวเลขแบบกลมๆ ฟังง่าย
-    - อย่างน้อย 3 ย่อหน้า และ 10 ประโยค
+    - อย่างน้อย 4 ย่อหน้า และ 12 ประโยค
     """
     try:
         res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
