@@ -11,7 +11,8 @@ from database import (get_all_active_symbols, get_users_watching, init_db, check
                       get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert,
                       auto_downgrade_expired_users, init_new_features_db,
                       should_send_user_notification, mark_digest_sent,
-                      reset_daily_free_usage, get_expiring_subscriptions)
+                      reset_daily_free_usage, get_expiring_subscriptions,
+                      get_top_watched_symbols)
 import json
 import xml.etree.ElementTree as ET 
 import yfinance as yf
@@ -802,25 +803,21 @@ def _clean_podcast_script(text: str) -> str:
 
 def get_stock_spotlight_news():
     """ดึงข่าวรายหุ้น 3 ตัวที่น่าสนใจสำหรับ podcast
-    - ดึงจาก watchlist ของ user ที่ active ในระบบก่อน
-    - fallback ไปหารายการ default ถ้าไม่พอ
+    ใช้ top-watched symbols ในระบบก่อน (1 query DB) fallback เป็น default pool
     """
-    # รายการ default ครอบคลุม US/Thai/crypto-related
     default_pool = [
         'NVDA', 'AAPL', 'TSLA', 'META', 'AMZN', 'MSFT', 'GOOGL',
-        'AMD', 'NFLX', 'BABA', 'COIN', 'MSTR',
+        'AMD', 'NFLX', 'BABA', 'COIN',
         'PTT.BK', 'AOT.BK', 'ADVANC.BK', 'GULF.BK', 'SCB.BK', 'CPALL.BK',
         'BTC-USD', 'ETH-USD',
     ]
-
-    # ดึง watchlist ที่ user ในระบบ active ติดตามอยู่
     try:
-        active_syms = list(get_all_active_symbols())
+        top_syms = get_top_watched_symbols(10)
     except Exception:
-        active_syms = []
+        top_syms = []
 
-    # รวมกัน — watchlist ของ user มาก่อน จากนั้น default
-    candidates = active_syms + [s for s in default_pool if s not in active_syms]
+    # top-watched มาก่อน เติม default ถ้ายังไม่ครบ
+    candidates = top_syms + [s for s in default_pool if s not in top_syms]
 
     results = []
     for sym in candidates:

@@ -555,6 +555,18 @@ def get_users_watching(symbol):
 def get_all_active_symbols():
     return _get_all_watchlist_tickers()
 
+def get_top_watched_symbols(limit: int = 10):
+    """คืน top N หุ้นที่มี user ติดตามมากที่สุดในระบบ"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT ticker, COUNT(*) as cnt FROM user_watchlist GROUP BY ticker ORDER BY cnt DESC LIMIT %s",
+        (limit,)
+    )
+    rows = c.fetchall()
+    conn.close()
+    return [row[0] for row in rows]
+
 def remove_watch_db(user_id, symbol):
     _remove_user_watchlist_item(user_id, symbol)
 
