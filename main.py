@@ -1,4 +1,3 @@
-from email.mime import message
 from pnl_generator import generate_pnl_card
 import telebot
 import logging
@@ -38,7 +37,7 @@ from alert_system import broadcast_hourly_urgent_news, check_and_broadcast_pro_n
 from slipok_service import verify_payment_slip
 from curl_cffi import requests as cffi_requests
 
-telebot.logger.setLevel(logging.DEBUG)
+telebot.logger.setLevel(logging.WARNING)
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 # ==========================================
@@ -156,23 +155,19 @@ def is_allowed(user_id):
     now = time.time()
     if user_id not in user_message_tracking:
         user_message_tracking[user_id] = []
-        
-    user_message_tracking[user_id] = [t for t in user_message_tracking[user_id] if now - t < 10]
-    if not user_message_tracking[user_id]:
-        # No recent messages at all — clean up the key and allow
-        del user_message_tracking[user_id]
-        return True
+
     user_message_tracking[user_id].append(now)
-    
+    user_message_tracking[user_id] = [t for t in user_message_tracking[user_id] if now - t < 10]
+
     if len(user_message_tracking[user_id]) > 5:
         if user_id not in spam_alerted:
             bot.send_message(ADMIN_ID, f"🚨 **แจ้งเตือนสแปม:** User `{user_id}` พยายามส่งข้อความรัวๆ ระบบระงับชั่วคราว\n👉 พิมพ์ `/ban {user_id}` เพื่อแบน", parse_mode="Markdown")
             spam_alerted.add(user_id)
         return False
-        
-    if len(user_message_tracking[user_id]) <= 5 and user_id in spam_alerted:
+
+    if user_id in spam_alerted:
         spam_alerted.remove(user_id)
-        
+
     return True
 
 # 🌟 เพิ่ม def สำหรับคำสั่ง /maintenance ไว้ในกลุ่ม @bot.message_handler(commands=...)
@@ -1119,6 +1114,8 @@ def inline_callbacks(call):
                 "🤖 **[บอท]** 🚀 สั่งสแกนหุ้นใน Watchlist ทั้งหมดรวดเดียวจบ\n"
                 "🤖 **[บอท]** 🎯 รับบทวิเคราะห์ AI ฟันธงจุดเข้าซื้อ/ถือ/ขาย\n"
                 "🤖 **[บอท]** 🌅 **Morning Briefing:** สรุปภาพรวมตลาดส่งตรงให้ทุกเช้า\n"
+                "🤖 **[บอท]** 🎙️ **AI Podcast:** สรุปตลาดรายวันเป็นไฟล์เสียง ฟังระหว่างขับรถ\n"
+                "🤖 **[บอท]** 📰 **News Digest:** รวมข่าวสำคัญเป็นฉบับย่อ ตามความถี่ที่ตั้งไว้\n"
                 "🤖 **[บอท]** 📊 **Daily Portfolio Summary:** สรุปพอร์ตลงทุนส่งตรงอัตโนมัติรายวัน\n"
                 "🌐 **[เว็บ]** 📈 เพิ่มหุ้นเข้าพอร์ตลงทุนได้สูงสุด 10 ตัว\n"
                 "🌐 **[เว็บ]** 🗺️ ปลดล็อก AI Trade Plan: เป้าทำกำไร (TP) / ตัดขาดทุน (SL)\n"
@@ -1132,8 +1129,7 @@ def inline_callbacks(call):
                 "🤖 **[บอท]** ♾️ ขยาย Watchlist และพอร์ตเว็บ **ไม่จำกัดจำนวน!**\n"
                 "🤖 **[บอท]** 🔔 **Smart Alerts:** ตั้งเตือนราคาส่วนตัว (ซิงค์ตรงจากเว็บ!)\n"
                 "🤖 **[บอท]** 📡 **Technical Radar:** AI เฝ้ากราฟ 24 ชม. เตือน Golden Cross/RSI\n"
-                "🤖 **[บอท]** 🚨 **Flash News:** คัดข่าวด่วนที่มีผลกระทบสูง ส่งแบบสั้นลงทุก 3 ชั่วโมง\n"
-                "🤖 **[บอท]** 📰 **News Digest:** รวมข่าวสำคัญเป็นฉบับย่อ ตามความถี่ที่ตั้งไว้ (1/4/8/24 ชม.)\n"
+                "🤖 **[บอท]** 🚨 **Flash News:** คัดข่าวด่วนที่มีผลกระทบสูง ส่งแบบสั้นทุก 3 ชั่วโมง\n"
                 "🤖 **[บอท]** 📅 **Dividend Hunter:** แจ้งเตือนหุ้นปันผล (XD) ล่วงหน้า 3 วัน\n"
                 "🤖 **[บอท]** 💎 **Apexify Screener:** เรดาร์สแกนหา \"หุ้นเด่นน่าเก็บประจำวัน\"\n"
                 "🤖 **[บอท]** 🧠 **Hedge Fund Playbook:** อัปเกรดบทวิเคราะห์กราฟขั้นสูง\n"
@@ -1752,7 +1748,9 @@ def handle_main(message):
         return
 
     symbol = text.upper()
-    if len(symbol) > 10: return
+    if len(symbol) > 10:
+        bot.reply_to(message, "❓ ไม่เข้าใจคำสั่งนั้น\n\nถ้าต้องการวิเคราะห์หุ้น ลองพิมพ์ชื่อหุ้นสั้นๆ เช่น `AAPL` หรือ `PTT.BK` ครับ", parse_mode="Markdown")
+        return
 
     usage = get_usage(user_id)
     if user_id != ADMIN_ID and role == 'free' and usage >= 10:
@@ -1779,7 +1777,7 @@ def handle_main(message):
         InlineKeyboardButton("💼 ดูพอร์ต", callback_data="hub_portfolio"),
         InlineKeyboardButton("📱 เมนูหลัก", callback_data="hub_home")
     )
-    if role in ('vip', 'pro'):
+    if role == 'pro':
         markup.add(InlineKeyboardButton(f"🔔 ตั้งเตือนราคา {correct_symbol}", callback_data="hub_price_alert"))
 
     bot.delete_message(message.chat.id, load_msg.message_id)

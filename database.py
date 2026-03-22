@@ -433,7 +433,17 @@ def init_db():
     # 🌟 ตารางใหม่: เก็บประวัติสัญญาณเพื่อใช้วัดความแม่นยำ (Accuracy Log)
     _ensure_alert_log_schema(c)
     _backfill_alert_log_metadata(c)
-                 
+
+    # ตาราง dedup สำหรับ dispatch_once (Flash/Digest/Podcast)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS dispatch_log (
+            dispatch_key TEXT PRIMARY KEY,
+            category TEXT NOT NULL,
+            raw_key TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
     init_watchlist_db() 

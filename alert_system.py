@@ -21,18 +21,22 @@ import asyncio
 import edge_tts
 import re
 from urllib.parse import urlparse
+from email.utils import parsedate_to_datetime
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = gemini_client
 
 last_alert_state = {}
 sent_pro_news = set() # 🌟 เก็บประวัติข่าวที่เคยส่งไปแล้วเพื่อกันส่งซ้ำ
-sent_stock_news_history = {} 
+sent_stock_news_history = {}
 last_stock_news_sent_at = {}
 sent_xd_alerts = set()
+_rss_cache = {"data": [], "ts": 0.0}  # 🌟 Cache RSS ร่วมระหว่าง Flash และ Digest
 
 FLASH_NEWS_INTERVAL_SECONDS = 3 * 3600
 DIGEST_NEWS_CHECK_INTERVAL_SECONDS = 3600
 STOCK_NEWS_COOLDOWN_SECONDS = 2 * 3600
+STOCK_NEWS_CHECK_INTERVAL_SECONDS = 30 * 60  # 🌟 เช็คข่าวหุ้นรายตัวทุก 30 นาที
+_RSS_CACHE_TTL = 1800  # 30 นาที
 MAX_FLASH_HEADLINES = 12
 MAX_DIGEST_HEADLINES = 12
 MAX_DIGEST_ITEMS = 2
@@ -126,16 +130,6 @@ def _claim_dispatch_once(category, raw_key):
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS dispatch_log (
-                dispatch_key TEXT PRIMARY KEY,
-                category TEXT NOT NULL,
-                raw_key TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
         cur.execute("DELETE FROM dispatch_log WHERE created_at < NOW() - INTERVAL '14 days'")
         cur.execute(
             """
@@ -155,6 +149,25 @@ def _claim_dispatch_once(category, raw_key):
     finally:
         cur.close()
         conn.close()
+
+
+def _init_sent_pro_news():
+    """โหลด raw_key จาก dispatch_log (24 ชม.ที่ผ่านมา) เข้า sent_pro_news
+    เพื่อป้องกันส่งข่าวซ้ำหลัง restart"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT raw_key FROM dispatch_log WHERE category = 'news' "
+            "AND created_at > NOW() - INTERVAL '24 hours'"
+        )
+        for (raw_key,) in cur.fetchall():
+            if raw_key:
+                sent_pro_news.add(raw_key)
+        conn.close()
+        print(f"[init] โหลดประวัติ sent_pro_news จาก DB: {len(sent_pro_news)} รายการ")
+    except Exception as e:
+        print(f"[init] _init_sent_pro_news error: {e}")
 
 
 def _get_morning_market_movers_text():
@@ -282,8 +295,9 @@ def send_alert_to_users(symbol, message, alert_type="tech"):
         try:
             full_msg = f"🚨 **APEXIFY ALERT: {symbol}** 🚨\n\n{message}"
             bot.send_message(user_id, full_msg, parse_mode="Markdown", disable_web_page_preview=True)
-            time.sleep(0.5) 
-        except Exception: pass
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"[Alert] ส่งให้ {user_id} ({symbol}) ไม่สำเร็จ: {e}")
 
 # ==========================================
 # 🌟 ระบบสแกนข่าวหุ้นรายตัว (เฉพาะข่าวด่วนจริงๆ)
@@ -309,8 +323,19 @@ def check_hot_news(symbol):
         if items:
             title_elem = items[0].find('title')
             link_elem = items[0].find('link')
+            pub_date_elem = items[0].find('pubDate')
             if title_elem is None: return
-            
+
+            # 🌟 กรองข่าวเก่ากว่า 6 ชั่วโมงออก
+            if pub_date_elem is not None and pub_date_elem.text:
+                try:
+                    pub_dt = parsedate_to_datetime(pub_date_elem.text)
+                    age_hours = (datetime.now(pub_dt.tzinfo) - pub_dt).total_seconds() / 3600
+                    if age_hours > 6:
+                        return
+                except Exception:
+                    pass  # ถ้า parse วันที่ไม่ได้ให้ผ่านไปก่อน
+
             title = _normalize_news_title(title_elem.text)
             link = link_elem.text if link_elem is not None else f"https://news.google.com/search?q={search_term}"
 
@@ -374,10 +399,9 @@ def check_hot_news(symbol):
 def check_market_conditions():
     active_symbols = get_all_active_symbols()
     if not active_symbols: return
-    
+
     for symbol in active_symbols:
         try:
-            check_hot_news(symbol)
             tech_data, _, error = calculate_technical_indicators(symbol, generate_chart=False)
             if error or not tech_data: continue
 
@@ -461,12 +485,23 @@ def check_market_conditions():
 # 🌟 ฟังก์ชันดึงข่าวรวมจากทุกสำนัก
 # ==========================================
 def get_fresh_global_news():
+    """ดึงข่าวรวม — มี Cache 30 นาที ป้องกัน Flash & Digest ดึงซ้ำกัน"""
+    now = time.time()
+    if now - _rss_cache["ts"] < _RSS_CACHE_TTL and _rss_cache["data"]:
+        # ยังใหม่อยู่ กรอง sent_pro_news ออกแล้วคืนผล
+        return [n for n in _rss_cache["data"] if n["title"] not in sent_pro_news]
+
     urls = [
+        # 🇹🇭 ข่าวไทย
         "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+ทองคำ+OR+คริปโต+OR+น้ำมัน+when:1d&hl=th&gl=TH&ceid=TH:th",
+        # 🌍 ข่าวโลก (Google News)
         "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+gold+OR+crypto+OR+oil+when:1d&hl=en-US&gl=US&ceid=US:en",
-        "https://www.investing.com/rss/news_25.rss",
-        "https://www.investing.com/rss/news_301.rss",
-        "https://www.investing.com/rss/market_overview.rss"
+        # 📊 Macro / Fed / Rates
+        "https://news.google.com/rss/search?q=Federal+Reserve+OR+interest+rates+OR+inflation+OR+GDP+when:1d&hl=en-US&gl=US&ceid=US:en",
+        # 🏦 Yahoo Finance market headlines
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US",
+        # 📺 CNBC markets
+        "https://www.cnbc.com/id/100003114/device/rss/rss.html",
     ]
     raw_news = []
     seen_titles = set()
@@ -474,14 +509,14 @@ def get_fresh_global_news():
         try:
             response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
             root = ET.fromstring(response.content)
-            for item in root.findall('.//item')[:15]: 
+            for item in root.findall('.//item')[:15]:
                 title_elem = item.find('title')
                 link_elem = item.find('link')
                 if title_elem is not None:
                     title = _normalize_news_title(title_elem.text)
                     link = link_elem.text.strip() if link_elem is not None else ""
                     source = _extract_news_source(item, title=title, link=link)
-                    if title and title not in sent_pro_news and title not in seen_titles:
+                    if title and title not in seen_titles:
                         raw_news.append({"title": title, "link": link, "source": source})
                         seen_titles.add(title)
         except Exception as e:
@@ -509,7 +544,11 @@ def get_fresh_global_news():
             break
         depth += 1
 
-    return balanced_news
+    # 🌟 อัปเดต cache (เก็บทั้งหมด ยังไม่กรอง sent_pro_news)
+    _rss_cache["data"] = balanced_news
+    _rss_cache["ts"] = time.time()
+
+    return [n for n in balanced_news if n["title"] not in sent_pro_news]
 
 # ==========================================
 # 🌟 ระบบส่งข่าวด่วนรายชั่วโมง (Flash News) - [อัปเกรดระบบดักจับ Error]
@@ -532,66 +571,84 @@ def broadcast_hourly_urgent_news(bot_instance):
     นี่คือพาดหัวข่าวล่าสุด:
     {titles_str}
 
-    เลือกข่าวที่ "ด่วนและสำคัญที่สุดในเชิงเศรษฐกิจ" เพียง 1 ข่าว
-    โดยพิจารณาความน่าเชื่อถือของสำนักข่าวด้วย
+    เลือกข่าวที่ "ด่วนและสำคัญที่สุดในเชิงเศรษฐกิจ" จำนวน 2 ข่าว
+    โดยพิจารณาความน่าเชื่อถือของสำนักข่าวด้วย พยายามเลือกจากคนละสำนักข่าว
     (ถ้าข่าวมีความรุนแรงหรือสงคราม ให้สรุปเฉพาะผลกระทบทางเศรษฐกิจเท่านั้น ห้ามใส่ลิงก์)
 
-    ตอบกลับในรูปแบบ JSON เท่านั้น:
-    {{
-        "original_title": "พาดหัวข่าวที่เลือก",
-        "summary": "อธิบายว่าเกิดอะไรขึ้นและทำไมถึงสำคัญ 3-4 บรรทัด (ภาษาไทย)",
-        "impact": "ผลกระทบต่อตลาดและนักลงทุนโดยตรง 1-2 ประโยค (ภาษาไทย)"
-    }}
+    ตอบกลับในรูปแบบ JSON Array เท่านั้น:
+    [
+        {{
+            "original_title": "พาดหัวข่าวที่เลือก",
+            "summary": "อธิบายว่าเกิดอะไรขึ้นและทำไมถึงสำคัญ 3-4 บรรทัด (ภาษาไทย)",
+            "impact": "ผลกระทบต่อตลาดและนักลงทุนโดยตรง 1-2 ประโยค (ภาษาไทย)"
+        }}
+    ]
     """
     try:
         ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
-        
+
         # 🌟 1. ดักจับกรณี AI ไม่ยอมตอบเป็น JSON
         try:
-            analysis = json.loads(result_text)
+            analysis_list = json.loads(result_text)
+            # รองรับกรณี AI ส่งกลับมาเป็น object เดี่ยว (ไม่เป็น array)
+            if isinstance(analysis_list, dict):
+                analysis_list = [analysis_list]
         except json.JSONDecodeError:
             bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News Error:** AI ไม่ได้ตอบเป็น JSON!\n\n**ข้อความที่ AI ตอบมา:**\n{result_text[:500]}")
             return
-        
-        # 🌟 2. รองรับ Key หลายรูปแบบ (เผื่อ AI ดื้อเปลี่ยนชื่อ Key เอง)
-        title = analysis.get('original_title') or analysis.get('title') or analysis.get('headline') or ''
-        summary = analysis.get('summary') or analysis.get('content') or analysis.get('description') or ''
-        impact = analysis.get('impact', '')
 
-        if title and summary:
-            title = _normalize_news_title(title)
-            if not _claim_dispatch_once("flash_news", title):
-                return
+        if not isinstance(analysis_list, list) or len(analysis_list) == 0:
+            bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News Error:** ข้อมูลแหว่ง\n\n**JSON ที่ได้:**\n{result_text[:300]}")
+            return
+
+        # 🌟 2. สร้าง sections สำหรับแต่ละข่าว
+        sections = []
+        for item in analysis_list[:2]:
+            title = _normalize_news_title(
+                item.get('original_title') or item.get('title') or item.get('headline') or ''
+            )
+            summary = item.get('summary') or item.get('content') or item.get('description') or ''
+            impact = item.get('impact', '')
+
+            if not title or not summary:
+                continue
+            # 🌟 cross-dedup: ใช้ category "news" ร่วมกับ Digest
+            if not _claim_dispatch_once("news", title):
+                continue
+
             summary = _compact_news_text(summary, max_chars=400, max_lines=5)
-            impact = _compact_news_text(impact, max_chars=150, max_lines=2) if impact else ''
-            impact_line = f"\n\n⚡️ *ผลกระทบ:* {impact}" if impact else ''
-            msg = f"🚨 **Flash News**\n📌 **{title}**\n\n📝 {summary}{impact_line}"
+            impact_text = _compact_news_text(impact, max_chars=150, max_lines=2) if impact else ''
+            impact_line = f"\n⚡️ *ผลกระทบ:* {impact_text}" if impact_text else ''
+            sections.append(f"📌 *{title}*\n{summary}{impact_line}")
             sent_pro_news.add(title)
-            
-            # ป้องกันหน่วยความจำเต็ม
-            if len(sent_pro_news) > 500: sent_pro_news.clear()
-            
-            conn = get_connection()
-            cur = conn.cursor()
-            cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
-            count = 0
-            for pro in cur.fetchall():
-                if check_subscription(pro[0]) == 'pro' and should_send_user_notification(pro[0], category="flash_news"):
-                    try:
-                        bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
-                        count += 1
-                        time.sleep(0.5)
-                    except Exception as e:
-                        print(f"[FlashNews] ส่งให้ {pro[0]} ไม่สำเร็จ: {e}")
-            conn.close()
 
-        else:
-            # 🌟 3. ดักจับกรณี AI ตอบ JSON แต่ข้อมูลแหว่ง/ไม่ครบ
-            bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News Error:** ข้อมูลแหว่ง (Title หรือ Summary หายไป)\n\n**JSON ที่ได้:**\n{result_text}")
-            
+        if not sections:
+            return
+
+        # ป้องกันหน่วยความจำเต็ม
+        if len(sent_pro_news) > 500:
+            sent_pro_news.clear()
+
+        msg = "🚨 *Flash News*\n\n" + "\n\n".join(sections)
+
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
+        count = 0
+        for pro in cur.fetchall():
+            if check_subscription(pro[0]) == 'pro' and should_send_user_notification(pro[0], category="flash_news"):
+                try:
+                    bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
+                    count += 1
+                    time.sleep(0.5)
+                except Exception as e:
+                    print(f"[FlashNews] ส่งให้ {pro[0]} ไม่สำเร็จ: {e}")
+        conn.close()
+        print(f"[FlashNews] ส่งสำเร็จ {count} คน ({len(sections)} ข่าว)")
+
     except Exception as e:
-        # 🌟 4. ดักจับกรณี API พัง หรือโดนบล็อคเนื้อหาความรุนแรง
+        # 🌟 3. ดักจับกรณี API พัง หรือโดนบล็อคเนื้อหาความรุนแรง
         try:
             error_msg = str(e)
             if "Safety" in error_msg or "blocked" in error_msg.lower():
@@ -639,13 +696,14 @@ def check_and_broadcast_pro_news(bot_instance):
             
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
-        pro_users = [row[0] for row in cur.fetchall()]
-        cur.close()
+        # 🌟 VIP ก็ได้รับ Digest ด้วย
+        cur.execute("SELECT user_id FROM users WHERE role IN ('pro', 'vip')")
         eligible_users = []
-        for uid in pro_users:
-            if check_subscription(uid) == 'pro' and should_send_user_notification(uid, category="digest_news"):
+        for (uid,) in cur.fetchall():
+            role = check_subscription(uid)
+            if role in ('pro', 'vip') and should_send_user_notification(uid, category="digest_news"):
                 eligible_users.append(uid)
+        cur.close()
         if not eligible_users:
             conn.close()
             return
@@ -655,9 +713,10 @@ def check_and_broadcast_pro_news(bot_instance):
         for item in analysis_list[:MAX_DIGEST_ITEMS]:
             title = _normalize_news_title(item.get('original_title', ''))
             summary = item.get('summary', '')
-            
+
             if title and summary:
-                if not _claim_dispatch_once("digest_news", title):
+                # 🌟 cross-dedup: ใช้ category "news" ร่วมกับ Flash News
+                if not _claim_dispatch_once("news", title):
                     continue
                 summary = _compact_news_text(summary, max_chars=400, max_lines=5)
                 impact = _compact_news_text(item.get('impact', ''), max_chars=150, max_lines=2)
@@ -793,7 +852,6 @@ def get_podcast_market_data():
     return ' | '.join(parts)
 
 def _clean_podcast_script(text: str) -> str:
-    import re
     text = text.replace('*', '').replace('#', '')
     text = re.sub(r'\([^)]*\)', '', text)
     text = re.sub(r'\[[^\]]*\]', '', text)
@@ -903,7 +961,7 @@ async def create_and_send_podcast(bot_instance):
 
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
+        cur.execute("SELECT user_id FROM users WHERE role IN ('pro', 'vip')")
         pro_users = cur.fetchall()
         cur.close()
         conn.close()
@@ -911,7 +969,7 @@ async def create_and_send_podcast(bot_instance):
         count = 0
         for row in pro_users:
             user_id = row[0]
-            if check_subscription(user_id) == 'pro' and should_send_user_notification(user_id, category="morning_briefing"):
+            if check_subscription(user_id) in ('pro', 'vip') and should_send_user_notification(user_id, category="morning_briefing"):
                 try:
                     with open(filename, 'rb') as audio:
                         bot_instance.send_voice(
@@ -1024,7 +1082,11 @@ def send_morning_briefing(bot_instance):
             conn.close()
             if count > 0: print(f"✅ ส่ง Morning Briefing สำเร็จ {count} คน")
     except Exception as e:
-        print("Morning Briefing Error:", e)
+        print(f"❌ [MorningBriefing] Error: {e}")
+        try:
+            bot_instance.send_message(ADMIN_ID, f"⚠️ **Morning Briefing Error:** {str(e)[:200]}", parse_mode="Markdown")
+        except Exception:
+            pass
 
 # ==========================================
 # 🌟 ฟีเจอร์ใหม่: Dividend & XD Alerts (เตือนก่อน 3 วัน)
@@ -1053,8 +1115,9 @@ def check_xd_alerts():
                         xd_dt = datetime.utcfromtimestamp(ex_div_date).strftime('%d/%m/%Y')
                         upcoming_xds.append(f"📌 **{symbol}** ➡️ XD วันที่ {xd_dt} (อีก {int(days_until_xd)} วัน)")
                         sent_xd_alerts.add(alert_key)
-        except Exception: pass
-        
+        except Exception as e:
+            print(f"[XDAlert] ดึงข้อมูล XD ล้มเหลวสำหรับ {symbol}: {e}")
+
     # 🌟 ถ้ารวบรวมได้ ค่อยบรอดแคสต์ให้สาย PRO รวดเดียว
     if upcoming_xds:
         msg = "📅 **ปฏิทินเตือนหุ้นปันผล (XD Alert) สัปดาห์นี้** 📅\n\n" + "\n".join(upcoming_xds) + "\n\n👉 สายปันผลเตรียมตัว สายเก็งกำไรระวังราคาเปิดกระโดดลงนะครับ!"
@@ -1194,11 +1257,15 @@ if __name__ == "__main__":
     # 🧹 [เพิ่มบรรทัดนี้] สั่งให้กวาดล้างทันที 1 ครั้ง ตอนที่เพิ่งกดรันบอทใหม่
     auto_downgrade_expired_users()
     print("🧹 กวาดล้าง DB ทันทีที่เปิดระบบเรียบร้อยแล้ว!")
-    
+
+    # 🌟 โหลดประวัติข่าวที่เคยส่งจาก DB เพื่อป้องกันส่งซ้ำหลัง restart
+    _init_sent_pro_news()
+
     print("🚀 Apexify Alert System (PRO + VIP selected features) is Running...")
     # 🌟 ตั้งค่าเริ่มต้น
     last_hourly_news_time = time.time() - FLASH_NEWS_INTERVAL_SECONDS
     last_global_news_time = time.time() - DIGEST_NEWS_CHECK_INTERVAL_SECONDS
+    last_stock_news_check_time = time.time() - STOCK_NEWS_CHECK_INTERVAL_SECONDS  # รันทันทีที่เริ่ม
     last_morning_briefing_date = None
     last_xd_check_date = None
     last_podcast_date = None
@@ -1252,9 +1319,20 @@ if __name__ == "__main__":
             check_and_broadcast_pro_news(bot)
             last_global_news_time = time.time() 
             
+        # 🌟 เช็คข่าวหุ้นรายตัว (ทุก 30 นาที — แยกจาก technical indicators)
+        if current_time - last_stock_news_check_time >= STOCK_NEWS_CHECK_INTERVAL_SECONDS:
+            active_symbols = get_all_active_symbols()
+            for symbol in (active_symbols or []):
+                try:
+                    check_hot_news(symbol)
+                except Exception as e:
+                    print(f"❌ [StockNewsLoop] {symbol}: {e}")
+            last_stock_news_check_time = time.time()
+            print(f"[StockNews] เช็คข่าวรายตัวเสร็จแล้ว ({len(active_symbols or [])} symbols)")
+
         # 🌟 เช็คกราฟเทคนิค & ตั้งเตือนราคา (ทุก 5 นาที)
         check_market_conditions()
         check_custom_price_alerts()
-        
+
         time.sleep(300)
 
