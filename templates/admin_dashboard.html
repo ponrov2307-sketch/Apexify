@@ -403,10 +403,9 @@
     {% endif %}
 
     <!-- Expiring members warning -->
-    {% if expiring_members.count_3d and expiring_members.count_3d > 0 %}
+    {% if expiring_members.expiring_3_days and expiring_members.expiring_3_days > 0 %}
     <div class="expiry-warning">
-      ⏰ <strong>{{ expiring_members.count_3d }} คน</strong> จะหมดสมาชิกใน 3 วัน
-      {% if expiring_members.revenue_3d %} — เสี่ยงสูญรายได้ <strong>฿{{ "{:,}".format(expiring_members.revenue_3d) }}</strong>{% endif %}
+      ⏰ <strong>{{ expiring_members.expiring_3_days }} คน</strong> จะหมดสมาชิกใน 3 วัน
     </div>
     {% endif %}
 
@@ -445,23 +444,23 @@
     <div id="stats" class="stats-grid">
       <div class="stat-card green">
         <div class="stat-label">รายได้ต่อเดือน (ประมาณ)</div>
-        <div class="stat-value">฿{{ "{:,}".format(user_stats.monthly_revenue or 0) }}</div>
-        <div class="stat-sub">{{ user_stats.vip_count or 0 }} VIP · {{ user_stats.pro_count or 0 }} PRO</div>
+        <div class="stat-value">฿{{ "{:,}".format(user_stats.estimated_monthly_revenue or 0) }}</div>
+        <div class="stat-sub">{{ user_stats.vip_users or 0 }} VIP · {{ user_stats.pro_users or 0 }} PRO</div>
       </div>
       <div class="stat-card blue">
         <div class="stat-label">ผู้ใช้ทั้งหมด</div>
         <div class="stat-value">{{ user_stats.total_users or 0 }}</div>
-        <div class="stat-sub">Free: {{ user_stats.free_count or 0 }} · Paid: {{ (user_stats.vip_count or 0) + (user_stats.pro_count or 0) }}</div>
+        <div class="stat-sub">Free: {{ user_stats.free_users or 0 }} · Paid: {{ (user_stats.vip_users or 0) + (user_stats.pro_users or 0) }}</div>
       </div>
       <div class="stat-card purple">
         <div class="stat-label">Price Alerts ที่ใช้งาน</div>
-        <div class="stat-value">{{ price_alerts.total_active or 0 }}</div>
+        <div class="stat-value">{{ price_alerts.total_alerts or 0 }}</div>
         <div class="stat-sub">{{ price_alerts.unique_users or 0 }} ผู้ใช้ตั้ง alert อยู่</div>
       </div>
-      <div class="stat-card {% if expiring_members.count_7d and expiring_members.count_7d > 0 %}amber{% else %}green{% endif %}">
+      <div class="stat-card {% if expiring_members.expiring_7_days and expiring_members.expiring_7_days > 0 %}amber{% else %}green{% endif %}">
         <div class="stat-label">Risk (7 วัน)</div>
-        <div class="stat-value">฿{{ "{:,}".format(expiring_members.revenue_7d or 0) }}</div>
-        <div class="stat-sub">{{ expiring_members.count_7d or 0 }} คน หมดอายุใน 7 วัน</div>
+        <div class="stat-value">฿{{ "{:,}".format(expiring_members.revenue_at_risk_7_days or 0) }}</div>
+        <div class="stat-sub">{{ expiring_members.expiring_7_days or 0 }} คน หมดอายุใน 7 วัน</div>
       </div>
     </div>
 
@@ -469,8 +468,8 @@
     <div class="stats-grid" style="margin-bottom:24px">
       <div class="stat-card green">
         <div class="stat-label">Win Rate (Resolved)</div>
-        <div class="stat-value">{{ performance.win_rate_pct or 0 }}%</div>
-        <div class="stat-sub">Avg Edge: {{ performance.avg_edge_pct or 0 }}%</div>
+        <div class="stat-value">{{ "%.1f"|format(performance.win_rate or 0) }}%</div>
+        <div class="stat-sub">Avg Edge: {{ "%.2f"|format(performance.average_edge_pct or 0) }}%</div>
       </div>
       <div class="stat-card blue">
         <div class="stat-label">Signals Resolved</div>
@@ -484,7 +483,7 @@
       </div>
       <div class="stat-card blue">
         <div class="stat-label">ARR (ประมาณ)</div>
-        <div class="stat-value">฿{{ "{:,}".format((user_stats.monthly_revenue or 0) * 12) }}</div>
+        <div class="stat-value">฿{{ "{:,}".format((user_stats.estimated_monthly_revenue or 0) * 12) }}</div>
         <div class="stat-sub">annual run rate</div>
       </div>
     </div>
@@ -505,13 +504,13 @@
     <div class="two-col" id="system">
       <div class="card">
         <div class="card-title"><span class="dot dot-amber"></span>Hot Symbols — Watchlist Focus</div>
-        {% set syms = top_watched.symbols or [] %}
-        {% set max_count = syms[0][1] if syms else 1 %}
-        {% for sym, cnt in syms[:8] %}
+        {% set syms = top_watched.items or [] %}
+        {% set max_count = syms[0].watchers if syms else 1 %}
+        {% for item in syms %}
         <div class="sym-row">
-          <span class="sym-name">{{ sym }}</span>
-          <div class="sym-bar"><div class="sym-bar-fill" style="width:{{ (cnt / max_count * 100)|round }}%"></div></div>
-          <span class="sym-count">{{ cnt }} watchers</span>
+          <span class="sym-name">{{ item.symbol }}</span>
+          <div class="sym-bar"><div class="sym-bar-fill" style="width:{{ (item.watchers / max_count * 100)|round }}%"></div></div>
+          <span class="sym-count">{{ item.watchers }} watchers</span>
         </div>
         {% else %}
         <p style="color:var(--text-muted);font-size:13px">ไม่มีข้อมูล</p>
@@ -562,21 +561,21 @@
               <td><strong>{{ entry.symbol }}</strong></td>
               <td><span style="font-size:12px;color:var(--text-muted)">{{ entry.alert_type or '—' }}</span></td>
               <td>
-                {% if entry.edge_pct is not none %}
-                  <span style="color:{% if entry.edge_pct > 0 %}var(--green){% elif entry.edge_pct < 0 %}var(--danger){% else %}var(--text-muted){% endif %};font-weight:600">
-                    {% if entry.edge_pct > 0 %}+{% endif %}{{ entry.edge_pct }}%
+                {% if entry.diff_pct is not none %}
+                  <span style="color:{% if entry.diff_pct > 0 %}var(--green){% elif entry.diff_pct < 0 %}var(--danger){% else %}var(--text-muted){% endif %};font-weight:600">
+                    {% if entry.diff_pct > 0 %}+{% endif %}{{ "%.2f"|format(entry.diff_pct) }}%
                   </span>
                 {% else %}—{% endif %}
               </td>
               <td style="font-size:12px;color:var(--text-muted)">
-                {% if entry.max_favorable_pct is not none %}+{{ entry.max_favorable_pct }}% / {{ entry.max_adverse_pct }}%{% else %}—{% endif %}
+                {% if entry.max_favorable_pct is not none %}+{{ "%.2f"|format(entry.max_favorable_pct) }}% / {{ "%.2f"|format(entry.max_adverse_pct) }}%{% else %}—{% endif %}
               </td>
               <td>
                 {% if entry.status == 'win' %}<span class="badge badge-green">WIN</span>
                 {% elif entry.status == 'loss' %}<span class="badge badge-red">LOSS</span>
                 {% else %}<span class="badge badge-gray">PENDING</span>{% endif %}
               </td>
-              <td style="font-size:12px;color:var(--text-muted)">{{ entry.due_date or '—' }}</td>
+              <td style="font-size:12px;color:var(--text-muted)">{{ entry.evaluation_due_at or '—' }}</td>
             </tr>
             {% else %}
             <tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ยังไม่มีข้อมูล signal</td></tr>
@@ -596,17 +595,17 @@
             <tr><th>Signal Type</th><th>Win Rate</th><th>Resolved</th><th>Avg Edge</th></tr>
           </thead>
           <tbody>
-            {% for sig_type, data in performance.breakdown.items() %}
+            {% for data in performance.breakdown or [] %}
             <tr>
-              <td>{{ sig_type }}</td>
+              <td>{{ data.alert_type }}</td>
               <td>
                 <span style="color:{% if data.win_rate >= 60 %}var(--green){% elif data.win_rate >= 40 %}var(--amber){% else %}var(--danger){% endif %};font-weight:600">
-                  {{ data.win_rate }}%
+                  {{ "%.1f"|format(data.win_rate) }}%
                 </span>
               </td>
-              <td>{{ data.resolved }}</td>
-              <td style="color:{% if data.avg_edge > 0 %}var(--green){% elif data.avg_edge < 0 %}var(--danger){% else %}var(--text-muted){% endif %}">
-                {% if data.avg_edge > 0 %}+{% endif %}{{ data.avg_edge }}%
+              <td>{{ data.resolved_count }}</td>
+              <td style="color:{% if data.average_edge_pct > 0 %}var(--green){% elif data.average_edge_pct < 0 %}var(--danger){% else %}var(--text-muted){% endif %}">
+                {% if data.average_edge_pct > 0 %}+{% endif %}{{ "%.2f"|format(data.average_edge_pct) }}%
               </td>
             </tr>
             {% endfor %}
@@ -661,7 +660,7 @@
     data: {
       labels: ['Free', 'VIP', 'PRO'],
       datasets: [{
-        data: [{{ user_stats.free_count or 0 }}, {{ user_stats.vip_count or 0 }}, {{ user_stats.pro_count or 0 }}],
+        data: [{{ user_stats.free_users or 0 }}, {{ user_stats.vip_users or 0 }}, {{ user_stats.pro_users or 0 }}],
         backgroundColor: ['#1C2128', '#0A84FF', '#BF5AF2'],
         borderColor: ['#0A84FF55', '#0A84FF', '#BF5AF2'],
         borderWidth: 2, hoverOffset: 6
@@ -671,16 +670,14 @@
   });
 
   const digestData = {{ notification_settings | tojson }};
+  const digestDist = digestData.distribution || [];
   new Chart(document.getElementById('digestChart'), {
     type: 'bar',
     data: {
-      labels: ['1h', '4h', '8h', '24h'],
+      labels: digestDist.map(d => d.label),
       datasets: [{
         label: 'users',
-        data: [
-          digestData.freq_1h || 0, digestData.freq_4h || 0,
-          digestData.freq_8h || 0, digestData.freq_24h || 0
-        ],
+        data: digestDist.map(d => d.count || 0),
         backgroundColor: ['#00C07644', '#0A84FF44', '#BF5AF244', '#FF9F0A44'],
         borderColor: ['#00C076', '#0A84FF', '#BF5AF2', '#FF9F0A'],
         borderWidth: 2, borderRadius: 6
