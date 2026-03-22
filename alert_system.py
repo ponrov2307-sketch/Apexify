@@ -553,9 +553,9 @@ def get_fresh_global_news():
 # ==========================================
 # 🌟 ระบบส่งข่าวด่วนรายชั่วโมง (Flash News) - [อัปเกรดระบบดักจับ Error]
 # ==========================================
-def broadcast_hourly_urgent_news(bot_instance):
+def broadcast_hourly_urgent_news(bot_instance, force=False):
     fresh_news = get_fresh_global_news()
-    if not fresh_news: 
+    if not fresh_news:
         try:
             bot_instance.send_message(ADMIN_ID, "⚠️ **Flash News System:** ไม่พบข่าวใหม่จากสำนักข่าวเลย (อาจเกิดจาก Network หรือไม่มีข่าวจริงๆ)")
         except Exception:
@@ -613,15 +613,16 @@ def broadcast_hourly_urgent_news(bot_instance):
 
             if not title or not summary:
                 continue
-            # 🌟 cross-dedup: ใช้ category "news" ร่วมกับ Digest
-            if not _claim_dispatch_once("news", title):
+            # 🌟 cross-dedup: ใช้ category "news" ร่วมกับ Digest (skip when force=True)
+            if not force and not _claim_dispatch_once("news", title):
                 continue
 
             summary = _compact_news_text(summary, max_chars=400, max_lines=5)
             impact_text = _compact_news_text(impact, max_chars=150, max_lines=2) if impact else ''
             impact_line = f"\n⚡️ *ผลกระทบ:* {impact_text}" if impact_text else ''
             sections.append(f"📌 *{title}*\n{summary}{impact_line}")
-            sent_pro_news.add(title)
+            if not force:
+                sent_pro_news.add(title)
 
         if not sections:
             return
@@ -661,7 +662,7 @@ def broadcast_hourly_urgent_news(bot_instance):
 # ==========================================
 # 🌟 ระบบส่งข่าว 4 ชั่วโมง (Digest News)
 # ==========================================
-def check_and_broadcast_pro_news(bot_instance):
+def check_and_broadcast_pro_news(bot_instance, force=False):
     fresh_news = get_fresh_global_news()
     if not fresh_news: return
     
@@ -715,8 +716,8 @@ def check_and_broadcast_pro_news(bot_instance):
             summary = item.get('summary', '')
 
             if title and summary:
-                # 🌟 cross-dedup: ใช้ category "news" ร่วมกับ Flash News
-                if not _claim_dispatch_once("news", title):
+                # 🌟 cross-dedup: ใช้ category "news" ร่วมกับ Flash News (skip when force=True)
+                if not force and not _claim_dispatch_once("news", title):
                     continue
                 summary = _compact_news_text(summary, max_chars=400, max_lines=5)
                 impact = _compact_news_text(item.get('impact', ''), max_chars=150, max_lines=2)
@@ -724,7 +725,8 @@ def check_and_broadcast_pro_news(bot_instance):
                 digest_sections.append(
                     f"**{len(digest_sections) + 1}. {title}**\n{summary}{impact_line}"
                 )
-                sent_pro_news.add(title)
+                if not force:
+                    sent_pro_news.add(title)
         if not digest_sections:
             conn.close()
             return

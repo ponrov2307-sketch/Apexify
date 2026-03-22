@@ -306,7 +306,7 @@ def admin_force_flash_news():
 
         def _run():
             try:
-                broadcast_hourly_urgent_news(alert_bot)
+                broadcast_hourly_urgent_news(alert_bot, force=True)
             except Exception as e:
                 print(f"[Force Flash News] Error: {e}")
 
@@ -326,7 +326,7 @@ def admin_force_digest_news():
 
         def _run():
             try:
-                check_and_broadcast_pro_news(alert_bot)
+                check_and_broadcast_pro_news(alert_bot, force=True)
             except Exception as e:
                 print(f"[Force Digest News] Error: {e}")
 
