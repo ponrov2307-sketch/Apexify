@@ -1045,7 +1045,7 @@ def handle_payment_slip_check(message):
 # ==========================================
 # 🌟 ระบบปุ่มกด Inline
 # ==========================================
-@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('delalert_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_'))
 def inline_callbacks(call):
     user_id = str(call.message.chat.id)
     if not is_allowed(user_id): return
@@ -1462,25 +1462,23 @@ def inline_callbacks(call):
                 bot.send_message(user_id, "🔒 **ฟีเจอร์ระดับพรีเมียม (PRO Exclusive)**\nการตั้งเตือนราคาส่วนตัวสงวนสิทธิ์ให้ลูกค้าระดับ PRO เท่านั้นครับ 👑", parse_mode="Markdown")
                 return
             alerts = get_user_price_alerts_db(user_id)
-            msg = "🔔 **จัดการตั้งเตือนราคาส่วนตัว**\n\n"
+            markup = InlineKeyboardMarkup()
             if not alerts:
-                msg += "คุณยังไม่มีการตั้งเตือนราคา\n\n"
+                header = "🔔 *การตั้งเตือนราคา*\n\nยังไม่มีรายการเฝ้าดู\n\n"
             else:
-                msg += "รายการที่กำลังเฝ้าดู:\n"
+                header = f"🔔 *การตั้งเตือนราคา* ({len(alerts)} รายการ)\n\n"
                 for alert in alerts:
                     a_id, sym, price, cond = alert
-                    cond_text = "ทะลุขึ้น" if cond == 'above' else "ร่วงลง"
-                    msg += f"• **ID {a_id}:** {sym} ({cond_text} {price:,.2f})\n"
-                msg += "\n"
-            
-            msg += (
-                "👉 **วิธีตั้งเตือนใหม่ (พิมพ์ในช่องแชท):**\n"
-                "`/setalert [ชื่อหุ้น] [ราคา]`\n*(เช่น /setalert PTT.BK 35)*\n\n"
-                "👉 **วิธียกเลิก:**\n`/delalert [ID]`\n*(เช่น /delalert 1)*"
-            )
-            bot.send_message(user_id, msg, parse_mode="Markdown")
+                    arrow = "📈" if cond == 'above' else "📉"
+                    cond_text = "ขึ้นถึง" if cond == 'above' else "ลงถึง"
+                    markup.add(InlineKeyboardButton(
+                        f"❌ {sym} {cond_text} {price:,.2f}",
+                        callback_data=f"delalert_{a_id}"
+                    ))
+            footer = "➕ เพิ่มเตือนใหม่: `/setalert [หุ้น] [ราคา]`\nเช่น `/setalert PTT.BK 35`"
+            bot.send_message(user_id, header + footer, parse_mode="Markdown", reply_markup=markup)
         except Exception as e:
-            bot.send_message(user_id, f"❌ ระบบตั้งเตือนราคาขัดข้อง (ฐานข้อมูลอาจยังไม่อัปเดต)\nแจ้งเตือน: {e}")
+            bot.send_message(user_id, f"❌ ระบบตั้งเตือนราคาขัดข้อง: {e}")
 
     elif call.data.startswith('addwatch_'):
         symbol = call.data.split('_')[1]
@@ -1499,7 +1497,12 @@ def inline_callbacks(call):
     elif call.data.startswith('delwatch_'):
         symbol = call.data.split('_')[1]
         remove_watch_db(user_id, symbol)
-        bot.edit_message_text(f"🗑️ ลบ **{symbol}** แล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id)
+        bot.edit_message_text(f"🗑️ ลบ **{symbol}** ออกจาก Watchlist แล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id)
+
+    elif call.data.startswith('delalert_'):
+        alert_id = int(call.data.split('_')[1])
+        remove_price_alert_db(user_id, alert_id)
+        bot.edit_message_text(f"🗑️ ลบการตั้งเตือน ID {alert_id} แล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id)
         
     # ==========================================
     # 🌟 ส่วนรับคำสั่งจากปุ่มแผงควบคุมแอดมิน
