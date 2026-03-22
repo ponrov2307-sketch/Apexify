@@ -4,12 +4,11 @@ import math
 import re
 
 import PIL.Image
-from google import genai
 
-from config import GEMINI_API_KEY
+from config import GEMINI_API_KEY, gemini_client
 from technical_tools import build_multitimeframe_trade_context
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = gemini_client
 
 DISCLAIMER_TEXT = (
     "⚠️ *คำเตือน: รายงานนี้เป็นการวิเคราะห์อัตโนมัติเพื่อประกอบการตัดสินใจเท่านั้น "

@@ -1,3 +1,4 @@
+import atexit
 import os
 from pathlib import Path
 import psycopg2
@@ -393,6 +394,7 @@ def _get_pool():
     global _pool
     if _pool is None:
         _pool = psycopg2.pool.ThreadedConnectionPool(2, 10, _get_db_url())
+        atexit.register(lambda: _pool.closeall())
     return _pool
 
 class _PooledConnection:

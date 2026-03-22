@@ -3,8 +3,7 @@ import hashlib
 from datetime import datetime, timedelta
 import telebot
 import requests 
-from google import genai
-from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY
+from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY, gemini_client
 from technical_tools import calculate_technical_indicators
 import psycopg2
 from database import (get_all_active_symbols, get_users_watching, init_db, check_subscription, 
@@ -20,7 +19,7 @@ import edge_tts
 import re
 from urllib.parse import urlparse
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = gemini_client
 
 last_alert_state = {}
 sent_pro_news = set() # 🌟 เก็บประวัติข่าวที่เคยส่งไปแล้วเพื่อกันส่งซ้ำ
@@ -513,7 +512,8 @@ def broadcast_hourly_urgent_news(bot_instance):
     if not fresh_news: 
         try:
             bot_instance.send_message(ADMIN_ID, "⚠️ **Flash News System:** ไม่พบข่าวใหม่จากสำนักข่าวเลย (อาจเกิดจาก Network หรือไม่มีข่าวจริงๆ)")
-        except: pass
+        except Exception:
+            pass
         return
     
     titles_str = "\n".join(
@@ -587,7 +587,8 @@ def broadcast_hourly_urgent_news(bot_instance):
                 bot_instance.send_message(ADMIN_ID, "⚠️ **Flash News สะดุด:** AI ปฏิเสธการสรุปข่าวเนื่องจากติดฟิลเตอร์คำรุนแรง (Safety Policy)")
             else:
                 bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News System Error:** {error_msg}")
-        except: pass
+        except Exception:
+            pass
 
 # ==========================================
 # 🌟 ระบบส่งข่าว 4 ชั่วโมง (Digest News)
@@ -671,7 +672,8 @@ def check_and_broadcast_pro_news(bot_instance):
     except Exception as e:
         try:
             bot_instance.send_message(ADMIN_ID, f"⚠️ **Digest News Error:** {str(e)[:100]}...")
-        except: pass
+        except Exception:
+            pass
 
 
 # ==========================================
@@ -702,7 +704,8 @@ def check_custom_price_alerts():
             try:
                 tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
                 if not err and tech_data: current_prices[sym] = tech_data['price']
-            except: pass
+            except Exception:
+                pass
             
     for alert in bot_alerts:
         a_id, user_id, symbol, target_price, condition = alert
@@ -779,41 +782,52 @@ def generate_podcast_script(market_info):
         )
 
 async def create_and_send_podcast(bot_instance):
-    if not _claim_dispatch_once("morning_podcast", _current_thai_date_str()):
-        print("⏭️ [Podcast] ข้ามการส่งซ้ำของวันนี้")
-        return
-    print("🌍 [Podcast] กำลังสร้างสคริปต์และอัดเสียง...")
-    market_info = get_podcast_market_data()
-    script = generate_podcast_script(market_info)
-    
-    filename = "apexify_morning.mp3"
-    communicate = edge_tts.Communicate(script, "th-TH-PremwadeeNeural") # เสียงพรีมวดี
-    await communicate.save(filename)
-    
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
-    pro_users = cur.fetchall()
-    cur.close()
-    conn.close()
+    try:
+        if not _claim_dispatch_once("morning_podcast", _current_thai_date_str()):
+            print("⏭️ [Podcast] ข้ามการส่งซ้ำของวันนี้")
+            return
+        print("🌍 [Podcast] กำลังสร้างสคริปต์และอัดเสียง...")
+        market_info = get_podcast_market_data()
+        script = generate_podcast_script(market_info)
 
-    count = 0
-    for row in pro_users:
-        user_id = row[0]
-        if check_subscription(user_id) == 'pro' and should_send_user_notification(user_id, category="morning_briefing"):
-            try:
-                with open(filename, 'rb') as audio:
-                    bot_instance.send_voice(
-                        chat_id=user_id,
-                        voice=audio,
-                        caption="🎧 **Apexify Morning Briefing** 🎙️\nอัปเดตตลาดเช้านี้แบบ Podcast ฟังระหว่างขับรถได้เลยครับ! 🚀",
-                        parse_mode="Markdown"
-                    )
-                count += 1
-                await asyncio.sleep(0.5) 
-            except Exception: pass
-            
-    if count > 0: print(f"✅ [Podcast] ส่งเสียงสำเร็จ {count} คน")                
+        filename = "apexify_morning.mp3"
+        communicate = edge_tts.Communicate(script, "th-TH-PremwadeeNeural") # เสียงพรีมวดี
+        await communicate.save(filename)
+
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
+        pro_users = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        count = 0
+        for row in pro_users:
+            user_id = row[0]
+            if check_subscription(user_id) == 'pro' and should_send_user_notification(user_id, category="morning_briefing"):
+                try:
+                    with open(filename, 'rb') as audio:
+                        bot_instance.send_voice(
+                            chat_id=user_id,
+                            voice=audio,
+                            caption="🎧 **Apexify Morning Briefing** 🎙️\nอัปเดตตลาดเช้านี้แบบ Podcast ฟังระหว่างขับรถได้เลยครับ! 🚀",
+                            parse_mode="Markdown"
+                        )
+                    count += 1
+                    await asyncio.sleep(0.5)
+                except Exception:
+                    pass
+
+        if count > 0:
+            print(f"✅ [Podcast] ส่งเสียงสำเร็จ {count} คน")
+
+    except Exception as e:
+        print(f"❌ [Podcast] Error: {e}")
+        try:
+            bot_instance.send_message(ADMIN_ID, f"⚠️ **Podcast Error:** สร้าง/ส่ง Podcast ล้มเหลว\n`{str(e)[:200]}`", parse_mode="Markdown")
+        except Exception:
+            pass
+
 # ==========================================
 # ==========================================
 # 🌟 ฟีเจอร์ Morning Apexify Briefing (08:30 น.)

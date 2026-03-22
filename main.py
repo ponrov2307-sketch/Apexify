@@ -10,7 +10,7 @@ import threading
 import xml.etree.ElementTree as ET 
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from keep_alive import keep_alive 
-from config import TELEGRAM_TOKEN, ADMIN_ID, DASHBOARD_LOGIN_TOKEN_TTL, APEXIFY_PASSWORD
+from config import TELEGRAM_TOKEN, ADMIN_ID, DASHBOARD_LOGIN_TOKEN_TTL, APEXIFY_PASSWORD, gemini_client
 from dashboard_login import issue_admin_dashboard_url, issue_dashboard_login_url
 # 🌟 Import ฟังก์ชันฐานข้อมูลทั้งหมด รวมถึงระบบจัดการพอร์ต
 from database import (get_all_users, init_db, register_user, check_subscription, add_subscription, 
@@ -149,7 +149,7 @@ def is_allowed(user_id):
     if get_maintenance_status():
         try:
             bot.send_message(user_id, "🛠 **ระบบกำลังปิดปรับปรุง (Maintenance Mode)**\n\nทีมงาน Apexify กำลังอัปเกรดระบบให้ดียิ่งขึ้น กรุณารอสักครู่ครับ... 🚀", parse_mode="Markdown")
-        except:
+        except Exception:
             pass
         return False
         
@@ -1199,13 +1199,12 @@ def inline_callbacks(call):
                         title_elem = item.find('title')
                         if title_elem is not None:
                             all_titles.append(title_elem.text)
-                except: pass
-                
+                except Exception:
+                    pass
+
             titles_str = "\n".join([f"- {t}" for t in all_titles[:15]])
-            
-            from google import genai
-            from config import GEMINI_API_KEY
-            ai_client = genai.Client(api_key=GEMINI_API_KEY)
+
+            ai_client = gemini_client
             
             prompt = f"""
             คัดเลือกข่าวที่สำคัญและด่วนที่สุด 3 ข่าวจากหัวข้อเหล่านี้:
@@ -1434,10 +1433,8 @@ def handle_earnings(message):
     load_msg = bot.reply_to(message, f"⏳ กำลังให้ AI แกะงบการเงินล่าสุดของ {symbol}...", parse_mode="Markdown")
     
     try:
-        from google import genai
-        from config import GEMINI_API_KEY
-        ai_client = genai.Client(api_key=GEMINI_API_KEY)
-        
+        ai_client = gemini_client
+
         allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
         clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(allowed_suffixes) else symbol
         ticker = yf.Ticker(clean_symbol)

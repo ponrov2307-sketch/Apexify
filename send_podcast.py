@@ -6,13 +6,12 @@ import re
 from datetime import datetime
 import yfinance as yf
 import telebot
-from google import genai
-from config import TELEGRAM_TOKEN, GEMINI_API_KEY
+from config import TELEGRAM_TOKEN, GEMINI_API_KEY, gemini_client
 from database import get_connection, check_subscription
 
-# ⚙️ ตั้งค่า API 
+# ⚙️ ตั้งค่า API
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = gemini_client
 
 # ==========================================
 # 📊 1. ฟังก์ชันดึงภาพรวมตลาด

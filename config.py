@@ -85,3 +85,6 @@ APEXIFY_PASSWORD = (
 
 if not TELEGRAM_TOKEN or not GEMINI_API_KEY:
     raise ValueError("❌ Error: กรุณาตั้งค่า TELEGRAM_TOKEN และ GEMINI_API_KEY ในไฟล์ .env หรือ Environment Variables")
+
+from google import genai as _genai
+gemini_client = _genai.Client(api_key=GEMINI_API_KEY)
