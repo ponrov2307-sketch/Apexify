@@ -776,7 +776,7 @@ def handle_add_role(message):
             days = int(args[3]) if len(args) > 3 else 30
             expiry = add_subscription(target_user, role, days)
             bot.reply_to(message, f"✅ อัปเกรด `{target_user}` เป็น {role.upper()} แล้ว\nหมดอายุ: {expiry}")
-        except:
+        except Exception:
             bot.reply_to(message, "❌ รูปแบบ: /addrole [user_id] [vip/pro] [days]")
 
 def _do_broadcast(message, users, msg_text):
@@ -1422,7 +1422,8 @@ def inline_callbacks(call):
                     if "Golden" in cross or rsi < 30:
                         scan_result += f"   👉 **สัญญาณ:** {cross}\n"
                     scan_result += "\n"
-                except Exception: pass
+                except Exception as e:
+                    print(f"[Screener] {sym} ล้มเหลว: {e}")
             bot.edit_message_text(scan_result, user_id, scan_msg.message_id, parse_mode="Markdown")
         except Exception as e:
             bot.send_message(user_id, f"❌ Error: {e}")
