@@ -801,18 +801,29 @@ def _clean_podcast_script(text: str) -> str:
     return '\n'.join(lines).strip()
 
 def get_stock_spotlight_news():
-    """ดึงข่าวรายหุ้น 2-3 ตัวที่น่าสนใจสำหรับ podcast"""
-    watchlist = [
-        ('NVDA', 'Nvidia'),
-        ('AAPL', 'Apple'),
-        ('TSLA', 'Tesla'),
-        ('META', 'Meta'),
-        ('AMZN', 'Amazon'),
-        ('PTT.BK', 'PTT'),
-        ('MSFT', 'Microsoft'),
+    """ดึงข่าวรายหุ้น 3 ตัวที่น่าสนใจสำหรับ podcast
+    - ดึงจาก watchlist ของ user ที่ active ในระบบก่อน
+    - fallback ไปหารายการ default ถ้าไม่พอ
+    """
+    # รายการ default ครอบคลุม US/Thai/crypto-related
+    default_pool = [
+        'NVDA', 'AAPL', 'TSLA', 'META', 'AMZN', 'MSFT', 'GOOGL',
+        'AMD', 'NFLX', 'BABA', 'COIN', 'MSTR',
+        'PTT.BK', 'AOT.BK', 'ADVANC.BK', 'GULF.BK', 'SCB.BK', 'CPALL.BK',
+        'BTC-USD', 'ETH-USD',
     ]
+
+    # ดึง watchlist ที่ user ในระบบ active ติดตามอยู่
+    try:
+        active_syms = list(get_all_active_symbols())
+    except Exception:
+        active_syms = []
+
+    # รวมกัน — watchlist ของ user มาก่อน จากนั้น default
+    candidates = active_syms + [s for s in default_pool if s not in active_syms]
+
     results = []
-    for sym, name in watchlist:
+    for sym in candidates:
         if len(results) >= 3:
             break
         try:
@@ -821,7 +832,7 @@ def get_stock_spotlight_news():
                 continue
             headline = news_items[0].get('title', '').strip()
             if headline:
-                results.append(f"{name} ({sym}): {headline}")
+                results.append(f"{sym}: {headline}")
         except Exception as e:
             print(f"[Podcast] ดึงข่าว {sym} ไม่สำเร็จ: {e}")
     return results
