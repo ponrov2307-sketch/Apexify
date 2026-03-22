@@ -456,7 +456,17 @@ def handle_add_stock(message):
         ticker = parts[1].upper()
         shares = float(parts[2])
         cost = float(parts[3])
-        
+
+        role = check_subscription(user_id)
+        if user_id != ADMIN_ID:
+            portfolio_count = len(get_user_portfolio(user_id))
+            if role == 'free' and portfolio_count >= 3:
+                bot.reply_to(message, "🔒 **จำกัดพอร์ต 3 หุ้น (Free)**\nอัปเกรดเป็น **VIP** เพื่อเพิ่มได้ถึง 10 ตัว หรือ **PRO** ไม่จำกัดครับ!", parse_mode='Markdown')
+                return
+            elif role == 'vip' and portfolio_count >= 10:
+                bot.reply_to(message, "🔒 **จำกัดพอร์ต 10 หุ้น (VIP)**\nอัปเกรดเป็น **PRO** เพื่อเพิ่มหุ้นได้ไม่จำกัดครับ! 👑", parse_mode='Markdown')
+                return
+
         # 🌟 ดึงชื่อเพื่อบันทึกลง DB ด้วย
         first_name = message.from_user.first_name or ""
         last_name = message.from_user.last_name or ""
@@ -1066,7 +1076,11 @@ def inline_callbacks(call):
             next_lang = lang_values[(lang_values.index(current_lang) + 1) % len(lang_values)] if current_lang in lang_values else lang_values[0]
             set_user_language(user_id, next_lang)
         elif action == 'digest_next':
-            digest_values = list(ALLOWED_DIGEST_FREQUENCIES)
+            # PRO: 1/4/8/24h — VIP: 4/8/24h เท่านั้น
+            if role in ('pro',) or user_id == ADMIN_ID:
+                digest_values = list(ALLOWED_DIGEST_FREQUENCIES)
+            else:
+                digest_values = [f for f in ALLOWED_DIGEST_FREQUENCIES if f >= 4]
             current_digest = int(settings.get("digest_frequency_hours", digest_values[0]))
             next_digest = digest_values[(digest_values.index(current_digest) + 1) % len(digest_values)] if current_digest in digest_values else digest_values[0]
             set_user_digest_frequency(user_id, next_digest)
@@ -1559,7 +1573,12 @@ def inline_callbacks(call):
 def handle_earnings(message):
     user_id = str(message.chat.id)
     if not is_allowed(user_id): return
-    
+
+    role = check_subscription(user_id)
+    if role not in ('vip', 'pro') and user_id != ADMIN_ID:
+        bot.reply_to(message, "🔒 **ฟีเจอร์ระดับพรีเมียม (VIP+)**\nการวิเคราะห์งบการเงินด้วย AI สงวนสิทธิ์เฉพาะสมาชิก VIP และ PRO ครับ\n\n👉 กด **💎 บัญชี / VIP** เพื่ออัปเกรด", parse_mode="Markdown")
+        return
+
     args = message.text.split()
     if len(args) != 2:
         bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: `/earnings [ชื่อหุ้น]`\n(หุ้นไทยเติม .BK ด้วย เช่น `/earnings PTT.BK`)", parse_mode="Markdown")
