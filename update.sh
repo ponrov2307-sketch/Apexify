@@ -286,8 +286,8 @@ step "🧰 [9/11] Verifying runtime imports" \
 step "🤖 [10/11] Restarting bot core reactor" \
      "systemctl restart \"$SERVICE_NAME\" && systemctl is-active --quiet \"$SERVICE_NAME\"" "false"
 
-step "🌐 [11/11] Relaunching alert satellite + web health-check" \
-     "restart_alert_worker && health_check_local_web" "false"
+step "🌐 [11/11] Web health-check (alert loop now runs inside main.py)" \
+     "health_check_local_web" "false"
 
 echo
 echo -e "${CYAN}🌠==============================================================🌠${NC}"

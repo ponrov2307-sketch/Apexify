@@ -980,19 +980,18 @@ async def create_and_send_podcast(bot_instance, force=False):
 
         count = 0
         for user_id in podcast_recipients:
-            if True:
-                try:
-                    with open(filename, 'rb') as audio:
-                        bot_instance.send_voice(
-                            chat_id=user_id,
-                            voice=audio,
-                            caption="🎧 **Apexify Morning Briefing** 🎙️\nอัปเดตตลาดเช้านี้แบบ Podcast ฟังระหว่างขับรถได้เลยครับ! 🚀",
-                            parse_mode="Markdown"
-                        )
-                    count += 1
-                    await asyncio.sleep(0.5)
-                except Exception as e:
-                    print(f"[Podcast] ส่งให้ {user_id} ไม่สำเร็จ: {e}")
+            try:
+                with open(filename, 'rb') as audio:
+                    bot_instance.send_voice(
+                        chat_id=user_id,
+                        voice=audio,
+                        caption="🎧 **Apexify Morning Briefing** 🎙️\nอัปเดตตลาดเช้านี้แบบ Podcast ฟังระหว่างขับรถได้เลยครับ! 🚀",
+                        parse_mode="Markdown"
+                    )
+                count += 1
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                print(f"[Podcast] ส่งให้ {user_id} ไม่สำเร็จ: {e}")
 
         if count > 0:
             print(f"✅ [Podcast] ส่งเสียงสำเร็จ {count} คน")
