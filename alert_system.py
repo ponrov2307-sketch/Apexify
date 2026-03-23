@@ -1346,6 +1346,7 @@ def run_alert_loop(bot_instance=None):
     last_expiry_warning_date = None
 
     while True:
+      try:
         current_time = time.time()
         thai_time = datetime.utcnow() + timedelta(hours=7)
         current_date_str = thai_time.strftime("%Y-%m-%d")
@@ -1398,7 +1399,10 @@ def run_alert_loop(bot_instance=None):
         check_market_conditions()
         check_custom_price_alerts()
 
-        time.sleep(300)
+      except Exception as e:
+        print(f"[AlertLoop] Exception in loop body: {e}", flush=True)
+
+      time.sleep(300)
 
 
 if __name__ == "__main__":

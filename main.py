@@ -1,3 +1,5 @@
+import sys
+sys.stdout.reconfigure(line_buffering=True)
 from pnl_generator import generate_pnl_card
 import telebot
 import logging
