@@ -640,7 +640,7 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
                       if check_subscription(pro[0]) == 'pro'
                       and should_send_user_notification(pro[0], category="flash_news")]
         conn.close()
-        if force and str(ADMIN_ID) not in recipients:
+        if str(ADMIN_ID) not in recipients:
             recipients.insert(0, str(ADMIN_ID))
         count = 0
         for uid in recipients:
@@ -709,7 +709,7 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             if role in ('pro', 'vip') and should_send_user_notification(uid, category="digest_news"):
                 eligible_users.append(uid)
         cur.close()
-        if force and str(ADMIN_ID) not in [str(u) for u in eligible_users]:
+        if str(ADMIN_ID) not in [str(u) for u in eligible_users]:
             eligible_users.insert(0, ADMIN_ID)
         if not eligible_users:
             conn.close()
@@ -970,14 +970,17 @@ async def create_and_send_podcast(bot_instance, force=False):
         conn = get_connection()
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM users WHERE role IN ('pro', 'vip')")
-        pro_users = cur.fetchall()
+        podcast_recipients = [str(row[0]) for row in cur.fetchall()
+                              if check_subscription(row[0]) in ('pro', 'vip')
+                              and should_send_user_notification(row[0], category="morning_briefing")]
         cur.close()
         conn.close()
+        if str(ADMIN_ID) not in podcast_recipients:
+            podcast_recipients.insert(0, str(ADMIN_ID))
 
         count = 0
-        for row in pro_users:
-            user_id = row[0]
-            if check_subscription(user_id) in ('pro', 'vip') and should_send_user_notification(user_id, category="morning_briefing"):
+        for user_id in podcast_recipients:
+            if True:
                 try:
                     with open(filename, 'rb') as audio:
                         bot_instance.send_voice(
@@ -1147,20 +1150,23 @@ def send_morning_briefing(bot_instance, force=False):
             conn = get_connection()
             cur = conn.cursor()
             cur.execute("SELECT user_id FROM users WHERE role IN ('vip', 'pro')")
-            pro_users = cur.fetchall()
-            
-            count = 0
-            for pro in pro_users:
-                if check_subscription(pro[0]) in ('vip', 'pro') and should_send_user_notification(pro[0], category="morning_briefing"):
-                    try:
-                        bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
-                        count += 1
-                        time.sleep(0.5)
-                    except Exception as e:
-                        print(f"[MorningBriefing] ส่งให้ {pro[0]} ไม่สำเร็จ: {e}")
-                    
+            recipients = [str(pro[0]) for pro in cur.fetchall()
+                          if check_subscription(pro[0]) in ('vip', 'pro')
+                          and should_send_user_notification(pro[0], category="morning_briefing")]
             cur.close()
             conn.close()
+            if str(ADMIN_ID) not in recipients:
+                recipients.insert(0, str(ADMIN_ID))
+
+            count = 0
+            for uid in recipients:
+                try:
+                    bot_instance.send_message(uid, msg, parse_mode='Markdown')
+                    count += 1
+                    time.sleep(0.5)
+                except Exception as e:
+                    print(f"[MorningBriefing] ส่งให้ {uid} ไม่สำเร็จ: {e}")
+
             if count > 0: print(f"✅ ส่ง Morning Briefing สำเร็จ {count} คน")
     except Exception as e:
         print(f"❌ [MorningBriefing] Error: {e}")
