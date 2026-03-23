@@ -207,6 +207,9 @@ def admin_broadcast():
     else:
         user_ids = all_users
 
+    if str(ADMIN_ID) not in [str(u) for u in user_ids]:
+        user_ids = [ADMIN_ID] + list(user_ids)
+
     result = {"ok": True, "sent": 0, "fail": 0, "total": len(user_ids)}
 
     def _run():
