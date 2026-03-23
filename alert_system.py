@@ -636,16 +636,20 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
         conn = get_connection()
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
-        count = 0
-        for pro in cur.fetchall():
-            if check_subscription(pro[0]) == 'pro' and should_send_user_notification(pro[0], category="flash_news"):
-                try:
-                    bot_instance.send_message(pro[0], msg, parse_mode='Markdown')
-                    count += 1
-                    time.sleep(0.5)
-                except Exception as e:
-                    print(f"[FlashNews] ส่งให้ {pro[0]} ไม่สำเร็จ: {e}")
+        recipients = [str(pro[0]) for pro in cur.fetchall()
+                      if check_subscription(pro[0]) == 'pro'
+                      and should_send_user_notification(pro[0], category="flash_news")]
         conn.close()
+        if force and str(ADMIN_ID) not in recipients:
+            recipients.insert(0, str(ADMIN_ID))
+        count = 0
+        for uid in recipients:
+            try:
+                bot_instance.send_message(uid, msg, parse_mode='Markdown')
+                count += 1
+                time.sleep(0.5)
+            except Exception as e:
+                print(f"[FlashNews] ส่งให้ {uid} ไม่สำเร็จ: {e}")
         print(f"[FlashNews] ส่งสำเร็จ {count} คน ({len(sections)} ข่าว)")
 
     except Exception as e:
@@ -705,6 +709,8 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             if role in ('pro', 'vip') and should_send_user_notification(uid, category="digest_news"):
                 eligible_users.append(uid)
         cur.close()
+        if force and str(ADMIN_ID) not in [str(u) for u in eligible_users]:
+            eligible_users.insert(0, ADMIN_ID)
         if not eligible_users:
             conn.close()
             return
@@ -1321,80 +1327,64 @@ def send_expiry_warnings(bot_instance):
                 print(f"[expiry_warnings] send to {user_id} failed: {e}")
     print(f"[expiry_warnings] ส่งแจ้งเตือนหมดอายุเรียบร้อย")
 
-# 👇 จุดสังเกต: วางไว้เหนือบรรทัดนี้
-if __name__ == "__main__":
-    init_db()
-    try:
-        init_new_features_db()
-    except Exception as e:
-        print("DB Init Error:", e)
-    
-    # 🧹 [เพิ่มบรรทัดนี้] สั่งให้กวาดล้างทันที 1 ครั้ง ตอนที่เพิ่งกดรันบอทใหม่
-    auto_downgrade_expired_users()
-    print("🧹 กวาดล้าง DB ทันทีที่เปิดระบบเรียบร้อยแล้ว!")
+def run_alert_loop(bot_instance=None):
+    """Main alert loop — started as a daemon Thread from main.py"""
+    if bot_instance is None:
+        bot_instance = bot
 
-    # 🌟 โหลดประวัติข่าวที่เคยส่งจาก DB เพื่อป้องกันส่งซ้ำหลัง restart
     _init_sent_pro_news()
-
     print("🚀 Apexify Alert System (PRO + VIP selected features) is Running...")
-    # 🌟 ตั้งค่าเริ่มต้น
+
     last_hourly_news_time = time.time() - FLASH_NEWS_INTERVAL_SECONDS
     last_global_news_time = time.time() - DIGEST_NEWS_CHECK_INTERVAL_SECONDS
-    last_stock_news_check_time = time.time() - STOCK_NEWS_CHECK_INTERVAL_SECONDS  # รันทันทีที่เริ่ม
+    last_stock_news_check_time = time.time() - STOCK_NEWS_CHECK_INTERVAL_SECONDS
     last_morning_briefing_date = None
     last_xd_check_date = None
     last_podcast_date = None
-    # 🌟 เอาบรรทัดนี้มาแปะตรงนี้ครับ
     last_portfolio_summary_date = None
-
-    last_downgrade_date = None # 🌟 เพิ่มตัวแปรสำหรับเช็ควันที่ปรับยศ
+    last_downgrade_date = None
     last_expiry_warning_date = None
 
     while True:
         current_time = time.time()
         thai_time = datetime.utcnow() + timedelta(hours=7)
         current_date_str = thai_time.strftime("%Y-%m-%d")
-        
-        # 🧹 [เพิ่มใหม่] สั่งปรับยศคนหมดอายุตอนเที่ยงคืน (ทำแค่วันละ 1 ครั้ง)
+
         if thai_time.hour == 0 and last_downgrade_date != current_date_str:
             auto_downgrade_expired_users()
             print(f"🧹 [{current_date_str}] Auto-Downgrade: อัปเดต DB ปรับยศคนหมดอายุเรียบร้อย")
             reset_daily_free_usage()
-            send_expiry_warnings(bot)
+            send_expiry_warnings(bot_instance)
             last_downgrade_date = current_date_str
             last_expiry_warning_date = current_date_str
-            
-        # 🌅 ส่ง Morning Briefing (08:30 น.)
+
         if thai_time.hour == 8 and thai_time.minute >= 30:
             if last_morning_briefing_date != current_date_str:
-                send_morning_briefing(bot)
+                send_morning_briefing(bot_instance)
                 last_morning_briefing_date = current_date_str
-        # 🎙️ ส่ง AI Podcast สรุปตลาด (08:00 น.)
+
         if thai_time.hour == 8 and thai_time.minute >= 0 and thai_time.minute < 30:
             if last_podcast_date != current_date_str:
-                # 🌟 เนื่องจากฟังก์ชันเสียงเป็น Async ต้องใช้คำสั่งนี้รัน
-                asyncio.run(create_and_send_podcast(bot))
-                last_podcast_date = current_date_str        
-        # 📅 เช็ค XD Alerts
+                asyncio.run(create_and_send_podcast(bot_instance))
+                last_podcast_date = current_date_str
+
         if last_xd_check_date != current_date_str:
             check_xd_alerts()
             last_xd_check_date = current_date_str
-        # 🌟 เอาบล็อกนี้มาแทรกตรงนี้ครับ (เช็คเวลาตี 5)
+
         if thai_time.hour == 5 and thai_time.minute >= 0:
             if last_portfolio_summary_date != current_date_str:
-                send_daily_portfolio_summary(bot)
+                send_daily_portfolio_summary(bot_instance)
                 last_portfolio_summary_date = current_date_str
-        # 🌟 แจ้งเตือนข่าว Flash News ทุก 3 ชั่วโมง
+
         if current_time - last_hourly_news_time >= FLASH_NEWS_INTERVAL_SECONDS:
-            broadcast_hourly_urgent_news(bot)
+            broadcast_hourly_urgent_news(bot_instance)
             last_hourly_news_time = time.time()
-        
-        # 🌟 ตรวจ Digest News ทุก 1 ชั่วโมง แล้วคัดตามความถี่รายผู้ใช้
+
         if current_time - last_global_news_time >= DIGEST_NEWS_CHECK_INTERVAL_SECONDS:
-            check_and_broadcast_pro_news(bot)
-            last_global_news_time = time.time() 
-            
-        # 🌟 เช็คข่าวหุ้นรายตัว (ทุก 30 นาที — แยกจาก technical indicators)
+            check_and_broadcast_pro_news(bot_instance)
+            last_global_news_time = time.time()
+
         if current_time - last_stock_news_check_time >= STOCK_NEWS_CHECK_INTERVAL_SECONDS:
             active_symbols = get_all_active_symbols()
             for symbol in (active_symbols or []):
@@ -1405,9 +1395,20 @@ if __name__ == "__main__":
             last_stock_news_check_time = time.time()
             print(f"[StockNews] เช็คข่าวรายตัวเสร็จแล้ว ({len(active_symbols or [])} symbols)")
 
-        # 🌟 เช็คกราฟเทคนิค & ตั้งเตือนราคา (ทุก 5 นาที)
         check_market_conditions()
         check_custom_price_alerts()
 
         time.sleep(300)
+
+
+if __name__ == "__main__":
+    init_db()
+    try:
+        init_new_features_db()
+    except Exception as e:
+        print("DB Init Error:", e)
+
+    auto_downgrade_expired_users()
+    print("🧹 กวาดล้าง DB ทันทีที่เปิดระบบเรียบร้อยแล้ว!")
+    run_alert_loop(bot)
 

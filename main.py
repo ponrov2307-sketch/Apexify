@@ -33,7 +33,7 @@ from admin_service import (
 )
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
 from ai_analyzer import generate_apexify_report
-from alert_system import broadcast_hourly_urgent_news, check_and_broadcast_pro_news
+from alert_system import broadcast_hourly_urgent_news, check_and_broadcast_pro_news, run_alert_loop
 from slipok_service import verify_payment_slip
 from curl_cffi import requests as cffi_requests
 
@@ -262,10 +262,10 @@ def handle_force_news(message):
     load_msg = bot.reply_to(message, f"🚨 กำลังสั่งให้ AI ดึงข่าวด่วนแบบ `{news_type.upper()}` และบรอดแคสต์ทันที...")
     try:
         if news_type == 'flash':
-            broadcast_hourly_urgent_news(bot)
+            broadcast_hourly_urgent_news(bot, force=True)
             bot.edit_message_text("✅ บรอดแคสต์ Flash News ข่าวเดียวเด่นๆ สำเร็จ!", message.chat.id, load_msg.message_id)
         elif news_type == 'digest':
-            check_and_broadcast_pro_news(bot)
+            check_and_broadcast_pro_news(bot, force=True)
             bot.edit_message_text("✅ บรอดแคสต์ Digest News (แบบ 2 ข่าวสั้น) สำเร็จ!", message.chat.id, load_msg.message_id)
         else:
             bot.edit_message_text("❌ ประเภทข่าวไม่ถูกต้อง พิมพ์ `/force_news flash` หรือ `/force_news digest`", message.chat.id, load_msg.message_id)
@@ -1834,4 +1834,5 @@ if __name__ == "__main__":
         print("DB Init Error:", e)
         
     keep_alive()
+    threading.Thread(target=run_alert_loop, args=(bot,), daemon=True).start()
     bot.infinity_polling()
