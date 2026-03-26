@@ -571,16 +571,16 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
     นี่คือพาดหัวข่าวล่าสุด:
     {titles_str}
 
-    เลือกข่าวที่ "ด่วนและสำคัญที่สุดในเชิงเศรษฐกิจ" จำนวน 2 ข่าว
-    โดยพิจารณาความน่าเชื่อถือของสำนักข่าวด้วย พยายามเลือกจากคนละสำนักข่าว
-    (ถ้าข่าวมีความรุนแรงหรือสงคราม ให้สรุปเฉพาะผลกระทบทางเศรษฐกิจเท่านั้น ห้ามใส่ลิงก์)
+    เลือกข่าวที่ "ด่วนและสำคัญที่สุดในเชิงเศรษฐกิจ" จำนวน 2 ข่าว จากคนละสำนักข่าวถ้าเป็นไปได้
+    (ถ้าข่าวมีความรุนแรงหรือสงคราม ให้สรุปเฉพาะผลกระทบทางเศรษฐกิจเท่านั้น)
 
     ตอบกลับในรูปแบบ JSON Array เท่านั้น:
     [
         {{
             "original_title": "พาดหัวข่าวที่เลือก",
-            "summary": "อธิบายว่าเกิดอะไรขึ้นและทำไมถึงสำคัญ 3-4 บรรทัด (ภาษาไทย)",
-            "impact": "ผลกระทบต่อตลาดและนักลงทุนโดยตรง 1-2 ประโยค (ภาษาไทย)"
+            "emoji": "emoji 1-2 ตัวที่สื่อทิศทางตลาด เช่น 🔴📉 หรือ 🟢📈 หรือ 🟡⚡️",
+            "headline_th": "พาดหัวสั้นๆ เป็นภาษาไทย ไม่เกิน 10 คำ",
+            "summary": "สรุปสั้นๆ 1-2 ประโยค รวมผลกระทบต่อตลาดด้วย (ภาษาไทย)"
         }}
     ]
     """
@@ -605,24 +605,23 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
         # 🌟 2. สร้าง sections สำหรับแต่ละข่าว
         sections = []
         for item in analysis_list[:2]:
-            title = _normalize_news_title(
+            original_title = _normalize_news_title(
                 item.get('original_title') or item.get('title') or item.get('headline') or ''
             )
+            emoji = item.get('emoji', '📌')
+            headline_th = item.get('headline_th', '') or original_title
             summary = item.get('summary') or item.get('content') or item.get('description') or ''
-            impact = item.get('impact', '')
 
-            if not title or not summary:
+            if not original_title or not summary:
                 continue
             # 🌟 cross-dedup: ใช้ category "news" ร่วมกับ Digest (skip when force=True)
-            if not force and not _claim_dispatch_once("news", title):
+            if not force and not _claim_dispatch_once("news", original_title):
                 continue
 
-            summary = _compact_news_text(summary, max_chars=400, max_lines=5)
-            impact_text = _compact_news_text(impact, max_chars=150, max_lines=2) if impact else ''
-            impact_line = f"\n⚡️ *ผลกระทบ:* {impact_text}" if impact_text else ''
-            sections.append(f"📌 *{title}*\n{summary}{impact_line}")
+            summary = _compact_news_text(summary, max_chars=200, max_lines=2)
+            sections.append(f"{emoji} *{headline_th}*\n{summary}")
             if not force:
-                sent_pro_news.add(title)
+                sent_pro_news.add(original_title)
 
         if not sections:
             return
@@ -631,7 +630,7 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
         if len(sent_pro_news) > 500:
             sent_pro_news.clear()
 
-        msg = "🚨 *Flash News*\n\n" + "\n\n".join(sections)
+        msg = "⚡️ *Flash News*\n\n" + "\n\n".join(sections)
 
         conn = get_connection()
         cur = conn.cursor()
@@ -679,16 +678,16 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
     นี่คือพาดหัวข่าวล่าสุด:
     {titles_str}
 
-    เลือกข่าวเชิงเศรษฐกิจ/การลงทุน ที่ "สำคัญที่สุด" 2 ข่าว
-    พยายามให้มาจากคนละสำนักข่าวถ้าเป็นไปได้
+    เลือกข่าวเชิงเศรษฐกิจ/การลงทุน ที่ "สำคัญที่สุด" 2 ข่าว จากคนละสำนักข่าวถ้าเป็นไปได้
     (เน้นเรื่องเศรษฐกิจ หลีกเลี่ยงเนื้อหาความรุนแรง)
 
     ตอบกลับในรูปแบบ JSON Array เท่านั้น:
     [
         {{
             "original_title": "พาดหัวข่าวต้นฉบับที่เลือก",
-            "summary": "อธิบายว่าเกิดอะไรขึ้นและทำไมสำคัญ 3-4 บรรทัด (ภาษาไทย)",
-            "impact": "ผลกระทบต่อตลาดและนักลงทุน 1-2 ประโยค (ภาษาไทย)"
+            "emoji": "emoji 1-2 ตัวที่สื่อทิศทางตลาด เช่น 🔴📉 หรือ 🟢📈 หรือ 🟡⚡️",
+            "headline_th": "พาดหัวสั้นๆ เป็นภาษาไทย ไม่เกิน 10 คำ",
+            "summary": "สรุปสั้นๆ 1-2 ประโยค รวมผลกระทบต่อตลาดด้วย (ภาษาไทย)"
         }}
     ]
     """
@@ -718,26 +717,24 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
         digest_sections = []
 
         for item in analysis_list[:MAX_DIGEST_ITEMS]:
-            title = _normalize_news_title(item.get('original_title', ''))
+            original_title = _normalize_news_title(item.get('original_title', ''))
+            emoji = item.get('emoji', '📰')
+            headline_th = item.get('headline_th', '') or original_title
             summary = item.get('summary', '')
 
-            if title and summary:
+            if original_title and summary:
                 # 🌟 cross-dedup: ใช้ category "news" ร่วมกับ Flash News (skip when force=True)
-                if not force and not _claim_dispatch_once("news", title):
+                if not force and not _claim_dispatch_once("news", original_title):
                     continue
-                summary = _compact_news_text(summary, max_chars=400, max_lines=5)
-                impact = _compact_news_text(item.get('impact', ''), max_chars=150, max_lines=2)
-                impact_line = f"\n⚡️ *ผลกระทบ:* {impact}" if impact else ''
-                digest_sections.append(
-                    f"**{len(digest_sections) + 1}. {title}**\n{summary}{impact_line}"
-                )
+                summary = _compact_news_text(summary, max_chars=200, max_lines=2)
+                digest_sections.append(f"{emoji} *{headline_th}*\n{summary}")
                 if not force:
-                    sent_pro_news.add(title)
+                    sent_pro_news.add(original_title)
         if not digest_sections:
             conn.close()
             return
 
-        msg = "📰 **APEX NEWS DIGEST**\n\n" + "\n\n".join(digest_sections)
+        msg = "📰 *Apex News Digest*\n\n" + "\n\n".join(digest_sections)
 
         for uid in eligible_users:
             try:
