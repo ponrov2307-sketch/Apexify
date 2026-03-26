@@ -13,7 +13,7 @@ from database import (get_all_active_symbols, get_users_watching, init_db, check
                       auto_downgrade_expired_users, init_new_features_db,
                       should_send_user_notification, mark_digest_sent,
                       reset_daily_free_usage, get_expiring_subscriptions,
-                      get_top_watched_symbols)
+                      get_top_watched_symbols, get_all_earnings_subscriptions)
 import json
 import xml.etree.ElementTree as ET 
 import yfinance as yf
@@ -1459,6 +1459,49 @@ def send_watchlist_daily_summary(bot_instance):
         print(f"✅ [WatchlistSummary] ส่งสำเร็จ {count} คน", flush=True)
 
 
+def check_earnings_calendar(bot_instance):
+    """แจ้งเตือน Earnings วันนี้ให้ผู้ใช้ที่สมัครไว้ — เรียกทุกวัน 8:00 น."""
+    try:
+        subscriptions = get_all_earnings_subscriptions()  # {symbol: [user_id, ...]}
+        if not subscriptions:
+            return
+        today = datetime.utcnow().date()
+        notified = {}  # {user_id: [line, ...]}
+        for symbol, user_ids in subscriptions.items():
+            try:
+                ticker = yf.Ticker(symbol)
+                cal = ticker.calendar
+                if cal is None or cal.empty:
+                    continue
+                # yfinance calendar: columns include 'Earnings Date'
+                if 'Earnings Date' in cal.columns:
+                    earn_dates = cal['Earnings Date'].dropna()
+                else:
+                    continue
+                # Check if any earnings date is today or tomorrow
+                for ed in earn_dates:
+                    ed_date = ed.date() if hasattr(ed, 'date') else None
+                    if ed_date and (ed_date == today or ed_date == today + timedelta(days=1)):
+                        label = "วันนี้" if ed_date == today else "พรุ่งนี้"
+                        line = f"📅 **{symbol}** — Earnings {label} ({ed_date.strftime('%d %b')})"
+                        for uid in user_ids:
+                            notified.setdefault(uid, []).append(line)
+                        break
+            except Exception:
+                pass
+        for uid, lines in notified.items():
+            try:
+                msg = "🗓 **Earnings Alert วันนี้**\n\n" + "\n".join(lines) + "\n\n_💡 ใช้ /earnings เพื่อจัดการการแจ้งเตือน_"
+                bot_instance.send_message(uid, msg, parse_mode="Markdown")
+                time.sleep(0.2)
+            except Exception as e:
+                print(f"[EarningsAlert] ส่งให้ {uid} ไม่สำเร็จ: {e}")
+        if notified:
+            print(f"✅ [EarningsAlert] ส่ง {len(notified)} users", flush=True)
+    except Exception as e:
+        print(f"[EarningsAlert] Error: {e}", flush=True)
+
+
 def run_alert_loop(bot_instance=None):
     """Main alert loop — started as a daemon Thread from main.py"""
     if bot_instance is None:
@@ -1477,6 +1520,7 @@ def run_alert_loop(bot_instance=None):
     last_downgrade_date = None
     last_expiry_warning_date = None
     last_watchlist_summary_date = None
+    last_earnings_check_date = None
 
     while True:
       try:
@@ -1491,6 +1535,10 @@ def run_alert_loop(bot_instance=None):
             send_expiry_warnings(bot_instance)
             last_downgrade_date = current_date_str
             last_expiry_warning_date = current_date_str
+
+        if thai_time.hour == 8 and last_earnings_check_date != current_date_str:
+            check_earnings_calendar(bot_instance)
+            last_earnings_check_date = current_date_str
 
         if thai_time.hour == 8 and thai_time.minute >= 30:
             if last_morning_briefing_date != current_date_str:

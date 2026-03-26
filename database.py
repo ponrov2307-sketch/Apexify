@@ -421,6 +421,7 @@ def init_db():
                  (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT, role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0, username TEXT DEFAULT 'Unknown')''')
     # Keep old deployments compatible by adding missing column if table already exists.
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT DEFAULT 'Unknown'")
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_used BOOLEAN DEFAULT FALSE")
     
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes 
@@ -1005,8 +1006,18 @@ def init_new_features_db():
         """
     )
     c.execute("DELETE FROM user_price_alerts WHERE COALESCE(is_active, 1) <> 1")
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS earnings_alerts (
+            id SERIAL PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, symbol)
+        )
+    """)
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_used BOOLEAN DEFAULT FALSE")
     conn.commit()
-    
+
     # 🌟 2. บังคับอัปเดตคอลัมน์ให้ฐานข้อมูลเก่าที่มีอยู่แล้ว (ป้องกัน Error)
     try:
         c.execute("ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS alert_price NUMERIC DEFAULT 0")
@@ -1267,32 +1278,42 @@ def should_send_user_notification(user_id, category="general", now_utc=None):
 
 
 def process_referral(referrer_id, new_user_id):
-    """จัดการเมื่อมีคนกดลิงก์ชวนเพื่อนเข้ามาใช้งานบอทครั้งแรก"""
+    """จัดการเมื่อมีคนกดลิงก์ชวนเพื่อนเข้ามาใช้งานบอทครั้งแรก
+    รางวัล: ทุก 3 referrals = VIP 30 วัน (milestone), ฟรี user ได้ +3 โควต้าต่อคน"""
     conn = get_connection()
     c = conn.cursor()
     try:
-        # ใช้ %s แทน ? สำหรับ PostgreSQL
         c.execute("SELECT user_id FROM users WHERE user_id = %s", (new_user_id,))
-        if c.fetchone(): 
-            return False 
-        
+        if c.fetchone():
+            return False, False
+
         c.execute("INSERT INTO referrals (referrer_id, referred_id) VALUES (%s, %s)", (referrer_id, new_user_id))
-        
-        c.execute("SELECT role, expiry_date FROM users WHERE user_id = %s", (referrer_id,))
-        row = c.fetchone()
-        if row:
-            role = row[0]
-            if role in ['vip', 'pro']:
-                # บวกเวลา 1 วัน สำหรับ PostgreSQL
-                c.execute("UPDATE users SET expiry_date = expiry_date + INTERVAL '1 day' WHERE user_id = %s", (referrer_id,))
-            else:
-                # ใช้ GREATEST แทน MAX
+
+        c.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = %s", (referrer_id,))
+        new_count = c.fetchone()[0]
+
+        milestone_hit = (new_count % 3 == 0)
+
+        if milestone_hit:
+            # ทุก 3 referrals → VIP 30 วัน
+            c.execute("""
+                UPDATE users SET
+                    role = 'vip',
+                    expiry_date = GREATEST(COALESCE(expiry_date, NOW()), NOW()) + INTERVAL '30 days'
+                WHERE user_id = %s
+            """, (referrer_id,))
+        else:
+            # per-referral: free user ได้ +3 โควต้า
+            c.execute("SELECT role FROM users WHERE user_id = %s", (referrer_id,))
+            row = c.fetchone()
+            if row and row[0] not in ('vip', 'pro'):
                 c.execute("UPDATE users SET usage_count = GREATEST(0, usage_count - 3) WHERE user_id = %s", (referrer_id,))
+
         conn.commit()
-        return True
+        return True, milestone_hit
     except Exception as e:
         print(f"Referral Error: {e}")
-        return False
+        return False, False
     finally:
         conn.close()
 
@@ -1444,3 +1465,129 @@ def add_watch(user_id: str, symbol: str):
         return _add_user_watchlist_item(user_id, symbol)
     except Exception:
         return False
+
+
+# ==========================================
+# 🌟 Free Trial 7 วัน PRO
+# ==========================================
+def has_used_free_trial(user_id: str) -> bool:
+    """ตรวจสอบว่า user เคยใช้ Free Trial แล้วหรือยัง"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT free_trial_used FROM users WHERE user_id = %s", (str(user_id),))
+    row = c.fetchone()
+    conn.close()
+    return bool(row and row[0])
+
+
+def activate_free_trial(user_id: str) -> bool:
+    """เปิด Free Trial PRO 7 วัน — คืนค่า True ถ้าสำเร็จ"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT role, free_trial_used FROM users WHERE user_id = %s", (str(user_id),))
+        row = c.fetchone()
+        if not row:
+            return False
+        role, used = row
+        if used:
+            return False
+        if role in ('vip', 'pro'):
+            # ถ้ามี subscription อยู่แล้ว ไม่ให้ใช้ trial
+            return False
+        c.execute("""
+            UPDATE users SET
+                role = 'pro',
+                expiry_date = NOW() + INTERVAL '7 days',
+                free_trial_used = TRUE
+            WHERE user_id = %s
+        """, (str(user_id),))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"[FreeTrial] Error: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+
+# ==========================================
+# 🌟 Earnings Calendar Alert
+# ==========================================
+def init_earnings_alerts_db():
+    """สร้างตาราง earnings_alerts ถ้ายังไม่มี"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS earnings_alerts (
+            id SERIAL PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, symbol)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def add_earnings_alert_db(user_id: str, symbol: str) -> bool:
+    """สมัครรับแจ้งเตือน Earnings สำหรับ symbol"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "INSERT INTO earnings_alerts (user_id, symbol) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            (str(user_id), symbol.upper().strip()),
+        )
+        conn.commit()
+        return c.rowcount > 0
+    except Exception as e:
+        print(f"[EarningsAlert] add error: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+
+def get_user_earnings_alerts_db(user_id: str) -> list:
+    """ดึง list ของ symbol ที่ user สมัครแจ้งเตือน Earnings"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT symbol FROM earnings_alerts WHERE user_id = %s ORDER BY symbol", (str(user_id),))
+    rows = c.fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
+
+def remove_earnings_alert_db(user_id: str, symbol: str) -> bool:
+    """ยกเลิกแจ้งเตือน Earnings สำหรับ symbol"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "DELETE FROM earnings_alerts WHERE user_id = %s AND symbol = %s",
+            (str(user_id), symbol.upper().strip()),
+        )
+        conn.commit()
+        return c.rowcount > 0
+    except Exception as e:
+        print(f"[EarningsAlert] remove error: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+
+def get_all_earnings_subscriptions() -> dict:
+    """คืน {symbol: [user_id, ...]} สำหรับทุก symbol ที่มีคนสมัครไว้"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT symbol, user_id FROM earnings_alerts ORDER BY symbol")
+    rows = c.fetchall()
+    conn.close()
+    result: dict = {}
+    for sym, uid in rows:
+        result.setdefault(sym, []).append(uid)
+    return result

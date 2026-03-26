@@ -14,16 +14,18 @@ from keep_alive import keep_alive
 from config import TELEGRAM_TOKEN, ADMIN_ID, DASHBOARD_LOGIN_TOKEN_TTL, APEXIFY_PASSWORD, gemini_client
 from dashboard_login import issue_admin_dashboard_url, issue_dashboard_login_url
 # 🌟 Import ฟังก์ชันฐานข้อมูลทั้งหมด รวมถึงระบบจัดการพอร์ต
-from database import (get_all_users, init_db, register_user, check_subscription, add_subscription, 
-                      get_usage, increment_usage, add_watch, get_user_watch, get_user_profile, 
-                      remove_watch_db, add_promo_code, redeem_code, get_user_stats, 
+from database import (get_all_users, init_db, register_user, check_subscription, add_subscription,
+                      get_usage, increment_usage, add_watch, get_user_watch, get_user_profile,
+                      remove_watch_db, add_promo_code, redeem_code, get_user_stats,
                       claim_slip_and_add_subscription, ban_user, unban_user, is_user_banned,
-                      init_new_features_db, process_referral, get_referral_stats, 
+                      init_new_features_db, process_referral, get_referral_stats,
                       add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,
                       get_connection, add_portfolio_stock, get_user_portfolio,
                       get_user_settings, set_user_notifications, set_user_timezone,
                       set_user_language, set_user_digest_frequency, set_user_news_window,
-                      ALLOWED_TIMEZONES, ALLOWED_LANGUAGES, ALLOWED_DIGEST_FREQUENCIES)
+                      ALLOWED_TIMEZONES, ALLOWED_LANGUAGES, ALLOWED_DIGEST_FREQUENCIES,
+                      has_used_free_trial, activate_free_trial,
+                      add_earnings_alert_db, get_user_earnings_alerts_db, remove_earnings_alert_db)
 from admin_service import (
     build_local_backup_zip,
     get_maintenance_status,
@@ -252,7 +254,8 @@ def handle_users_pro(message):
                 
         bot.edit_message_text(report, message.chat.id, load_msg.message_id, parse_mode="Markdown")
     except Exception as e:
-        bot.edit_message_text(f"❌ เกิดข้อผิดพลาด: {e}", message.chat.id, load_msg.message_id)
+        print(f"[BotError] {e}", flush=True)
+        bot.edit_message_text("❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ", message.chat.id, load_msg.message_id)
 
 @bot.message_handler(commands=['force_news'])
 def handle_force_news(message):
@@ -318,7 +321,8 @@ def handle_mock_alert(message):
             
         bot.send_message(ADMIN_ID, f"🧪 **[MOCK TEST]** ส่งทดสอบข้อความแจ้งเตือนเข้าแชทคุณสำเร็จ:\n\n{msg}", parse_mode="Markdown")
     except Exception as e:
-        bot.reply_to(message, f"❌ เกิดข้อผิดพลาด: {e}")        
+        print(f"[BotError] {e}", flush=True)
+        bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")        
 def generate_random_code(length=6):
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
@@ -412,8 +416,20 @@ def send_welcome(message):
         referrer_id = args[1].replace('REF_', '')
         if referrer_id != user_id:
             try:
-                if process_referral(referrer_id, user_id):
-                    bot.send_message(referrer_id, "🎉 **ยินดีด้วย!** มีเพื่อนสมัครใช้งานผ่านลิงก์ของคุณ\nคุณได้รับโบนัสการใช้งานเรียบร้อยแล้ว! 🎁", parse_mode="Markdown")
+                success, milestone_hit = process_referral(referrer_id, user_id)
+                if success:
+                    if milestone_hit:
+                        new_count = get_referral_stats(referrer_id)
+                        bot.send_message(referrer_id,
+                            f"🎉 **ยินดีด้วย! Milestone ครบ {new_count} คน!**\n\n"
+                            "🏆 คุณได้รับ **VIP 30 วันฟรี** เรียบร้อยแล้ว!\n"
+                            "ชวนต่อไปทุก 3 คน = VIP เพิ่มอีก 30 วัน 🚀",
+                            parse_mode="Markdown")
+                    else:
+                        bot.send_message(referrer_id,
+                            "🎁 มีเพื่อนสมัครผ่านลิงก์ของคุณแล้ว!\n"
+                            "ชวนครบ 3 คน รับ VIP 30 วันฟรีครับ 🤝",
+                            parse_mode="Markdown")
             except Exception as e:
                 print(f"Referral logic error: {e}")
     
@@ -502,7 +518,8 @@ def handle_add_stock(message):
     except ValueError:
         bot.reply_to(message, "❌ จำนวนหุ้นและราคาต้องเป็นตัวเลขเท่านั้นครับ!")
     except Exception as e:
-        bot.reply_to(message, f"❌ เกิดข้อผิดพลาด: {e}")
+        print(f"[BotError] {e}", flush=True)
+        bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")
 
 # ==========================================
 # 🌟 ระบบบันทึกและดูพอร์ตลงทุน (แก้บั๊ก Telegram Markdown)
@@ -636,7 +653,8 @@ def handle_pnl_card(message):
         bot.delete_message(message.chat.id, wait_msg.message_id)
         
     except Exception as e:
-        bot.reply_to(message, f"❌ เกิดข้อผิดพลาด: {e}")
+        print(f"[BotError] {e}", flush=True)
+        bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")
         print(f"PnL Error: {e}") 
     finally:
         c.close()
@@ -706,7 +724,8 @@ def handle_set_alert(message):
     except ValueError:
         bot.reply_to(message, "❌ ราคาต้องเป็นตัวเลขเท่านั้นครับ เช่น 35 หรือ 35.50")
     except Exception as e:
-        bot.reply_to(message, f"❌ เกิดข้อผิดพลาด: {e}")
+        print(f"[BotError] {e}", flush=True)
+        bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")
 
 @bot.message_handler(commands=['delalert'])
 def handle_del_alert(message):
@@ -801,6 +820,97 @@ def handle_redeem(message):
     else:
         bot.reply_to(message, "❌ โค้ดไม่ถูกต้อง หรือไม่มีในระบบ")
 
+@bot.message_handler(commands=['freetrial'])
+def handle_free_trial(message):
+    """ทดลองใช้ PRO 7 วันฟรี — ใช้ได้ 1 ครั้งต่อ account"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    role = check_subscription(user_id)
+    if role in ('vip', 'pro'):
+        bot.reply_to(message, "ℹ️ คุณมีแพ็กเกจ VIP/PRO อยู่แล้วครับ ไม่จำเป็นต้องใช้ Free Trial")
+        return
+    if has_used_free_trial(user_id):
+        bot.reply_to(message,
+            "⚠️ **Free Trial ใช้ได้เพียง 1 ครั้งต่อบัญชีครับ**\n\n"
+            "💎 หากต้องการใช้งานต่อ สมัคร VIP/PRO ได้ที่เมนู [💎 บัญชี / VIP]",
+            parse_mode="Markdown")
+        return
+    ok = activate_free_trial(user_id)
+    if ok:
+        bot.reply_to(message,
+            "🎉 **ยินดีต้อนรับสู่ PRO 7 วัน!**\n\n"
+            "✅ คุณได้รับสิทธิ์ PRO เต็มรูปแบบ 7 วันฟรีแล้ว\n\n"
+            "**สิ่งที่คุณทำได้ตอนนี้:**\n"
+            "• วิเคราะห์หุ้นไม่จำกัดครั้ง\n"
+            "• รับข่าว Flash News & Digest\n"
+            "• Morning Briefing รายวัน\n"
+            "• Watchlist ไม่จำกัด\n\n"
+            "_ใช้งานได้จนครบ 7 วัน — จากนั้นอัปเกรดเพื่อใช้ต่อเนื่อง_",
+            parse_mode="Markdown")
+    else:
+        bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")
+
+
+@bot.message_handler(commands=['earnings'])
+def handle_earnings(message):
+    """จัดการ Earnings Calendar Alert: /earnings [SYMBOL] หรือ /earnings list หรือ /earnings remove SYMBOL"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    role = check_subscription(user_id)
+    args = message.text.split()
+
+    if len(args) == 1:
+        # แสดง help
+        bot.reply_to(message,
+            "📅 **Earnings Calendar Alert**\n\n"
+            "รับแจ้งเตือนวันที่บริษัทจะประกาศผลกำไร (Earnings)\n\n"
+            "**คำสั่ง:**\n"
+            "`/earnings AAPL` — สมัครแจ้งเตือน AAPL\n"
+            "`/earnings list` — ดู symbol ที่สมัครไว้\n"
+            "`/earnings remove AAPL` — ยกเลิก AAPL\n\n"
+            "_แจ้งเตือนส่งทุกเช้า 8:00 น. เมื่อมี Earnings วันนั้นหรือพรุ่งนี้_",
+            parse_mode="Markdown")
+        return
+
+    sub_cmd = args[1].upper()
+
+    if sub_cmd == 'LIST':
+        subs = get_user_earnings_alerts_db(user_id)
+        if not subs:
+            bot.reply_to(message, "📋 คุณยังไม่ได้สมัครแจ้งเตือน Earnings ของ symbol ใดเลยครับ\nใช้ `/earnings AAPL` เพื่อสมัคร", parse_mode="Markdown")
+        else:
+            bot.reply_to(message, f"📋 **Earnings Alert ของคุณ:**\n" + "\n".join(f"• {s}" for s in subs), parse_mode="Markdown")
+        return
+
+    if sub_cmd == 'REMOVE' and len(args) >= 3:
+        sym = args[2].upper()
+        ok = remove_earnings_alert_db(user_id, sym)
+        if ok:
+            bot.reply_to(message, f"✅ ยกเลิกแจ้งเตือน **{sym}** แล้วครับ", parse_mode="Markdown")
+        else:
+            bot.reply_to(message, f"⚠️ ไม่พบ **{sym}** ในรายการของคุณ", parse_mode="Markdown")
+        return
+
+    # สมัครแจ้งเตือน
+    symbol = sub_cmd
+    if role == 'free' and str(user_id) != str(ADMIN_ID):
+        bot.reply_to(message,
+            "🔒 **Earnings Alert สำหรับ VIP/PRO**\n\n"
+            "สมัครแพ็กเกจหรือทดลองฟรี 7 วันด้วย `/freetrial` ครับ",
+            parse_mode="Markdown")
+        return
+    ok = add_earnings_alert_db(user_id, symbol)
+    if ok:
+        bot.reply_to(message,
+            f"✅ สมัครแจ้งเตือน **{symbol}** Earnings แล้วครับ\n"
+            "_จะแจ้งเตือนทุกเช้าเมื่อมี Earnings วันนั้นหรือพรุ่งนี้_",
+            parse_mode="Markdown")
+    else:
+        bot.reply_to(message, f"ℹ️ คุณสมัครแจ้งเตือน **{symbol}** ไว้แล้วครับ", parse_mode="Markdown")
+
+
 @bot.message_handler(commands=['addrole'])
 def handle_add_role(message):
     if str(message.chat.id) == ADMIN_ID:
@@ -858,7 +968,8 @@ def handle_stats(message):
         )
         bot.reply_to(message, msg, parse_mode="Markdown")
     except Exception as e:
-        bot.reply_to(message, f"❌ เกิดข้อผิดพลาด: {e}")
+        print(f"[BotError] {e}", flush=True)
+        bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")
 
 @bot.message_handler(commands=['performance'])
 def handle_performance(message):
@@ -1097,7 +1208,7 @@ def inline_callbacks(call):
     if call.data.startswith('tutorial_analyze_'):
         symbol = call.data.replace('tutorial_analyze_', '').upper()
         load_msg = bot.send_message(user_id, f"🔍 กำลังวิเคราะห์ {symbol}...")
-        tech_data, chart, err = calculate_technical_indicators(symbol)
+        tech_data, chart, err = _get_cached_analysis(symbol)
         if err or not tech_data:
             bot.edit_message_text(f"❌ ไม่สามารถดึงข้อมูล {symbol} ได้", user_id, load_msg.message_id)
             return
@@ -1224,17 +1335,21 @@ def inline_callbacks(call):
             bot_info = bot.get_me()
             bot_username = bot_info.username
             ref_link = f"https://t.me/{bot_username}?start=REF_{user_id}"
+            next_milestone = 3 - (ref_count % 3) if ref_count % 3 != 0 else 3
+            progress_bar = "🟩" * (ref_count % 3) + "⬜" * (3 - (ref_count % 3))
             msg = (
-                "🤝 **ชวนเพื่อนรับฟรี VIP/โควต้า!** 🤝\n\n"
-                "คัดลอกลิงก์ด้านล่างนี้ส่งให้เพื่อน หากเพื่อนสมัครใช้งานผ่านลิงก์ของคุณสำเร็จ รับรางวัลทันที:\n\n"
-                "🆓 สายฟรีชวนเพื่อน: **รับโควต้าวิเคราะห์เพิ่ม 3 ครั้ง/คน**\n"
-                "👑 VIP/PRO ชวนเพื่อน: **รับวันใช้งานเพิ่ม 1 วัน/คน**\n\n"
+                "🤝 **ชวนเพื่อน รับ VIP ฟรี!** 🤝\n\n"
+                "🎁 **รางวัล Milestone:**\n"
+                "   ทุก **3 เพื่อน** → **VIP 30 วัน ฟรี!**\n"
+                "   (ชวนครบ 6 = VIP 60 วัน, 9 = 90 วัน ...)\n\n"
+                f"📊 **ความคืบหน้าของคุณ:** {ref_count} คน\n"
+                f"   {progress_bar}  อีก {next_milestone} คน ถึง milestone!\n\n"
                 f"🔗 **ลิงก์ของคุณ:**\n`{ref_link}`\n\n"
-                f"📊 **สถิติของคุณ:** ชวนสำเร็จ {ref_count} คน"
+                "_คัดลอกลิงก์ส่งให้เพื่อน — เพื่อนต้องกด Start ผ่านลิงก์นี้เท่านั้น_"
             )
             bot.send_message(user_id, msg, parse_mode="Markdown")
         except Exception as e:
-            bot.send_message(user_id, f"❌ ระบบชวนเพื่อนขัดข้อง (ฐานข้อมูลอาจยังไม่อัปเดต)\nแจ้งเตือน: {e}")
+            bot.send_message(user_id, "❌ ระบบชวนเพื่อนขัดข้องชั่วคราว กรุณาลองใหม่ครับ")
             
     elif call.data == 'menu_dashboard':
         send_dashboard_login_link(user_id)
@@ -1456,7 +1571,8 @@ def inline_callbacks(call):
                 )
                 bot.edit_message_text("\n".join(lines), chat_id=user_id, message_id=load_msg.message_id, parse_mode='HTML')
         except Exception as e:
-            bot.edit_message_text(f"❌ เกิดข้อผิดพลาด: {e}", chat_id=user_id, message_id=load_msg.message_id)
+            print(f"[BotError] {e}", flush=True)
+            bot.edit_message_text("❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ", chat_id=user_id, message_id=load_msg.message_id)
         
     elif call.data == 'hub_scan':
         try:
@@ -1688,6 +1804,46 @@ def handle_earnings(message):
     except Exception as e:
         bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูลงบการเงิน: {e}", message.chat.id, load_msg.message_id) 
 
+_analysis_cache = {}  # {symbol: (timestamp, tech_data, chart, err)}
+_ANALYSIS_CACHE_TTL = 300  # 5 minutes
+
+
+def _get_cached_analysis(symbol):
+    """ดึงผล analysis จาก cache ถ้ายังไม่หมดอายุ (5 นาที) ลด Gemini API call"""
+    now = time.time()
+    if symbol in _analysis_cache:
+        ts, td, ch, er = _analysis_cache[symbol]
+        if now - ts < _ANALYSIS_CACHE_TTL:
+            return td, ch, er
+    td, ch, er = calculate_technical_indicators(symbol)
+    _analysis_cache[symbol] = (now, td, ch, er)
+    return td, ch, er
+
+
+def _send_safe(bot_instance, chat_id, text, parse_mode=None, reply_markup=None, max_len=4096):
+    """ส่งข้อความยาวโดยแบ่งอัตโนมัติถ้าเกิน Telegram limit (4096 chars)"""
+    if len(text) <= max_len:
+        try:
+            bot_instance.send_message(chat_id, text, parse_mode=parse_mode, reply_markup=reply_markup)
+        except Exception:
+            bot_instance.send_message(chat_id, text, reply_markup=reply_markup)
+        return
+    chunks, buf = [], ""
+    for line in text.split('\n'):
+        if len(buf) + len(line) + 1 > max_len:
+            chunks.append(buf)
+            buf = line
+        else:
+            buf = (buf + '\n' + line) if buf else line
+    if buf:
+        chunks.append(buf)
+    for i, chunk in enumerate(chunks):
+        kb = reply_markup if i == len(chunks) - 1 else None
+        try:
+            bot_instance.send_message(chat_id, chunk, parse_mode=parse_mode, reply_markup=kb)
+        except Exception:
+            bot_instance.send_message(chat_id, chunk, reply_markup=kb)
+
 # 🌟 ตัวแปรเก็บสถานะการตอบควิซ
 # ==========================================
 # 🌟 ตัวรับข้อความหลัก (Main Handler)
@@ -1833,11 +1989,17 @@ def handle_main(message):
 
     usage = get_usage(user_id)
     if user_id != ADMIN_ID and role == 'free' and usage >= 10:
-        bot.reply_to(message, "🔒 โควต้าฟรีวันนี้หมดแล้ว (10/10)\n\n⏰ โควต้าจะรีเซ็ตใหม่อัตโนมัติตอนเที่ยงคืน หรือกดเข้าเมนู [💎 บัญชี / VIP] เพื่อสมัครใช้งานไม่จำกัดครับ!")
+        from datetime import datetime as _dt, timedelta as _td
+        _now_thai = _dt.utcnow() + _td(hours=7)
+        _midnight = _now_thai.replace(hour=0, minute=0, second=0, microsecond=0) + _td(days=1)
+        _mins_left = int((_midnight - _now_thai).total_seconds() // 60)
+        _h, _m = divmod(_mins_left, 60)
+        _reset_str = f"{_h} ชม. {_m} นาที" if _h else f"{_m} นาที"
+        bot.reply_to(message, f"🔒 โควต้าฟรีวันนี้หมดแล้ว (10/10)\n\n⏰ รีเซ็ตใหม่ในอีก **{_reset_str}** (เที่ยงคืน)\n\n💎 หรือสมัคร VIP/PRO เพื่อใช้งานไม่จำกัดครับ!", parse_mode="Markdown")
         return
 
     load_msg = bot.reply_to(message, f"🔍 กำลังวิเคราะห์ {symbol}...")
-    tech_data, chart, err = calculate_technical_indicators(symbol)
+    tech_data, chart, err = _get_cached_analysis(symbol)
     
     if err:
         bot.edit_message_text(err, message.chat.id, load_msg.message_id)
@@ -1867,10 +2029,7 @@ def handle_main(message):
                 bot.send_photo(message.chat.id, chart)
             except Exception:
                 pass
-        try:
-            bot.send_message(message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
-        except Exception:
-            bot.send_message(message.chat.id, report, reply_markup=markup)
+        _send_safe(bot, message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
     elif len(report) > 1000:
         bot.send_photo(message.chat.id, chart)
         try:
