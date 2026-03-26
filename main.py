@@ -420,10 +420,16 @@ def send_welcome(message):
                 if success:
                     if milestone_hit:
                         new_count = get_referral_stats(referrer_id)
+                        ref_role = check_subscription(referrer_id)
+                        if ref_role == 'pro':
+                            reward_text = "**PRO +10 วัน** เรียบร้อยแล้ว!"
+                            next_text = "ชวนต่อทุก 3 คน = PRO +10 วัน 🚀"
+                        else:
+                            reward_text = "**VIP 30 วันฟรี** เรียบร้อยแล้ว!"
+                            next_text = "ชวนต่อทุก 3 คน = VIP +30 วัน 🚀"
                         bot.send_message(referrer_id,
                             f"🎉 **ยินดีด้วย! Milestone ครบ {new_count} คน!**\n\n"
-                            "🏆 คุณได้รับ **VIP 30 วันฟรี** เรียบร้อยแล้ว!\n"
-                            "ชวนต่อไปทุก 3 คน = VIP เพิ่มอีก 30 วัน 🚀",
+                            f"🏆 คุณได้รับ {reward_text}\n{next_text}",
                             parse_mode="Markdown")
                     else:
                         bot.send_message(referrer_id,

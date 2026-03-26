@@ -1295,11 +1295,14 @@ def process_referral(referrer_id, new_user_id):
         milestone_hit = (new_count % 3 == 0)
 
         if milestone_hit:
-            # ทุก 3 referrals → +30 วัน, ยกระดับเป็น VIP ยกเว้นถ้ามี PRO อยู่แล้ว (ไม่ downgrade)
+            # ทุก 3 referrals → milestone reward
+            # PRO (499/เดือน): +10 วัน — ไม่ขาดทุนมากเกิน
+            # VIP/Free: ยกเป็น VIP +30 วัน
             c.execute("""
                 UPDATE users SET
                     role = CASE WHEN role = 'pro' THEN 'pro' ELSE 'vip' END,
-                    expiry_date = GREATEST(COALESCE(expiry_date, NOW()), NOW()) + INTERVAL '30 days'
+                    expiry_date = GREATEST(COALESCE(expiry_date, NOW()), NOW()) +
+                        CASE WHEN role = 'pro' THEN INTERVAL '10 days' ELSE INTERVAL '30 days' END
                 WHERE user_id = %s
             """, (referrer_id,))
         else:
