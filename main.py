@@ -440,6 +440,23 @@ def send_welcome(message):
     )
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
 
+    # Tutorial card with inline keyboard
+    tutorial_markup = InlineKeyboardMarkup(row_width=2)
+    tutorial_markup.add(
+        InlineKeyboardButton("📊 ลอง AAPL", callback_data="tutorial_analyze_AAPL"),
+        InlineKeyboardButton("📊 ลอง PTT.BK", callback_data="tutorial_analyze_PTT.BK"),
+    )
+    tutorial_markup.add(InlineKeyboardButton("📱 เปิดเมนูหลัก", callback_data="hub_home"))
+    _, login_url, _ = issue_dashboard_login_url(user_id)
+    if login_url:
+        tutorial_markup.add(InlineKeyboardButton("🌐 Web Dashboard", url=login_url))
+    bot.send_message(
+        user_id,
+        "🚀 **เริ่มต้นได้เลยครับ!**\n\nกดปุ่มด้านล่างเพื่อทดลองวิเคราะห์หุ้น หรือเปิดฟีเจอร์ที่ต้องการ 👇",
+        reply_markup=tutorial_markup,
+        parse_mode="Markdown",
+    )
+
 # ==========================================
 # 🌟 ระบบบันทึกและดูพอร์ตลงทุน (Apex Wealth Master)
 # ==========================================
@@ -641,35 +658,51 @@ def handle_set_alert(message):
     try:
         args = message.text.split()
         if len(args) != 3:
-            bot.reply_to(message, "❌ รูปแบบผิด!\n**วิธีใช้:** `/setalert [ชื่อหุ้น] [ราคาที่ต้องการ]`\nเช่น: `/setalert PTT.BK 35`", parse_mode="Markdown")
+            bot.reply_to(message, "❌ รูปแบบผิด!\n**วิธีใช้:**\n• `/setalert AAPL 180` — ระบุราคาเป้าหมาย\n• `/setalert AAPL +5%` — เพิ่มขึ้น 5% จากราคาปัจจุบัน\n• `/setalert AAPL -3%` — ลดลง 3% จากราคาปัจจุบัน", parse_mode="Markdown")
             return
-            
+
         symbol = args[1].upper()
-        target_price = float(args[2])
-        
+        raw_target = args[2]
+
         load_msg = bot.reply_to(message, f"⏳ กำลังตรวจสอบราคาปัจจุบันของ {symbol}...")
         tech_data, _, err = calculate_technical_indicators(symbol, generate_chart=False)
-        
+
         if err or not tech_data:
             bot.edit_message_text(f"❌ ไม่พบข้อมูลหุ้น **{symbol}**\n\n💡 **คำแนะนำ:**\nหากเป็นหุ้นไทย กรุณาเติม `.BK` ต่อท้ายด้วยครับ เช่น `PTT.BK`, `KBANK.BK`", message.chat.id, load_msg.message_id, parse_mode="Markdown")
             return
-            
+
         current_price = tech_data['price']
-        
+
+        if raw_target.endswith('%'):
+            try:
+                pct = float(raw_target.rstrip('%'))
+                target_price = round(current_price * (1 + pct / 100), 4)
+                pct_label = f" ({raw_target} จาก {current_price:,.2f})"
+            except ValueError:
+                bot.edit_message_text("❌ รูปแบบเปอร์เซ็นต์ไม่ถูกต้อง เช่น `+5%` หรือ `-3%`", message.chat.id, load_msg.message_id, parse_mode="Markdown")
+                return
+        else:
+            try:
+                target_price = float(raw_target)
+                pct_label = ""
+            except ValueError:
+                bot.edit_message_text("❌ ราคาต้องเป็นตัวเลขหรือเปอร์เซ็นต์ เช่น `180` หรือ `+5%`", message.chat.id, load_msg.message_id, parse_mode="Markdown")
+                return
+
         condition = 'above' if target_price > current_price else 'below'
         cond_text = "ขึ้นไปแตะ" if condition == 'above' else "ร่วงลงมาแตะ"
-        
+
         add_price_alert_db(user_id, symbol, target_price, condition)
-        
+
         success_msg = (
             f"✅ **ตั้งเตือนสำเร็จ!** 🔔\n\n"
             f"📌 หุ้น: **{symbol}**\n"
             f"💵 ราคาปัจจุบัน: {current_price:,.2f}\n"
-            f"🎯 ระบบจะแจ้งเตือนเมื่อราคา **{cond_text} {target_price:,.2f}**\n\n"
+            f"🎯 ระบบจะแจ้งเตือนเมื่อราคา **{cond_text} {target_price:,.2f}**{pct_label}\n\n"
             f"*(ระบบจะคอยเฝ้ากราฟและอัปเดตราคาให้ทุกๆ 5 นาทีตลอด 24 ชม.)*"
         )
         bot.edit_message_text(success_msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
-        
+
     except ValueError:
         bot.reply_to(message, "❌ ราคาต้องเป็นตัวเลขเท่านั้นครับ เช่น 35 หรือ 35.50")
     except Exception as e:
@@ -1052,7 +1085,7 @@ def handle_payment_slip_check(message):
 # ==========================================
 # 🌟 ระบบปุ่มกด Inline
 # ==========================================
-@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('delalert_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('delalert_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_') or call.data.startswith('tutorial_'))
 def inline_callbacks(call):
     user_id = str(call.message.chat.id)
     if not is_allowed(user_id): return
@@ -1060,6 +1093,30 @@ def inline_callbacks(call):
     if str(user_id) == str(ADMIN_ID):
         role = 'pro'
     bot.answer_callback_query(call.id)
+
+    if call.data.startswith('tutorial_analyze_'):
+        symbol = call.data.replace('tutorial_analyze_', '').upper()
+        load_msg = bot.send_message(user_id, f"🔍 กำลังวิเคราะห์ {symbol}...")
+        tech_data, chart, err = calculate_technical_indicators(symbol)
+        if err or not tech_data:
+            bot.edit_message_text(f"❌ ไม่สามารถดึงข้อมูล {symbol} ได้", user_id, load_msg.message_id)
+            return
+        report = generate_apexify_report(tech_data, role=role)
+        correct_symbol = tech_data['symbol']
+        kb = InlineKeyboardMarkup(row_width=2)
+        kb.add(InlineKeyboardButton(f"⭐ เพิ่ม {correct_symbol} เข้า Watchlist", callback_data=f"addwatch_{correct_symbol}"))
+        kb.add(InlineKeyboardButton("📱 เมนูหลัก", callback_data="hub_home"))
+        bot.delete_message(user_id, load_msg.message_id)
+        if chart is not None:
+            try:
+                bot.send_photo(user_id, chart)
+            except Exception:
+                pass
+        try:
+            bot.send_message(user_id, report, parse_mode="Markdown", reply_markup=kb)
+        except Exception:
+            bot.send_message(user_id, report, reply_markup=kb)
+        return
 
     if call.data == 'settings_open' or call.data.startswith('settings_'):
         action = call.data.replace('settings_', '', 1)

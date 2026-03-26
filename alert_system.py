@@ -1070,7 +1070,33 @@ def _get_upcoming_economic_events(days_ahead=3):
             upcoming.append(f"{importance} **{event}** ({label})")
     return upcoming
 
-# ==========================================
+_TOP_MOVERS_TICKERS = [
+    "AAPL", "MSFT", "NVDA", "TSLA", "META", "AMZN", "GOOGL",
+    "PTT.BK", "ADVANC.BK", "KBANK.BK", "AOT.BK", "SCB.BK",
+]
+
+def _get_top_movers_section():
+    moves = []
+    for sym in _TOP_MOVERS_TICKERS:
+        try:
+            hist = yf.Ticker(sym).history(period='2d')
+            if len(hist) >= 2:
+                prev = hist['Close'].iloc[-2]
+                curr = hist['Close'].iloc[-1]
+                if prev > 0:
+                    pct = (curr - prev) / prev * 100
+                    moves.append((sym, pct))
+        except Exception:
+            pass
+    if not moves:
+        return ""
+    moves.sort(key=lambda x: x[1], reverse=True)
+    gainers = moves[:3]
+    losers = moves[-3:]
+    g_str = "  ".join(f"{s} {p:+.1f}%" for s, p in gainers)
+    l_str = "  ".join(f"{s} {p:+.1f}%" for s, p in reversed(losers))
+    return f"🏆 **Gainers:** {g_str}\n📉 **Losers:** {l_str}"
+
 # ==========================================
 # 🌟 ฟีเจอร์ Morning Apexify Briefing (08:30 น.)
 # ==========================================
@@ -1081,7 +1107,9 @@ def send_morning_briefing(bot_instance, force=False):
             return
         sp500 = yf.Ticker('^GSPC').history(period='1d')
         btc = yf.Ticker('BTC-USD').history(period='1d')
-        gold = yf.Ticker('GC=F').history(period='1d') 
+        gold = yf.Ticker('GC=F').history(period='1d')
+        set_hist = yf.Ticker('^SET.BK').history(period='2d')
+        usdthb_hist = yf.Ticker('USDTHB=X').history(period='1d')
         
         fresh_news = get_fresh_global_news()
         news_titles = (
@@ -1093,6 +1121,25 @@ def send_morning_briefing(bot_instance, force=False):
             sp500_close = sp500['Close'].iloc[-1]
             btc_close = btc['Close'].iloc[-1]
             gold_close = gold['Close'].iloc[-1] if not gold.empty else 0
+            # SET Index
+            thai_market_section = ""
+            try:
+                if len(set_hist) >= 2:
+                    set_prev = set_hist['Close'].iloc[-2]
+                    set_curr = set_hist['Close'].iloc[-1]
+                    set_pct = (set_curr - set_prev) / set_prev * 100 if set_prev else 0
+                    set_str = f"• SET Index: {set_curr:,.2f} ({set_pct:+.2f}%)\n"
+                elif len(set_hist) == 1:
+                    set_str = f"• SET Index: {set_hist['Close'].iloc[-1]:,.2f}\n"
+                else:
+                    set_str = ""
+                usdthb_str = f"• USD/THB: {usdthb_hist['Close'].iloc[-1]:.2f}\n" if not usdthb_hist.empty else ""
+                if set_str or usdthb_str:
+                    thai_market_section = f"🇹🇭 **ตลาดไทย:**\n{set_str}{usdthb_str}\n"
+            except Exception:
+                pass
+            top_movers_text = _get_top_movers_section()
+            top_movers_section = f"{top_movers_text}\n\n" if top_movers_text else ""
             movers_text = _get_morning_market_movers_text()
             macro_assets_text = _get_morning_macro_assets_text()
             
@@ -1138,8 +1185,10 @@ def send_morning_briefing(bot_instance, force=False):
                 f"• S&P 500: {sp500_close:,.2f}\n"
                 f"• Bitcoin: {btc_close:,.2f}\n"
                 f"• ทองคำโลก (Gold): {gold_close:,.2f}\n\n"
+                f"{thai_market_section}"
                 f"{macro_assets_section}"
                 f"{movers_section}"
+                f"{top_movers_section}"
                 f"{econ_section}"
                 f"🤖 **มุมมอง Apexify วันนี้:**\n{summary}\n\n"
                 f"🔥 *ขอให้พอร์ตเขียวๆ ตลอดวันครับ!*\n\n"
@@ -1332,6 +1381,65 @@ def send_expiry_warnings(bot_instance):
                 print(f"[expiry_warnings] send to {user_id} failed: {e}")
     print(f"[expiry_warnings] ส่งแจ้งเตือนหมดอายุเรียบร้อย")
 
+def send_watchlist_daily_summary(bot_instance):
+    """ส่งสรุป Watchlist รายวันให้ทุก user ที่มี watchlist (23:00 Thai time)"""
+    from database import get_user_watch
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT user_id FROM user_watchlist")
+    users = [row[0] for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    count = 0
+    for user_id in users:
+        if not should_send_user_notification(user_id, category="general"):
+            continue
+        tickers = get_user_watch(user_id)
+        if not tickers:
+            continue
+        rows = []
+        for sym in tickers:
+            try:
+                hist = yf.Ticker(sym).history(period='2d')
+                if len(hist) < 2:
+                    continue
+                prev = hist['Close'].iloc[-2]
+                curr = hist['Close'].iloc[-1]
+                pct = (curr - prev) / prev * 100 if prev else 0
+                tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
+                rsi = tech_data.get('rsi', 50) if tech_data and not err else 50
+                if rsi < 35:
+                    signal = "⚠️ Oversold"
+                elif rsi > 65:
+                    signal = "⚠️ Overbought"
+                elif pct > 0:
+                    signal = "📈 Uptrend"
+                elif pct < 0:
+                    signal = "📉 Downtrend"
+                else:
+                    signal = "➡️ Neutral"
+                icon = "🟢" if pct >= 0 else "🔴"
+                rows.append(f"{icon} **{sym}** {pct:+.2f}%  RSI: {rsi:.0f}  {signal}")
+            except Exception:
+                pass
+        if not rows:
+            continue
+        msg = (
+            f"📋 **Watchlist สรุปวันนี้** ({len(rows)} รายการ)\n\n"
+            + "\n".join(rows)
+            + "\n\n_💡 ส่งทุกวัน 23:00 น. หลังตลาด US ปิด_"
+        )
+        try:
+            bot_instance.send_message(user_id, msg, parse_mode="Markdown")
+            count += 1
+            time.sleep(0.3)
+        except Exception as e:
+            print(f"[WatchlistSummary] ส่งให้ {user_id} ไม่สำเร็จ: {e}")
+    if count > 0:
+        print(f"✅ [WatchlistSummary] ส่งสำเร็จ {count} คน", flush=True)
+
+
 def run_alert_loop(bot_instance=None):
     """Main alert loop — started as a daemon Thread from main.py"""
     if bot_instance is None:
@@ -1349,6 +1457,7 @@ def run_alert_loop(bot_instance=None):
     last_portfolio_summary_date = None
     last_downgrade_date = None
     last_expiry_warning_date = None
+    last_watchlist_summary_date = None
 
     while True:
       try:
@@ -1400,6 +1509,10 @@ def run_alert_loop(bot_instance=None):
                     print(f"❌ [StockNewsLoop] {symbol}: {e}")
             last_stock_news_check_time = time.time()
             print(f"[StockNews] เช็คข่าวรายตัวเสร็จแล้ว ({len(active_symbols or [])} symbols)")
+
+        if thai_time.hour == 23 and last_watchlist_summary_date != current_date_str:
+            send_watchlist_daily_summary(bot_instance)
+            last_watchlist_summary_date = current_date_str
 
         check_market_conditions()
         check_custom_price_alerts()
