@@ -683,7 +683,7 @@ def handle_set_alert(message):
         raw_target = args[2]
 
         load_msg = bot.reply_to(message, f"⏳ กำลังตรวจสอบราคาปัจจุบันของ {symbol}...")
-        tech_data, _, err = calculate_technical_indicators(symbol, generate_chart=False)
+        tech_data, _, err = _get_cached_analysis(symbol, generate_chart=False)
 
         if err or not tech_data:
             bot.edit_message_text(f"❌ ไม่พบข้อมูลหุ้น **{symbol}**\n\n💡 **คำแนะนำ:**\nหากเป็นหุ้นไทย กรุณาเติม `.BK` ต่อท้ายด้วยครับ เช่น `PTT.BK`, `KBANK.BK`", message.chat.id, load_msg.message_id, parse_mode="Markdown")
@@ -852,9 +852,9 @@ def handle_free_trial(message):
         bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")
 
 
-@bot.message_handler(commands=['earnings'])
-def handle_earnings(message):
-    """จัดการ Earnings Calendar Alert: /earnings [SYMBOL] หรือ /earnings list หรือ /earnings remove SYMBOL"""
+@bot.message_handler(commands=['ealert'])
+def handle_ealert(message):
+    """Earnings Calendar Alert: /ealert [SYMBOL] | /ealert list | /ealert remove SYMBOL"""
     user_id = str(message.chat.id)
     if not is_allowed(user_id):
         return
@@ -862,15 +862,14 @@ def handle_earnings(message):
     args = message.text.split()
 
     if len(args) == 1:
-        # แสดง help
         bot.reply_to(message,
             "📅 **Earnings Calendar Alert**\n\n"
-            "รับแจ้งเตือนวันที่บริษัทจะประกาศผลกำไร (Earnings)\n\n"
+            "รับแจ้งเตือนวันที่บริษัทจะประกาศผลกำไร ทุกเช้า 8:00 น.\n\n"
             "**คำสั่ง:**\n"
-            "`/earnings AAPL` — สมัครแจ้งเตือน AAPL\n"
-            "`/earnings list` — ดู symbol ที่สมัครไว้\n"
-            "`/earnings remove AAPL` — ยกเลิก AAPL\n\n"
-            "_แจ้งเตือนส่งทุกเช้า 8:00 น. เมื่อมี Earnings วันนั้นหรือพรุ่งนี้_",
+            "`/ealert AAPL` — สมัครแจ้งเตือน AAPL\n"
+            "`/ealert list` — ดู symbol ที่สมัครไว้\n"
+            "`/ealert remove AAPL` — ยกเลิก AAPL\n\n"
+            "_ฟีเจอร์นี้สำหรับสมาชิก VIP/PRO ครับ_",
             parse_mode="Markdown")
         return
 
@@ -879,9 +878,9 @@ def handle_earnings(message):
     if sub_cmd == 'LIST':
         subs = get_user_earnings_alerts_db(user_id)
         if not subs:
-            bot.reply_to(message, "📋 คุณยังไม่ได้สมัครแจ้งเตือน Earnings ของ symbol ใดเลยครับ\nใช้ `/earnings AAPL` เพื่อสมัคร", parse_mode="Markdown")
+            bot.reply_to(message, "📋 ยังไม่ได้สมัครแจ้งเตือน Earnings ของ symbol ใดเลยครับ\nใช้ `/ealert AAPL` เพื่อสมัคร", parse_mode="Markdown")
         else:
-            bot.reply_to(message, f"📋 **Earnings Alert ของคุณ:**\n" + "\n".join(f"• {s}" for s in subs), parse_mode="Markdown")
+            bot.reply_to(message, "📋 **Earnings Alert ของคุณ:**\n" + "\n".join(f"• {s}" for s in subs), parse_mode="Markdown")
         return
 
     if sub_cmd == 'REMOVE' and len(args) >= 3:
@@ -893,22 +892,83 @@ def handle_earnings(message):
             bot.reply_to(message, f"⚠️ ไม่พบ **{sym}** ในรายการของคุณ", parse_mode="Markdown")
         return
 
-    # สมัครแจ้งเตือน
     symbol = sub_cmd
     if role == 'free' and str(user_id) != str(ADMIN_ID):
         bot.reply_to(message,
             "🔒 **Earnings Alert สำหรับ VIP/PRO**\n\n"
-            "สมัครแพ็กเกจหรือทดลองฟรี 7 วันด้วย `/freetrial` ครับ",
+            "ทดลองฟรี 7 วันด้วย `/freetrial` ครับ",
             parse_mode="Markdown")
         return
     ok = add_earnings_alert_db(user_id, symbol)
     if ok:
         bot.reply_to(message,
             f"✅ สมัครแจ้งเตือน **{symbol}** Earnings แล้วครับ\n"
-            "_จะแจ้งเตือนทุกเช้าเมื่อมี Earnings วันนั้นหรือพรุ่งนี้_",
+            "_แจ้งเตือนทุกเช้าเมื่อมี Earnings วันนั้นหรือพรุ่งนี้_",
             parse_mode="Markdown")
     else:
         bot.reply_to(message, f"ℹ️ คุณสมัครแจ้งเตือน **{symbol}** ไว้แล้วครับ", parse_mode="Markdown")
+
+
+@bot.message_handler(commands=['manual'])
+def handle_manual(message):
+    """คู่มือการใช้งานคำสั่งทั้งหมด"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    role = check_subscription(user_id)
+
+    msg = (
+        "📖 **คู่มือการใช้งาน Apexify** 📖\n"
+        "━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        "**🔍 วิเคราะห์หุ้น**\n"
+        "พิมพ์ชื่อหุ้นตรงๆ ได้เลย ไม่ต้องใช้คำสั่ง\n"
+        "`AAPL` `TSLA` `NVDA` — หุ้น US\n"
+        "`PTT.BK` `KBANK.BK` — หุ้นไทย (ต้องมี .BK)\n"
+        "`CBA.AX` `.L` `.HK` `.T` — ตลาดอื่นๆ\n\n"
+
+        "**💼 จัดการพอร์ต**\n"
+        "`/add AAPL 10 150` — บันทึกซื้อหุ้น 10 หุ้น ราคา 150\n"
+        "`/portfolio` หรือ `/port` — ดูพอร์ตทั้งหมด\n"
+        "`/pnl` — สร้างการ์ด P&L แบบสวยงาม\n\n"
+
+        "**🔔 ตั้งเตือนราคา**\n"
+        "`/setalert AAPL 200` — แจ้งเตือนเมื่อ AAPL ถึง $200\n"
+        "`/setalert AAPL +5%` — แจ้งเตือนเมื่อขึ้น 5%\n"
+        "`/setalert AAPL -3%` — แจ้งเตือนเมื่อลง 3%\n"
+        "`/delalert AAPL` — ลบการแจ้งเตือนของ AAPL\n\n"
+
+        "**📅 Earnings Calendar** _(VIP/PRO)_\n"
+        "`/ealert AAPL` — สมัครแจ้งเตือนวัน Earnings\n"
+        "`/ealert list` — ดูรายการที่สมัครไว้\n"
+        "`/ealert remove AAPL` — ยกเลิก\n"
+        "`/earnings AAPL` — วิเคราะห์งบการเงิน AI _(VIP/PRO)_\n\n"
+
+        "**💎 บัญชี & สิทธิ์**\n"
+        "`/freetrial` — ทดลอง PRO 7 วันฟรี (ใช้ได้ 1 ครั้ง)\n"
+        "`/redeem [โค้ด]` — เติมโค้ดโปรโมชั่น\n\n"
+
+        "**⚙️ การตั้งค่า**\n"
+        "`/settings` — ตั้งค่าการแจ้งเตือน, timezone, ภาษา\n"
+        "`/dashboard` — เปิด Web Dashboard\n\n"
+
+        "**📱 เมนูลัด**\n"
+        "📊 วิเคราะห์หุ้น — เริ่มวิเคราะห์\n"
+        "📱 เปิดเมนูหลัก — Hub ฟีเจอร์ทั้งหมด\n"
+        "💎 บัญชี / VIP — ดูสถานะ & สมัครแพ็กเกจ\n"
+    )
+    if str(user_id) == str(ADMIN_ID):
+        msg += (
+            "\n**👑 Admin Commands**\n"
+            "`/addrole [uid] [vip/pro] [days]` — เพิ่ม role\n"
+            "`/gencode [days] [uses] [vip/pro]` — สร้างโค้ด\n"
+            "`/ban [uid]` / `/unban [uid]` — จัดการ user\n"
+            "`/broadcast [msg]` — ส่งข้อความทุกคน\n"
+            "`/stats` — สถิติผู้ใช้\n"
+            "`/maintenance` — toggle maintenance mode\n"
+            "`/force_news` — force ส่งข่าว\n"
+        )
+    bot.reply_to(message, msg, parse_mode="Markdown")
 
 
 @bot.message_handler(commands=['addrole'])
@@ -1351,6 +1411,25 @@ def inline_callbacks(call):
         except Exception as e:
             bot.send_message(user_id, "❌ ระบบชวนเพื่อนขัดข้องชั่วคราว กรุณาลองใหม่ครับ")
             
+    elif call.data == 'menu_freetrial':
+        role = check_subscription(user_id)
+        if role in ('vip', 'pro'):
+            bot.answer_callback_query(call.id, "คุณมีแพ็กเกจ VIP/PRO อยู่แล้วครับ", show_alert=True)
+        elif has_used_free_trial(user_id):
+            bot.answer_callback_query(call.id, "Free Trial ใช้ได้เพียง 1 ครั้ง/บัญชีครับ", show_alert=True)
+        else:
+            ok = activate_free_trial(user_id)
+            if ok:
+                bot.send_message(user_id,
+                    "🎉 **PRO 7 วันฟรี เปิดใช้งานแล้ว!**\n\n"
+                    "✅ วิเคราะห์ไม่จำกัด\n"
+                    "✅ Flash News & Morning Briefing\n"
+                    "✅ Earnings Alert (`/ealert`)\n\n"
+                    "_ใช้งานได้ทันที 7 วัน ขอบคุณที่ลองใช้ครับ!_",
+                    parse_mode="Markdown")
+            else:
+                bot.answer_callback_query(call.id, "ระบบขัดข้อง กรุณาลองใหม่ครับ", show_alert=True)
+
     elif call.data == 'menu_dashboard':
         send_dashboard_login_link(user_id)
 
@@ -1384,7 +1463,7 @@ def inline_callbacks(call):
                 watch_lines = []
                 for sym in watch_list[:5]:
                     try:
-                        td, _, err = calculate_technical_indicators(sym, generate_chart=False)
+                        td, _, err = _get_cached_analysis(sym, generate_chart=False)
                         if err or not td:
                             continue
                         trend = "🟢" if td['ema20'] > td['ema50'] else "🔴"
@@ -1804,20 +1883,30 @@ def handle_earnings(message):
     except Exception as e:
         bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูลงบการเงิน: {e}", message.chat.id, load_msg.message_id) 
 
-_analysis_cache = {}  # {symbol: (timestamp, tech_data, chart, err)}
+_analysis_cache = {}  # {symbol: (timestamp, tech_data, chart_bytes, err)}
 _ANALYSIS_CACHE_TTL = 300  # 5 minutes
 
 
-def _get_cached_analysis(symbol):
-    """ดึงผล analysis จาก cache ถ้ายังไม่หมดอายุ (5 นาที) ลด Gemini API call"""
+def _get_cached_analysis(symbol, generate_chart=True):
+    """ดึงผล analysis จาก cache ถ้ายังไม่หมดอายุ (5 นาที) ลด Gemini+yfinance call
+    - เก็บ chart เป็น bytes เพื่อสร้าง BytesIO ใหม่ได้ทุกครั้ง (BytesIO cursor ไม่หมด)
+    - generate_chart=False ใช้ใน scan — เร็วกว่ามาก ไม่ต้องรอวาดกราฟ"""
+    import io as _io
     now = time.time()
     if symbol in _analysis_cache:
-        ts, td, ch, er = _analysis_cache[symbol]
+        ts, td, ch_bytes, er = _analysis_cache[symbol]
         if now - ts < _ANALYSIS_CACHE_TTL:
-            return td, ch, er
-    td, ch, er = calculate_technical_indicators(symbol)
-    _analysis_cache[symbol] = (now, td, ch, er)
-    return td, ch, er
+            if generate_chart and ch_bytes is not None:
+                return td, _io.BytesIO(ch_bytes), er
+            return td, None, er
+    td, ch, er = calculate_technical_indicators(symbol, generate_chart=generate_chart)
+    ch_bytes = ch.read() if ch is not None else None
+    # ถ้า no-chart call ให้คงไว้ chart_bytes เดิมใน cache (ถ้ามี)
+    existing = _analysis_cache.get(symbol)
+    saved_bytes = ch_bytes if ch_bytes is not None else (existing[2] if existing else None)
+    _analysis_cache[symbol] = (now, td, saved_bytes, er)
+    chart_out = _io.BytesIO(ch_bytes) if (generate_chart and ch_bytes) else None
+    return td, chart_out, er
 
 
 def _send_safe(bot_instance, chat_id, text, parse_mode=None, reply_markup=None, max_len=4096):
@@ -1936,8 +2025,12 @@ def handle_main(message):
                 InlineKeyboardButton("🎁 เติมโค้ด", callback_data="menu_code")
             )
             markup.add(
-                InlineKeyboardButton("🎁 ชวนเพื่อนรับวัน VIP ฟรี", callback_data="menu_referral")
+                InlineKeyboardButton("🤝 ชวนเพื่อน รับ VIP ฟรี", callback_data="menu_referral")
             )
+            if role == 'free' and not has_used_free_trial(user_id):
+                markup.add(
+                    InlineKeyboardButton("🆓 ทดลองใช้ PRO 7 วันฟรี!", callback_data="menu_freetrial")
+                )
             bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
         else:
             bot.reply_to(message, "❌ ไม่พบข้อมูลบัญชี พิมพ์ /start เพื่อลงทะเบียนใหม่")
