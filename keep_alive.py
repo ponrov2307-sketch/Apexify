@@ -380,6 +380,29 @@ def admin_api_stats():
         return jsonify({"ok": False, "error": str(e)})
 
 
+_webhook_bot = None  # จะถูก set จาก main.py
+
+
+def set_webhook_bot(bot_instance):
+    global _webhook_bot
+    _webhook_bot = bot_instance
+
+
+@app.route(f"/webhook/<secret>", methods=["POST"])
+def webhook_handler(secret):
+    """รับ update จาก Telegram webhook"""
+    if _webhook_bot is None:
+        return "bot not ready", 503
+    # ตรวจ secret ป้องกันคนนอกยิง request เข้ามา
+    expected = (TELEGRAM_TOKEN or "").split(":")[-1]
+    if secret != expected:
+        abort(403)
+    import telebot
+    update = telebot.types.Update.de_json(request.get_data(as_text=True))
+    _webhook_bot.process_new_updates([update])
+    return "ok", 200
+
+
 def run():
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)

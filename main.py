@@ -10,8 +10,8 @@ import time
 import threading
 import xml.etree.ElementTree as ET 
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from keep_alive import keep_alive 
-from config import TELEGRAM_TOKEN, ADMIN_ID, DASHBOARD_LOGIN_TOKEN_TTL, APEXIFY_PASSWORD, gemini_client
+from keep_alive import keep_alive, set_webhook_bot
+from config import TELEGRAM_TOKEN, ADMIN_ID, DASHBOARD_LOGIN_TOKEN_TTL, APEXIFY_PASSWORD, gemini_client, BOT_WEB_BASE_URL
 from dashboard_login import issue_admin_dashboard_url, issue_dashboard_login_url
 # 🌟 Import ฟังก์ชันฐานข้อมูลทั้งหมด รวมถึงระบบจัดการพอร์ต
 from database import (get_all_users, init_db, register_user, check_subscription, add_subscription,
@@ -2216,7 +2216,29 @@ if __name__ == "__main__":
         init_new_features_db()
     except Exception as e:
         print("DB Init Error:", e)
-        
+
     keep_alive()
     threading.Thread(target=run_alert_loop, args=(bot,), daemon=True).start()
-    bot.infinity_polling()
+
+    # Webhook mode: ถ้ามี BOT_WEB_BASE_URL → ใช้ webhook, ไม่มี → fallback polling
+    _base = BOT_WEB_BASE_URL.rstrip("/") if BOT_WEB_BASE_URL else ""
+    if _base and _base.startswith("https://"):
+        _secret = TELEGRAM_TOKEN.split(":")[-1]
+        _webhook_url = f"{_base}/webhook/{_secret}"
+        set_webhook_bot(bot)
+        bot.remove_webhook()
+        time.sleep(0.5)
+        bot.set_webhook(url=_webhook_url)
+        print(f"🔗 Webhook mode: {_base}/webhook/***", flush=True)
+        # Flask server รันอยู่แล้วใน keep_alive() — block main thread ไม่ให้จบ
+        try:
+            import signal
+            signal.pause()
+        except (AttributeError, OSError):
+            # Windows ไม่มี signal.pause
+            while True:
+                time.sleep(3600)
+    else:
+        print("📡 Polling mode (no BOT_WEB_BASE_URL set)", flush=True)
+        bot.remove_webhook()
+        bot.infinity_polling()
