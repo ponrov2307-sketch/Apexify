@@ -1,6 +1,7 @@
 ﻿import time
 import hashlib
 import math
+import difflib
 from datetime import datetime, timedelta
 import telebot
 import requests 
@@ -99,6 +100,15 @@ def _normalize_news_source(source):
     raw = str(source or "").strip()
     raw = re.sub(r"\s+", " ", raw)
     return raw or "Unknown Source"
+
+
+def _is_duplicate_news(title, existing_titles, threshold=0.62):
+    """Return True if title is too similar to any existing title (difflib ratio)."""
+    t = title.lower()
+    for ex in existing_titles:
+        if difflib.SequenceMatcher(None, t, ex.lower()).ratio() >= threshold:
+            return True
+    return False
 
 
 def _extract_news_source(item, title="", link=""):
@@ -572,6 +582,7 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
     {titles_str}
 
     เลือกข่าวที่ "ด่วนและสำคัญที่สุดในเชิงเศรษฐกิจ" จำนวน 2 ข่าว จากคนละสำนักข่าวถ้าเป็นไปได้
+    ถ้าหลายพาดหัวพูดถึงเรื่องเดียวกัน ให้เลือกเพียงข่าวเดียวจากกลุ่มนั้น (ห้ามซ้ำประเด็น)
     (ถ้าข่าวมีความรุนแรงหรือสงคราม ให้สรุปเฉพาะผลกระทบทางเศรษฐกิจเท่านั้น)
 
     ตอบกลับในรูปแบบ JSON Array เท่านั้น:
@@ -604,6 +615,7 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
 
         # 🌟 2. สร้าง sections สำหรับแต่ละข่าว
         sections = []
+        seen_titles = list(sent_pro_news)
         for item in analysis_list[:2]:
             original_title = _normalize_news_title(
                 item.get('original_title') or item.get('title') or item.get('headline') or ''
@@ -614,6 +626,9 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
 
             if not original_title or not summary:
                 continue
+            # 🌟 similarity dedup — กรองข่าวคล้ายกัน
+            if not force and _is_duplicate_news(original_title, seen_titles):
+                continue
             # 🌟 cross-dedup: ใช้ category "news" ร่วมกับ Digest (skip when force=True)
             if not force and not _claim_dispatch_once("news", original_title):
                 continue
@@ -622,6 +637,7 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
             sections.append(f"{emoji} *{headline_th}*\n{summary}")
             if not force:
                 sent_pro_news.add(original_title)
+                seen_titles.append(original_title)
 
         if not sections:
             return
@@ -679,6 +695,7 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
     {titles_str}
 
     เลือกข่าวเชิงเศรษฐกิจ/การลงทุน ที่ "สำคัญที่สุด" 2 ข่าว จากคนละสำนักข่าวถ้าเป็นไปได้
+    ถ้าหลายพาดหัวพูดถึงเรื่องเดียวกัน ให้เลือกเพียงข่าวเดียวจากกลุ่มนั้น (ห้ามซ้ำประเด็น)
     (เน้นเรื่องเศรษฐกิจ หลีกเลี่ยงเนื้อหาความรุนแรง)
 
     ตอบกลับในรูปแบบ JSON Array เท่านั้น:
@@ -715,6 +732,7 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             return
         sent_to_users = set()
         digest_sections = []
+        seen_titles = list(sent_pro_news)
 
         for item in analysis_list[:MAX_DIGEST_ITEMS]:
             original_title = _normalize_news_title(item.get('original_title', ''))
@@ -723,6 +741,9 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             summary = item.get('summary', '')
 
             if original_title and summary:
+                # 🌟 similarity dedup — กรองข่าวคล้ายกัน
+                if not force and _is_duplicate_news(original_title, seen_titles):
+                    continue
                 # 🌟 cross-dedup: ใช้ category "news" ร่วมกับ Flash News (skip when force=True)
                 if not force and not _claim_dispatch_once("news", original_title):
                     continue
@@ -730,6 +751,7 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
                 digest_sections.append(f"{emoji} *{headline_th}*\n{summary}")
                 if not force:
                     sent_pro_news.add(original_title)
+                    seen_titles.append(original_title)
         if not digest_sections:
             conn.close()
             return
