@@ -1016,6 +1016,7 @@ def init_new_features_db():
         )
     """)
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_used BOOLEAN DEFAULT FALSE")
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_vip_given BOOLEAN DEFAULT FALSE")
     conn.commit()
 
     # 🌟 2. บังคับอัปเดตคอลัมน์ให้ฐานข้อมูลเก่าที่มีอยู่แล้ว (ป้องกัน Error)
@@ -1413,13 +1414,30 @@ def deactivate_price_alert(alert_id):
 # 🌟 ระบบ Auto-Downgrade (ลดขั้นคนหมดอายุอัตโนมัติ)
 # ==========================================
 def auto_downgrade_expired_users():
-    """ปรับสถานะคนที่หมดอายุให้กลับเป็นสายฟรีอัตโนมัติ"""
+    """ปรับสถานะคนที่หมดอายุให้กลับเป็นสายฟรีอัตโนมัติ
+    - PRO free trial หมดอายุ → VIP 10 วัน (hook) แล้วค่อยลงเป็น free
+    - ที่เหลือ (paid PRO, VIP ทุกแบบ) → free ตามปกติ"""
     conn = get_connection()
     c = conn.cursor()
-    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     try:
-        # สั่งเปลี่ยน role เป็น free สำหรับคนที่หมดอายุแล้ว
-        c.execute("UPDATE users SET role = 'free' WHERE role IN ('vip', 'pro') AND expiry_date < %s", (now_str,))
+        # 1. PRO free trial หมดอายุ + ยังไม่เคยได้ VIP hook → ให้ VIP 10 วัน
+        c.execute("""
+            UPDATE users SET
+                role = 'vip',
+                expiry_date = NOW() + INTERVAL '10 days',
+                free_trial_vip_given = TRUE
+            WHERE role = 'pro'
+              AND free_trial_used = TRUE
+              AND COALESCE(free_trial_vip_given, FALSE) = FALSE
+              AND expiry_date < NOW()
+        """)
+
+        # 2. ที่เหลือทั้งหมด (paid PRO หมด, VIP หมด, VIP hook หมด) → free
+        c.execute("""
+            UPDATE users SET role = 'free'
+            WHERE role IN ('vip', 'pro')
+              AND expiry_date < NOW()
+        """)
         conn.commit()
     except Exception as e:
         print(f"❌ Auto-Downgrade Error: {e}")
