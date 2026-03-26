@@ -432,9 +432,16 @@ def send_welcome(message):
                             f"🏆 คุณได้รับ {reward_text}\n{next_text}",
                             parse_mode="Markdown")
                     else:
+                        ref_role_now = check_subscription(referrer_id)
+                        current_count = get_referral_stats(referrer_id)
+                        needed = 3 - (current_count % 3)
+                        if ref_role_now == 'pro':
+                            next_reward = f"PRO +10 วัน"
+                        else:
+                            next_reward = f"VIP +30 วัน"
                         bot.send_message(referrer_id,
-                            "🎁 มีเพื่อนสมัครผ่านลิงก์ของคุณแล้ว!\n"
-                            "ชวนครบ 3 คน รับ VIP 30 วันฟรีครับ 🤝",
+                            f"🎁 มีเพื่อนสมัครผ่านลิงก์ของคุณแล้ว! ({current_count} คน)\n"
+                            f"อีก {needed} คน รับ **{next_reward}** ฟรีครับ 🤝",
                             parse_mode="Markdown")
             except Exception as e:
                 print(f"Referral logic error: {e}")
@@ -444,7 +451,7 @@ def send_welcome(message):
     
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(KeyboardButton("📊 วิเคราะห์หุ้น"), KeyboardButton("📱 เปิดเมนูหลัก"))
-    markup.add(KeyboardButton("💎 บัญชี / VIP"))
+    markup.add(KeyboardButton("💎 บัญชี / VIP"), KeyboardButton("📖 คู่มือ /manual"))
 
     if user_id == ADMIN_ID:
         markup.add(KeyboardButton("👑 แผงควบคุมแอดมิน"))
@@ -1974,6 +1981,10 @@ def handle_main(message):
         bot.reply_to(message, msg, parse_mode="Markdown")
         return
         
+    elif text == "📖 คู่มือ /manual":
+        handle_manual(message)
+        return
+
     elif text == "📱 เปิดเมนูหลัก":
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(

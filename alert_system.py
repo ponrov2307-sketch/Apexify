@@ -27,7 +27,25 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = gemini_client
 
 last_alert_state = {}
-sent_pro_news = set() # 🌟 เก็บประวัติข่าวที่เคยส่งไปแล้วเพื่อกันส่งซ้ำ
+sent_pro_news = set()
+
+
+def _gemini_generate_with_retry(prompt, model='gemini-2.5-flash', retries=2, delay=15):
+    """เรียก Gemini พร้อม retry อัตโนมัติเมื่อเจอ 503 (high demand)"""
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            return client.models.generate_content(model=model, contents=prompt)
+        except Exception as e:
+            last_err = e
+            err_str = str(e)
+            if '503' in err_str or 'UNAVAILABLE' in err_str or 'high demand' in err_str.lower():
+                if attempt < retries:
+                    print(f"[Gemini] 503 attempt {attempt+1}/{retries}, retry in {delay}s...", flush=True)
+                    time.sleep(delay)
+                    continue
+            raise  # error อื่นๆ throw ทันที
+    raise last_err # 🌟 เก็บประวัติข่าวที่เคยส่งไปแล้วเพื่อกันส่งซ้ำ
 sent_stock_news_history = {}
 last_stock_news_sent_at = {}
 sent_xd_alerts = set()
@@ -596,7 +614,7 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
     ]
     """
     try:
-        ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        ai_check = _gemini_generate_with_retry(prompt)
         result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
 
         # 🌟 1. ดักจับกรณี AI ไม่ยอมตอบเป็น JSON
@@ -709,7 +727,7 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
     ]
     """
     try:
-        ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        ai_check = _gemini_generate_with_retry(prompt)
         result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
         analysis_list = json.loads(result_text)
         
@@ -1447,7 +1465,7 @@ def send_watchlist_daily_summary(bot_instance):
         msg = (
             f"📋 **Watchlist สรุปวันนี้** ({len(rows)} รายการ)\n\n"
             + "\n".join(rows)
-            + "\n\n_💡 ส่งทุกวัน 23:00 น. หลังตลาด US ปิด_"
+            + "\n\n_💡 ส่งทุกวัน 05:00 น. หลังตลาด US ปิด_"
         )
         try:
             bot_instance.send_message(user_id, msg, parse_mode="Markdown")
@@ -1577,7 +1595,7 @@ def run_alert_loop(bot_instance=None):
             last_stock_news_check_time = time.time()
             print(f"[StockNews] เช็คข่าวรายตัวเสร็จแล้ว ({len(active_symbols or [])} symbols)")
 
-        if thai_time.hour == 23 and last_watchlist_summary_date != current_date_str:
+        if thai_time.hour == 5 and last_watchlist_summary_date != current_date_str:
             send_watchlist_daily_summary(bot_instance)
             last_watchlist_summary_date = current_date_str
 
