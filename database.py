@@ -422,7 +422,8 @@ def init_db():
     # Keep old deployments compatible by adding missing column if table already exists.
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT DEFAULT 'Unknown'")
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_used BOOLEAN DEFAULT FALSE")
-    
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TIMESTAMP")
+
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes 
                  (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '', role_type TEXT DEFAULT 'vip')''')
@@ -476,6 +477,73 @@ def register_user(user_id, username="Unknown"):
         conn.rollback()
     finally:
         conn.close()
+
+def update_last_active(user_id):
+    """อัปเดตเวลาใช้งานล่าสุดของ user"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("UPDATE users SET last_active = NOW() WHERE user_id = %s", (str(user_id),))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+def get_dashboard_stats():
+    """ดึงสถิติ user growth, active users, revenue สำหรับ admin dashboard"""
+    conn = get_connection()
+    c = conn.cursor()
+    stats = {}
+    try:
+        # 1) User growth — จำนวน user ใหม่ต่อวัน (30 วันล่าสุด)
+        c.execute("""
+            SELECT registered_date::date AS d, COUNT(*) AS cnt
+            FROM users
+            WHERE registered_date IS NOT NULL
+              AND registered_date::date >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY d ORDER BY d
+        """)
+        stats["user_growth"] = [{"date": str(r[0]), "count": r[1]} for r in c.fetchall()]
+
+        # 2) Active users — จำนวน user ที่ active ใน 1, 7, 30 วัน
+        c.execute("""
+            SELECT
+                COUNT(*) FILTER (WHERE last_active >= NOW() - INTERVAL '1 day') AS dau,
+                COUNT(*) FILTER (WHERE last_active >= NOW() - INTERVAL '7 days') AS wau,
+                COUNT(*) FILTER (WHERE last_active >= NOW() - INTERVAL '30 days') AS mau
+            FROM users WHERE last_active IS NOT NULL
+        """)
+        row = c.fetchone()
+        stats["active_users"] = {"dau": row[0], "wau": row[1], "mau": row[2]}
+
+        # 3) Revenue log — จำนวนสลิปที่จ่ายเงินต่อวัน (30 วันล่าสุด)
+        c.execute("""
+            SELECT date_used::date AS d, COUNT(*) AS cnt
+            FROM used_slips
+            WHERE date_used IS NOT NULL
+              AND date_used::date >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY d ORDER BY d
+        """)
+        stats["payment_history"] = [{"date": str(r[0]), "count": r[1]} for r in c.fetchall()]
+
+        # 4) Role distribution (current)
+        c.execute("""
+            SELECT role, COUNT(*) FROM users GROUP BY role
+        """)
+        stats["role_distribution"] = {r[0]: r[1] for r in c.fetchall()}
+
+        # 5) Total users
+        c.execute("SELECT COUNT(*) FROM users")
+        stats["total_users"] = c.fetchone()[0]
+
+    except Exception as e:
+        print(f"[get_dashboard_stats] Error: {e}")
+    finally:
+        conn.close()
+    return stats
+
 
 def _calculate_subscription_expiry(role, days, current_role=None, current_expiry=None, now=None):
     now = now or datetime.now()
@@ -1017,6 +1085,7 @@ def init_new_features_db():
     """)
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_used BOOLEAN DEFAULT FALSE")
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_vip_given BOOLEAN DEFAULT FALSE")
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TIMESTAMP")
     conn.commit()
 
     # 🌟 2. บังคับอัปเดตคอลัมน์ให้ฐานข้อมูลเก่าที่มีอยู่แล้ว (ป้องกัน Error)

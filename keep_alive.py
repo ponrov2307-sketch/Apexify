@@ -8,7 +8,7 @@ from flask import Flask, abort, flash, jsonify, redirect, render_template, reque
 from admin_service import build_local_backup_zip, get_admin_dashboard_snapshot, get_user_info_snapshot, toggle_maintenance_status
 from config import ADMIN_DASHBOARD_LOGIN_SECRET, ADMIN_ID, BOT_WEB_BASE_URL, FLASK_SECRET_KEY, TELEGRAM_TOKEN
 from dashboard_login import verify_admin_dashboard_token
-from database import add_subscription, ban_user, get_all_users, unban_user
+from database import add_subscription, ban_user, get_all_users, get_dashboard_stats, unban_user
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = FLASK_SECRET_KEY or ADMIN_DASHBOARD_LOGIN_SECRET or os.urandom(32)
@@ -365,6 +365,17 @@ def admin_unban_user():
     try:
         unban_user(user_id)
         return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/admin/api/stats")
+def admin_api_stats():
+    if not _has_valid_admin_session():
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+    try:
+        stats = get_dashboard_stats()
+        return jsonify({"ok": True, **stats})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 

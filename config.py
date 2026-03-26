@@ -59,6 +59,7 @@ ADMIN_ID = os.getenv("ADMIN_ID")
 SLIPOK_BRANCH_ID = (os.getenv("SLIPOK_BRANCH_ID") or "").strip()
 SLIPOK_API_KEY = (os.getenv("SLIPOK_API_KEY") or "").strip()
 SLIPOK_TIMEOUT_SECONDS = _to_int("SLIPOK_TIMEOUT_SECONDS", 15)
+PROMPTPAY_ID = (os.getenv("PROMPTPAY_ID") or "").strip()  # เบอร์โทร/บัตรปชช. PromptPay
 
 # Dashboard magic login (optional; should not crash bot when missing)
 BOT_DASHBOARD_LOGIN_ENABLED = _to_bool("BOT_DASHBOARD_LOGIN_ENABLED", True)

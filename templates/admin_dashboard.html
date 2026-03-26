@@ -365,6 +365,7 @@
     <div class="nav-label">Overview</div>
     <nav class="nav">
       <a href="#stats"><span class="ico">📊</span> Dashboard</a>
+      <a href="#analytics"><span class="ico">📈</span> Analytics</a>
       <a href="#performance"><span class="ico">🎯</span> Performance</a>
       <a href="#members"><span class="ico">👑</span> Members</a>
       <a href="#system"><span class="ico">💻</span> System</a>
@@ -499,6 +500,33 @@
       <div class="card">
         <div class="card-title"><span class="dot dot-blue"></span>Digest Frequency</div>
         <div class="chart-wrap"><canvas id="digestChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Analytics Charts (loaded via API) -->
+    <div class="section-title" id="analytics">📈 Analytics</div>
+    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
+      <div class="stat-card green">
+        <div class="stat-label">DAU (24h)</div>
+        <div class="stat-value" id="stat-dau">—</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">WAU (7d)</div>
+        <div class="stat-value" id="stat-wau">—</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">MAU (30d)</div>
+        <div class="stat-value" id="stat-mau">—</div>
+      </div>
+    </div>
+    <div class="two-col" style="margin-bottom:24px">
+      <div class="card">
+        <div class="card-title"><span class="dot dot-green"></span>User Growth (30 วัน)</div>
+        <div class="chart-wrap"><canvas id="growthChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="dot dot-blue"></span>Payments (30 วัน)</div>
+        <div class="chart-wrap"><canvas id="paymentChart"></canvas></div>
       </div>
     </div>
 
@@ -694,6 +722,69 @@
       }
     }
   });
+
+  // ── Analytics Charts (loaded via API) ──
+  (async function loadAnalytics() {
+    try {
+      const res = await fetch('/admin/api/stats');
+      const d = await res.json();
+      if (!d.ok) return;
+
+      // DAU/WAU/MAU
+      const au = d.active_users || {};
+      document.getElementById('stat-dau').textContent = (au.dau || 0).toLocaleString();
+      document.getElementById('stat-wau').textContent = (au.wau || 0).toLocaleString();
+      document.getElementById('stat-mau').textContent = (au.mau || 0).toLocaleString();
+
+      // User Growth line chart
+      const growth = d.user_growth || [];
+      new Chart(document.getElementById('growthChart'), {
+        type: 'line',
+        data: {
+          labels: growth.map(g => g.date.slice(5)),
+          datasets: [{
+            label: 'New Users',
+            data: growth.map(g => g.count),
+            borderColor: '#00C076',
+            backgroundColor: 'rgba(0,192,118,0.1)',
+            fill: true, tension: 0.3, borderWidth: 2, pointRadius: 3
+          }]
+        },
+        options: {
+          ...chartOpts,
+          plugins: { ...chartOpts.plugins, legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8B949E', maxTicksLimit: 10 } },
+            y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8B949E' }, beginAtZero: true }
+          }
+        }
+      });
+
+      // Payment bar chart
+      const pay = d.payment_history || [];
+      new Chart(document.getElementById('paymentChart'), {
+        type: 'bar',
+        data: {
+          labels: pay.map(p => p.date.slice(5)),
+          datasets: [{
+            label: 'Payments',
+            data: pay.map(p => p.count),
+            backgroundColor: '#0A84FF44',
+            borderColor: '#0A84FF',
+            borderWidth: 2, borderRadius: 6
+          }]
+        },
+        options: {
+          ...chartOpts,
+          plugins: { ...chartOpts.plugins, legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8B949E', maxTicksLimit: 10 } },
+            y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8B949E' }, beginAtZero: true }
+          }
+        }
+      });
+    } catch (e) { console.warn('Analytics load failed:', e); }
+  })();
 
   // ── Toast ──
   function showToast(msg, type = 'success') {

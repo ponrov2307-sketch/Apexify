@@ -25,7 +25,8 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       set_user_language, set_user_digest_frequency, set_user_news_window,
                       ALLOWED_TIMEZONES, ALLOWED_LANGUAGES, ALLOWED_DIGEST_FREQUENCIES,
                       has_used_free_trial, activate_free_trial,
-                      add_earnings_alert_db, get_user_earnings_alerts_db, remove_earnings_alert_db)
+                      add_earnings_alert_db, get_user_earnings_alerts_db, remove_earnings_alert_db,
+                      update_last_active)
 from admin_service import (
     build_local_backup_zip,
     get_maintenance_status,
@@ -50,6 +51,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 user_message_tracking = {}
 user_command_history = {}
 spam_alerted = set()
+_last_active_cache = {}  # rate-limit last_active DB writes (5 min)
 
 SETTINGS_NEWS_WINDOW_PRESETS = [
     (0, 23),   # all day
@@ -1395,10 +1397,54 @@ def inline_callbacks(call):
                 "🌐 **[เว็บ]** 🎭 **Sentiment Analysis:** เจาะลึกอารมณ์ตลาดที่มีต่อหุ้นรายตัว\n"
                 "🌐 **[เว็บ]** 🔄 **Web-to-Bot Sync:** ปัดขวา Matchmaker แล้วระบบตั้ง Alert แจ้งเตือนให้อัตโนมัติ!\n"
             )
-            bot.send_message(user_id, pay_text, parse_mode="Markdown")
+            # เพิ่มปุ่มเลือกแพ็กเกจ + สร้าง QR
+            qr_markup = InlineKeyboardMarkup(row_width=2)
+            qr_markup.add(
+                InlineKeyboardButton("💎 VIP 299.-/เดือน", callback_data="qr_pay_299"),
+                InlineKeyboardButton("👑 PRO 499.-/เดือน", callback_data="qr_pay_499"),
+            )
+            qr_markup.add(
+                InlineKeyboardButton("💎 VIP 2,990.-/ปี", callback_data="qr_pay_2990"),
+                InlineKeyboardButton("👑 PRO 4,990.-/ปี", callback_data="qr_pay_4990"),
+            )
+            bot.send_message(user_id, pay_text, parse_mode="Markdown", reply_markup=qr_markup)
         except Exception as e:
             bot.send_message(user_id, f"❌ เกิดข้อผิดพลาดในการโหลดเมนู VIP: {e}")
-            
+
+    elif call.data.startswith('qr_pay_'):
+        try:
+            from promptpay_qr import generate_promptpay_qr
+            from config import PROMPTPAY_ID
+            amount_str = call.data.replace('qr_pay_', '')
+            amount = int(amount_str)
+            pkg_names = {299: "💎 VIP รายเดือน", 499: "👑 PRO รายเดือน", 2990: "💎 VIP รายปี", 4990: "👑 PRO รายปี"}
+            pkg_name = pkg_names.get(amount, f"แพ็กเกจ {amount} บาท")
+
+            if not PROMPTPAY_ID:
+                bot.send_message(user_id,
+                    f"📱 **{pkg_name} — {amount:,} บาท**\n\n"
+                    f"💳 กสิกรไทย: `135-1-34469-1`\n"
+                    f"*(โอน {amount:,} บาท แล้วส่งสลิปในแชทนี้)*",
+                    parse_mode="Markdown")
+                return
+
+            qr_buf = generate_promptpay_qr(PROMPTPAY_ID, amount=float(amount))
+            if qr_buf:
+                caption = (
+                    f"📱 **{pkg_name} — {amount:,} บาท**\n\n"
+                    f"สแกน QR Code ด้านบนเพื่อชำระเงิน\n"
+                    f"*(โอนแล้วส่งรูปสลิปในแชทนี้ ระบบจะอัปเกรดอัตโนมัติ!)*"
+                )
+                bot.send_photo(user_id, qr_buf, caption=caption, parse_mode="Markdown")
+            else:
+                bot.send_message(user_id,
+                    f"📱 **{pkg_name} — {amount:,} บาท**\n\n"
+                    f"💳 กสิกรไทย: `135-1-34469-1`\n"
+                    f"*(โอน {amount:,} บาท แล้วส่งสลิปในแชทนี้)*",
+                    parse_mode="Markdown")
+        except Exception as e:
+            bot.send_message(user_id, f"❌ ไม่สามารถสร้าง QR ได้: {e}")
+
     elif call.data == 'menu_code':
         bot.send_message(user_id, "🎟 **พิมพ์คำสั่ง:** `/redeem [โค้ดของคุณ]`", parse_mode="Markdown")
         
@@ -1411,10 +1457,10 @@ def inline_callbacks(call):
             next_milestone = 3 - (ref_count % 3) if ref_count % 3 != 0 else 3
             progress_bar = "🟩" * (ref_count % 3) + "⬜" * (3 - (ref_count % 3))
             msg = (
-                "🤝 **ชวนเพื่อน รับ VIP ฟรี!** 🤝\n\n"
+                "🤝 **ชวนเพื่อน รับรางวัล!** 🤝\n\n"
                 "🎁 **รางวัล Milestone:**\n"
-                "   ทุก **3 เพื่อน** → **VIP 30 วัน ฟรี!**\n"
-                "   (ชวนครบ 6 = VIP 60 วัน, 9 = 90 วัน ...)\n\n"
+                "   ทุก **3 เพื่อน** → **+10 วัน ฟรี!**\n"
+                "   (ชวนครบ 6 = +20 วัน, 9 = +30 วัน ...)\n\n"
                 f"📊 **ความคืบหน้าของคุณ:** {ref_count} คน\n"
                 f"   {progress_bar}  อีก {next_milestone} คน ถึง milestone!\n\n"
                 f"🔗 **ลิงก์ของคุณ:**\n`{ref_link}`\n\n"
@@ -1959,6 +2005,16 @@ def handle_main(message):
     role = check_subscription(user_id)
     if str(user_id) == str(ADMIN_ID):
         role = 'pro'
+
+    # บันทึก last_active (rate-limit ไม่ให้อัปเดตถี่เกิน 5 นาที)
+    _la_key = f"la_{user_id}"
+    _la_now = time.time()
+    if _la_now - _last_active_cache.get(_la_key, 0) > 300:
+        _last_active_cache[_la_key] = _la_now
+        try:
+            update_last_active(user_id)
+        except Exception:
+            pass
 
     global user_command_history
     if user_id not in user_command_history:
