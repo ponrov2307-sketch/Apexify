@@ -2020,7 +2020,7 @@ def handle_main(message):
             
             if role == 'pro': status_text = "👑 PRO (Platinum)"
             elif role == 'vip': status_text = "💎 VIP (Standard)"
-            else: status_text = "🆓 Free Trial"
+            else: status_text = "🆓 Free"
             
             expiry_text = expiry if expiry else "ไม่มีวันหมดอายุ"
             quota_text = f"ไม่จำกัด" if role in ['vip', 'pro'] else f"{usage}/10 ครั้ง"
