@@ -425,8 +425,8 @@ def send_welcome(message):
                             reward_text = "**PRO +10 วัน** เรียบร้อยแล้ว!"
                             next_text = "ชวนต่อทุก 3 คน = PRO +10 วัน 🚀"
                         else:
-                            reward_text = "**VIP 30 วันฟรี** เรียบร้อยแล้ว!"
-                            next_text = "ชวนต่อทุก 3 คน = VIP +30 วัน 🚀"
+                            reward_text = "**VIP +10 วัน** เรียบร้อยแล้ว!"
+                            next_text = "ชวนต่อทุก 3 คน = VIP +10 วัน 🚀"
                         bot.send_message(referrer_id,
                             f"🎉 **ยินดีด้วย! Milestone ครบ {new_count} คน!**\n\n"
                             f"🏆 คุณได้รับ {reward_text}\n{next_text}",
@@ -438,7 +438,7 @@ def send_welcome(message):
                         if ref_role_now == 'pro':
                             next_reward = f"PRO +10 วัน"
                         else:
-                            next_reward = f"VIP +30 วัน"
+                            next_reward = f"VIP +10 วัน"
                         bot.send_message(referrer_id,
                             f"🎁 มีเพื่อนสมัครผ่านลิงก์ของคุณแล้ว! ({current_count} คน)\n"
                             f"อีก {needed} คน รับ **{next_reward}** ฟรีครับ 🤝",

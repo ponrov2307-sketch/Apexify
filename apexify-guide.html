@@ -8,20 +8,29 @@
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
   :root {
-    --bg: #070B10;
-    --surface: #0D1117;
-    --surface2: #161B22;
-    --border: #21262D;
-    --gold: #F0A500;
-    --gold-dim: #B8860B;
-    --gold-glow: rgba(240,165,0,0.15);
-    --green: #2EA043;
-    --red: #DA3633;
-    --blue: #388BFD;
-    --purple: #BC8CFF;
-    --text: #E6EDF3;
-    --muted: #8B949E;
-    --muted2: #484F58;
+    --bg: #050a08;
+    --surface: #0a1410;
+    --surface2: #0f1f18;
+    --surface3: #142820;
+    --border: #1a3328;
+    --border-light: #1f4030;
+    --accent: #00e676;
+    --accent-dim: #00c853;
+    --accent-dark: #00a844;
+    --accent-glow: rgba(0,230,118,0.12);
+    --accent-glow2: rgba(0,230,118,0.06);
+    --green: #4caf50;
+    --red: #ef5350;
+    --yellow: #ffd740;
+    --blue: #42a5f5;
+    --cyan: #26c6da;
+    --text: #e0f2e9;
+    --text2: #c8e6d0;
+    --muted: #6b8f7b;
+    --muted2: #3d5c4a;
+    --pro: #ffd740;
+    --vip: #26c6da;
+    --free: #78909c;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,330 +43,224 @@
     padding: 32px 16px 64px;
   }
 
-  .page { max-width: 820px; margin: 0 auto; }
+  .page { max-width: 840px; margin: 0 auto; }
 
   /* ── HEADER ── */
   .header {
     text-align: center;
-    padding: 48px 24px 40px;
+    padding: 56px 24px 48px;
     position: relative;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
   }
   .header::before {
     content: '';
     position: absolute;
     inset: 0;
-    background: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(240,165,0,0.12) 0%, transparent 70%);
+    background: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(0,230,118,0.1) 0%, transparent 70%);
     pointer-events: none;
   }
-  .logo-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    background: linear-gradient(135deg, #1A1400 0%, #2A1F00 100%);
-    border: 1px solid var(--gold-dim);
-    border-radius: 14px;
-    padding: 10px 22px;
-    margin-bottom: 20px;
-  }
-  .logo-icon {
-    width: 36px; height: 36px;
-    background: linear-gradient(135deg, var(--gold), #FF8C00);
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 20px;
-  }
-  .logo-text {
-    font-size: 26px;
+  .logo {
+    font-size: 52px;
     font-weight: 700;
-    background: linear-gradient(90deg, var(--gold), #FFD700);
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, #00e676 0%, #69f0ae 40%, #b9f6ca 70%, #00e676 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    letter-spacing: -0.5px;
+    margin-bottom: 10px;
+    text-shadow: 0 0 40px rgba(0,230,118,0.3);
   }
   .tagline {
-    font-size: 15px;
+    font-size: 17px;
     color: var(--muted);
-    margin-bottom: 6px;
-    letter-spacing: 0.3px;
-  }
-  .tg-link {
-    display: inline-block;
-    background: linear-gradient(90deg, #0088CC, #006FA6);
-    color: #fff;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 6px 18px;
-    border-radius: 20px;
-    text-decoration: none;
-    letter-spacing: 0.4px;
+    font-weight: 300;
+    letter-spacing: 0.5px;
   }
 
-  /* ── SECTION CARD ── */
-  .card {
+  /* ── SECTION ── */
+  .section {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 16px;
+    margin-bottom: 24px;
     overflow: hidden;
-    margin-bottom: 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(0,230,118,0.04);
   }
-  .card-header {
-    padding: 16px 24px;
-    background: linear-gradient(90deg, var(--surface2), var(--surface));
+  .section-header {
+    padding: 20px 28px;
+    background: linear-gradient(135deg, var(--surface2) 0%, var(--surface3) 100%);
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
   }
-  .card-header-icon { font-size: 20px; }
-  .card-header-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--gold);
-    letter-spacing: 0.2px;
+  .section-header .icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    background: var(--accent-glow);
+    border: 1px solid var(--border-light);
   }
-  .card-header-sub {
-    font-size: 12px;
-    color: var(--muted);
-    margin-left: auto;
+  .section-header h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.3px;
   }
+  .section-body { padding: 0; }
 
   /* ── TABLE ── */
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13.5px;
-  }
-  thead tr {
-    background: linear-gradient(90deg, rgba(240,165,0,0.08), rgba(240,165,0,0.04));
-  }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
   thead th {
-    padding: 11px 16px;
+    padding: 14px 16px;
     text-align: left;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--gold);
+    font-weight: 600;
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    border-bottom: 1px solid rgba(240,165,0,0.2);
+    color: var(--accent);
+    background: var(--surface2);
+    border-bottom: 2px solid var(--border-light);
+    white-space: nowrap;
   }
-  tbody tr { border-bottom: 1px solid var(--border); }
-  tbody tr:last-child { border-bottom: none; }
-  tbody tr:hover { background: rgba(255,255,255,0.02); }
   tbody td {
-    padding: 10px 16px;
-    color: var(--text);
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
     vertical-align: middle;
     line-height: 1.5;
   }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--accent-glow2); }
 
-  /* ── CMD CHIP ── */
-  .cmd {
-    display: inline-block;
-    background: rgba(56,139,253,0.12);
-    border: 1px solid rgba(56,139,253,0.25);
-    color: #79C0FF;
+  code {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 2px 8px;
+    font-size: 13px;
+    background: rgba(0,230,118,0.08);
+    color: var(--accent);
+    padding: 3px 8px;
     border-radius: 5px;
-    letter-spacing: 0.3px;
-  }
-  .cmd-stock {
-    background: rgba(188,140,255,0.12);
-    border-color: rgba(188,140,255,0.25);
-    color: #D2A8FF;
+    border: 1px solid rgba(0,230,118,0.12);
+    white-space: nowrap;
   }
 
-  /* ── TIER BADGES ── */
+  /* ── BADGES ── */
   .badge {
     display: inline-block;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 2px 8px;
+    padding: 3px 10px;
     border-radius: 20px;
+    font-size: 11.5px;
+    font-weight: 600;
     letter-spacing: 0.3px;
+    white-space: nowrap;
   }
-  .badge-all  { background: rgba(46,160,67,0.15); color: #56D364; border: 1px solid rgba(46,160,67,0.3); }
-  .badge-free { background: rgba(139,148,158,0.15); color: #8B949E; border: 1px solid rgba(139,148,158,0.3); }
-  .badge-vip  { background: rgba(240,165,0,0.12); color: var(--gold); border: 1px solid rgba(240,165,0,0.3); }
-  .badge-pro  { background: rgba(188,140,255,0.12); color: #BC8CFF; border: 1px solid rgba(188,140,255,0.3); }
+  .badge-free { background: rgba(120,144,156,0.15); color: var(--free); border: 1px solid rgba(120,144,156,0.2); }
+  .badge-vip { background: rgba(38,198,218,0.1); color: var(--vip); border: 1px solid rgba(38,198,218,0.2); }
+  .badge-pro { background: rgba(255,215,64,0.1); color: var(--pro); border: 1px solid rgba(255,215,64,0.2); }
+  .badge-all { background: rgba(0,230,118,0.08); color: var(--accent); border: 1px solid rgba(0,230,118,0.15); }
 
-  /* ── CHECK/CROSS ── */
-  .yes { color: #56D364; font-weight: 700; font-size: 16px; }
-  .no  { color: var(--muted2); font-size: 16px; }
-  .best { color: #BC8CFF; font-weight: 700; }
+  /* ── CHECK / CROSS ── */
+  .check { color: var(--accent); font-weight: 700; }
+  .cross { color: #5c3a3a; font-weight: 400; }
+  .limited { color: var(--muted); font-style: italic; font-size: 13px; }
 
-  /* ── ROLE COMPARE TABLE ── */
-  .col-free  { color: var(--muted); }
-  .col-vip   { color: var(--gold); font-weight: 600; }
-  .col-pro   { color: #BC8CFF; font-weight: 600; }
-  .col-label { color: var(--text); }
-
-  thead th.th-free  { color: var(--muted); }
-  thead th.th-vip   { color: var(--gold); }
-  thead th.th-pro   { color: #BC8CFF; }
-
-  .pro-badge-header {
-    display: inline-block;
-    background: linear-gradient(90deg, rgba(188,140,255,0.2), rgba(188,140,255,0.08));
-    border: 1px solid rgba(188,140,255,0.3);
-    border-radius: 4px;
-    padding: 1px 6px;
-    font-size: 10px;
-    color: #D2A8FF;
-    margin-left: 4px;
-  }
-
-  /* ── REFERRAL TABLE ── */
-  .reward-vip {
-    display: inline-flex; align-items: center; gap: 4px;
-    background: rgba(240,165,0,0.1);
-    border: 1px solid rgba(240,165,0,0.25);
-    color: var(--gold);
-    font-size: 12px; font-weight: 700;
-    padding: 3px 10px; border-radius: 20px;
-  }
-  .reward-pro {
-    display: inline-flex; align-items: center; gap: 4px;
-    background: rgba(188,140,255,0.1);
-    border: 1px solid rgba(188,140,255,0.25);
-    color: #BC8CFF;
-    font-size: 12px; font-weight: 700;
-    padding: 3px 10px; border-radius: 20px;
-  }
-  .reward-quota {
-    display: inline-flex; align-items: center; gap: 4px;
-    background: rgba(46,160,67,0.1);
-    border: 1px solid rgba(46,160,67,0.25);
-    color: #56D364;
-    font-size: 12px; font-weight: 700;
-    padding: 3px 10px; border-radius: 20px;
-  }
-  .reward-none { color: var(--muted2); font-size: 13px; }
-  .milestone-col { background: rgba(240,165,0,0.04); }
+  /* ── ROLE COMPARISON GRID ── */
+  .role-col-free { text-align: center; }
+  .role-col-vip { text-align: center; }
+  .role-col-pro { text-align: center; }
+  .role-header-free { color: var(--free) !important; }
+  .role-header-vip { color: var(--vip) !important; }
+  .role-header-pro { color: var(--pro) !important; }
 
   /* ── TIMELINE ── */
-  .timeline {
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-  }
-  .tl-item {
-    display: flex;
-    gap: 0;
-    position: relative;
-  }
-  .tl-left {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 52px;
-    flex-shrink: 0;
-  }
-  .tl-dot {
-    width: 14px; height: 14px;
-    border-radius: 50%;
-    border: 2px solid;
-    background: var(--bg);
-    flex-shrink: 0;
-    margin-top: 4px;
-    position: relative;
-    z-index: 1;
-  }
-  .tl-dot-gold { border-color: var(--gold); box-shadow: 0 0 8px rgba(240,165,0,0.5); }
-  .tl-dot-blue { border-color: var(--blue); box-shadow: 0 0 8px rgba(56,139,253,0.5); }
-  .tl-dot-muted { border-color: var(--muted2); }
-  .tl-line {
-    flex: 1;
-    width: 2px;
-    background: linear-gradient(to bottom, var(--border), var(--border));
-    margin: 0 auto;
-    min-height: 32px;
-  }
-  .tl-content {
-    flex: 1;
-    padding: 0 0 28px 16px;
-  }
-  .tl-day {
+  .timeline-day {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-  }
-  .tl-event {
-    font-size: 15px;
     font-weight: 600;
-    color: var(--text);
-    margin-bottom: 3px;
+    font-size: 13px;
+    color: var(--accent);
   }
-  .tl-note { font-size: 12px; color: var(--muted); }
-  .tl-role {
-    display: inline-block;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 2px 10px;
-    border-radius: 20px;
-    margin-top: 4px;
-  }
-  .tl-role-pro  { background: rgba(188,140,255,0.15); color: #BC8CFF; border: 1px solid rgba(188,140,255,0.3); }
-  .tl-role-vip  { background: rgba(240,165,0,0.12); color: var(--gold); border: 1px solid rgba(240,165,0,0.3); }
-  .tl-role-free { background: rgba(139,148,158,0.1); color: var(--muted); border: 1px solid rgba(139,148,158,0.25); }
-  .tl-auto {
-    display: inline-block;
-    font-size: 10px;
-    background: rgba(46,160,67,0.12);
-    color: #56D364;
-    border: 1px solid rgba(46,160,67,0.25);
-    border-radius: 4px;
-    padding: 1px 6px;
-    margin-left: 6px;
-  }
+  .timeline-event { font-weight: 500; }
+  .timeline-note { color: var(--muted); font-size: 13px; }
 
   /* ── MATRIX TABLE ── */
-  .matrix-col-milestone {
-    background: linear-gradient(180deg, rgba(240,165,0,0.06), transparent);
-    border-left: 1px solid rgba(240,165,0,0.2) !important;
-    border-right: 1px solid rgba(240,165,0,0.2) !important;
+  .matrix-header {
+    font-size: 12px !important;
+    text-align: center !important;
+    padding: 10px 8px !important;
   }
-  th.matrix-col-milestone {
-    color: var(--gold) !important;
-    background: rgba(240,165,0,0.1) !important;
+  .matrix-cell {
+    text-align: center;
+    font-size: 13px;
+    padding: 11px 8px !important;
   }
-  .cell-small { font-size: 12px; color: var(--muted2); }
+  .matrix-reward {
+    background: rgba(0,230,118,0.06);
+    color: var(--accent);
+    font-weight: 600;
+    border-radius: 4px;
+    padding: 2px 6px;
+    display: inline-block;
+  }
+  .matrix-star {
+    background: rgba(255,215,64,0.1);
+    color: var(--pro);
+    font-weight: 700;
+  }
+  .matrix-none { color: var(--muted2); font-size: 12px; }
+  .matrix-role {
+    text-align: left !important;
+    font-weight: 600;
+    white-space: nowrap;
+  }
 
   /* ── NOTE BOX ── */
   .note-box {
-    margin: 0 16px 16px;
-    padding: 12px 16px;
-    background: rgba(240,165,0,0.05);
-    border: 1px solid rgba(240,165,0,0.15);
-    border-radius: 8px;
-    font-size: 12.5px;
+    margin: 0 20px 20px;
+    padding: 14px 18px;
+    background: rgba(0,230,118,0.04);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    font-size: 13.5px;
     color: var(--muted);
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
+    line-height: 1.6;
   }
-  .note-box span:first-child { font-size: 14px; flex-shrink: 0; }
+  .note-box strong { color: var(--text2); }
 
   /* ── FOOTER ── */
   .footer {
     text-align: center;
-    padding: 32px 16px 8px;
+    padding: 40px 24px 16px;
     color: var(--muted2);
-    font-size: 12px;
+    font-size: 13px;
   }
-  .footer a { color: var(--muted); text-decoration: none; }
+  .footer a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+    padding: 12px 32px;
+    border: 2px solid var(--accent);
+    border-radius: 30px;
+    display: inline-block;
+    margin-bottom: 20px;
+    transition: all 0.2s;
+    background: rgba(0,230,118,0.05);
+  }
 
-  /* ── DIVIDER ── */
-  .section-gap { height: 8px; }
+  /* ── RESPONSIVE ── */
+  @media (max-width: 640px) {
+    body { padding: 16px 8px 48px; }
+    .logo { font-size: 36px; }
+    .section-header { padding: 16px 18px; }
+    .section-header h2 { font-size: 17px; }
+    thead th, tbody td { padding: 10px 10px; font-size: 13px; }
+    code { font-size: 11.5px; padding: 2px 5px; }
+    .badge { font-size: 10.5px; padding: 2px 7px; }
+  }
 </style>
 </head>
 <body>
@@ -365,364 +268,283 @@
 
   <!-- HEADER -->
   <div class="header">
-    <div class="logo-badge">
-      <div class="logo-icon">⚡</div>
-      <span class="logo-text">Apexify</span>
-    </div>
-    <p class="tagline">บอทวิเคราะห์หุ้น AI สำหรับนักลงทุนไทย</p>
-    <p style="margin-bottom:14px;font-size:13px;color:var(--muted2);">หุ้น US · หุ้นไทย · หุ้นทั่วโลก · แจ้งเตือนอัตโนมัติ</p>
-    <a class="tg-link" href="#">✈️ @ApexifyBot บน Telegram</a>
+    <div class="logo">Apexify</div>
+    <div class="tagline">บอทวิเคราะห์หุ้น AI สำหรับนักลงทุนไทย</div>
   </div>
 
-  <!-- ── 1. คำสั่งทั้งหมด ── -->
-  <div class="card">
-    <div class="card-header">
-      <span class="card-header-icon">📋</span>
-      <span class="card-header-title">คำสั่งทั้งหมด</span>
-      <span class="card-header-sub">16 คำสั่ง</span>
+  <!-- 1. คำสั่งทั้งหมด -->
+  <div class="section">
+    <div class="section-header">
+      <div class="icon">📋</div>
+      <h2>คำสั่งทั้งหมด</h2>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width:38%">คำสั่ง</th>
-          <th style="width:22%">ใครใช้ได้</th>
-          <th>ทำอะไร</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="cmd cmd-stock">AAPL</span> <span class="cmd cmd-stock">PTT.BK</span></td>
-          <td><span class="badge badge-all">ทุกคน</span></td>
-          <td>วิเคราะห์หุ้น + กราฟ AI</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/manual</span></td>
-          <td><span class="badge badge-all">ทุกคน</span></td>
-          <td>คู่มือทุกคำสั่ง</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/freetrial</span></td>
-          <td><span class="badge badge-free">Free (ยังไม่เคยใช้)</span></td>
-          <td>ทดลอง PRO 7 วัน</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/setalert AAPL 200</span></td>
-          <td><span class="badge badge-pro">PRO</span></td>
-          <td>ตั้งเตือนราคา</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/setalert AAPL +5%</span></td>
-          <td><span class="badge badge-pro">PRO</span></td>
-          <td>ตั้งเตือนแบบ % จากราคาปัจจุบัน</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/delalert AAPL</span></td>
-          <td><span class="badge badge-pro">PRO</span></td>
-          <td>ลบเตือนราคา</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/ealert AAPL</span></td>
-          <td><span class="badge badge-vip">VIP</span> <span class="badge badge-pro">PRO</span></td>
-          <td>สมัครแจ้งเตือนวัน Earnings</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/ealert list</span></td>
-          <td><span class="badge badge-vip">VIP</span> <span class="badge badge-pro">PRO</span></td>
-          <td>ดูรายการ Earnings Alert</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/ealert remove AAPL</span></td>
-          <td><span class="badge badge-vip">VIP</span> <span class="badge badge-pro">PRO</span></td>
-          <td>ยกเลิก Earnings Alert</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/earnings AAPL</span></td>
-          <td><span class="badge badge-vip">VIP</span> <span class="badge badge-pro">PRO</span></td>
-          <td>วิเคราะห์งบการเงิน AI</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/add AAPL 10 150</span></td>
-          <td><span class="badge badge-all">ทุกคน</span></td>
-          <td>บันทึกซื้อหุ้นเข้าพอร์ต</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/portfolio</span></td>
-          <td><span class="badge badge-all">ทุกคน</span></td>
-          <td>ดูพอร์ตลงทุนทั้งหมด</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/pnl</span></td>
-          <td><span class="badge badge-all">ทุกคน</span></td>
-          <td>สร้างการ์ด P&L แบบสวยงาม</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/redeem CODE</span></td>
-          <td><span class="badge badge-all">ทุกคน</span></td>
-          <td>เติมโค้ดโปรโมชั่น</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/dashboard</span></td>
-          <td><span class="badge badge-all">ทุกคน</span></td>
-          <td>เปิด Web Dashboard</td>
-        </tr>
-        <tr>
-          <td><span class="cmd">/settings</span></td>
-          <td><span class="badge badge-all">ทุกคน</span></td>
-          <td>ตั้งค่าการแจ้งเตือน / timezone</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- ── 2. เปรียบเทียบ Role ── -->
-  <div class="card">
-    <div class="card-header">
-      <span class="card-header-icon">📊</span>
-      <span class="card-header-title">เปรียบเทียบแพ็กเกจ</span>
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width:40%">ฟีเจอร์</th>
-          <th class="th-free" style="width:18%;text-align:center">🆓 Free</th>
-          <th class="th-vip" style="width:21%;text-align:center">💎 VIP<br><span style="font-size:10px;font-weight:400;opacity:0.8">299/เดือน</span></th>
-          <th class="th-pro" style="width:21%;text-align:center">👑 PRO<br><span style="font-size:10px;font-weight:400;opacity:0.8">499/เดือน</span></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="col-label">วิเคราะห์หุ้น</td>
-          <td style="text-align:center" class="col-free">10 ครั้ง/วัน</td>
-          <td style="text-align:center" class="col-vip">♾️ ไม่จำกัด</td>
-          <td style="text-align:center" class="col-pro">♾️ ไม่จำกัด</td>
-        </tr>
-        <tr>
-          <td class="col-label">Watchlist</td>
-          <td style="text-align:center" class="col-free">จำกัด</td>
-          <td style="text-align:center" class="col-vip">10 ตัว</td>
-          <td style="text-align:center" class="col-pro">♾️ ไม่จำกัด</td>
-        </tr>
-        <tr>
-          <td class="col-label">🌅 Morning Briefing</td>
-          <td style="text-align:center"><span class="no">—</span></td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-        </tr>
-        <tr>
-          <td class="col-label">⚡ Flash News</td>
-          <td style="text-align:center"><span class="no">—</span></td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-        </tr>
-        <tr>
-          <td class="col-label">📅 Earnings Alert</td>
-          <td style="text-align:center"><span class="no">—</span></td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-        </tr>
-        <tr>
-          <td class="col-label">🎙️ AI Podcast รายวัน</td>
-          <td style="text-align:center"><span class="no">—</span></td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-        </tr>
-        <tr>
-          <td class="col-label">📋 Watchlist Summary 05:00</td>
-          <td style="text-align:center"><span class="no">—</span></td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-        </tr>
-        <tr>
-          <td class="col-label">🔔 Smart Alerts (RSI/Cross)</td>
-          <td style="text-align:center"><span class="no">—</span></td>
-          <td style="text-align:center"><span class="no">—</span></td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-        </tr>
-        <tr>
-          <td class="col-label">/setalert ราคาส่วนตัว</td>
-          <td style="text-align:center"><span class="no">—</span></td>
-          <td style="text-align:center"><span class="no">—</span></td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-        </tr>
-        <tr>
-          <td class="col-label">/earnings งบการเงิน AI</td>
-          <td style="text-align:center"><span class="no">—</span></td>
-          <td style="text-align:center"><span class="no">—</span></td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-        </tr>
-        <tr>
-          <td class="col-label">🌐 Web Dashboard</td>
-          <td style="text-align:center" class="col-free">จำกัด</td>
-          <td style="text-align:center"><span class="yes">✓</span></td>
-          <td style="text-align:center" class="best">✓ เต็มรูปแบบ</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- ── 3. Referral Milestone ── -->
-  <div class="card">
-    <div class="card-header">
-      <span class="card-header-icon">🤝</span>
-      <span class="card-header-title">Referral Milestone</span>
-      <span class="card-header-sub">ทุก 3 คน = ได้รางวัล ไม่มีเพดาน</span>
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width:28%">Role ปัจจุบัน</th>
-          <th style="width:26%">ชวน 1–2 คน</th>
-          <th style="width:26%" class="matrix-col-milestone">ชวนครบ 3 ⭐</th>
-          <th style="width:20%">มูลค่ารางวัล</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="badge badge-free">Free</span></td>
-          <td><span class="reward-quota">+3 โควต้า/คน</span></td>
-          <td class="matrix-col-milestone"><span class="reward-vip">VIP +30 วัน</span></td>
-          <td style="color:var(--muted);font-size:13px">~299 บาท</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-pro">Free Trial PRO</span></td>
-          <td><span class="reward-none">—</span></td>
-          <td class="matrix-col-milestone"><span class="reward-pro">PRO +10 วัน</span></td>
-          <td style="color:var(--muted);font-size:13px">~166 บาท</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-vip">VIP</span></td>
-          <td><span class="reward-none">—</span></td>
-          <td class="matrix-col-milestone"><span class="reward-vip">VIP +30 วัน</span></td>
-          <td style="color:var(--muted);font-size:13px">~299 บาท</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-pro">PRO (จ่ายแล้ว)</span></td>
-          <td><span class="reward-none">—</span></td>
-          <td class="matrix-col-milestone"><span class="reward-pro">PRO +10 วัน</span></td>
-          <td style="color:var(--muted);font-size:13px">~166 บาท</td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="note-box">
-      <span>💡</span>
-      <span>วันที่ได้รับนับต่อจาก expiry เดิมเสมอ ไม่หักวันที่เหลือ · ครบ 3, 6, 9, 12... คน = ได้รางวัลซ้ำทุกครั้ง</span>
+    <div class="section-body">
+      <table>
+        <thead>
+          <tr>
+            <th>คำสั่ง</th>
+            <th>ใครใช้ได้</th>
+            <th>ทำอะไร</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>พิมพ์ชื่อหุ้น</code></td><td><span class="badge badge-all">ทุกคน</span></td><td>วิเคราะห์หุ้น + กราฟ AI</td></tr>
+          <tr><td><code>/manual</code></td><td><span class="badge badge-all">ทุกคน</span></td><td>คู่มือทุกคำสั่ง</td></tr>
+          <tr><td><code>/freetrial</code></td><td><span class="badge badge-free">Free (ยังไม่เคยใช้)</span></td><td>ทดลอง PRO 7 วัน</td></tr>
+          <tr><td><code>/setalert AAPL 200</code></td><td><span class="badge badge-pro">PRO</span></td><td>ตั้งเตือนราคาเป้าหมาย</td></tr>
+          <tr><td><code>/setalert AAPL +5%</code></td><td><span class="badge badge-pro">PRO</span></td><td>ตั้งเตือนแบบ %</td></tr>
+          <tr><td><code>/delalert AAPL</code></td><td><span class="badge badge-pro">PRO</span></td><td>ลบการแจ้งเตือนราคา</td></tr>
+          <tr><td><code>/ealert AAPL</code></td><td><span class="badge badge-vip">VIP / PRO</span></td><td>สมัคร Earnings Alert</td></tr>
+          <tr><td><code>/ealert list</code></td><td><span class="badge badge-vip">VIP / PRO</span></td><td>ดูรายการที่สมัครไว้</td></tr>
+          <tr><td><code>/ealert remove AAPL</code></td><td><span class="badge badge-vip">VIP / PRO</span></td><td>ยกเลิก Earnings Alert</td></tr>
+          <tr><td><code>/earnings AAPL</code></td><td><span class="badge badge-vip">VIP / PRO</span></td><td>วิเคราะห์งบการเงิน AI</td></tr>
+          <tr><td><code>/add AAPL 10 150</code></td><td><span class="badge badge-all">ทุกคน</span></td><td>บันทึกหุ้นในพอร์ต</td></tr>
+          <tr><td><code>/portfolio</code></td><td><span class="badge badge-all">ทุกคน</span></td><td>ดูพอร์ตทั้งหมด</td></tr>
+          <tr><td><code>/pnl</code></td><td><span class="badge badge-all">ทุกคน</span></td><td>การ์ด P&L สรุปกำไร/ขาดทุน</td></tr>
+          <tr><td><code>/redeem CODE</code></td><td><span class="badge badge-all">ทุกคน</span></td><td>เติมโค้ดโปรโมชั่น</td></tr>
+          <tr><td><code>/dashboard</code></td><td><span class="badge badge-all">ทุกคน</span></td><td>เปิด Web Dashboard</td></tr>
+          <tr><td><code>/settings</code></td><td><span class="badge badge-all">ทุกคน</span></td><td>ตั้งค่าการแจ้งเตือน</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
-  <!-- ── 4. Timeline Free Trial ── -->
-  <div class="card">
-    <div class="card-header">
-      <span class="card-header-icon">🔄</span>
-      <span class="card-header-title">Timeline Free Trial</span>
-      <span class="card-header-sub">ใช้ได้ 1 ครั้ง/บัญชี</span>
+  <!-- 2. เปรียบเทียบ Role -->
+  <div class="section">
+    <div class="section-header">
+      <div class="icon">📊</div>
+      <h2>เปรียบเทียบ Role ทั้งหมด</h2>
     </div>
-    <div class="timeline">
-      <div class="tl-item">
-        <div class="tl-left">
-          <div class="tl-dot tl-dot-gold"></div>
-          <div class="tl-line"></div>
-        </div>
-        <div class="tl-content">
-          <div class="tl-day">Day 0</div>
-          <div class="tl-event">กด /freetrial</div>
-          <div class="tl-note">ไม่ต้องจ่าย · ไม่ต้องสมัคร</div>
-          <div><span class="tl-role tl-role-pro">👑 PRO 7 วัน</span></div>
-        </div>
-      </div>
-      <div class="tl-item">
-        <div class="tl-left">
-          <div class="tl-dot tl-dot-blue"></div>
-          <div class="tl-line"></div>
-        </div>
-        <div class="tl-content">
-          <div class="tl-day">Day 7</div>
-          <div class="tl-event">Trial หมดอายุ <span class="tl-auto">อัตโนมัติ</span></div>
-          <div class="tl-note">ระบบปรับ Role ให้ตอนเที่ยงคืน ไม่ต้องทำอะไร</div>
-          <div><span class="tl-role tl-role-vip">💎 VIP 10 วัน</span></div>
-        </div>
-      </div>
-      <div class="tl-item">
-        <div class="tl-left">
-          <div class="tl-dot tl-dot-muted"></div>
-        </div>
-        <div class="tl-content">
-          <div class="tl-day">Day 17</div>
-          <div class="tl-event">VIP หมดอายุ <span class="tl-auto">อัตโนมัติ</span></div>
-          <div class="tl-note">กลับสู่สถานะปกติ · สมัครแพ็กเกจเพื่อใช้ต่อ</div>
-          <div><span class="tl-role tl-role-free">🆓 Free</span></div>
-        </div>
-      </div>
+    <div class="section-body">
+      <table>
+        <thead>
+          <tr>
+            <th>ฟีเจอร์</th>
+            <th class="role-col-free role-header-free" style="text-align:center">🆓 Free</th>
+            <th class="role-col-vip role-header-vip" style="text-align:center">💎 VIP 299/เดือน</th>
+            <th class="role-col-pro role-header-pro" style="text-align:center">👑 PRO 499/เดือน</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>วิเคราะห์หุ้น</td>
+            <td class="role-col-free" style="text-align:center"><span class="limited">10 ครั้ง/วัน</span></td>
+            <td class="role-col-vip" style="text-align:center"><span class="check">♾️ ไม่จำกัด</span></td>
+            <td class="role-col-pro" style="text-align:center"><span class="check">♾️ ไม่จำกัด</span></td>
+          </tr>
+          <tr>
+            <td>Watchlist</td>
+            <td class="role-col-free" style="text-align:center"><span class="limited">จำกัด</span></td>
+            <td class="role-col-vip" style="text-align:center">10 ตัว</td>
+            <td class="role-col-pro" style="text-align:center"><span class="check">♾️ ไม่จำกัด</span></td>
+          </tr>
+          <tr>
+            <td>Morning Briefing</td>
+            <td class="role-col-free" style="text-align:center"><span class="cross">✕</span></td>
+            <td class="role-col-vip" style="text-align:center"><span class="check">✓</span></td>
+            <td class="role-col-pro" style="text-align:center"><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>Flash News</td>
+            <td class="role-col-free" style="text-align:center"><span class="cross">✕</span></td>
+            <td class="role-col-vip" style="text-align:center"><span class="check">✓</span></td>
+            <td class="role-col-pro" style="text-align:center"><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>Earnings Alert /ealert</td>
+            <td class="role-col-free" style="text-align:center"><span class="cross">✕</span></td>
+            <td class="role-col-vip" style="text-align:center"><span class="check">✓</span></td>
+            <td class="role-col-pro" style="text-align:center"><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>AI Podcast รายวัน</td>
+            <td class="role-col-free" style="text-align:center"><span class="cross">✕</span></td>
+            <td class="role-col-vip" style="text-align:center"><span class="check">✓</span></td>
+            <td class="role-col-pro" style="text-align:center"><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>Watchlist Summary 05:00</td>
+            <td class="role-col-free" style="text-align:center"><span class="cross">✕</span></td>
+            <td class="role-col-vip" style="text-align:center"><span class="check">✓</span></td>
+            <td class="role-col-pro" style="text-align:center"><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>Smart Alerts (RSI/Cross)</td>
+            <td class="role-col-free" style="text-align:center"><span class="cross">✕</span></td>
+            <td class="role-col-vip" style="text-align:center"><span class="cross">✕</span></td>
+            <td class="role-col-pro" style="text-align:center"><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>/setalert ราคาส่วนตัว</td>
+            <td class="role-col-free" style="text-align:center"><span class="cross">✕</span></td>
+            <td class="role-col-vip" style="text-align:center"><span class="cross">✕</span></td>
+            <td class="role-col-pro" style="text-align:center"><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>/earnings งบการเงิน AI</td>
+            <td class="role-col-free" style="text-align:center"><span class="cross">✕</span></td>
+            <td class="role-col-vip" style="text-align:center"><span class="cross">✕</span></td>
+            <td class="role-col-pro" style="text-align:center"><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>Web Dashboard</td>
+            <td class="role-col-free" style="text-align:center"><span class="limited">จำกัด</span></td>
+            <td class="role-col-vip" style="text-align:center"><span class="check">✓</span></td>
+            <td class="role-col-pro" style="text-align:center"><span class="check">✓ เต็มรูปแบบ</span></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
-  <!-- ── 5. Matrix Role × Referral ── -->
-  <div class="card">
-    <div class="card-header">
-      <span class="card-header-icon">📈</span>
-      <span class="card-header-title">ผลตาม Role × จำนวน Referral</span>
+  <!-- 3. Referral Milestone -->
+  <div class="section">
+    <div class="section-header">
+      <div class="icon">🤝</div>
+      <h2>Referral Milestone (ทุก 3 คน)</h2>
     </div>
-    <div style="overflow-x:auto">
-    <table>
-      <thead>
-        <tr>
-          <th style="width:22%">Role</th>
-          <th style="text-align:center">ชวน 1</th>
-          <th style="text-align:center">ชวน 2</th>
-          <th style="text-align:center" class="matrix-col-milestone">ชวน 3 ⭐</th>
-          <th style="text-align:center">ชวน 4</th>
-          <th style="text-align:center">ชวน 5</th>
-          <th style="text-align:center" class="matrix-col-milestone">ชวน 6 ⭐</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="badge badge-free">Free</span></td>
-          <td style="text-align:center"><span class="cell-small">+3 โควต้า</span></td>
-          <td style="text-align:center"><span class="cell-small">+3 โควต้า</span></td>
-          <td style="text-align:center" class="matrix-col-milestone"><span class="reward-vip" style="font-size:11px">VIP 30วัน</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center" class="matrix-col-milestone"><span class="reward-vip" style="font-size:11px">VIP +30วัน</span></td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-pro" style="font-size:10px">Free Trial PRO</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center" class="matrix-col-milestone"><span class="reward-pro" style="font-size:11px">PRO +10วัน</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center" class="matrix-col-milestone"><span class="reward-pro" style="font-size:11px">PRO +10วัน</span></td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-vip">VIP</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center" class="matrix-col-milestone"><span class="reward-vip" style="font-size:11px">VIP +30วัน</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center" class="matrix-col-milestone"><span class="reward-vip" style="font-size:11px">VIP +30วัน</span></td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-pro">PRO</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center" class="matrix-col-milestone"><span class="reward-pro" style="font-size:11px">PRO +10วัน</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center"><span class="reward-none">—</span></td>
-          <td style="text-align:center" class="matrix-col-milestone"><span class="reward-pro" style="font-size:11px">PRO +10วัน</span></td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="section-body">
+      <table>
+        <thead>
+          <tr>
+            <th>Role ปัจจุบัน</th>
+            <th style="text-align:center">ชวน 1–2 คน</th>
+            <th style="text-align:center">ชวนครบ 3 ⭐</th>
+            <th style="text-align:center">มูลค่า</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-free">Free</span></td>
+            <td style="text-align:center">+3 โควต้า/คน</td>
+            <td style="text-align:center"><span class="matrix-reward">VIP +10 วัน</span></td>
+            <td style="text-align:center;color:var(--accent)">~100 บาท</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-free">Free Trial PRO</span></td>
+            <td style="text-align:center"><span class="matrix-none">—</span></td>
+            <td style="text-align:center"><span class="matrix-reward">PRO +10 วัน</span></td>
+            <td style="text-align:center;color:var(--accent)">~166 บาท</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-vip">VIP</span></td>
+            <td style="text-align:center"><span class="matrix-none">—</span></td>
+            <td style="text-align:center"><span class="matrix-reward">VIP +10 วัน</span></td>
+            <td style="text-align:center;color:var(--accent)">~100 บาท</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-pro">PRO (จ่ายแล้ว)</span></td>
+            <td style="text-align:center"><span class="matrix-none">—</span></td>
+            <td style="text-align:center"><span class="matrix-reward">PRO +10 วัน</span></td>
+            <td style="text-align:center;color:var(--accent)">~166 บาท</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
     <div class="note-box">
-      <span>⭐</span>
-      <span>คอลัมน์สีทอง = Milestone ทุก 3 คน · PRO ได้ +10 วัน เพราะ PRO มูลค่าสูงกว่า VIP</span>
+      <strong>หมายเหตุ:</strong> ทุก 3, 6, 9, 12... คน = ได้รางวัลซ้ำ ไม่มีเพดาน!
     </div>
   </div>
 
+  <!-- 4. Timeline Free Trial -->
+  <div class="section">
+    <div class="section-header">
+      <div class="icon">🔄</div>
+      <h2>Timeline Free Trial</h2>
+    </div>
+    <div class="section-body">
+      <table>
+        <thead>
+          <tr>
+            <th>วัน</th>
+            <th>Event</th>
+            <th>Role</th>
+            <th>หมายเหตุ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="timeline-day">Day 0</span></td>
+            <td class="timeline-event">กด /freetrial</td>
+            <td><span class="badge badge-pro">PRO 7 วัน</span></td>
+            <td class="timeline-note">ใช้ได้ 1 ครั้ง/บัญชี</td>
+          </tr>
+          <tr>
+            <td><span class="timeline-day">Day 7</span></td>
+            <td class="timeline-event">Trial หมดอายุ</td>
+            <td><span class="badge badge-free">Free</span></td>
+            <td class="timeline-note">กลับปกติอัตโนมัติ</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 5. Matrix Role × Referral -->
+  <div class="section">
+    <div class="section-header">
+      <div class="icon">🎯</div>
+      <h2>ผลที่เกิดขึ้นตาม Role + จำนวน Referral</h2>
+    </div>
+    <div class="section-body">
+      <table>
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th class="matrix-header">ชวน 1 คน</th>
+            <th class="matrix-header">ชวน 2 คน</th>
+            <th class="matrix-header matrix-star">ชวน 3 ⭐</th>
+            <th class="matrix-header">ชวน 4 คน</th>
+            <th class="matrix-header">ชวน 5 คน</th>
+            <th class="matrix-header matrix-star">ชวน 6 ⭐</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="matrix-role"><span class="badge badge-free">Free</span></td>
+            <td class="matrix-cell">+3 โควต้า</td>
+            <td class="matrix-cell">+3 โควต้า</td>
+            <td class="matrix-cell" style="background:rgba(0,230,118,0.06)"><span class="matrix-reward">VIP +10 วัน</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell" style="background:rgba(0,230,118,0.06)"><span class="matrix-reward">VIP +10 วัน</span></td>
+          </tr>
+          <tr>
+            <td class="matrix-role"><span class="badge badge-free">Free Trial</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell" style="background:rgba(0,230,118,0.06)"><span class="matrix-reward">PRO +10 วัน</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell" style="background:rgba(0,230,118,0.06)"><span class="matrix-reward">PRO +10 วัน</span></td>
+          </tr>
+          <tr>
+            <td class="matrix-role"><span class="badge badge-vip">VIP</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell" style="background:rgba(0,230,118,0.06)"><span class="matrix-reward">VIP +10 วัน</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell" style="background:rgba(0,230,118,0.06)"><span class="matrix-reward">VIP +10 วัน</span></td>
+          </tr>
+          <tr>
+            <td class="matrix-role"><span class="badge badge-pro">PRO</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell" style="background:rgba(0,230,118,0.06)"><span class="matrix-reward">PRO +10 วัน</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell"><span class="matrix-none">—</span></td>
+            <td class="matrix-cell" style="background:rgba(0,230,118,0.06)"><span class="matrix-reward">PRO +10 วัน</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
   <div class="footer">
-    <p style="margin-bottom:6px">⚡ <strong style="color:var(--muted)">Apexify</strong> — บอทวิเคราะห์หุ้น AI</p>
-    <p><a href="#">@ApexifyBot</a> · ทดลองฟรี 7 วัน พิมพ์ <strong>/freetrial</strong></p>
+    <a href="https://t.me/ApexifyBot">เริ่มใช้งาน Apexify Bot</a>
+    <p>Apexify — AI Stock Analysis for Thai Investors</p>
   </div>
 
 </div>
