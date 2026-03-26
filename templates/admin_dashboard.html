@@ -301,6 +301,7 @@
       <div class="user-info-row"><span class="user-info-label">Portfolio</span><span id="ul-portfolio">—</span></div>
       <div class="user-info-row"><span class="user-info-label">Price Alerts</span><span id="ul-alerts">—</span></div>
       <div class="user-info-row"><span class="user-info-label">สมัครเมื่อ</span><span id="ul-reg">—</span></div>
+      <div class="user-info-row"><span class="user-info-label">ใช้งานล่าสุด</span><span id="ul-last-active">—</span></div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-danger btn-sm" id="ul-ban-btn" onclick="doBanFromLookup(true)" style="flex:1">🚫 Ban</button>
         <button class="btn btn-green btn-sm" id="ul-unban-btn" onclick="doBanFromLookup(false)" style="flex:1">✅ Unban</button>
@@ -651,24 +652,26 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>User ID</th><th>Clearance</th><th>Expiration</th><th>Status</th></tr>
+            <tr><th>User</th><th>Clearance</th><th>Expiration</th><th>Last Active</th><th>Status</th></tr>
           </thead>
           <tbody>
             {% for u in paid_users %}
             <tr>
-              <td class="mono">{{ u.user_id[:8] }}…</td>
+              <td><span class="mono" style="font-size:11px">{{ u.user_id[:8] }}…</span><br><span style="font-size:11px;color:var(--text-muted)">{{ u.username or '' }}</span></td>
               <td>
                 {% if u.role == 'pro' %}<span class="badge badge-purple">PRO</span>
                 {% else %}<span class="badge badge-blue">VIP</span>{% endif %}
               </td>
               <td style="font-size:12px">{{ u.expiry_date or '—' }}</td>
+              <td style="font-size:12px">{{ u.last_active or '—' }}</td>
               <td>
-                {% if u.is_active %}<span class="badge badge-green">Active</span>
+                {% if u.bot_status == 'inactive' %}<span class="badge badge-red">Blocked</span>
+                {% elif u.is_active %}<span class="badge badge-green">Active</span>
                 {% else %}<span class="badge badge-red">Expired</span>{% endif %}
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="4" style="text-align:center;color:var(--text-muted)">ไม่มี Premium members</td></tr>
+            <tr><td colspan="5" style="text-align:center;color:var(--text-muted)">ไม่มี Premium members</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -890,6 +893,7 @@
         document.getElementById('ul-portfolio').textContent = u.portfolio_count + ' stocks';
         document.getElementById('ul-alerts').textContent = u.active_alerts + ' alerts';
         document.getElementById('ul-reg').textContent = u.registered_date || '—';
+        document.getElementById('ul-last-active').textContent = u.last_active || 'ยังไม่เคยใช้งาน';
         document.getElementById('ul-card').classList.add('open');
       } else {
         showResult('ul-result', false, d.error || 'ไม่พบผู้ใช้');

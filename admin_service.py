@@ -248,22 +248,28 @@ def get_paid_users_snapshot():
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "SELECT user_id, role, expiry_date FROM users WHERE role IN ('pro', 'vip') ORDER BY role DESC, expiry_date ASC"
+            "SELECT user_id, role, expiry_date, username, last_active, status FROM users WHERE role IN ('pro', 'vip') ORDER BY role DESC, expiry_date ASC"
         )
         users_list = cursor.fetchall()
     finally:
         conn.close()
 
     items = []
-    for uid, role, expiry in users_list:
+    for uid, role, expiry, uname, last_active, status in users_list:
         active_role = check_subscription(uid)
+        la_str = ""
+        if last_active:
+            la_str = last_active.strftime("%Y-%m-%d %H:%M") if hasattr(last_active, 'strftime') else str(last_active)[:16]
         items.append(
             {
                 "user_id": str(uid),
+                "username": uname or "Unknown",
                 "role": str(role),
                 "expiry_date": _format_expiry_date(expiry),
                 "is_active": active_role in ("pro", "vip"),
                 "status_label": "Active" if active_role in ("pro", "vip") else "Expired",
+                "last_active": la_str,
+                "bot_status": status or "active",
             }
         )
 
@@ -577,7 +583,7 @@ def get_user_info_snapshot(user_id):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT user_id, username, role, expiry_date, status, registered_date FROM users WHERE user_id=%s",
+        "SELECT user_id, username, role, expiry_date, status, registered_date, last_active FROM users WHERE user_id=%s",
         (str(user_id),)
     )
     row = cur.fetchone()
@@ -585,7 +591,7 @@ def get_user_info_snapshot(user_id):
         cur.close()
         conn.close()
         return None
-    uid, uname, role, expiry, status, reg_date = row
+    uid, uname, role, expiry, status, reg_date, last_active = row
     cur.execute("SELECT COUNT(*) FROM user_watchlist WHERE user_id=%s", (str(user_id),))
     watchlist_count = cur.fetchone()[0]
     cur.execute("SELECT COUNT(*) FROM portfolios WHERE user_id=%s", (str(user_id),))
@@ -594,6 +600,9 @@ def get_user_info_snapshot(user_id):
     alert_count = cur.fetchone()[0]
     cur.close()
     conn.close()
+    la_str = ""
+    if last_active:
+        la_str = last_active.strftime("%Y-%m-%d %H:%M") if hasattr(last_active, 'strftime') else str(last_active)[:16]
     return {
         "user_id": uid,
         "username": uname or "Unknown",
@@ -601,6 +610,7 @@ def get_user_info_snapshot(user_id):
         "expiry_date": str(expiry) if expiry else None,
         "status": status or "active",
         "registered_date": str(reg_date) if reg_date else None,
+        "last_active": la_str,
         "watchlist_count": watchlist_count,
         "portfolio_count": portfolio_count,
         "active_alerts": alert_count,
