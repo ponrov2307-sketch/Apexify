@@ -466,10 +466,10 @@ def register_user(user_id, username="Unknown"):
     try:
         # 🌟 ใช้ ON CONFLICT DO UPDATE เพื่อให้คนเก่าที่เคยกด /start ไปแล้ว ถ้ากดซ้ำ ชื่อจะถูกอัปเดตเข้า DB ทันที
         c.execute("""
-            INSERT INTO users (user_id, status, registered_date, role, usage_count, username) 
-            VALUES (%s, %s, %s, %s, %s, %s) 
-            ON CONFLICT (user_id) 
-            DO UPDATE SET username = EXCLUDED.username
+            INSERT INTO users (user_id, status, registered_date, role, usage_count, username)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id)
+            DO UPDATE SET username = EXCLUDED.username, status = 'active'
         """, (str(user_id), 'active', now_str, 'free', 0, username))
         conn.commit()
     except Exception as e:
@@ -477,6 +477,29 @@ def register_user(user_id, username="Unknown"):
         conn.rollback()
     finally:
         conn.close()
+
+def mark_user_inactive(user_id):
+    """Mark user เป็น inactive (บล็อคบอท/ลบบัญชี)"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("UPDATE users SET status = 'inactive' WHERE user_id = %s", (str(user_id),))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+def get_active_users():
+    """ดึงเฉพาะ user ที่ active (ไม่รวมคนบล็อค)"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM users WHERE COALESCE(status, 'active') = 'active'")
+    result = c.fetchall()
+    conn.close()
+    return [row[0] for row in result]
+
 
 def update_last_active(user_id):
     """อัปเดตเวลาใช้งานล่าสุดของ user"""

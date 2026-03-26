@@ -13,7 +13,8 @@ from database import (get_all_active_symbols, get_users_watching, init_db, check
                       auto_downgrade_expired_users, init_new_features_db,
                       should_send_user_notification, mark_digest_sent,
                       reset_daily_free_usage, get_expiring_subscriptions,
-                      get_top_watched_symbols, get_all_earnings_subscriptions)
+                      get_top_watched_symbols, get_all_earnings_subscriptions,
+                      mark_user_inactive, get_active_users)
 import json
 import xml.etree.ElementTree as ET 
 import yfinance as yf
@@ -28,6 +29,22 @@ client = gemini_client
 
 last_alert_state = {}
 sent_pro_news = set()
+
+
+def safe_send(bot_instance, user_id, text, **kwargs):
+    """ส่งข้อความอย่างปลอดภัย — ถ้า 403 จะ auto-mark inactive"""
+    try:
+        bot_instance.send_message(user_id, text, **kwargs)
+        return True
+    except Exception as e:
+        err = str(e)
+        if "403" in err or "blocked" in err.lower() or "deactivated" in err.lower() or "can't initiate" in err.lower():
+            try:
+                mark_user_inactive(user_id)
+                print(f"[AutoInactive] {user_id} → inactive ({err[:60]})")
+            except Exception:
+                pass
+        return False
 
 
 def _gemini_generate_with_retry(prompt, model='gemini-2.5-flash', retries=2, delay=15):
@@ -677,12 +694,9 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
             recipients.insert(0, str(ADMIN_ID))
         count = 0
         for uid in recipients:
-            try:
-                bot_instance.send_message(uid, msg, parse_mode='Markdown')
+            if safe_send(bot_instance, uid, msg, parse_mode='Markdown'):
                 count += 1
-                time.sleep(0.5)
-            except Exception as e:
-                print(f"[FlashNews] ส่งให้ {uid} ไม่สำเร็จ: {e}")
+            time.sleep(0.5)
         print(f"[FlashNews] ส่งสำเร็จ {count} คน ({len(sections)} ข่าว)")
 
     except Exception as e:
@@ -777,12 +791,9 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
         msg = "📰 *Apex News Digest*\n\n" + "\n\n".join(digest_sections)
 
         for uid in eligible_users:
-            try:
-                bot_instance.send_message(uid, msg, parse_mode='Markdown')
+            if safe_send(bot_instance, uid, msg, parse_mode='Markdown'):
                 sent_to_users.add(uid)
-                time.sleep(0.5)
-            except Exception as e:
-                print(f"[Digest] ส่งให้ {uid} ไม่สำเร็จ: {e}")
+            time.sleep(0.5)
         for uid in sent_to_users:
             mark_digest_sent(uid)
         conn.close()
@@ -1245,12 +1256,9 @@ def send_morning_briefing(bot_instance, force=False):
 
             count = 0
             for uid in recipients:
-                try:
-                    bot_instance.send_message(uid, msg, parse_mode='Markdown')
+                if safe_send(bot_instance, uid, msg, parse_mode='Markdown'):
                     count += 1
-                    time.sleep(0.5)
-                except Exception as e:
-                    print(f"[MorningBriefing] ส่งให้ {uid} ไม่สำเร็จ: {e}")
+                time.sleep(0.5)
 
             if count > 0: print(f"✅ ส่ง Morning Briefing สำเร็จ {count} คน")
     except Exception as e:
@@ -1467,12 +1475,9 @@ def send_watchlist_daily_summary(bot_instance):
             + "\n".join(rows)
             + "\n\n_💡 ส่งทุกวัน 05:00 น. หลังตลาด US ปิด_"
         )
-        try:
-            bot_instance.send_message(user_id, msg, parse_mode="Markdown")
+        if safe_send(bot_instance, user_id, msg, parse_mode="Markdown"):
             count += 1
-            time.sleep(0.3)
-        except Exception as e:
-            print(f"[WatchlistSummary] ส่งให้ {user_id} ไม่สำเร็จ: {e}")
+        time.sleep(0.3)
     if count > 0:
         print(f"✅ [WatchlistSummary] ส่งสำเร็จ {count} คน", flush=True)
 

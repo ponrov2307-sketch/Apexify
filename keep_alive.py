@@ -8,7 +8,7 @@ from flask import Flask, abort, flash, jsonify, redirect, render_template, reque
 from admin_service import build_local_backup_zip, get_admin_dashboard_snapshot, get_user_info_snapshot, toggle_maintenance_status
 from config import ADMIN_DASHBOARD_LOGIN_SECRET, ADMIN_ID, BOT_WEB_BASE_URL, FLASK_SECRET_KEY, TELEGRAM_TOKEN
 from dashboard_login import verify_admin_dashboard_token
-from database import add_subscription, ban_user, get_all_users, get_dashboard_stats, unban_user
+from database import add_subscription, ban_user, get_all_users, get_active_users, get_dashboard_stats, mark_user_inactive, unban_user
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = FLASK_SECRET_KEY or ADMIN_DASHBOARD_LOGIN_SECRET or os.urandom(32)
@@ -59,7 +59,13 @@ def _do_web_broadcast(msg_text, user_ids):
             bot.send_message(uid, f"📢 **ประกาศจาก Apexify:**\n\n{msg_text}", parse_mode="Markdown")
             success += 1
             _time.sleep(0.1)
-        except Exception:
+        except Exception as e:
+            err = str(e)
+            if "403" in err or "blocked" in err.lower() or "deactivated" in err.lower():
+                try:
+                    mark_user_inactive(uid)
+                except Exception:
+                    pass
             try:
                 bot.send_message(uid, f"📢 ประกาศจาก Apexify:\n\n{msg_text}")
                 success += 1

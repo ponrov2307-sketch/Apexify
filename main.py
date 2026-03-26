@@ -26,7 +26,7 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       ALLOWED_TIMEZONES, ALLOWED_LANGUAGES, ALLOWED_DIGEST_FREQUENCIES,
                       has_used_free_trial, activate_free_trial,
                       add_earnings_alert_db, get_user_earnings_alerts_db, remove_earnings_alert_db,
-                      update_last_active)
+                      update_last_active, mark_user_inactive, get_active_users)
 from admin_service import (
     build_local_backup_zip,
     get_maintenance_status,
@@ -1003,13 +1003,19 @@ def _do_broadcast(message, users, msg_text):
     success, fail = 0, 0
     for uid in users:
         try:
-            # ลองส่งแบบจัดหน้าตา (Markdown) ก่อน
             bot.send_message(uid, f"📢 **ประกาศจาก Apexify:**\n\n{msg_text}", parse_mode="Markdown")
             success += 1
-            time.sleep(0.1) # หน่วงเวลากัน Telegram แบน
-        except Exception:
+            time.sleep(0.1)
+        except Exception as e:
+            err = str(e)
+            # Auto-mark inactive ถ้า 403
+            if "403" in err or "blocked" in err.lower() or "deactivated" in err.lower():
+                try:
+                    mark_user_inactive(uid)
+                    print(f"[Broadcast] {uid} → inactive")
+                except Exception:
+                    pass
             try:
-                # ถ้าพังเพราะแอดมินส่งลิงก์หรือสัญลักษณ์แปลกๆ ให้ส่งแบบธรรมดาแทน (ไม้ตาย)
                 bot.send_message(uid, f"📢 ประกาศจาก Apexify:\n\n{msg_text}")
                 success += 1
                 time.sleep(0.1)
@@ -1023,7 +1029,7 @@ def handle_broadcast(message):
     if user_id != ADMIN_ID: return
     msg_text = message.text.replace('/broadcast', '').strip()
     if not msg_text: return
-    users = get_all_users()
+    users = get_active_users()
     bot.reply_to(message, f"⏳ กำลังส่งข้อความหาผู้ใช้ {len(users)} คน... (รันอยู่เบื้องหลัง)")
     threading.Thread(target=_do_broadcast, args=(message, users, msg_text), daemon=True).start()
 
