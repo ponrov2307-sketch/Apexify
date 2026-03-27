@@ -2217,14 +2217,20 @@ def handle_main(message):
             bot.send_message(message.chat.id, report, reply_markup=markup)
 
 if __name__ == "__main__":
-    keep_alive()  # Flask ขึ้นก่อนเลย ไม่รอ DB init
+    keep_alive()  # Flask ขึ้นก่อนเลย
 
-    init_db()
-    try:
-        init_new_features_db()
-    except Exception as e:
-        print("DB Init Error:", e)
-    threading.Thread(target=run_alert_loop, args=(bot,), daemon=True).start()
+    def _bg_init():
+        try:
+            init_db()
+        except Exception as e:
+            print("DB Init Error:", e)
+        try:
+            init_new_features_db()
+        except Exception as e:
+            print("DB Init Error:", e)
+        run_alert_loop(bot)
+
+    threading.Thread(target=_bg_init, daemon=True).start()
 
     # Webhook mode: ถ้ามี BOT_WEB_BASE_URL → ใช้ webhook, ไม่มี → fallback polling
     _base = BOT_WEB_BASE_URL.rstrip("/") if BOT_WEB_BASE_URL else ""
