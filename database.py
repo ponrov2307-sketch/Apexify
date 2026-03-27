@@ -575,9 +575,9 @@ def _calculate_subscription_expiry(role, days, current_role=None, current_expiry
     if current_expiry:
         try:
             if isinstance(current_expiry, datetime):
-                parsed_expiry = current_expiry
+                parsed_expiry = current_expiry.replace(tzinfo=None)
             else:
-                parsed_expiry = datetime.strptime(str(current_expiry), '%Y-%m-%d %H:%M:%S')
+                parsed_expiry = datetime.strptime(str(current_expiry)[:19], '%Y-%m-%d %H:%M:%S')
             if parsed_expiry > now and (current_role == role or role == 'pro'):
                 new_expiry = parsed_expiry + timedelta(days=days)
         except (TypeError, ValueError):
@@ -616,7 +616,13 @@ def check_subscription(user_id):
     if result:
         role, expiry_date = result
         if role in ['vip', 'pro'] and expiry_date:
-            expiry = datetime.strptime(expiry_date, '%Y-%m-%d %H:%M:%S')
+            if isinstance(expiry_date, datetime):
+                expiry = expiry_date.replace(tzinfo=None)
+            else:
+                try:
+                    expiry = datetime.strptime(str(expiry_date)[:19], '%Y-%m-%d %H:%M:%S')
+                except (ValueError, TypeError):
+                    return 'free'
             if datetime.now() < expiry:
                 return role
     return 'free'
