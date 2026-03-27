@@ -2217,13 +2217,13 @@ def handle_main(message):
             bot.send_message(message.chat.id, report, reply_markup=markup)
 
 if __name__ == "__main__":
+    keep_alive()  # Flask ขึ้นก่อนเลย ไม่รอ DB init
+
     init_db()
     try:
         init_new_features_db()
     except Exception as e:
         print("DB Init Error:", e)
-
-    keep_alive()
     threading.Thread(target=run_alert_loop, args=(bot,), daemon=True).start()
 
     # Webhook mode: ถ้ามี BOT_WEB_BASE_URL → ใช้ webhook, ไม่มี → fallback polling
