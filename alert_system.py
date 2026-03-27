@@ -2,6 +2,7 @@
 import hashlib
 import math
 import difflib
+import traceback
 from datetime import datetime, timedelta
 import telebot
 import requests 
@@ -701,12 +702,14 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
 
     except Exception as e:
         # 🌟 3. ดักจับกรณี API พัง หรือโดนบล็อคเนื้อหาความรุนแรง
+        tb = traceback.format_exc()
+        print(f"❌ [FlashNews] Error:\n{tb}")
         try:
             error_msg = str(e)
             if "Safety" in error_msg or "blocked" in error_msg.lower():
                 bot_instance.send_message(ADMIN_ID, "⚠️ **Flash News สะดุด:** AI ปฏิเสธการสรุปข่าวเนื่องจากติดฟิลเตอร์คำรุนแรง (Safety Policy)")
             else:
-                bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News System Error:** {error_msg}")
+                bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News System Error:** {error_msg}\n\n`{tb[-300:]}`", parse_mode="Markdown")
         except Exception:
             pass
 
@@ -798,8 +801,10 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             mark_digest_sent(uid)
         conn.close()
     except Exception as e:
+        tb = traceback.format_exc()
+        print(f"❌ [DigestNews] Error:\n{tb}")
         try:
-            bot_instance.send_message(ADMIN_ID, f"⚠️ **Digest News Error:** {str(e)[:100]}...")
+            bot_instance.send_message(ADMIN_ID, f"⚠️ **Digest News Error:** {str(e)[:100]}\n\n`{tb[-300:]}`", parse_mode="Markdown")
         except Exception:
             pass
 
@@ -1262,9 +1267,10 @@ def send_morning_briefing(bot_instance, force=False):
 
             if count > 0: print(f"✅ ส่ง Morning Briefing สำเร็จ {count} คน")
     except Exception as e:
-        print(f"❌ [MorningBriefing] Error: {e}")
+        tb = traceback.format_exc()
+        print(f"❌ [MorningBriefing] Error:\n{tb}")
         try:
-            bot_instance.send_message(ADMIN_ID, f"⚠️ **Morning Briefing Error:** {str(e)[:200]}", parse_mode="Markdown")
+            bot_instance.send_message(ADMIN_ID, f"⚠️ **Morning Briefing Error:** {str(e)[:200]}\n\n`{tb[-300:]}`", parse_mode="Markdown")
         except Exception:
             pass
 
