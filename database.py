@@ -462,14 +462,13 @@ def _add_column_if_missing(table: str, column: str, definition: str):
 def init_db():
     conn = get_connection()
     c = conn.cursor()
+    # CREATE TABLE includes all columns — no ALTER TABLE migrations needed on existing deployments
     c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT, role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0, username TEXT DEFAULT 'Unknown')''')
-    conn.commit()
-
-    # ตรวจก่อนว่า column มีอยู่แล้วไหม — ถ้ามีแล้วข้าม ALTER TABLE เลย (ไม่ต้องรอ timeout)
-    _add_column_if_missing("users", "username", "TEXT DEFAULT 'Unknown'")
-    _add_column_if_missing("users", "free_trial_used", "BOOLEAN DEFAULT FALSE")
-    _add_column_if_missing("users", "last_active", "TIMESTAMP")
+                 (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT,
+                  role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0,
+                  username TEXT DEFAULT 'Unknown',
+                  free_trial_used BOOLEAN DEFAULT FALSE,
+                  last_active TIMESTAMP)''')
 
     conn = get_connection()
     c = conn.cursor()
