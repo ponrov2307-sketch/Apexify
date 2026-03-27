@@ -153,13 +153,13 @@ health_check_local_web() {
 
   if command -v curl >/dev/null 2>&1; then
     local attempt
-    for attempt in {1..15}; do
+    for attempt in {1..30}; do
       if curl -fsS "${root_url}" >/dev/null 2>&1; then
         local admin_status
         admin_status="$(curl -s -o /dev/null -w "%{http_code}" "${admin_url}")"
         [ "${admin_status}" = "403" ] && return 0
       fi
-      sleep 2
+      sleep 3
     done
     return 1
   fi
@@ -177,7 +177,7 @@ checks = [
     (f"http://127.0.0.1:{port}/admin", 403),
 ]
 
-for _ in range(15):
+for _ in range(30):
     all_ok = True
     for url, expected in checks:
         try:
@@ -193,7 +193,7 @@ for _ in range(15):
             break
     if all_ok:
         raise SystemExit(0)
-    time.sleep(2)
+    time.sleep(3)
 
 raise SystemExit(1)
 PY
