@@ -414,22 +414,47 @@ def get_connection():
     pool = _get_pool()
     return _PooledConnection(pool, pool.getconn())
 
+def _run_migration(ddl: str):
+    """รัน DDL statement แยก transaction — ถ้า timeout/error ให้ rollback แล้วข้ามต่อ ไม่ให้กระทบ startup"""
+    conn = get_connection()
+    try:
+        c = conn.cursor()
+        c.execute(ddl)
+        conn.commit()
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        print(f"[migration] skipped (non-fatal): {e}")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def init_db():
     conn = get_connection()
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users 
+    c.execute('''CREATE TABLE IF NOT EXISTS users
                  (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT, role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0, username TEXT DEFAULT 'Unknown')''')
-    # Keep old deployments compatible by adding missing column if table already exists.
-    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT DEFAULT 'Unknown'")
-    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_used BOOLEAN DEFAULT FALSE")
-    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TIMESTAMP")
+    conn.commit()
 
+    # Keep old deployments compatible — each ALTER TABLE runs in its own transaction
+    # so a statement timeout on one column never kills the entire startup.
+    _run_migration("ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT DEFAULT 'Unknown'")
+    _run_migration("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_used BOOLEAN DEFAULT FALSE")
+    _run_migration("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TIMESTAMP")
+
+    conn = get_connection()
+    c = conn.cursor()
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
-    c.execute('''CREATE TABLE IF NOT EXISTS promo_codes 
+    c.execute('''CREATE TABLE IF NOT EXISTS promo_codes
                  (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '', role_type TEXT DEFAULT 'vip')''')
-                 
+
     # 🌟 ฐานข้อมูลเก็บสลิปที่ใช้แล้ว ป้องกันการส่งซ้ำ
-    c.execute('''CREATE TABLE IF NOT EXISTS used_slips 
+    c.execute('''CREATE TABLE IF NOT EXISTS used_slips
                  (ref_no TEXT PRIMARY KEY, user_id TEXT, date_used TEXT)''')
 
     # 🌟 ตารางใหม่: เก็บประวัติสัญญาณเพื่อใช้วัดความแม่นยำ (Accuracy Log)
@@ -448,7 +473,7 @@ def init_db():
 
     conn.commit()
     conn.close()
-    init_watchlist_db() 
+    init_watchlist_db()
 
 def init_watchlist_db():
     conn = get_connection()
@@ -577,7 +602,8 @@ def _calculate_subscription_expiry(role, days, current_role=None, current_expiry
             if isinstance(current_expiry, datetime):
                 parsed_expiry = current_expiry.replace(tzinfo=None)
             else:
-                parsed_expiry = datetime.strptime(str(current_expiry)[:19], '%Y-%m-%d %H:%M:%S')
+                raw = str(current_expiry).strip().replace('T', ' ')
+                parsed_expiry = datetime.fromisoformat(raw).replace(tzinfo=None)
             if parsed_expiry > now and (current_role == role or role == 'pro'):
                 new_expiry = parsed_expiry + timedelta(days=days)
         except (TypeError, ValueError):
@@ -616,15 +642,18 @@ def check_subscription(user_id):
     if result:
         role, expiry_date = result
         if role in ['vip', 'pro'] and expiry_date:
-            if isinstance(expiry_date, datetime):
-                expiry = expiry_date.replace(tzinfo=None)
-            else:
-                try:
-                    expiry = datetime.strptime(str(expiry_date)[:19], '%Y-%m-%d %H:%M:%S')
-                except (ValueError, TypeError):
-                    return 'free'
-            if datetime.now() < expiry:
-                return role
+            try:
+                if isinstance(expiry_date, datetime):
+                    expiry = expiry_date.replace(tzinfo=None)
+                else:
+                    raw = str(expiry_date).strip().replace('T', ' ')
+                    # fromisoformat handles microseconds & tz; strip tz for naive compare
+                    parsed = datetime.fromisoformat(raw)
+                    expiry = parsed.replace(tzinfo=None)
+                if datetime.now() < expiry:
+                    return role
+            except (ValueError, TypeError):
+                pass
     return 'free'
 
 def get_usage(user_id):
