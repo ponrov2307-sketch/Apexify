@@ -414,6 +414,24 @@ def get_connection():
     pool = _get_pool()
     return _PooledConnection(pool, pool.getconn())
 
+def _column_exists(table: str, column: str) -> bool:
+    """เช็คว่า column มีอยู่แล้วใน table หรือไม่ — ถ้ามีแล้วข้าม ALTER TABLE เลย"""
+    try:
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            c.execute(
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_name=%s AND column_name=%s",
+                (table, column),
+            )
+            return c.fetchone() is not None
+        finally:
+            conn.close()
+    except Exception:
+        return False
+
+
 def _run_migration(ddl: str):
     """รัน DDL statement แยก transaction — ถ้า timeout/error ให้ rollback แล้วข้ามต่อ ไม่ให้กระทบ startup"""
     conn = get_connection()
@@ -434,6 +452,13 @@ def _run_migration(ddl: str):
             pass
 
 
+def _add_column_if_missing(table: str, column: str, definition: str):
+    """เพิ่ม column เฉพาะเมื่อยังไม่มี — ข้าม ALTER TABLE ทันทีถ้ามีแล้ว"""
+    if _column_exists(table, column):
+        return
+    _run_migration(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def init_db():
     conn = get_connection()
     c = conn.cursor()
@@ -441,11 +466,10 @@ def init_db():
                  (user_id TEXT PRIMARY KEY, status TEXT, registered_date TEXT, role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0, username TEXT DEFAULT 'Unknown')''')
     conn.commit()
 
-    # Keep old deployments compatible — each ALTER TABLE runs in its own transaction
-    # so a statement timeout on one column never kills the entire startup.
-    _run_migration("ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT DEFAULT 'Unknown'")
-    _run_migration("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_used BOOLEAN DEFAULT FALSE")
-    _run_migration("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TIMESTAMP")
+    # ตรวจก่อนว่า column มีอยู่แล้วไหม — ถ้ามีแล้วข้าม ALTER TABLE เลย (ไม่ต้องรอ timeout)
+    _add_column_if_missing("users", "username", "TEXT DEFAULT 'Unknown'")
+    _add_column_if_missing("users", "free_trial_used", "BOOLEAN DEFAULT FALSE")
+    _add_column_if_missing("users", "last_active", "TIMESTAMP")
 
     conn = get_connection()
     c = conn.cursor()
