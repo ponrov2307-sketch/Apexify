@@ -424,6 +424,7 @@ def init_db():
                   role TEXT, expiry_date TEXT, usage_count INTEGER DEFAULT 0,
                   username TEXT DEFAULT 'Unknown',
                   free_trial_used BOOLEAN DEFAULT FALSE,
+                  free_trial_vip_given BOOLEAN DEFAULT FALSE,
                   last_active TIMESTAMP)''')
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes
@@ -1117,10 +1118,16 @@ def init_new_features_db():
             UNIQUE(user_id, symbol)
         )
     """)
-    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_used BOOLEAN DEFAULT FALSE")
-    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_vip_given BOOLEAN DEFAULT FALSE")
-    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TIMESTAMP")
-    conn.commit()
+    for col_ddl in [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_used BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_vip_given BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TIMESTAMP",
+    ]:
+        try:
+            c.execute(col_ddl)
+            conn.commit()
+        except Exception:
+            conn.rollback()
 
     # 🌟 2. บังคับอัปเดตคอลัมน์ให้ฐานข้อมูลเก่าที่มีอยู่แล้ว (ป้องกัน Error)
     try:
@@ -1135,17 +1142,21 @@ def init_new_features_db():
     except Exception:
         conn.rollback()
 
-    try:
-        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE")
-        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT %s", (DEFAULT_USER_TIMEZONE,))
-        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT %s", (DEFAULT_USER_LANGUAGE,))
-        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS digest_frequency_hours INTEGER NOT NULL DEFAULT %s", (DEFAULT_DIGEST_FREQUENCY_HOURS,))
-        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS news_start_hour INTEGER NOT NULL DEFAULT %s", (DEFAULT_NEWS_START_HOUR,))
-        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS news_end_hour INTEGER NOT NULL DEFAULT %s", (DEFAULT_NEWS_END_HOUR,))
-        c.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS last_digest_sent_at TIMESTAMPTZ")
-        conn.commit()
-    except Exception:
-        conn.rollback()
+    for col_ddl in [
+        ("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE", None),
+        ("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT %s", (DEFAULT_USER_TIMEZONE,)),
+        ("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT %s", (DEFAULT_USER_LANGUAGE,)),
+        ("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS digest_frequency_hours INTEGER NOT NULL DEFAULT %s", (DEFAULT_DIGEST_FREQUENCY_HOURS,)),
+        ("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS news_start_hour INTEGER NOT NULL DEFAULT %s", (DEFAULT_NEWS_START_HOUR,)),
+        ("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS news_end_hour INTEGER NOT NULL DEFAULT %s", (DEFAULT_NEWS_END_HOUR,)),
+        ("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS last_digest_sent_at TIMESTAMPTZ", None),
+    ]:
+        sql, params = col_ddl
+        try:
+            c.execute(sql, params) if params else c.execute(sql)
+            conn.commit()
+        except Exception:
+            conn.rollback()
 
     c.close()
     conn.close()
