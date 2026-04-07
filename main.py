@@ -1125,15 +1125,15 @@ def handle_payment_slip_check(message):
                 return
 
             slip_packages = {
-                4990: ('pro', 365, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"),
-                2990: ('vip', 365, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายปี)**\n⏰ หมดอายุ: {expiry}"),
-                499: ('pro', 30, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายเดือน)**\n⏰ หมดอายุ: {expiry}"),
-                299: ('vip', 30, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายเดือน)**\n⏰ หมดอายุ: {expiry}"),
+                1090: ('pro', 365, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"),
+                790: ('vip', 365, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายปี)**\n⏰ หมดอายุ: {expiry}"),
+                109: ('pro', 30, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายเดือน)**\n⏰ หมดอายุ: {expiry}"),
+                79: ('vip', 30, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายเดือน)**\n⏰ หมดอายุ: {expiry}"),
             }
             package_info = slip_packages.get(amount)
             if not package_info:
                 bot.edit_message_text(
-                    f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** ({amount:,.2f} บาท)\nกรุณาโอนให้ตรงราคา (299, 499, 2990, 4990)",
+                    f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** ({amount:,.2f} บาท)\nกรุณาโอนให้ตรงราคา (79, 109, 790, 1090)",
                     message.chat.id,
                     progress_msg.message_id,
                     parse_mode="Markdown",
@@ -1356,62 +1356,39 @@ def inline_callbacks(call):
     if call.data == 'menu_vip':
         try:
             pay_text = (
-                "🚀 **แพ็กเกจการลงทุนกับ 💎 APEXIFY** 🚀\n"
+                "🚀 **แพ็กเกจ APEXIFY** 🚀\n"
                 "💳 กสิกรไทย: `135-1-34469-1` (นาย เกียรติศักดิ์ วุฒิจันทร์)\n"
-                "*(โอนเงินแล้วส่งรูปสลิปในแชทนี้ ระบบจะอัปเกรดให้อัตโนมัติใน 3 วินาที!)*\n\n"
-                
-                "🆓 **1. ระดับ BASIC (สายฟรี):**\n"
-                "*(เครื่องมือสอดส่องตลาดและทดลองใช้งาน)*\n"
-                "🤖 **[บอท]** 🔍 โควต้าสแกนกราฟด้วย AI 10 ครั้ง/วัน\n"
-                "🤖 **[บอท]** ⭐ สอดส่องหุ้นเข้า Watchlist สูงสุด 3 ตัว\n"
-                "🤖 **[บอท]** 🌍 ดูสรุปสภาวะตลาดโลก (Fear & Greed Index)\n"
-                "🤖 **[บอท]** 🖼️ สร้างการ์ดอวดกำไรสุดเท่ (PnL Card)\n"
-                "🌐 **[เว็บ]** 📊 เพิ่มหุ้นเข้าพอร์ตได้สูงสุด 3 ตัว (ดูกราฟสัดส่วนการลงทุน)\n"
-                "🌐 **[เว็บ]** 💧 จำลองปันผลทบต้น (DRIP Simulator)\n"
-                "🌐 **[เว็บ]** ⚖️ เทียบผลตอบแทนหุ้น 2 ตัว (2-Stock Simulator)\n"
-                "🌐 **[เว็บ]** 🧭 ดูหน้าปัดความเสี่ยงเศรษฐกิจโลก (Macro-Economic HUD)\n"
-                "🌐 **[เว็บ]** 💬 AI Copilot แชทถาม-ตอบเรื่องลงทุนส่วนตัว\n\n"
-                
-                "💎 **2. ระดับ VIP (299.-/เดือน หรือ 2,990.-/ปี):**\n"
-                "*(ปลดล็อกขีดจำกัด เหมาะสำหรับเทรดเดอร์ทั่วไป)*\n"
-                "🤖 **[บอท]** ♾️ สแกนกราฟหุ้นทั่วโลก **ไม่จำกัดโควต้า!**\n"
-                "🤖 **[บอท]** 📋 สอดส่องหุ้นเข้า Watchlist สูงสุด 10 ตัว\n"
-                "🤖 **[บอท]** 🚀 สั่งสแกนหุ้นใน Watchlist ทั้งหมดรวดเดียวจบ\n"
-                "🤖 **[บอท]** 🎯 รับบทวิเคราะห์ AI ฟันธงจุดเข้าซื้อ/ถือ/ขาย\n"
-                "🤖 **[บอท]** 🌅 **Morning Briefing:** สรุปภาพรวมตลาดส่งตรงให้ทุกเช้า\n"
-                "🤖 **[บอท]** 🎙️ **AI Podcast:** สรุปตลาดรายวันเป็นไฟล์เสียง ฟังระหว่างขับรถ\n"
-                "🤖 **[บอท]** 📰 **News Digest:** รวมข่าวสำคัญเป็นฉบับย่อ ตามความถี่ที่ตั้งไว้\n"
-                "🤖 **[บอท]** 📊 **Daily Portfolio Summary:** สรุปพอร์ตลงทุนส่งตรงอัตโนมัติรายวัน\n"
-                "🌐 **[เว็บ]** 📈 เพิ่มหุ้นเข้าพอร์ตลงทุนได้สูงสุด 10 ตัว\n"
-                "🌐 **[เว็บ]** 🗺️ ปลดล็อก AI Trade Plan: เป้าทำกำไร (TP) / ตัดขาดทุน (SL)\n"
-                "🌐 **[เว็บ]** 🌡️ ปลดล็อก Health Score: ตรวจสุขภาพพอร์ต 4 มิติ\n"
-                "🌐 **[เว็บ]** 🔥 ปลดล็อก Portfolio Heatmap: แผนภาพความร้อนของพอร์ต\n"
-                "🌐 **[เว็บ]** ❤️ เล่นโหมด AI Matchmaker: ปัดขวาหาหุ้นทรงสวย\n\n"
-                
-                "👑 **3. ระดับ PRO (499.-/เดือน หรือ 4,990.-/ปี) [🔥 BEST VALUE]:**\n"
-                "*(เปรียบเสมือนมีผู้จัดการกองทุนส่วนตัว เฝ้าจอให้ 24 ชม.)*\n"
-                "✨ **ได้รับฟีเจอร์ระดับ VIP ทั้งหมด**\n"
-                "🤖 **[บอท]** ♾️ ขยาย Watchlist และพอร์ตเว็บ **ไม่จำกัดจำนวน!**\n"
-                "🤖 **[บอท]** 🔔 **Smart Alerts:** ตั้งเตือนราคาส่วนตัว (ซิงค์ตรงจากเว็บ!)\n"
-                "🤖 **[บอท]** 📡 **Technical Radar:** AI เฝ้ากราฟ 24 ชม. เตือน Golden Cross/RSI\n"
-                "🤖 **[บอท]** 🚨 **Flash News:** คัดข่าวด่วนที่มีผลกระทบสูง ส่งแบบสั้นทุก 3 ชั่วโมง\n"
-                "🤖 **[บอท]** 📅 **Dividend Hunter:** แจ้งเตือนหุ้นปันผล (XD) ล่วงหน้า 3 วัน\n"
-                "🤖 **[บอท]** 💎 **Apexify Screener:** เรดาร์สแกนหา \"หุ้นเด่นน่าเก็บประจำวัน\"\n"
-                "🤖 **[บอท]** 🧠 **Hedge Fund Playbook:** อัปเกรดบทวิเคราะห์กราฟขั้นสูง\n"
-                "🌐 **[เว็บ]** ⚖️ **AI Rebalance:** ให้ AI เสนอแผนปรับสัดส่วนพอร์ตใหม่ให้สมดุล\n"
-                "🌐 **[เว็บ]** 🏥 **Port Doctor:** ให้ AI วินิจฉัยจุดอ่อนพอร์ตพร้อมแนะวิธีแก้\n"
-                "🌐 **[เว็บ]** 🎭 **Sentiment Analysis:** เจาะลึกอารมณ์ตลาดที่มีต่อหุ้นรายตัว\n"
-                "🌐 **[เว็บ]** 🔄 **Web-to-Bot Sync:** ปัดขวา Matchmaker แล้วระบบตั้ง Alert แจ้งเตือนให้อัตโนมัติ!\n"
+                "*(โอนแล้วส่งสลิปในแชทนี้ ระบบอัปเกรดอัตโนมัติใน 3 วิ!)*\n\n"
+
+                "🆓 **BASIC (ฟรี)**\n"
+                "• สแกน AI 10 ครั้ง/วัน\n"
+                "• Watchlist 3 ตัว\n"
+                "• Fear & Greed, PnL Card\n"
+                "• พอร์ตเว็บ 3 ตัว, DRIP/Simulator\n\n"
+
+                "💎 **VIP — 79.-/เดือน หรือ 790.-/ปี**\n"
+                "• สแกน AI ไม่จำกัด\n"
+                "• Watchlist 10 ตัว + Scan all\n"
+                "• Morning Briefing, AI Podcast, News Digest\n"
+                "• Daily Portfolio Summary\n"
+                "• พอร์ตเว็บ 10 ตัว, Trade Plan, Health Score, Heatmap, Matchmaker\n\n"
+
+                "👑 **PRO — 109.-/เดือน หรือ 1,090.-/ปี** 🔥\n"
+                "• ทุกอย่างของ VIP +\n"
+                "• Watchlist & พอร์ตเว็บ ไม่จำกัด\n"
+                "• Smart Alerts, Technical Radar\n"
+                "• Flash News, Dividend Hunter, Screener\n"
+                "• AI Rebalance, Port Doctor, Sentiment Analysis\n"
             )
             # เพิ่มปุ่มเลือกแพ็กเกจ + สร้าง QR
             qr_markup = InlineKeyboardMarkup(row_width=2)
             qr_markup.add(
-                InlineKeyboardButton("💎 VIP 299.-/เดือน", callback_data="qr_pay_299"),
-                InlineKeyboardButton("👑 PRO 499.-/เดือน", callback_data="qr_pay_499"),
+                InlineKeyboardButton("💎 VIP 79.-/เดือน", callback_data="qr_pay_79"),
+                InlineKeyboardButton("👑 PRO 109.-/เดือน", callback_data="qr_pay_109"),
             )
             qr_markup.add(
-                InlineKeyboardButton("💎 VIP 2,990.-/ปี", callback_data="qr_pay_2990"),
-                InlineKeyboardButton("👑 PRO 4,990.-/ปี", callback_data="qr_pay_4990"),
+                InlineKeyboardButton("💎 VIP 790.-/ปี", callback_data="qr_pay_790"),
+                InlineKeyboardButton("👑 PRO 1,090.-/ปี", callback_data="qr_pay_1090"),
             )
             bot.send_message(user_id, pay_text, parse_mode="Markdown", reply_markup=qr_markup)
         except Exception as e:
@@ -1423,7 +1400,7 @@ def inline_callbacks(call):
             from config import PROMPTPAY_ID
             amount_str = call.data.replace('qr_pay_', '')
             amount = int(amount_str)
-            pkg_names = {299: "💎 VIP รายเดือน", 499: "👑 PRO รายเดือน", 2990: "💎 VIP รายปี", 4990: "👑 PRO รายปี"}
+            pkg_names = {79: "💎 VIP รายเดือน", 109: "👑 PRO รายเดือน", 790: "💎 VIP รายปี", 1090: "👑 PRO รายปี"}
             pkg_name = pkg_names.get(amount, f"แพ็กเกจ {amount} บาท")
 
             if not PROMPTPAY_ID:

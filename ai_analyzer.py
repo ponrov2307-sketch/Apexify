@@ -437,79 +437,45 @@ def _build_member_defaults(context, trends, deterministic_plan):
 def _build_member_prompt(context, trends, defaults, tier):
     def trend_snapshot(label, snapshot):
         if not snapshot.get("available"):
-            return f"{label}: ข้อมูลไม่เพียงพอ"
+            return f"{label}: N/A"
+        fp = _format_price
         return (
-            f"{label}: price={_format_price(snapshot.get('price'))}, "
-            f"RSI={_format_price(snapshot.get('rsi'))}, "
-            f"MACD={_format_price(snapshot.get('macd'))}, "
-            f"Signal={_format_price(snapshot.get('signal'))}, "
-            f"EMA20={_format_price(snapshot.get('ema20'))}, "
-            f"EMA50={_format_price(snapshot.get('ema50'))}, "
-            f"POC={_format_price(snapshot.get('poc'))}, "
-            f"Support={_format_price(snapshot.get('support'))}, "
-            f"Resistance={_format_price(snapshot.get('resistance'))}, "
-            f"VolumeRatio={_format_price(snapshot.get('volume_ratio'))}, "
-            f"ConsolidationPct={_format_price(snapshot.get('consolidation_pct'))}"
+            f"{label}: P={fp(snapshot.get('price'))} RSI={fp(snapshot.get('rsi'))} "
+            f"MACD={fp(snapshot.get('macd'))}/{fp(snapshot.get('signal'))} "
+            f"EMA={fp(snapshot.get('ema20'))}/{fp(snapshot.get('ema50'))} "
+            f"POC={fp(snapshot.get('poc'))} S={fp(snapshot.get('support'))} R={fp(snapshot.get('resistance'))} "
+            f"Vol={fp(snapshot.get('volume_ratio'))} Cons={fp(snapshot.get('consolidation_pct'))}"
         )
 
     tier_label = "VIP" if tier == "vip" else "PRO"
     return f"""
-คุณคือผู้ช่วยนักวิเคราะห์การเงินระดับมืออาชีพของ Apexify
-งานของคุณคือเติมข้อความลง JSON เท่านั้น ห้ามเขียน markdown ห้ามเขียนคำอธิบายนอก JSON ห้ามใช้ภาษานำซื้อขายแบบเด็ดขาด
+นักวิเคราะห์เทคนิคของ Apexify — ตอบเป็น JSON เท่านั้น ห้ามมี markdown/คำนอก JSON ห้ามชี้นำซื้อขายเด็ดขาด
 
-ข้อมูลหุ้น:
-symbol={context.get('symbol')}
-current_price={_format_price(context.get('price'))}
-day_trend_bias={trends['day']['bias']}
-week_trend_bias={trends['week']['bias']}
-month_trend_bias={trends['month']['bias']}
-extreme_volatility={str(bool(context.get('is_extreme_volatility'))).lower()}
+{context.get('symbol')} @ {_format_price(context.get('price'))} | bias: D={trends['day']['bias']} W={trends['week']['bias']} M={trends['month']['bias']} | extreme_vol={str(bool(context.get('is_extreme_volatility'))).lower()}
 
-รายละเอียดราย timeframe:
-{trend_snapshot('DAY', context.get('day', {}))}
-{trend_snapshot('WEEK', context.get('week', {}))}
-{trend_snapshot('MONTH', context.get('month', {}))}
+{trend_snapshot('D', context.get('day', {}))}
+{trend_snapshot('W', context.get('week', {}))}
+{trend_snapshot('M', context.get('month', {}))}
 
-ค่า default หากข้อมูลไม่พอ:
-day_reason_default={defaults['trend_radar']['day']['reason']}
-week_reason_default={defaults['trend_radar']['week']['reason']}
-month_reason_default={defaults['trend_radar']['month']['reason']}
-day_strategy_default={defaults['day_plan']['strategy_name']}
-day_line_default={defaults['day_plan']['strategy_line']}
-position_strategy_default={defaults['position_plan']['strategy_name']}
-position_line_default={defaults['position_plan']['strategy_line']}
-position_advice_default={defaults['position_plan']['advice']}
-ai_insight_default={defaults['ai_insight']}
+กฎ: ภาษาไทย, โทนเป็นกลาง-ระวัง, bearish→Sell on Rally, extreme vol→เตือนใน ai_insight, ข้อมูลไม่พอ→"ข้อมูลไม่เพียงพอ", tier={tier_label}
 
-ข้อกำหนด:
-1. ตอบเป็นภาษาไทยเท่านั้น
-2. ต้องเป็นโทนวิเคราะห์เชิงเทคนิคแบบเป็นกลางและระมัดระวัง
-3. ห้ามใช้คำแบบ การันตี ซื้อเลย ต้องขายทิ้ง หรือชี้นำแบบเด็ดขาด
-4. ถ้าข้อมูล timeframe ไหนไม่พอ ให้ reason ของ timeframe นั้นเป็น "ข้อมูลไม่เพียงพอ"
-5. ถ้า bias รวมเป็น bearish ให้ใช้แนวคิด Sell on Rally ในคำอธิบาย
-6. ถ้ามี extreme volatility ให้ ai_insight เตือนสั้นๆ ว่า indicator อาจเชื่อถือได้น้อยลง
-7. สำหรับ tier={tier_label} ให้กรอกทุกฟิลด์ตาม schema ด้านล่าง แม้บางส่วนจะใช้ค่าใกล้เคียงกับ default
-
-JSON schema ที่ต้องตอบ:
 {{
   "trend_radar": {{
-    "day": {{"reason": "ข้อความสั้น 1 ประโยค"}},
-    "week": {{"reason": "ข้อความสั้น 1 ประโยค"}},
-    "month": {{"reason": "ข้อความสั้น 1 ประโยค"}}
+    "day": {{"reason": "1 ประโยค"}},
+    "week": {{"reason": "1 ประโยค"}},
+    "month": {{"reason": "1 ประโยค"}}
   }},
   "day_plan": {{
-    "strategy_name": "ชื่อกลยุทธ์สั้นๆ",
-    "strategy_line": "คำอธิบายสั้น 1 ประโยค"
+    "strategy_name": "ชื่อสั้น",
+    "strategy_line": "1 ประโยค"
   }},
   "position_plan": {{
-    "strategy_name": "ชื่อกลยุทธ์สั้นๆ",
-    "strategy_line": "คำอธิบายสั้น 1 ประโยค",
-    "advice": "คำแนะนำเชิงเทคนิค 1 ประโยค"
+    "strategy_name": "ชื่อสั้น",
+    "strategy_line": "1 ประโยค",
+    "advice": "1 ประโยค"
   }},
-  "ai_insight": "มุมมองพิเศษ 1 ถึง 2 ประโยค"
+  "ai_insight": "1-2 ประโยค"
 }}
-
-ตอบเฉพาะ JSON object เท่านั้น
 """.strip()
 
 
@@ -951,7 +917,7 @@ def analyze_payment_slip(file_path_or_bytes):
     ตอบกลับในรูปแบบ JSON เท่านั้น ห้ามมีข้อความอื่น:
     {
         "is_slip": true หรือ false,
-        "amount": ตัวเลขยอดเงินโอนแบบไม่มีลูกน้ำ (เช่น 499),
+        "amount": ตัวเลขยอดเงินโอนแบบไม่มีลูกน้ำ (เช่น 109),
         "ref_no": "เลขที่อ้างอิงบนสลิป"
     }
     """

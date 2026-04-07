@@ -16,8 +16,8 @@ from database import (
 )
 
 ALLOWED_SYMBOL_SUFFIXES = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
-VIP_MONTHLY_PRICE = 299
-PRO_MONTHLY_PRICE = 499
+VIP_MONTHLY_PRICE = 79
+PRO_MONTHLY_PRICE = 109
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 _MAINTENANCE_MODE = False
