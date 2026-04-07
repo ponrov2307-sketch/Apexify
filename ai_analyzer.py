@@ -667,64 +667,66 @@ def _build_member_snapshot(context, trends, tier):
     bb_lower = _safe_optional_float(day.get("bb_lower"))
     bb_upper = _safe_optional_float(day.get("bb_upper"))
 
-    momentum = "🟢 ขาขึ้น Bullish" if price is not None and ema20 is not None and price > ema20 else "🔴 ขาลง Bearish"
+    momentum = "🟢 ขาขึ้น" if price is not None and ema20 is not None and price > ema20 else "🔴 ขาลง"
     if rsi is None:
-        rsi_status = "⚪️ ข้อมูลไม่เพียงพอ"
+        rsi_status = "⚪️ ไม่มีข้อมูล"
     elif rsi > 70:
-        rsi_status = "🔴 ตึงไปนิด Overbought"
+        rsi_status = "🔴 Overbought — ระวังแรงขายทำกำไร"
     elif rsi < 30:
-        rsi_status = "🟢 โซนของถูก Oversold"
+        rsi_status = "🟢 Oversold — อาจมีแรงดีดกลับ"
     else:
-        rsi_status = "⚪️ กลางๆ รอดูเชิง Neutral"
+        rsi_status = "⚪️ Neutral"
 
     if macd is None or signal is None:
-        macd_status = "⚪️ ข้อมูลไม่เพียงพอ"
-        macd_detail = "N/A"
+        macd_status = "⚪️ ไม่มีข้อมูล"
+        macd_detail = ""
     else:
-        macd_status = "🟢 มีแรงส่ง Positive" if macd > signal else "🔴 แรงเริ่มแผ่ว Negative"
-        macd_detail = f"MACD: {macd:.2f} | Signal: {signal:.2f}"
+        macd_status = "🟢 โมเมนตัมบวก" if macd > signal else "🔴 แรงส่งอ่อนลง"
+        macd_detail = f"({macd:.2f} / {signal:.2f})"
 
     obv_trend = str(day.get("obv_trend") or "flat").lower()
     if obv_trend == "up":
-        volume_status = "📈 มีคนแอบเก็บของ Inflow"
+        volume_status = "📈 เงินไหลเข้า (Inflow)"
     elif obv_trend == "down":
-        volume_status = "📉 ระวังแรงรินขาย Outflow"
+        volume_status = "📉 เงินไหลออก (Outflow)"
     else:
-        volume_status = "➖ นิ่งๆ ทรงตัว"
+        volume_status = "➖ ทรงตัว"
 
-    trend_detail = "N/A"
+    trend_detail = ""
     if price is not None and ema20 not in (None, 0):
         trend_detail = f"{((price - ema20) / ema20) * 100:+.2f}% vs EMA20"
 
-    volume_detail = "N/A"
+    volume_detail = ""
     if volume is not None and avg_volume is not None:
-        volume_detail = f"Vol: {_format_compact_number(volume)} | Avg20: {_format_compact_number(avg_volume)}"
+        volume_detail = f"Vol {_format_compact_number(volume)} | Avg {_format_compact_number(avg_volume)}"
 
     conviction_score, conviction_label, conviction_emoji = _calculate_conviction_score(context, trends)
-    tier_badge = "👑 PRO Control Room" if tier == "pro" else "💎 VIP Control Room"
+    tier_badge = "👑 *PRO Report*" if tier == "pro" else "💎 *VIP Report*"
 
     lines = [
-        tier_badge,
-        f"🤖 *Apexify สแกนหุ้น: {symbol}*",
-        f"🏷 *ราคาล่าสุด:* {_format_price(price)}",
-        f"🧭 *Trend Badges:* {_build_trend_badges(trends)}",
-        f"🎖 *Conviction Score:* {conviction_emoji} {conviction_score}/100 • {conviction_label}",
-        "━━━━━━━━━━━━━━━",
-        "*📊 สุขภาพหุ้นตอนนี้*",
-        f"• 🌊 *เทรนด์หลัก:* {momentum} ({trend_detail})",
-        f"• 🌡️ *RSI (ความร้อนแรง):* {rsi_status} ({_format_price(rsi)})",
-        f"• ⚡️ *MACD (โมเมนตัม):* {macd_status} ({macd_detail})",
-        f"• 💰 *Volume (กระแสเงิน):* {volume_status} ({volume_detail})",
-        "",
-        "*🎯 โซนราคาที่ต้องจับตา*",
+        f"{'━' * 17}",
+        f"{tier_badge}",
+        f"*🤖 Apexify AI — {symbol}*",
+        f"{'━' * 17}",
+        f"💵 *ราคา:* {_format_price(price)}",
+        f"📡 *Trend:* {_build_trend_badges(trends)}",
+        f"🎯 *Conviction:* {conviction_emoji} {conviction_score}/100  _{conviction_label}_",
+        "─ ─ ─ ─ ─ ─ ─ ─ ─",
+        "*📊 วิเคราะห์สุขภาพหุ้น*",
+        f"• 🌊 *Trend:* {momentum}  {trend_detail}",
+        f"• 🌡 *RSI {_format_price(rsi)}:* {rsi_status}",
+        f"• ⚡️ *MACD:* {macd_status}  {macd_detail}",
+        f"• 💧 *Volume:* {volume_status}  {volume_detail}",
+        "─ ─ ─ ─ ─ ─ ─ ─ ─",
+        "*🗺 โซนราคาสำคัญ*",
         f"• 🟢 *แนวรับ:* {_format_price(support)}",
-        f"• 🔴 *แนวต้าน (จุดวัดใจ):* {_format_price(resistance)}",
+        f"• 🔴 *แนวต้าน:* {_format_price(resistance)}",
     ]
 
     if poc is not None:
-        lines.append(f"• 🟡 *โซนคนกระจุกตัว (POC):* {_format_price(poc)} (จุดสำคัญ)")
+        lines.append(f"• 🟡 *POC (โซนคนกระจุก):* {_format_price(poc)}")
     if bb_lower is not None and bb_upper is not None:
-        lines.append(f"• 🟡 *กรอบแกว่งตัว (BB):* {_format_price(bb_lower)} - {_format_price(bb_upper)}")
+        lines.append(f"• 🔵 *Bollinger Band:* {_format_price(bb_lower)} — {_format_price(bb_upper)}")
 
     return "\n".join(lines)
 
@@ -774,16 +776,14 @@ def _render_vip_report(context, trends, analysis):
         [
             _build_member_snapshot(context, trends, "vip"),
             "",
+            "*🔭 AI Trend Radar — 3 ระยะ*",
+            f"• ⏱ *วัน:* {trends['day']['status_emoji']} {trends['day']['status_text']} — {analysis['trend_radar']['day']['reason']}",
+            f"• 📅 *สัปดาห์:* {trends['week']['status_emoji']} {trends['week']['status_text']} — {analysis['trend_radar']['week']['reason']}",
+            f"• 🔭 *เดือน:* {trends['month']['status_emoji']} {trends['month']['status_text']} — {analysis['trend_radar']['month']['reason']}",
+            "",
+            f"*🧠 AI Insight:* {analysis['ai_insight']}",
+            "",
             DISCLAIMER_TEXT,
-            "",
-            "👑 *AI Trade Setup & Analysis (Exclusive for VIP)* 👑",
-            "",
-            "*📊 สแกนเทรนด์ 3 ระยะ (Trend Radar):*",
-            f"• ⏱️ *ระยะสั้น (Day):* {trends['day']['status_emoji']} {trends['day']['status_text']} : {analysis['trend_radar']['day']['reason']}",
-            f"• 📅 *ระยะกลาง (Week):* {trends['week']['status_emoji']} {trends['week']['status_text']} : {analysis['trend_radar']['week']['reason']}",
-            f"• 🔭 *ระยะยาว (Month):* {trends['month']['status_emoji']} {trends['month']['status_text']} : {analysis['trend_radar']['month']['reason']}",
-            "",
-            f"*🧠 AI Insight (มุมมองพิเศษ):* {analysis['ai_insight']}",
         ]
     )
 
@@ -792,37 +792,39 @@ def _render_pro_report(context, trends, deterministic_plan, analysis):
     plan_bias = deterministic_plan.get("bias", "bullish")
     day_plan = deterministic_plan["day_plan"]
     position_plan = deterministic_plan["position_plan"]
+    bias_label = "⚠️ ขาลง — รอจังหวะ" if plan_bias == "bearish" else "✅ ขาขึ้น — เปิดรับความเสี่ยง"
 
     return "\n".join(
         [
             _build_member_snapshot(context, trends, "pro"),
             "",
+            "*🔭 AI Trend Radar — 3 ระยะ*",
+            f"• ⏱ *วัน:* {trends['day']['status_emoji']} {trends['day']['status_text']} — {analysis['trend_radar']['day']['reason']}",
+            f"• 📅 *สัปดาห์:* {trends['week']['status_emoji']} {trends['week']['status_text']} — {analysis['trend_radar']['week']['reason']}",
+            f"• 🔭 *เดือน:* {trends['month']['status_emoji']} {trends['month']['status_text']} — {analysis['trend_radar']['month']['reason']}",
+            "",
+            f"*🎯 Actionable Plan — {bias_label}*",
+            "",
+            f"*🏃 สายสั้น {'(รอจังหวะ)' if plan_bias == 'bearish' else '(Swing)'}*",
+            f"  💡 {analysis['day_plan']['strategy_name']} — {analysis['day_plan']['strategy_line']}",
+            f"  📍 *เข้าซื้อ:* {_format_range(day_plan['entry_low'], day_plan['entry_high'])}",
+            f"      ↳ {_entry_note_from_bias(plan_bias, context)}",
+            f"  🎯 *TP1:* {_format_price(day_plan['tp1'])}  _{_tp1_note_from_bias(plan_bias)}_",
+            f"  🎯 *TP2:* {_format_price(day_plan['tp2'])}  _{_tp2_note_from_bias(plan_bias)}_",
+            f"  🛑 *SL:* {_format_price(day_plan['sl'])}  _{_stop_note_from_bias(plan_bias)}_",
+            f"  ⚖️ *R:R* = 1 : {day_plan['rr_ratio']}  _{day_plan['rr_note']}_",
+            "",
+            "*🧘 สายยาว (Position)*",
+            f"  💡 {analysis['position_plan']['strategy_name']} — {analysis['position_plan']['strategy_line']}",
+            f"  📍 *สะสมเพิ่ม:* {_format_range(position_plan['add_low'], position_plan['add_high'])}",
+            f"      ↳ {_position_add_note_from_bias(plan_bias)}",
+            f"  🎯 *เป้าระยะยาว:* {_format_price(position_plan['tp_long'])}",
+            f"  🛑 *Trailing Stop:* {_format_price(position_plan['trailing_stop'])}  _{_position_trailing_note_from_bias(plan_bias)}_",
+            f"  💬 {analysis['position_plan']['advice']}",
+            "",
+            f"*🧠 AI Insight:* {analysis['ai_insight']}",
+            "",
             DISCLAIMER_TEXT,
-            "",
-            "👑 *AI Trade Setup & Analysis (Exclusive for PRO)* 👑",
-            "",
-            "*📊 สแกนเทรนด์ 3 ระยะ (Trend Radar):*",
-            f"• ⏱️ *ระยะสั้น (Day):* {trends['day']['status_emoji']} {trends['day']['status_text']} : {analysis['trend_radar']['day']['reason']}",
-            f"• 📅 *ระยะกลาง (Week):* {trends['week']['status_emoji']} {trends['week']['status_text']} : {analysis['trend_radar']['week']['reason']}",
-            f"• 🔭 *ระยะยาว (Month):* {trends['month']['status_emoji']} {trends['month']['status_text']} : {analysis['trend_radar']['month']['reason']}",
-            "",
-            "*🎯 แผนลงมือทำแบ่งตามสไตล์ (Actionable Plan):*",
-            "",
-            f"🏃‍♂️ *1. สายเล่นสั้น {'(รอจังหวะซื้อ — ขาลง)' if plan_bias == 'bearish' else '(เข้าซื้อ — ขาขึ้น)'}*",
-            f"• 💡 *กลยุทธ์:* \"{analysis['day_plan']['strategy_name']}\" {analysis['day_plan']['strategy_line']}",
-            f"• 📍 *จุดเข้าซื้อ:* {_format_range(day_plan['entry_low'], day_plan['entry_high'])} ({_entry_note_from_bias(plan_bias, context)})",
-            f"• 💰 *เป้าขายทำกำไร:* TP1: {_format_price(day_plan['tp1'])} ({_tp1_note_from_bias(plan_bias)}) | TP2: {_format_price(day_plan['tp2'])} ({_tp2_note_from_bias(plan_bias)})",
-            f"• 🛑 *ตัดขาดทุน (SL):* {_format_price(day_plan['sl'])} ({_stop_note_from_bias(plan_bias)})",
-            f"• ⚖️ *R:R Ratio:* 1 : {day_plan['rr_ratio']} ({day_plan['rr_note']})",
-            "",
-            "🧘‍♂️ *2. สายถือยาว (Position)*",
-            f"• 💡 *กลยุทธ์:* \"{analysis['position_plan']['strategy_name']}\" {analysis['position_plan']['strategy_line']}",
-            f"• 📍 *จุดสะสมเพิ่ม:* {_format_range(position_plan['add_low'], position_plan['add_high'])} ({_position_add_note_from_bias(plan_bias)})",
-            f"• 💰 *เป้าระยะยาว:* {_format_price(position_plan['tp_long'])} ({_tp2_note_from_bias(plan_bias)})",
-            f"• 🛑 *Trailing Stop:* {_format_price(position_plan['trailing_stop'])} ({_position_trailing_note_from_bias(plan_bias)})",
-            f"• ⚖️ *คำแนะนำ:* {analysis['position_plan']['advice']}",
-            "",
-            f"*🧠 AI Insight (มุมมองพิเศษ):* {analysis['ai_insight']}",
         ]
     )
 
