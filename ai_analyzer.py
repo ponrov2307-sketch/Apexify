@@ -331,14 +331,14 @@ def _build_deterministic_plan(context, dominant_bias):
             tp_long = tp2 + max(risk, entry_mid * 0.04)
         trailing_stop = max(entry_mid, _first_valid(week.get("support"), day.get("ema20"), entry_mid))
     else:
-        entry_anchor = _median([day.get("resistance"), day.get("poc"), day.get("ema20"), week.get("poc"), current_price]) or current_price
-        entry_low = min(entry_anchor * 0.995, current_price)
-        entry_high = max(entry_anchor * 1.005, current_price)
+        # Bearish (Short): entry ใกล้แนวต้าน — ขายเมื่อราคาเด้งขึ้น
+        entry_anchor = _first_valid(day.get("resistance"), day.get("ema20"), week.get("poc"), current_price) or current_price
+        entry_low = min(entry_anchor * 0.99, current_price * 1.005)
+        entry_high = max(entry_anchor * 1.01, current_price * 1.01)
+        if entry_low < current_price:
+            entry_low = current_price * 1.005
         entry_mid = (entry_low + entry_high) / 2
-        sl_base = _first_valid(day.get("resistance"), week.get("resistance"), day.get("ema50"), entry_high * 1.03)
-        sl = max(sl_base * 1.015, entry_mid * 1.015)
-        if sl <= entry_mid:
-            sl = entry_mid * 1.03
+        sl = max(entry_high * 1.03, entry_mid * 1.03)
 
         risk = max(sl - entry_mid, entry_mid * 0.015)
         tp1 = _first_valid(day.get("support"), week.get("poc"), entry_mid - risk * 1.2)
@@ -347,14 +347,19 @@ def _build_deterministic_plan(context, dominant_bias):
         tp2 = _first_valid(week.get("support"), month.get("support"), month.get("poc"), tp1 - risk * 1.2)
         if tp2 >= tp1:
             tp2 = tp1 - max(risk, entry_mid * 0.03)
+        # floor: TP ต้องไม่ต่ำกว่า 50% ของราคาปัจจุบัน
+        tp2 = max(tp2, current_price * 0.50)
+        tp1 = max(tp1, current_price * 0.65)
 
         rr_ratio = (entry_mid - tp2) / max(sl - entry_mid, 0.01)
-        add_anchor = _median([week.get("resistance"), day.get("resistance"), month.get("poc"), entry_mid]) or entry_mid
+        add_anchor = _first_valid(week.get("resistance"), day.get("resistance"), entry_mid) or entry_mid
         add_low = min(add_anchor * 0.99, entry_mid)
         add_high = max(add_anchor * 1.01, entry_mid)
-        tp_long = _first_valid(month.get("support"), tp2 - risk * 1.3, entry_mid * 0.88)
+        tp_long = _first_valid(month.get("support"), tp2 - risk * 0.5, entry_mid * 0.88)
+        tp_long = max(tp_long, current_price * 0.50)
         if tp_long >= tp2:
-            tp_long = tp2 - max(risk, entry_mid * 0.04)
+            tp_long = tp2 - max(risk * 0.3, entry_mid * 0.02)
+            tp_long = max(tp_long, current_price * 0.50)
         trailing_stop = min(entry_mid, _first_valid(week.get("resistance"), day.get("ema20"), entry_mid))
 
     rr_ratio_value = _safe_optional_float(rr_ratio)
@@ -545,40 +550,39 @@ def _build_member_analysis(context, tier):
 
 def _entry_note_from_bias(plan_bias, context):
     if plan_bias == "bearish":
-        resistance = _format_price(_first_valid(context.get("day", {}).get("resistance"), context.get("week", {}).get("poc")))
-        return f"รอราคาเด้งกลับไปทดสอบโซนต้านแถว {resistance} หรือบริเวณ EMA สำคัญก่อนค่อยประเมินแรงขายตาม"
+        return "เปิด Short เมื่อราคาเด้งขึ้นมาถึงโซนนี้แล้วเริ่มอ่อนแรง ยืนยันด้วยแท่งเทียนกลับตัว"
     support = _format_price(_first_valid(context.get("day", {}).get("support"), context.get("week", {}).get("poc")))
-    return f"รอราคาย่อลงมาทดสอบโซนรับแถว {support} หรือบริเวณ EMA สำคัญก่อนค่อยประเมินแรงซื้อกลับ"
+    return f"เข้าซื้อเมื่อราคาย่อลงมาทดสอบโซนรับแถว {support} แล้วมีแรงซื้อกลับ"
 
 
 def _tp1_note_from_bias(plan_bias):
     if plan_bias == "bearish":
-        return "เป็นโซนแนวรับย่อย สามารถทยอยลดน้ำหนักบางส่วนเพื่อล็อกผลลัพธ์ของแผนได้"
-    return "เป็นโซนต้านย่อย สามารถแบ่งเก็บบางส่วนเพื่อล็อกผลลัพธ์ของแผนได้"
+        return "ปิด Short บางส่วนเพื่อล็อกกำไร"
+    return "แบ่งขายบางส่วนเพื่อล็อกกำไร"
 
 
 def _tp2_note_from_bias(plan_bias):
     if plan_bias == "bearish":
-        return "เป็นโซนรับใหญ่ที่อาจมีแรงดีดกลับ จึงเหมาะใช้เป็นเป้าหลักของรอบนี้"
-    return "เป็นโซนต้านใหญ่ที่หากผ่านได้จะเปิด upside เพิ่ม จึงเหมาะใช้เป็นเป้าหลักของรอบนี้"
+        return "เป้าหลัก — โซนรับใหญ่ที่อาจมีแรงดีดกลับ"
+    return "เป้าหลัก — โซนต้านใหญ่ หากผ่านได้จะเปิด upside เพิ่ม"
 
 
 def _stop_note_from_bias(plan_bias):
     if plan_bias == "bearish":
-        return "หากราคาปิดกลับขึ้นเหนือโซนนี้ โครงสร้างขายระยะสั้นจะเริ่มเสียและควรลดความเสี่ยง"
-    return "หากราคาปิดหลุดโซนนี้ โครงสร้างระยะสั้นจะเริ่มเสียและควรลดความเสี่ยง"
+        return "ปิด Short ทันทีหากราคาทะลุเหนือโซนนี้"
+    return "ตัดขาดทุนทันทีหากราคาหลุดโซนนี้"
 
 
 def _position_add_note_from_bias(plan_bias):
     if plan_bias == "bearish":
-        return "หากเกิดรีบาวด์แรงขึ้นมาเทสต้านใหญ่ อาจใช้เป็นจังหวะเพิ่มน้ำหนักฝั่งป้องกันอย่างระมัดระวัง"
-    return "หากตลาดย่อลงมาเทสฐานใหญ่ อาจใช้เป็นจังหวะทยอยสะสมเพิ่มเมื่อโครงสร้างหลักยังไม่เสีย"
+        return "หากราคาเด้งขึ้นมาเทสต้านใหญ่ อาจเพิ่ม Short อย่างระมัดระวัง"
+    return "หากราคาย่อลงมาเทสฐานใหญ่ อาจทยอยสะสมเพิ่มได้"
 
 
 def _position_trailing_note_from_bias(plan_bias):
     if plan_bias == "bearish":
-        return "แนะนำขยับจุดป้องกันความเสี่ยงลงมาหลังราคาเดินตามทาง เพื่อไม่ให้รีบาวด์กลับมาล้างผลลัพธ์ที่ทำได้"
-    return "แนะนำขยับจุดป้องกันความเสี่ยงขึ้นมาบริเวณทุนหรือใกล้แนวรับหลัก เพื่อไม่ให้กำไรที่ได้กลับกลายเป็นขาดทุน"
+        return "ขยับ SL ลงตามราคาเพื่อล็อกกำไรที่ทำได้"
+    return "ขยับ SL ขึ้นตามราคาเพื่อไม่ให้กำไรกลายเป็นขาดทุน"
 
 
 def _calculate_conviction_score(context, trends):
@@ -803,18 +807,18 @@ def _render_pro_report(context, trends, deterministic_plan, analysis):
             "",
             "*🎯 แผนลงมือทำแบ่งตามสไตล์ (Actionable Plan):*",
             "",
-            "🏃‍♂️ *1. สายเล่นสั้น (Day / Swing Trade)*",
+            f"🏃‍♂️ *1. สายเล่นสั้น {'(Short / Sell on Rally)' if plan_bias == 'bearish' else '(Buy / Swing Trade)'}*",
             f"• 💡 *กลยุทธ์:* \"{analysis['day_plan']['strategy_name']}\" {analysis['day_plan']['strategy_line']}",
-            f"• 📍 *จุดเข้า (Entry):* {_format_range(day_plan['entry_low'], day_plan['entry_high'])} ({_entry_note_from_bias(plan_bias, context)})",
-            f"• 💰 *เป้าทำกำไร (TP):* แบ่งเก็บ 2 เป้า ➡️ *TP1: {_format_price(day_plan['tp1'])}* ({_tp1_note_from_bias(plan_bias)}) | *TP2: {_format_price(day_plan['tp2'])}* ({_tp2_note_from_bias(plan_bias)})",
-            f"• 🛑 *ตัดขาดทุน (SL):* {_format_price(day_plan['sl'])} ({_stop_note_from_bias(plan_bias)})",
-            f"• ⚖️ *ความคุ้มค่า (R:R Ratio):* 1 : {day_plan['rr_ratio']} ({day_plan['rr_note']})",
+            f"• 📍 *{'จุดเปิด Short' if plan_bias == 'bearish' else 'จุดเข้าซื้อ'}:* {_format_range(day_plan['entry_low'], day_plan['entry_high'])} ({_entry_note_from_bias(plan_bias, context)})",
+            f"• 💰 *เป้าทำกำไร:* TP1: {_format_price(day_plan['tp1'])} ({_tp1_note_from_bias(plan_bias)}) | TP2: {_format_price(day_plan['tp2'])} ({_tp2_note_from_bias(plan_bias)})",
+            f"• 🛑 *SL:* {_format_price(day_plan['sl'])} ({_stop_note_from_bias(plan_bias)})",
+            f"• ⚖️ *R:R Ratio:* 1 : {day_plan['rr_ratio']} ({day_plan['rr_note']})",
             "",
-            "🧘‍♂️ *2. สายถือยาว (Position / Run Trend)*",
+            "🧘‍♂️ *2. สายถือยาว (Position)*",
             f"• 💡 *กลยุทธ์:* \"{analysis['position_plan']['strategy_name']}\" {analysis['position_plan']['strategy_line']}",
-            f"• 📍 *จุดสะสมเพิ่ม (Add):* {_format_range(position_plan['add_low'], position_plan['add_high'])} ({_position_add_note_from_bias(plan_bias)})",
-            f"• 💰 *เป้าระยะยาว (TP):* {_format_price(position_plan['tp_long'])}+ ({_tp2_note_from_bias(plan_bias)})",
-            f"• 🛑 *จุดล็อคกำไร (Trailing Stop):* {_format_price(position_plan['trailing_stop'])} ({_position_trailing_note_from_bias(plan_bias)})",
+            f"• 📍 *{'จุดเพิ่ม Short' if plan_bias == 'bearish' else 'จุดสะสมเพิ่ม'}:* {_format_range(position_plan['add_low'], position_plan['add_high'])} ({_position_add_note_from_bias(plan_bias)})",
+            f"• 💰 *เป้าระยะยาว:* {_format_price(position_plan['tp_long'])} ({_tp2_note_from_bias(plan_bias)})",
+            f"• 🛑 *Trailing Stop:* {_format_price(position_plan['trailing_stop'])} ({_position_trailing_note_from_bias(plan_bias)})",
             f"• ⚖️ *คำแนะนำ:* {analysis['position_plan']['advice']}",
             "",
             f"*🧠 AI Insight (มุมมองพิเศษ):* {analysis['ai_insight']}",
