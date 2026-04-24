@@ -1029,10 +1029,13 @@ def handle_manual(message):
         "`/ealert AAPL` — สมัครแจ้งเตือนวัน Earnings\n"
         "`/ealert list` — ดูรายการที่สมัครไว้\n"
         "`/ealert remove AAPL` — ยกเลิก\n"
-        "`/earnings AAPL` — วิเคราะห์งบการเงิน AI _(VIP/PRO)_\n\n"
+        "`/earnings AAPL` — วิเคราะห์งบการเงิน AI _(VIP/PRO)_\n"
+        "`/fund AAPL` — P/E, EPS, Dividend, Market Cap _(VIP/PRO)_\n"
+        "`/compare AAPL MSFT` — เปรียบเทียบ 2-3 หุ้น + AI verdict _(PRO)_\n\n"
 
-        "**📊 Track Record**\n"
-        "`/track` — สถิติ AI Plans: hit rate TP1/TP2 ย้อนหลัง\n\n"
+        "**📊 Track Record & Streak**\n"
+        "`/track` — สถิติ AI Plans: hit rate TP1/TP2 ย้อนหลัง\n"
+        "🔥 ใช้ทุกวันติดต่อกัน → ครบ 7 วัน รับ VIP 1 วันฟรี!\n\n"
 
         "**💎 บัญชี & สิทธิ์**\n"
         "`/freetrial` — ทดลอง PRO 7 วันฟรี (ใช้ได้ 1 ครั้ง)\n"
@@ -2012,6 +2015,243 @@ def handle_earnings(message):
     except Exception as e:
         bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูลงบการเงิน: {e}", message.chat.id, load_msg.message_id) 
 
+@bot.message_handler(commands=['fund', 'fundamentals'])
+def handle_fundamentals(message):
+    """VIP/PRO: ดู fundamentals ของหุ้น (P/E, EPS, dividend, market cap, ...)"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    role = check_subscription(user_id)
+    if role not in ('vip', 'pro') and user_id != ADMIN_ID:
+        bot.reply_to(message,
+            "🔒 **Fundamentals — ฟีเจอร์ VIP/PRO**\n\n"
+            "อัปเกรดเพื่อดูข้อมูลพื้นฐาน (P/E, EPS, Dividend Yield, Market Cap, Beta ...)",
+            parse_mode="Markdown")
+        return
+
+    args = message.text.split()
+    if len(args) != 2:
+        bot.reply_to(message,
+            "❌ รูปแบบผิด! พิมพ์: `/fund <ชื่อหุ้น>`\n"
+            "ตัวอย่าง: `/fund AAPL` หรือ `/fund PTT.BK`",
+            parse_mode="Markdown")
+        return
+
+    raw_symbol = args[1].upper()
+    # auto fallback .BK สำหรับหุ้นไทยที่ไม่ใส่ suffix
+    symbol = raw_symbol
+    load_msg = bot.reply_to(message, f"🔍 กำลังดึงข้อมูลพื้นฐานของ {symbol}...")
+    try:
+        allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+        clean = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(allowed_suffixes) else symbol
+        ticker = yf.Ticker(clean)
+        info = ticker.info or {}
+
+        # ถ้าไม่เจอ US → ลอง .BK
+        if not info.get('regularMarketPrice') and "." not in clean and "-" not in clean:
+            fallback = f"{clean}.BK"
+            ticker = yf.Ticker(fallback)
+            info = ticker.info or {}
+            if info.get('regularMarketPrice'):
+                symbol = fallback
+
+        if not info.get('regularMarketPrice'):
+            bot.edit_message_text(f"❌ ไม่พบข้อมูลหุ้น '{raw_symbol}'", message.chat.id, load_msg.message_id)
+            return
+
+        def fmt_num(val, suffix=""):
+            if val is None or val == 'N/A':
+                return "N/A"
+            try:
+                v = float(val)
+                if suffix == "pct":
+                    return f"{v*100:.2f}%"
+                if suffix == "B":
+                    return f"${v/1e9:.2f}B"
+                if suffix == "M":
+                    return f"${v/1e6:.0f}M"
+                return f"{v:.2f}"
+            except (TypeError, ValueError):
+                return str(val)
+
+        name = info.get('longName') or info.get('shortName') or symbol
+        price = info.get('regularMarketPrice', 0)
+        change_pct = info.get('regularMarketChangePercent', 0)
+        change_icon = "🟢" if (change_pct or 0) >= 0 else "🔴"
+
+        # Valuation
+        pe = info.get('trailingPE')
+        forward_pe = info.get('forwardPE')
+        peg = info.get('pegRatio')
+        pb = info.get('priceToBook')
+        eps = info.get('trailingEps')
+        eps_forward = info.get('forwardEps')
+
+        # Size
+        market_cap = info.get('marketCap')
+        enterprise = info.get('enterpriseValue')
+
+        # Dividend
+        div_yield = info.get('dividendYield')
+        div_rate = info.get('dividendRate')
+        payout = info.get('payoutRatio')
+
+        # Profitability
+        profit_margin = info.get('profitMargins')
+        roe = info.get('returnOnEquity')
+
+        # Risk
+        beta = info.get('beta')
+        w52_high = info.get('fiftyTwoWeekHigh')
+        w52_low = info.get('fiftyTwoWeekLow')
+
+        msg_parts = [
+            f"📊 **Fundamentals — {symbol}**",
+            f"_{name}_",
+            f"{change_icon} ${price:,.2f} ({(change_pct or 0)*100:+.2f}% วันนี้)\n",
+            "*💰 Valuation*",
+            f"  P/E (TTM): {fmt_num(pe)} | Forward P/E: {fmt_num(forward_pe)}",
+            f"  PEG: {fmt_num(peg)} | P/B: {fmt_num(pb)}",
+            f"  EPS: {fmt_num(eps)} | Forward EPS: {fmt_num(eps_forward)}\n",
+            "*📏 ขนาดบริษัท*",
+            f"  Market Cap: {fmt_num(market_cap, 'B')}",
+            f"  Enterprise Value: {fmt_num(enterprise, 'B')}\n",
+        ]
+
+        if div_yield or div_rate:
+            msg_parts.append("*💵 Dividend*")
+            msg_parts.append(f"  Yield: {fmt_num(div_yield, 'pct')} | Rate: ${fmt_num(div_rate)}")
+            msg_parts.append(f"  Payout Ratio: {fmt_num(payout, 'pct')}\n")
+
+        msg_parts.append("*📈 Profitability*")
+        msg_parts.append(f"  Profit Margin: {fmt_num(profit_margin, 'pct')} | ROE: {fmt_num(roe, 'pct')}\n")
+
+        msg_parts.append("*⚖️ Risk*")
+        msg_parts.append(f"  Beta: {fmt_num(beta)} (1.0 = volatility เท่าตลาด)")
+        if w52_high and w52_low:
+            from_high = (price - w52_high) / w52_high * 100
+            from_low = (price - w52_low) / w52_low * 100
+            msg_parts.append(f"  52W High: ${w52_high:.2f} ({from_high:+.1f}%)")
+            msg_parts.append(f"  52W Low: ${w52_low:.2f} ({from_low:+.1f}%)")
+
+        msg_parts.append("\n_📚 Source: yfinance | อัปเดตแบบ real-time_")
+
+        bot.edit_message_text("\n".join(msg_parts), message.chat.id, load_msg.message_id, parse_mode="Markdown")
+    except Exception as e:
+        print(f"[fund] error {symbol}: {e}", flush=True)
+        bot.edit_message_text(f"❌ ดึงข้อมูลไม่สำเร็จ: {str(e)[:100]}", message.chat.id, load_msg.message_id)
+
+
+@bot.message_handler(commands=['compare'])
+def handle_compare(message):
+    """PRO: เปรียบเทียบ 2-3 หุ้น side-by-side + AI บอกตัวไหนน่าซื้อกว่า"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    role = check_subscription(user_id)
+    if role != 'pro' and user_id != ADMIN_ID:
+        bot.reply_to(message,
+            "🔒 **Stock Comparison — ฟีเจอร์ PRO เท่านั้น**\n\n"
+            "เปรียบเทียบ 2-3 หุ้น side-by-side พร้อม AI วิเคราะห์ว่าตัวไหนน่าสะสมกว่า\n\n"
+            "👑 อัปเกรดเป็น PRO เพื่อใช้ฟีเจอร์นี้",
+            parse_mode="Markdown")
+        return
+
+    args = message.text.split()
+    if len(args) < 3 or len(args) > 4:
+        bot.reply_to(message,
+            "❌ รูปแบบผิด! พิมพ์: `/compare <หุ้น1> <หุ้น2> [หุ้น3]`\n"
+            "ตัวอย่าง: `/compare AAPL MSFT` หรือ `/compare NVDA AMD TSM`",
+            parse_mode="Markdown")
+        return
+
+    symbols = [s.upper() for s in args[1:]]
+    load_msg = bot.reply_to(message, f"🔍 กำลังเปรียบเทียบ {' vs '.join(symbols)}...", parse_mode="Markdown")
+
+    try:
+        # ดึง tech_data ของทุกตัว
+        all_data = []
+        for sym in symbols:
+            tech_data, _, err = _get_cached_analysis(sym, generate_chart=False)
+            if err or not tech_data:
+                bot.edit_message_text(f"❌ ไม่พบข้อมูล '{sym}' — ตรวจตัวสะกดอีกครั้ง", message.chat.id, load_msg.message_id)
+                return
+            all_data.append(tech_data)
+
+        # สร้างตารางเปรียบเทียบ
+        def status_icon(td):
+            rsi = td.get('rsi', 50)
+            if rsi > 70:
+                return "🔴 Overbought"
+            if rsi < 30:
+                return "🟢 Oversold"
+            return "⚪ Neutral"
+
+        def trend_icon(td):
+            price = td.get('price', 0)
+            ema20 = td.get('ema20', 0)
+            if price > ema20:
+                pct = (price - ema20) / ema20 * 100 if ema20 else 0
+                return f"🟢 ขาขึ้น ({pct:+.1f}%)"
+            pct = (price - ema20) / ema20 * 100 if ema20 else 0
+            return f"🔴 ขาลง ({pct:+.1f}%)"
+
+        comparison_lines = ["⚖️ **Stock Comparison**\n"]
+        for td in all_data:
+            sym = td.get('symbol', '?')
+            price = td.get('price', 0)
+            rsi = td.get('rsi', 0)
+            macd = td.get('macd', 0)
+            signal = td.get('macd_signal', 0)
+            macd_direction = "🟢 บวก" if macd > signal else "🔴 ลบ"
+            comparison_lines.append(
+                f"📌 **{sym}** @ ${price:,.2f}\n"
+                f"  🌊 {trend_icon(td)}\n"
+                f"  🌡 RSI {rsi:.1f} — {status_icon(td)}\n"
+                f"  ⚡ MACD: {macd_direction} ({macd:.2f}/{signal:.2f})\n"
+                f"  🎯 S/R: ${td.get('support', 0):,.2f} / ${td.get('resistance', 0):,.2f}\n"
+            )
+
+        # AI verdict
+        context_lines = []
+        for td in all_data:
+            sym = td.get('symbol', '?')
+            context_lines.append(
+                f"{sym}: price={td.get('price', 0):.2f} RSI={td.get('rsi', 0):.1f} "
+                f"EMA20={td.get('ema20', 0):.2f} MACD={td.get('macd', 0):.2f}/{td.get('macd_signal', 0):.2f} "
+                f"S={td.get('support', 0):.2f} R={td.get('resistance', 0):.2f}"
+            )
+
+        try:
+            from ai_analyzer import client as ai_client
+            ai_prompt = f"""
+เปรียบเทียบหุ้น {len(symbols)} ตัว ตอบภาษาไทยสั้นๆ 3-4 บรรทัด
+
+ข้อมูลเทคนิค:
+{chr(10).join(context_lines)}
+
+ตอบตามโครงนี้ห้ามเกิน 300 ตัวอักษร:
+1. ตัวไหน "น่าสะสมที่สุด" ตอนนี้ — บอกเหตุผลสั้น
+2. ตัวไหน "ระวังมากสุด" — บอกเหตุผลสั้น
+3. สรุปภาพรวม
+
+ห้ามชี้นำซื้อขาย ห้ามใช้คำ "ซื้อเลย" "ขายเลย" "การันตี"
+""".strip()
+            ai_resp = ai_client.models.generate_content(model='gemini-2.5-flash', contents=ai_prompt)
+            ai_verdict = ai_resp.text.strip()[:500]
+            comparison_lines.append(f"\n🤖 **AI Verdict:**\n{ai_verdict}")
+        except Exception as e:
+            print(f"[compare] AI verdict failed: {e}", flush=True)
+            comparison_lines.append("\n_(AI verdict ไม่ว่างตอนนี้ — ดูข้อมูลเทคนิคด้านบนประกอบ)_")
+
+        comparison_lines.append("\n_⚠️ ไม่ใช่คำแนะนำการลงทุน — ตรวจสอบและประเมินความเสี่ยงเอง_")
+
+        bot.edit_message_text("\n".join(comparison_lines), message.chat.id, load_msg.message_id, parse_mode="Markdown")
+    except Exception as e:
+        print(f"[compare] error: {e}", flush=True)
+        bot.edit_message_text(f"❌ เปรียบเทียบไม่สำเร็จ: {str(e)[:100]}", message.chat.id, load_msg.message_id)
+
+
 _analysis_cache = {}  # {symbol: (timestamp, tech_data, chart_bytes, err)}
 _ANALYSIS_CACHE_TTL = 300  # 5 minutes
 
@@ -2151,14 +2391,26 @@ def handle_main(message):
             expiry_text = expiry if expiry else "ไม่มีวันหมดอายุ"
             quota_text = f"ไม่จำกัด" if role in ['vip', 'pro'] else f"{usage}/{FREE_DAILY_QUOTA} ครั้ง"
             reg_text = reg_date[:10] if reg_date else "ไม่ทราบ"
-            
+
+            # 🌟 Streak info
+            from database import get_streak_info
+            streak_data = get_streak_info(user_id)
+            streak_line = ""
+            if streak_data["current"] > 0:
+                next_in = 7 - (streak_data["current"] % 7) if streak_data["current"] % 7 != 0 else 7
+                streak_line = (
+                    f"🔥 **Streak:** {streak_data['current']} วัน "
+                    f"_(longest: {streak_data['longest']} | +1 วัน VIP ในอีก {next_in} วัน)_\n"
+                )
+
             msg = (
                 f"👤 **ข้อมูลบัญชี (ID: `{user_id}`)**\n\n"
                 f"🏷 **สถานะ:** {status_text}\n"
                 f"📅 **วันที่เริ่มใช้งาน:** {reg_text}\n"
                 f"📈 **โควต้าวิเคราะห์:** {quota_text}\n"
                 f"⏰ **แพ็กเกจหมดอายุ:** {expiry_text}\n"
-                f"📋 **หุ้นใน Watchlist:** {watch_count} ตัว\n\n"
+                f"📋 **หุ้นใน Watchlist:** {watch_count} ตัว\n"
+                f"{streak_line}\n"
                 f"👇 **จัดการบัญชีและแพ็กเกจของคุณ:**"
             )
             
@@ -2306,6 +2558,29 @@ def handle_main(message):
         increment_usage(user_id)
         report += f"\n\n🎁 **Trial:** {usage + 1}/{FREE_DAILY_QUOTA}"
 
+    # 🌟 Daily Streak — อัปเดตทุกครั้งที่วิเคราะห์หุ้น
+    streak_notification = None
+    try:
+        from database import update_user_streak, grant_streak_reward
+        streak = update_user_streak(user_id)
+        if streak["milestone_7days"]:
+            # ครบ 7 วัน → +1 วัน VIP ฟรี
+            if grant_streak_reward(user_id, days=1):
+                streak_notification = (
+                    f"🔥 **Streak {streak['current']} วัน!** 🎉\n\n"
+                    f"ขอแสดงความยินดี! คุณใช้งาน Apexify ทุกวันต่อเนื่อง\n"
+                    f"🎁 รับ **VIP +1 วันฟรี** ไปเลย!\n\n"
+                    f"_Longest streak: {streak['longest']} วัน — ทำลายสถิติไปอีกได้!_"
+                )
+        elif streak["is_new_day"] and streak["current"] in (3, 14, 30, 50, 100):
+            # แสดง celebration ที่ milestone พิเศษ
+            streak_notification = (
+                f"🔥 **Streak {streak['current']} วัน!** ต่อเนื่อง\n"
+                f"_อีก {7 - (streak['current'] % 7) if streak['current'] % 7 != 0 else 7} วัน ถึง reward ถัดไป_"
+            )
+    except Exception as e:
+        print(f"[streak] error: {e}", flush=True)
+
     correct_symbol = tech_data['symbol']
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(InlineKeyboardButton(f"⭐ เพิ่ม {correct_symbol} เข้า Watchlist", callback_data=f"addwatch_{correct_symbol}"))
@@ -2330,6 +2605,14 @@ def handle_main(message):
         except Exception:
             pass
         _send_safe(bot, message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
+
+    # 🌟 Streak notification — ส่งหลังรายงาน (ถ้ามี milestone)
+    if streak_notification:
+        try:
+            bot.send_message(message.chat.id, streak_notification, parse_mode="Markdown")
+        except Exception:
+            pass
+
 
 if __name__ == "__main__":
     keep_alive()  # Flask ขึ้นก่อนเลย

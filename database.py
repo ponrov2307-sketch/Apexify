@@ -801,6 +801,100 @@ def expire_stale_plans(max_age_days=45):
         conn.close()
 
 
+def update_user_streak(user_id):
+    """อัปเดต daily streak เมื่อ user ทำ action (เช่น วิเคราะห์หุ้น)
+    คืน dict: {current, is_new_day, milestone_7days, longest}
+    - is_new_day: True ถ้าวันนี้เพิ่ง count (ไม่ใช่นับซ้ำ)
+    - milestone_7days: True ถ้าครบ 7 วันพอดี (ส่ง reward)
+    """
+    from datetime import date as _date
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT streak_count, last_streak_date, longest_streak FROM users WHERE user_id=%s",
+                  (str(user_id),))
+        row = c.fetchone()
+        if not row:
+            return {"current": 0, "is_new_day": False, "milestone_7days": False, "longest": 0}
+
+        current_streak = int(row[0] or 0)
+        last_date = row[1]
+        longest = int(row[2] or 0)
+        today = _date.today()
+
+        # ถ้าวันเดียวกัน — ไม่ count ซ้ำ
+        if last_date == today:
+            return {"current": current_streak, "is_new_day": False, "milestone_7days": False, "longest": longest}
+
+        # ถ้าเมื่อวาน — +1
+        if last_date == today - timedelta(days=1):
+            new_streak = current_streak + 1
+        else:
+            # ขาดวัน — reset เป็น 1
+            new_streak = 1
+
+        new_longest = max(longest, new_streak)
+        c.execute("""
+            UPDATE users SET streak_count=%s, last_streak_date=%s, longest_streak=%s
+            WHERE user_id=%s
+        """, (new_streak, today, new_longest, str(user_id)))
+        conn.commit()
+
+        milestone = (new_streak > 0 and new_streak % 7 == 0)
+        return {
+            "current": new_streak,
+            "is_new_day": True,
+            "milestone_7days": milestone,
+            "longest": new_longest,
+        }
+    except Exception as e:
+        conn.rollback()
+        print(f"[update_streak] error: {e}")
+        return {"current": 0, "is_new_day": False, "milestone_7days": False, "longest": 0}
+    finally:
+        conn.close()
+
+
+def grant_streak_reward(user_id, days=1):
+    """ให้รางวัล streak milestone — เพิ่มวัน VIP (หรือต่อ role ที่มีอยู่)"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            UPDATE users SET
+                role = CASE WHEN role IN ('vip', 'pro') THEN role ELSE 'vip' END,
+                expiry_date = GREATEST(COALESCE(expiry_date::timestamp, NOW()), NOW()) + (%s || ' days')::INTERVAL
+            WHERE user_id = %s
+        """, (str(days), str(user_id)))
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        print(f"[grant_streak_reward] error: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_streak_info(user_id):
+    """ดึงข้อมูล streak ปัจจุบันของ user (ไม่อัปเดต)"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT streak_count, last_streak_date, longest_streak FROM users WHERE user_id=%s",
+                  (str(user_id),))
+        row = c.fetchone()
+        if not row:
+            return {"current": 0, "longest": 0, "last_date": None}
+        return {
+            "current": int(row[0] or 0),
+            "longest": int(row[2] or 0),
+            "last_date": row[1],
+        }
+    finally:
+        conn.close()
+
+
 def get_track_record_stats(days=30, user_id=None):
     """สถิติ outcome ในช่วง N วันที่ผ่านมา
     คืน dict: {total, tp1_hit, tp2_hit, sl_hit, expired, open, hit_rate_pct}
@@ -1270,6 +1364,10 @@ def init_new_features_db():
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_used BOOLEAN DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_vip_given BOOLEAN DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TIMESTAMP",
+        # 🌟 Daily Streak columns
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_count INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_streak_date DATE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS longest_streak INTEGER DEFAULT 0",
     ]:
         try:
             c.execute(col_ddl)
