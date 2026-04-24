@@ -1327,20 +1327,23 @@ def check_xd_alerts():
     # 🌟 ถ้ารวบรวมได้ ค่อยบรอดแคสต์ให้สาย PRO รวดเดียว
     if upcoming_xds:
         msg = "📅 **ปฏิทินเตือนหุ้นปันผล (XD Alert) สัปดาห์นี้** 📅\n\n" + "\n".join(upcoming_xds) + "\n\n👉 สายปันผลเตรียมตัว สายเก็งกำไรระวังราคาเปิดกระโดดลงนะครับ!"
-        
+
         conn = get_connection()
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
-        pro_users = cur.fetchall()
-        for pro in pro_users:
-            if check_subscription(pro[0]) == 'pro' and should_send_user_notification(pro[0], category="xd_alert"):
-                try:
-                    bot.send_message(pro[0], msg, parse_mode='Markdown')
-                    time.sleep(0.5)
-                except Exception as e:
-                    print(f"[XDAlert] ส่งให้ {pro[0]} ไม่สำเร็จ: {e}")
+        pro_user_ids = [str(row[0]) for row in cur.fetchall()]
         cur.close()
         conn.close()
+        # 🌟 รวม ADMIN_ID ถ้าไม่มีใน list (admin ได้ทุกอย่างที่ PRO ได้)
+        if str(ADMIN_ID) not in pro_user_ids:
+            pro_user_ids.insert(0, str(ADMIN_ID))
+        for uid in pro_user_ids:
+            if check_subscription(uid) == 'pro' and should_send_user_notification(uid, category="xd_alert"):
+                try:
+                    bot.send_message(uid, msg, parse_mode='Markdown')
+                    time.sleep(0.5)
+                except Exception as e:
+                    print(f"[XDAlert] ส่งให้ {uid} ไม่สำเร็จ: {e}")
 # ==========================================
 # 🌟 ฟีเจอร์ใหม่: Daily Portfolio Summary (สรุปพอร์ตตี 5)
 # ==========================================
@@ -1357,13 +1360,16 @@ def send_daily_portfolio_summary(bot_instance):
         JOIN users u ON u.user_id = p.user_id
         WHERE u.role IN ('vip', 'pro')
     """)
-    users_with_port = cur.fetchall()
+    user_ids = [str(row[0]) for row in cur.fetchall()]
+    # 🌟 รวม ADMIN_ID ถ้ามี portfolio (admin ได้ทุก feature)
+    cur.execute("SELECT 1 FROM portfolios WHERE user_id=%s LIMIT 1", (str(ADMIN_ID),))
+    if cur.fetchone() and str(ADMIN_ID) not in user_ids:
+        user_ids.insert(0, str(ADMIN_ID))
     cur.close()
     conn.close()
-    
+
     count = 0
-    for row in users_with_port:
-        user_id = row[0]
+    for user_id in user_ids:
         role = check_subscription(user_id)
         if role not in ('vip', 'pro'):
             continue

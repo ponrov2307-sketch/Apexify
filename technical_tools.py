@@ -371,9 +371,9 @@ def calculate_technical_indicators(symbol, generate_chart=True):
 
 
 def generate_pro_annotated_chart(symbol, plan):
-    """กราฟ PRO เฉพาะ — เพิ่ม Entry zone (สีเขียว/แดง shaded) + เส้น TP1/TP2/SL พร้อม label
+    """กราฟ PRO เฉพาะ — Entry zone shaded + เส้น TP1/TP2/SL พร้อม label %
+    Auto-scale Y-axis ให้ครอบทุกระดับ + dedupe เส้นซ้ำ (เช่น resistance=tp1)
     plan = dict มี keys: entry_low, entry_high, tp1, tp2, sl
-    คืน BytesIO ของกราฟ หรือ None ถ้าวาดไม่ได้
     """
     try:
         clean_symbol = _normalize_market_symbol(symbol)
@@ -397,8 +397,10 @@ def generate_pro_annotated_chart(symbol, plan):
         price_bins = pd.cut(recent60['Close'], bins=10)
         vol_profile = recent60.groupby(price_bins, observed=False)['Volume'].sum()
         poc_price = float(vol_profile.idxmax().mid)
+        current_price = float(recent60['Close'].iloc[-1])
 
         mpf = _load_chart_modules()
+        import matplotlib.pyplot as plt
         buf = io.BytesIO()
 
         mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit', volume='in')
@@ -410,48 +412,66 @@ def generate_pro_annotated_chart(symbol, plan):
             mpf.make_addplot(data['EMA200'].tail(60), color='#d500f9', width=1.5),
         ]
 
-        # 🌟 ดึงค่า plan + เช็คว่าเป็น valid number
         entry_low = _safe_chart_float(plan.get('entry_low'))
         entry_high = _safe_chart_float(plan.get('entry_high'))
         tp1 = _safe_chart_float(plan.get('tp1'))
         tp2 = _safe_chart_float(plan.get('tp2'))
         sl = _safe_chart_float(plan.get('sl'))
 
-        # 🌟 หาว่า bias อะไร — ถ้า entry > current price = bearish (รอเด้งขาย), ไม่ใช่ — ปกติ entry < current = bullish (รอย่อซื้อ)
-        # สี Entry zone: เขียวสำหรับ bullish (รอย่อซื้อ), เหลืองสำหรับ wait
-        entry_color = '#00ff8855'  # เขียวโปร่ง
+        # 🌟 Dedupe: ถ้า resistance ใกล้ tp1 / support ใกล้ sl → ไม่ต้องวาด
+        dedupe_threshold = current_price * 0.005  # 0.5%
+        show_resistance = tp1 is None or abs(resistance - tp1) > dedupe_threshold
+        show_support = sl is None or abs(support - sl) > dedupe_threshold
 
-        # 🌟 รวม hlines ทุกอัน + เพิ่ม TP/SL/POC
-        hline_values = [resistance, support, poc_price]
-        hline_colors = ['#ff6666', '#66ff66', '#ffff00']
-        hline_styles = ['-.', '-.', ':']
-
+        # 🌟 รวม hlines + dedup
+        hline_values = []
+        hline_colors = []
+        hline_styles = []
+        if show_resistance:
+            hline_values.append(resistance)
+            hline_colors.append('#ff8888')
+            hline_styles.append(':')
+        if show_support:
+            hline_values.append(support)
+            hline_colors.append('#88ff88')
+            hline_styles.append(':')
+        # POC — แสดงเฉพาะถ้าไม่อยู่ใน entry zone
+        if entry_low is None or entry_high is None or not (min(entry_low, entry_high) <= poc_price <= max(entry_low, entry_high)):
+            hline_values.append(poc_price)
+            hline_colors.append('#ffff00')
+            hline_styles.append(':')
         if tp1 is not None:
             hline_values.append(tp1)
             hline_colors.append('#00ff00')
             hline_styles.append('--')
         if tp2 is not None:
             hline_values.append(tp2)
-            hline_colors.append('#00ff00')
+            hline_colors.append('#00ffaa')
             hline_styles.append('-')
         if sl is not None:
             hline_values.append(sl)
             hline_colors.append('#ff0000')
             hline_styles.append('-')
 
-        # 🌟 Entry zone แบบ fill_between — ใช้ axhspan ผ่าน returnfig
         fill_between_dict = None
         if entry_low is not None and entry_high is not None:
             ordered = sorted([entry_low, entry_high])
-            fill_between_dict = dict(
-                y1=ordered[0], y2=ordered[1],
-                alpha=0.25, color='#00ff00'
-            )
+            fill_between_dict = dict(y1=ordered[0], y2=ordered[1], alpha=0.25, color='#00ff00')
 
         chart_title = (
-            f"\nApexify PRO Chart: {clean_symbol}  |  Entry Zone (Green) + TP (Green Lines) + SL (Red)\n"
+            f"\nApexify PRO Chart: {clean_symbol}  |  Entry Zone (Shaded) + TP (Green) + SL (Red)\n"
             f"EMA: 20(Blue) 50(Orange) 200(Purple)"
         )
+
+        # 🌟 คำนวณ Y-axis range ให้ครอบทุกระดับ + padding
+        all_levels = [resistance, support, poc_price]
+        for v in (entry_low, entry_high, tp1, tp2, sl):
+            if v is not None:
+                all_levels.append(v)
+        data_min = float(recent60['Low'].min())
+        data_max = float(recent60['High'].max())
+        y_min = min(min(all_levels), data_min) * 0.96
+        y_max = max(max(all_levels), data_max) * 1.04
 
         plot_kwargs = dict(
             type='candle',
@@ -461,15 +481,47 @@ def generate_pro_annotated_chart(symbol, plan):
             panel_ratios=(4, 1),
             addplot=add_plots,
             hlines=dict(hlines=hline_values, colors=hline_colors, linestyle=hline_styles, linewidths=1.3),
-            savefig=dict(fname=buf, dpi=120, bbox_inches='tight', pad_inches=0.1),
             figratio=(16, 9),
             figscale=1.2,
             tight_layout=True,
+            ylim=(y_min, y_max),
+            returnfig=True,
         )
         if fill_between_dict is not None:
             plot_kwargs['fill_between'] = fill_between_dict
 
-        mpf.plot(data.tail(60), **plot_kwargs)
+        fig, axes = mpf.plot(recent60, **plot_kwargs)
+        ax = axes[0]  # main price panel
+
+        # 🌟 ใส่ label "TP1 +X%" บนเส้น
+        x_pos = len(recent60) - 0.5  # ขวาสุดของกราฟ
+
+        def add_label(price, text, color):
+            if price is None:
+                return
+            pct = (price - current_price) / current_price * 100
+            label = f' {text} {pct:+.1f}%'
+            ax.annotate(
+                label, xy=(x_pos, price), xytext=(5, 0), textcoords='offset points',
+                color=color, fontsize=9, fontweight='bold', va='center', ha='left',
+                bbox=dict(boxstyle='round,pad=0.2', fc='#000000aa', ec=color, lw=0.8),
+            )
+
+        add_label(tp2, 'TP2', '#00ffaa')
+        add_label(tp1, 'TP1', '#00ff00')
+        if entry_low is not None and entry_high is not None:
+            add_label((entry_low + entry_high) / 2, 'ENTRY', '#88ff88')
+        add_label(sl, 'SL', '#ff5555')
+        # current price marker
+        ax.annotate(
+            f' Now {current_price:,.2f}', xy=(x_pos, current_price), xytext=(5, 0),
+            textcoords='offset points', color='#ffffff', fontsize=9, fontweight='bold',
+            va='center', ha='left',
+            bbox=dict(boxstyle='round,pad=0.2', fc='#1976d2', ec='#ffffff', lw=0.8),
+        )
+
+        fig.savefig(buf, dpi=120, bbox_inches='tight', pad_inches=0.15)
+        plt.close(fig)
         buf.seek(0)
         return buf
     except Exception as e:

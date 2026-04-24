@@ -611,6 +611,14 @@ def add_subscription(user_id, role='vip', days=30):
     return expiry_str
 
 def check_subscription(user_id):
+    # 🌟 Admin ได้สิทธิ์ PRO เสมอ (ทุก feature ที่เช็ค == 'pro' จะผ่าน)
+    try:
+        from config import ADMIN_ID as _ADMIN_ID
+        if _ADMIN_ID and str(user_id) == str(_ADMIN_ID):
+            return 'pro'
+    except Exception:
+        pass
+
     conn = get_connection()
     c = conn.cursor()
     c.execute("SELECT role, expiry_date FROM users WHERE user_id=%s", (str(user_id),))
