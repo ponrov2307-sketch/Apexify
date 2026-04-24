@@ -48,22 +48,36 @@ def safe_send(bot_instance, user_id, text, **kwargs):
         return False
 
 
-def _gemini_generate_with_retry(prompt, model='gemini-2.5-flash', retries=2, delay=15):
-    """เรียก Gemini พร้อม retry อัตโนมัติเมื่อเจอ 503 (high demand)"""
+def _is_gemini_overloaded_error(err):
+    err_str = str(err)
+    return (
+        '503' in err_str
+        or 'UNAVAILABLE' in err_str
+        or 'high demand' in err_str.lower()
+        or 'overloaded' in err_str.lower()
+    )
+
+
+def _gemini_generate_with_retry(prompt, model='gemini-2.5-flash', retries=4, delay=20):
+    """เรียก Gemini พร้อม retry + exponential backoff + fallback model เมื่อเจอ 503"""
+    fallback_chain = [model, 'gemini-2.0-flash', 'gemini-2.5-flash-lite']
     last_err = None
     for attempt in range(retries + 1):
+        current_model = fallback_chain[min(attempt, len(fallback_chain) - 1)]
         try:
-            return client.models.generate_content(model=model, contents=prompt)
+            return client.models.generate_content(model=current_model, contents=prompt)
         except Exception as e:
             last_err = e
-            err_str = str(e)
-            if '503' in err_str or 'UNAVAILABLE' in err_str or 'high demand' in err_str.lower():
+            if _is_gemini_overloaded_error(e):
                 if attempt < retries:
-                    print(f"[Gemini] 503 attempt {attempt+1}/{retries}, retry in {delay}s...", flush=True)
-                    time.sleep(delay)
+                    wait = delay * (2 ** attempt)  # 20, 40, 80, 160, 320
+                    print(f"[Gemini] 503 {current_model} try {attempt+1}/{retries}, wait {wait}s", flush=True)
+                    time.sleep(wait)
                     continue
             raise  # error อื่นๆ throw ทันที
-    raise last_err # 🌟 เก็บประวัติข่าวที่เคยส่งไปแล้วเพื่อกันส่งซ้ำ
+    raise last_err
+
+# 🌟 เก็บประวัติข่าวที่เคยส่งไปแล้วเพื่อกันส่งซ้ำ
 sent_stock_news_history = {}
 last_stock_news_sent_at = {}
 sent_xd_alerts = set()
@@ -704,6 +718,9 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
         # 🌟 3. ดักจับกรณี API พัง หรือโดนบล็อคเนื้อหาความรุนแรง
         tb = traceback.format_exc()
         print(f"❌ [FlashNews] Error:\n{tb}")
+        # 🌟 503 Gemini overload — skip เงียบๆ รอบหน้ารันใหม่เอง ไม่ต้องปลุก admin
+        if _is_gemini_overloaded_error(e):
+            return
         try:
             error_msg = str(e)
             if "Safety" in error_msg or "blocked" in error_msg.lower():
@@ -803,6 +820,9 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
     except Exception as e:
         tb = traceback.format_exc()
         print(f"❌ [DigestNews] Error:\n{tb}")
+        # 🌟 503 Gemini overload — skip เงียบๆ รอบหน้ารันใหม่เอง ไม่ต้องปลุก admin
+        if _is_gemini_overloaded_error(e):
+            return
         try:
             bot_instance.send_message(ADMIN_ID, f"⚠️ **Digest News Error:** {str(e)[:100]}\n\n`{tb[-300:]}`", parse_mode="Markdown")
         except Exception:
