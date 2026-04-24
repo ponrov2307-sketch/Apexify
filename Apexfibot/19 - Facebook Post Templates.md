@@ -157,7 +157,7 @@ Alerts ราคา + ข่าว + Earnings → ส่งเข้า Telegram
 🔗 t.me/Apexify_Trading_Bot
 ```
 
-### Template: "Free Trial 7 วัน" (แทน promo code — ใช้ตอนนี้)
+### Template: "Free Trial 7 วัน"
 
 ```
 🎁 ทดลองใช้ Apexify PRO ฟรี 7 วัน!
@@ -177,8 +177,47 @@ Alerts ราคา + ข่าว + Earnings → ส่งเข้า Telegram
 #FreeTrial #ApexifyBot #ทดลองฟรี
 ```
 
-> 💡 *Note: โค้ดส่วนลด/โปรลดราคา ไว้รอใช้ตอนมีฐาน user เยอะแล้ว
-> ตอนนี้เน้น Free Trial + Referral ก่อน*
+### Template: "Promo Code แจกฟรี" (ใช้ได้เลย!)
+
+```
+🎁 โค้ดพิเศษจาก Apexify!
+
+ใช้โค้ด: **WELCOME2026**
+รับ VIP ฟรี **7 วัน** ทันที
+
+วิธีใช้:
+1. เปิดบอท Apexify ใน Telegram
+2. พิมพ์ /redeem WELCOME2026
+3. ใช้งาน VIP ได้ทันที 7 วัน 🎉
+
+⏰ มีจำนวนจำกัด — ก่อนหมด first-come first-served
+
+🔗 t.me/Apexify_Trading_Bot
+
+#แจกฟรี #ApexifyBot #PromoCode
+```
+
+> 💡 *วิธีสร้างโค้ด:* admin พิมพ์ `/createcode <ชื่อโค้ด> <จำนวนวัน> <max_uses> <vip|pro>`
+> *ตัวอย่าง:* `/createcode WELCOME2026 7 100 vip` = แจก VIP 7 วัน 100 คน
+
+### Template: "Influencer Code"
+
+```
+🎙 ส่วนลดพิเศษจาก [ชื่อ Influencer] x Apexify
+
+ใช้โค้ด: **APEX_[username]**
+รับ VIP **14 วัน ฟรี!**
+
+จำกัดเฉพาะ 50 คนแรกเท่านั้น
+
+วิธีใช้: พิมพ์ /redeem APEX_[username] ในบอท
+🔗 t.me/Apexify_Trading_Bot
+
+#ApexifyBot #[username]
+```
+
+> 💡 *ระบบปัจจุบันแจก "วันฟรี" เท่านั้น* (ไม่ใช่ส่วนลด %)
+> ถ้าต้องการลด % off ต้องสร้างระบบ payment เพิ่ม
 
 ---
 

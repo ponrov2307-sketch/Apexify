@@ -128,13 +128,30 @@ tags: [sales, marketing, playbook]
 - ใช้ทุกวันติดต่อกัน 7 วัน → VIP **+1 วันฟรี**
 - ทำลายสถิติได้ไม่จำกัดครั้ง
 
-**4. 💎 Promo Code (ยังไม่เปิดเผยตอนนี้)**
-- มีระบบรองรับใน `/redeem` แล้ว
-- รอใช้ตอนมีฐาน user เยอะ + อยากกระตุ้น conversion
-- จะเก็บไว้สำหรับ:
-  - Black Friday / 12.12 / Year-end
-  - Influencer collaboration codes
-  - Win-back campaign
+**4. 💎 Promo Code (ใช้ได้แล้ว — แบบ "แจกของฟรี")**
+
+ระบบปัจจุบันรองรับ "แจกวัน VIP/PRO" ผ่านโค้ด:
+
+```
+Admin สร้าง:  /createcode APEX2026 7 100 vip
+              (โค้ด, จำนวนวัน, max uses, role)
+
+User ใช้:    /redeem APEX2026
+              → ได้ VIP +7 วัน ทันที
+```
+
+**Use cases ที่ใช้ได้เลย:**
+- 🎁 แจกผ่าน influencer ("ใช้โค้ด @username รับ VIP 7 วัน")
+- 🎯 Win-back ("คุณห่างหายไปนาน — โค้ด WELCOMEBACK รับ 14 วัน")
+- 🎉 Special event (ครบ 1000 user → โค้ด CELEBRATE)
+- 👥 B2B / event partner (โค้ดเฉพาะกลุ่ม)
+
+> ⚠️ **ระบบนี้แจกของฟรีอย่างเดียว** — ไม่ใช่ส่วนลด %
+> ถ้าจะทำ **"ส่วนลดราคา"** เช่น "30% off" ต้องสร้างระบบเพิ่ม:
+> 1. คำนวณราคาลดในขั้นตอนแสดง pricing card
+> 2. แก้ตรวจสลิปให้ยอมรับยอดลดลง
+> 3. ผูก promo code กับ user ก่อนชำระเงิน + กันใช้ซ้ำ
+> → เก็บไว้ทำตอนคนเยอะแล้ว ตอนนี้ใช้แบบ "แจก" ก็พอ
 
 ### Sales Approach ปัจจุบัน
 
