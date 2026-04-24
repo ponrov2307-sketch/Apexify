@@ -403,13 +403,29 @@ def generate_pro_annotated_chart(symbol, plan):
         import matplotlib.pyplot as plt
         buf = io.BytesIO()
 
-        mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit', volume='in')
-        s = mpf.make_mpf_style(marketcolors=mc, base_mpf_style='nightclouds', gridstyle=':', rc={'font.size': 10})
+        # 🌟 Light theme — พื้นขาว แท่งเขียว/แดง mute (แบบ Bloomberg/TradingView light)
+        mc = mpf.make_marketcolors(
+            up='#26a69a',        # เขียวเทอร์ควอยซ์ (ขึ้น)
+            down='#ef5350',      # แดง coral (ลง)
+            edge='inherit',
+            wick={'up': '#26a69a', 'down': '#ef5350'},
+            volume={'up': '#26a69a', 'down': '#ef5350'},
+        )
+        s = mpf.make_mpf_style(
+            marketcolors=mc,
+            base_mpf_style='yahoo',
+            gridstyle='-',
+            gridcolor='#e0e0e0',
+            facecolor='white',
+            edgecolor='#333333',
+            figcolor='white',
+            rc={'font.size': 10, 'axes.labelcolor': '#333333', 'axes.edgecolor': '#cccccc'},
+        )
 
         add_plots = [
-            mpf.make_addplot(data['EMA20'].tail(60), color='#2962ff', width=1.5),
-            mpf.make_addplot(data['EMA50'].tail(60), color='#ff6d00', width=1.5),
-            mpf.make_addplot(data['EMA200'].tail(60), color='#d500f9', width=1.5),
+            mpf.make_addplot(data['EMA20'].tail(60), color='#1e88e5', width=1.5),   # blue
+            mpf.make_addplot(data['EMA50'].tail(60), color='#fb8c00', width=1.5),   # orange
+            mpf.make_addplot(data['EMA200'].tail(60), color='#8e24aa', width=1.5),  # purple
         ]
 
         entry_low = _safe_chart_float(plan.get('entry_low'))
@@ -423,43 +439,43 @@ def generate_pro_annotated_chart(symbol, plan):
         show_resistance = tp1 is None or abs(resistance - tp1) > dedupe_threshold
         show_support = sl is None or abs(support - sl) > dedupe_threshold
 
-        # 🌟 รวม hlines + dedup
+        # 🌟 รวม hlines — สีโทนเข้มให้ contrast กับพื้นขาว
         hline_values = []
         hline_colors = []
         hline_styles = []
         if show_resistance:
             hline_values.append(resistance)
-            hline_colors.append('#ff8888')
+            hline_colors.append('#d32f2f')  # แดงซีด — แนวต้าน
             hline_styles.append(':')
         if show_support:
             hline_values.append(support)
-            hline_colors.append('#88ff88')
+            hline_colors.append('#388e3c')  # เขียวซีด — แนวรับ
             hline_styles.append(':')
-        # POC — แสดงเฉพาะถ้าไม่อยู่ใน entry zone
+        # POC — ส้มเด่นบนพื้นขาว
         if entry_low is None or entry_high is None or not (min(entry_low, entry_high) <= poc_price <= max(entry_low, entry_high)):
             hline_values.append(poc_price)
-            hline_colors.append('#ffff00')
+            hline_colors.append('#ff9800')  # ส้ม
             hline_styles.append(':')
         if tp1 is not None:
             hline_values.append(tp1)
-            hline_colors.append('#00ff00')
+            hline_colors.append('#2e7d32')  # เขียวเข้ม
             hline_styles.append('--')
         if tp2 is not None:
             hline_values.append(tp2)
-            hline_colors.append('#00ffaa')
+            hline_colors.append('#1b5e20')  # เขียวเข้มกว่า TP1
             hline_styles.append('-')
         if sl is not None:
             hline_values.append(sl)
-            hline_colors.append('#ff0000')
+            hline_colors.append('#c62828')  # แดงเข้ม
             hline_styles.append('-')
 
         fill_between_dict = None
         if entry_low is not None and entry_high is not None:
             ordered = sorted([entry_low, entry_high])
-            fill_between_dict = dict(y1=ordered[0], y2=ordered[1], alpha=0.25, color='#00ff00')
+            fill_between_dict = dict(y1=ordered[0], y2=ordered[1], alpha=0.2, color='#4caf50')
 
         chart_title = (
-            f"\nApexify PRO Chart: {clean_symbol}  |  Entry Zone (Shaded) + TP (Green) + SL (Red)\n"
+            f"\nApexify PRO — {clean_symbol}  |  Entry Zone + TP + SL Plan\n"
             f"EMA: 20(Blue) 50(Orange) 200(Purple)"
         )
 
@@ -494,41 +510,51 @@ def generate_pro_annotated_chart(symbol, plan):
         ax = axes[0]  # main price panel
 
         # 🌟 ใส่ label ภายในกราฟด้านซ้าย (กัน clip จาก bbox_inches='tight')
-        # ใช้ transform=ax.transAxes สำหรับ x (0-1 ratio) และ data coord สำหรับ y
         import matplotlib.transforms as mtransforms
         trans = mtransforms.blended_transform_factory(ax.transAxes, ax.transData)
         x_label = 0.02  # ซ้ายสุดของ axes (2% จากซ้าย)
 
-        def add_label(price, text, color, fc='#000000cc'):
+        def add_label(price, text, fc='#2e7d32'):
+            """Label bbox สีเต็ม ตัวหนังสือขาว (contrast สูงบนพื้นขาว)"""
             if price is None:
                 return
             pct = (price - current_price) / current_price * 100
-            label = f' {text} {pct:+.1f}% '
+            label = f' {text} ${price:,.2f} ({pct:+.1f}%) '
             ax.text(
                 x_label, price, label,
                 transform=trans,
-                color=color, fontsize=11, fontweight='bold',
+                color='#ffffff', fontsize=10, fontweight='bold',
                 va='center', ha='left',
-                bbox=dict(boxstyle='round,pad=0.3', fc=fc, ec=color, lw=1.2),
+                bbox=dict(boxstyle='round,pad=0.35', fc=fc, ec=fc, lw=0),
                 zorder=10,
             )
 
-        add_label(tp2, '🎯 TP2', '#00ffaa')
-        add_label(tp1, '🎯 TP1', '#00ff00')
+        add_label(tp2, '🎯 TP2', fc='#1b5e20')       # เขียวเข้มสุด
+        add_label(tp1, '🎯 TP1', fc='#2e7d32')       # เขียวเข้ม
         if entry_low is not None and entry_high is not None:
-            add_label((entry_low + entry_high) / 2, '📍 ENTRY', '#ffff00', fc='#006400cc')
-        add_label(sl, '🛑 SL', '#ff5555')
-        # 🌟 current price marker — พื้น highlight
+            entry_mid = (entry_low + entry_high) / 2
+            pct = (entry_mid - current_price) / current_price * 100
+            ax.text(
+                x_label, entry_mid,
+                f' 📍 ENTRY ${entry_low:,.2f}–${entry_high:,.2f} ({pct:+.1f}%) ',
+                transform=trans,
+                color='#ffffff', fontsize=10, fontweight='bold',
+                va='center', ha='left',
+                bbox=dict(boxstyle='round,pad=0.35', fc='#00796b', ec='#00796b', lw=0),
+                zorder=10,
+            )
+        add_label(sl, '🛑 SL', fc='#c62828')          # แดงเข้ม
+        # 🌟 NOW marker — น้ำเงิน
         ax.text(
-            x_label, current_price, f' ▶ NOW {current_price:,.2f} ',
+            x_label, current_price, f' ▶ NOW ${current_price:,.2f} ',
             transform=trans,
-            color='#ffffff', fontsize=11, fontweight='bold',
+            color='#ffffff', fontsize=10, fontweight='bold',
             va='center', ha='left',
-            bbox=dict(boxstyle='round,pad=0.3', fc='#1976d2', ec='#ffffff', lw=1.2),
+            bbox=dict(boxstyle='round,pad=0.35', fc='#1565c0', ec='#1565c0', lw=0),
             zorder=10,
         )
 
-        fig.savefig(buf, dpi=120, bbox_inches='tight', pad_inches=0.15)
+        fig.savefig(buf, dpi=120, bbox_inches='tight', pad_inches=0.15, facecolor='white')
         plt.close(fig)
         buf.seek(0)
         return buf
