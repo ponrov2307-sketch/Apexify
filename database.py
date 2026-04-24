@@ -801,13 +801,16 @@ def expire_stale_plans(max_age_days=45):
         conn.close()
 
 
+def _thai_today():
+    """Return today's date in Asia/Bangkok timezone (UTC+7)"""
+    return (datetime.utcnow() + timedelta(hours=7)).date()
+
+
 def update_user_streak(user_id):
     """อัปเดต daily streak เมื่อ user ทำ action (เช่น วิเคราะห์หุ้น)
+    ใช้ Thai date (UTC+7) — กัน server timezone ทำให้ streak นับผิด
     คืน dict: {current, is_new_day, milestone_7days, longest}
-    - is_new_day: True ถ้าวันนี้เพิ่ง count (ไม่ใช่นับซ้ำ)
-    - milestone_7days: True ถ้าครบ 7 วันพอดี (ส่ง reward)
     """
-    from datetime import date as _date
     conn = get_connection()
     c = conn.cursor()
     try:
@@ -815,22 +818,23 @@ def update_user_streak(user_id):
                   (str(user_id),))
         row = c.fetchone()
         if not row:
+            print(f"[streak] user {user_id} not found in users table", flush=True)
             return {"current": 0, "is_new_day": False, "milestone_7days": False, "longest": 0}
 
         current_streak = int(row[0] or 0)
         last_date = row[1]
         longest = int(row[2] or 0)
-        today = _date.today()
+        today = _thai_today()
 
-        # ถ้าวันเดียวกัน — ไม่ count ซ้ำ
+        # ถ้าวันเดียวกัน (เทียบ Thai date) — ไม่ count ซ้ำ
         if last_date == today:
             return {"current": current_streak, "is_new_day": False, "milestone_7days": False, "longest": longest}
 
-        # ถ้าเมื่อวาน — +1
+        # ถ้าเมื่อวาน — +1 (ต่อเนื่อง)
         if last_date == today - timedelta(days=1):
             new_streak = current_streak + 1
         else:
-            # ขาดวัน — reset เป็น 1
+            # ขาดวัน หรือ first time → เริ่มใหม่ที่ 1
             new_streak = 1
 
         new_longest = max(longest, new_streak)
@@ -841,6 +845,7 @@ def update_user_streak(user_id):
         conn.commit()
 
         milestone = (new_streak > 0 and new_streak % 7 == 0)
+        print(f"[streak] user={user_id} streak={current_streak}→{new_streak} milestone={milestone}", flush=True)
         return {
             "current": new_streak,
             "is_new_day": True,
@@ -849,7 +854,9 @@ def update_user_streak(user_id):
         }
     except Exception as e:
         conn.rollback()
-        print(f"[update_streak] error: {e}")
+        # 🌟 Surface error เพื่อ debug — ไม่ silent fail
+        import traceback
+        print(f"[streak] ERROR user={user_id}: {e}\n{traceback.format_exc()}", flush=True)
         return {"current": 0, "is_new_day": False, "milestone_7days": False, "longest": 0}
     finally:
         conn.close()

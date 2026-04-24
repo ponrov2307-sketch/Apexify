@@ -283,6 +283,46 @@ def handle_force_news(message):
     except Exception as e:
         bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข่าว: {e}", message.chat.id, load_msg.message_id)
 
+@bot.message_handler(commands=['streak_debug'])
+def handle_streak_debug(message):
+    """Admin: ตรวจ schema + สถานะ streak ของตัวเอง"""
+    if str(message.chat.id) != ADMIN_ID:
+        return
+    try:
+        from database import get_connection, get_streak_info, _thai_today
+        conn = get_connection()
+        c = conn.cursor()
+        # 1. ตรวจว่า columns มีไหม
+        c.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'users' AND column_name IN
+                ('streak_count', 'last_streak_date', 'longest_streak')
+        """)
+        cols = [row[0] for row in c.fetchall()]
+        # 2. ค่าตัวเอง
+        c.execute("SELECT streak_count, last_streak_date, longest_streak FROM users WHERE user_id=%s",
+                  (str(message.chat.id),))
+        row = c.fetchone()
+        conn.close()
+
+        info = get_streak_info(str(message.chat.id))
+        msg = (
+            "🔍 *Streak Debug*\n\n"
+            f"*Schema columns found:* {len(cols)}/3\n"
+            f"  • streak_count: {'✅' if 'streak_count' in cols else '❌ MISSING'}\n"
+            f"  • last_streak_date: {'✅' if 'last_streak_date' in cols else '❌ MISSING'}\n"
+            f"  • longest_streak: {'✅' if 'longest_streak' in cols else '❌ MISSING'}\n\n"
+            f"*Thai today:* `{_thai_today()}`\n"
+            f"*Your raw row:* `{row}`\n"
+            f"*get_streak_info:* `{info}`\n\n"
+            "_ถ้า columns missing → รัน `init_new_features_db()` ใหม่_"
+        )
+        bot.reply_to(message, msg, parse_mode="Markdown")
+    except Exception as e:
+        import traceback
+        bot.reply_to(message, f"❌ Debug error: `{e}`\n```\n{traceback.format_exc()[-500:]}\n```", parse_mode="Markdown")
+
+
 @bot.message_handler(commands=['force_weekly'])
 def handle_force_weekly(message):
     """Admin: สั่งส่ง Weekly Digest ทันที (สำหรับทดสอบ)"""
@@ -2881,15 +2921,20 @@ def handle_main(message):
             quota_text = f"ไม่จำกัด" if role in ['vip', 'pro'] else f"{usage}/{FREE_DAILY_QUOTA} ครั้ง"
             reg_text = reg_date[:10] if reg_date else "ไม่ทราบ"
 
-            # 🌟 Streak info
+            # 🌟 Streak info — แสดงเสมอแม้ streak = 0 ให้ user รู้ว่ามีฟีเจอร์
             from database import get_streak_info
             streak_data = get_streak_info(user_id)
-            streak_line = ""
-            if streak_data["current"] > 0:
-                next_in = 7 - (streak_data["current"] % 7) if streak_data["current"] % 7 != 0 else 7
+            cur = streak_data["current"]
+            if cur > 0:
+                next_in = 7 - (cur % 7) if cur % 7 != 0 else 7
                 streak_line = (
-                    f"🔥 **Streak:** {streak_data['current']} วัน "
-                    f"_(longest: {streak_data['longest']} | +1 วัน VIP ในอีก {next_in} วัน)_\n"
+                    f"🔥 **Streak:** {cur} วัน "
+                    f"_(longest: {streak_data['longest']} | อีก {next_in} วัน รับ VIP +1 วัน)_\n"
+                )
+            else:
+                streak_line = (
+                    f"🔥 **Streak:** 0 วัน "
+                    f"_(วิเคราะห์หุ้นวันนี้เริ่ม streak ครบ 7 วัน = VIP +1 วันฟรี!)_\n"
                 )
 
             msg = (
