@@ -3103,21 +3103,31 @@ def handle_main(message):
         streak = update_user_streak(user_id)
         if streak["milestone_7days"]:
             # ครบ 7 วัน → +1 วัน VIP ฟรี
-            if grant_streak_reward(user_id, days=1):
+            granted = grant_streak_reward(user_id, days=1)
+            if granted:
                 streak_notification = (
                     f"🔥 **Streak {streak['current']} วัน!** 🎉\n\n"
                     f"ขอแสดงความยินดี! คุณใช้งาน Apexify ทุกวันต่อเนื่อง\n"
                     f"🎁 รับ **VIP +1 วันฟรี** ไปเลย!\n\n"
                     f"_Longest streak: {streak['longest']} วัน — ทำลายสถิติไปอีกได้!_"
                 )
+            else:
+                # Grant fail (ไม่ควรเกิดปกติ) — แจ้ง user ว่าได้ streak แล้ว
+                streak_notification = (
+                    f"🔥 **Streak {streak['current']} วัน!** 🎉\n\n"
+                    f"ขอแสดงความยินดี! (ระบบรางวัลขัดข้องเล็กน้อย — แอดมินจะตรวจสอบให้)\n\n"
+                    f"_Longest: {streak['longest']} วัน_"
+                )
         elif streak["is_new_day"] and streak["current"] in (3, 14, 30, 50, 100):
-            # แสดง celebration ที่ milestone พิเศษ
+            # แสดง celebration ที่ milestone พิเศษ (ที่ไม่ใช่ multiple of 7)
+            remaining = 7 - (streak['current'] % 7) if streak['current'] % 7 != 0 else 7
             streak_notification = (
                 f"🔥 **Streak {streak['current']} วัน!** ต่อเนื่อง\n"
-                f"_อีก {7 - (streak['current'] % 7) if streak['current'] % 7 != 0 else 7} วัน ถึง reward ถัดไป_"
+                f"_อีก {remaining} วัน ถึง reward ถัดไป (+VIP 1 วัน)_"
             )
     except Exception as e:
-        print(f"[streak] error: {e}", flush=True)
+        import traceback
+        print(f"[streak] outer error: {e}\n{traceback.format_exc()}", flush=True)
 
     correct_symbol = tech_data['symbol']
     # 🌟 เก็บ symbol ล่าสุดของ user เพื่อใช้ใน /ask context

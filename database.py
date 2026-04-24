@@ -863,7 +863,23 @@ def update_user_streak(user_id):
 
 
 def grant_streak_reward(user_id, days=1):
-    """ให้รางวัล streak milestone — เพิ่มวัน VIP (หรือต่อ role ที่มีอยู่)"""
+    """ให้รางวัล streak milestone — เพิ่มวัน VIP (หรือต่อ role ที่มีอยู่)
+
+    กัน bug:
+    - Admin: ข้าม DB write เพราะอาจทำให้ role column เพี้ยน
+      (admin ได้ PRO infinite ผ่าน check_subscription อยู่แล้ว)
+    - CASE statement: keep vip/pro; roles อื่น (free/admin) → vip
+    - expiry: ใช้ GREATEST + COALESCE กันเคส expiry_date เป็น NULL หรือ past
+    """
+    try:
+        from config import ADMIN_ID as _ADMIN_ID
+        if _ADMIN_ID and str(user_id) == str(_ADMIN_ID):
+            # Admin ได้ PRO infinite อยู่แล้ว — ไม่ต้อง update DB
+            print(f"[streak_reward] admin {user_id} — skip DB update (already infinite PRO)", flush=True)
+            return True
+    except Exception:
+        pass
+
     conn = get_connection()
     c = conn.cursor()
     try:
@@ -873,11 +889,17 @@ def grant_streak_reward(user_id, days=1):
                 expiry_date = GREATEST(COALESCE(expiry_date::timestamp, NOW()), NOW()) + (%s || ' days')::INTERVAL
             WHERE user_id = %s
         """, (str(days), str(user_id)))
+        affected = c.rowcount
         conn.commit()
+        if affected == 0:
+            print(f"[streak_reward] user {user_id} not found in users — skipped", flush=True)
+            return False
+        print(f"[streak_reward] user {user_id} +{days} day(s) VIP granted", flush=True)
         return True
     except Exception as e:
         conn.rollback()
-        print(f"[grant_streak_reward] error: {e}")
+        import traceback
+        print(f"[streak_reward] ERROR user={user_id}: {e}\n{traceback.format_exc()}", flush=True)
         return False
     finally:
         conn.close()
