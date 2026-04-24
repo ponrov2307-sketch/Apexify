@@ -1071,13 +1071,36 @@ def handle_free_trial(message):
         return
     role = check_subscription(user_id)
     if role in ('vip', 'pro'):
-        bot.reply_to(message, "ℹ️ คุณมีแพ็กเกจ VIP/PRO อยู่แล้วครับ ไม่จำเป็นต้องใช้ Free Trial")
+        # 🌟 ดึง expiry date มาแสดงด้วย ให้ user รู้ชัดเจน
+        try:
+            profile = get_user_profile(user_id)
+            expiry = profile[1] if profile else None
+            expiry_str = str(expiry)[:10] if expiry else "ไม่มีวันหมด"
+        except Exception:
+            expiry_str = "ไม่ทราบ"
+        role_label = "👑 PRO" if role == 'pro' else "💎 VIP"
+        bot.reply_to(message,
+            f"✨ **คุณมีแพ็กเกจอยู่แล้วครับ!**\n\n"
+            f"📦 สถานะปัจจุบัน: {role_label}\n"
+            f"⏰ ใช้ได้ถึงวันที่: `{expiry_str}`\n\n"
+            f"_Free Trial สำหรับผู้ที่ยังไม่เคยใช้ VIP/PRO เท่านั้นครับ_",
+            parse_mode="Markdown")
         return
     if has_used_free_trial(user_id):
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("💎 สมัคร VIP 79฿", callback_data="menu_vip"),
+            InlineKeyboardButton("👑 สมัคร PRO 109฿", callback_data="menu_vip"),
+        )
+        markup.add(InlineKeyboardButton("🤝 ชวนเพื่อน รับ VIP ฟรี", callback_data="menu_referral"))
         bot.reply_to(message,
-            "⚠️ **Free Trial ใช้ได้เพียง 1 ครั้งต่อบัญชีครับ**\n\n"
-            "💎 หากต้องการใช้งานต่อ สมัคร VIP/PRO ได้ที่เมนู [💎 บัญชี / VIP]",
-            parse_mode="Markdown")
+            "✨ **คุณเคยใช้ Free Trial ไปแล้วครับ**\n\n"
+            "_Free Trial ใช้ได้เพียง 1 ครั้งต่อบัญชีเท่านั้น_\n\n"
+            "💎 *ตัวเลือกอื่น ๆ สำหรับคุณ:*\n"
+            "• สมัคร VIP/PRO รายเดือนได้ตลอดเวลา\n"
+            "• ชวนเพื่อนสมัคร → ทั้งคู่ได้รางวัล\n"
+            "• ใช้โค้ดโปรโมฯ ผ่าน `/redeem`",
+            parse_mode="Markdown", reply_markup=markup)
         return
     ok = activate_free_trial(user_id)
     if ok:
@@ -1085,14 +1108,15 @@ def handle_free_trial(message):
             "🎉 **ยินดีต้อนรับสู่ PRO 7 วัน!**\n\n"
             "✅ คุณได้รับสิทธิ์ PRO เต็มรูปแบบ 7 วันฟรีแล้ว\n\n"
             "**สิ่งที่คุณทำได้ตอนนี้:**\n"
-            "• วิเคราะห์หุ้นไม่จำกัดครั้ง\n"
-            "• รับข่าว Flash News & Digest\n"
-            "• Morning Briefing รายวัน\n"
+            "• วิเคราะห์หุ้นไม่จำกัดครั้ง + กราฟเทคนิค\n"
+            "• Entry/TP/SL พร้อมกราฟวาด zone\n"
+            "• Flash News + Morning Briefing\n"
+            "• Smart Alerts + Price Alerts\n"
             "• Watchlist ไม่จำกัด\n\n"
-            "_ใช้งานได้จนครบ 7 วัน — จากนั้นอัปเกรดเพื่อใช้ต่อเนื่อง_",
+            "_💡 ใช้งานได้จนครบ 7 วัน — หลังจากนั้นกลับเป็น Free อัตโนมัติ (ไม่มีหักเงิน)_",
             parse_mode="Markdown")
     else:
-        bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")
+        bot.reply_to(message, "📡 ระบบขัดข้องชั่วคราว ขออภัยในความไม่สะดวก รบกวนลองอีกครั้งในสักครู่ครับ")
 
 
 @bot.message_handler(commands=['ealert'])
@@ -1848,21 +1872,68 @@ def inline_callbacks(call):
     elif call.data == 'menu_freetrial':
         role = check_subscription(user_id)
         if role in ('vip', 'pro'):
-            bot.answer_callback_query(call.id, "คุณมีแพ็กเกจ VIP/PRO อยู่แล้วครับ", show_alert=True)
+            # มีแพ็กเกจอยู่แล้ว → ส่ง message + popup
+            try:
+                profile = get_user_profile(user_id)
+                expiry = profile[1] if profile else None
+                expiry_str = str(expiry)[:10] if expiry else "ไม่มีวันหมด"
+            except Exception:
+                expiry_str = "ไม่ทราบ"
+            role_label = "👑 PRO" if role == 'pro' else "💎 VIP"
+            bot.answer_callback_query(call.id,
+                f"✨ คุณมี {role_label} อยู่แล้ว ถึงวันที่ {expiry_str}",
+                show_alert=True)
+            bot.send_message(user_id,
+                f"✨ **คุณมีแพ็กเกจอยู่แล้วครับ**\n\n"
+                f"📦 สถานะ: {role_label}\n"
+                f"⏰ ใช้ได้ถึง: `{expiry_str}`\n\n"
+                f"_Free Trial สำหรับผู้ที่ยังไม่เคยใช้ VIP/PRO เท่านั้น_",
+                parse_mode="Markdown")
         elif has_used_free_trial(user_id):
-            bot.answer_callback_query(call.id, "Free Trial ใช้ได้เพียง 1 ครั้ง/บัญชีครับ", show_alert=True)
+            # เคยใช้แล้ว → popup + message พร้อมปุ่มสมัคร
+            bot.answer_callback_query(call.id,
+                "✨ คุณเคยใช้ Free Trial แล้ว (1 ครั้ง/บัญชี)",
+                show_alert=True)
+            markup = InlineKeyboardMarkup(row_width=2)
+            markup.add(
+                InlineKeyboardButton("💎 สมัคร VIP 79฿", callback_data="menu_vip"),
+                InlineKeyboardButton("👑 สมัคร PRO 109฿", callback_data="menu_vip"),
+            )
+            markup.add(InlineKeyboardButton("🤝 ชวนเพื่อน รับ VIP ฟรี", callback_data="menu_referral"))
+            bot.send_message(user_id,
+                "✨ **คุณเคยใช้ Free Trial ไปแล้ว**\n\n"
+                "_Free Trial ใช้ได้เพียง 1 ครั้งต่อบัญชีเท่านั้น_\n\n"
+                "💎 *ตัวเลือกอื่นๆ สำหรับคุณ:*\n"
+                "• สมัคร VIP/PRO รายเดือน/รายปีได้ตลอดเวลา\n"
+                "• ชวนเพื่อนสมัคร → ทั้งคู่ได้รางวัล\n"
+                "• ใช้โค้ดโปรโมฯ ผ่าน `/redeem <โค้ด>`",
+                parse_mode="Markdown", reply_markup=markup)
         else:
             ok = activate_free_trial(user_id)
             if ok:
+                # 🌟 แก้ไข inline keyboard เดิมเอาปุ่ม freetrial ออก (กันกดซ้ำจาก message เดิม)
+                try:
+                    bot.edit_message_reply_markup(
+                        chat_id=call.message.chat.id,
+                        message_id=call.message.message_id,
+                        reply_markup=None,
+                    )
+                except Exception:
+                    pass
                 bot.send_message(user_id,
                     "🎉 **PRO 7 วันฟรี เปิดใช้งานแล้ว!**\n\n"
-                    "✅ วิเคราะห์ไม่จำกัด\n"
-                    "✅ Flash News & Morning Briefing\n"
+                    "✅ วิเคราะห์ไม่จำกัด + กราฟเทคนิค\n"
+                    "✅ Entry/TP/SL พร้อมกราฟ\n"
+                    "✅ Flash News + Morning Briefing\n"
+                    "✅ Smart Alerts + Price Alerts\n"
                     "✅ Earnings Alert (`/ealert`)\n\n"
-                    "_ใช้งานได้ทันที 7 วัน ขอบคุณที่ลองใช้ครับ!_",
+                    "_💡 ใช้งานได้ 7 วัน หลังจากนั้นกลับเป็น Free อัตโนมัติ (ไม่หักเงิน)_\n"
+                    "_ลองพิมพ์ชื่อหุ้น เช่น `AAPL` เพื่อเริ่มทดลองได้เลยครับ!_",
                     parse_mode="Markdown")
             else:
-                bot.answer_callback_query(call.id, "ระบบขัดข้อง กรุณาลองใหม่ครับ", show_alert=True)
+                bot.answer_callback_query(call.id,
+                    "📡 ระบบขัดข้องชั่วคราว ลองใหม่อีกครั้งครับ",
+                    show_alert=True)
 
     elif call.data == 'menu_dashboard':
         send_dashboard_login_link(user_id)
