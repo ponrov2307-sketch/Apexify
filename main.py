@@ -1227,7 +1227,7 @@ def handle_ealert(message):
         bot.reply_to(message, f"ℹ️ คุณสมัครแจ้งเตือน **{symbol}** ไว้แล้วครับ", parse_mode="Markdown")
 
 
-@bot.message_handler(commands=['manual'])
+@bot.message_handler(commands=['manual', 'help'])
 def handle_manual(message):
     """คู่มือการใช้งานคำสั่งทั้งหมด"""
     user_id = str(message.chat.id)

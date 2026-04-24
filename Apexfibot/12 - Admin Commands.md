@@ -22,15 +22,15 @@ tags: [commands, admin]
 |---------|------------|
 | `/users_pro` | รายชื่อ PRO/VIP users + วันหมดอายุ |
 | `/user_history <user_id>` | ดูประวัติ activity ของ user |
-| `/grant <user_id> <role> <days>` | ให้สิทธิ์ VIP/PRO manually |
+| `/addrole <user_id> <vip\|pro> <days>` | ให้สิทธิ์ VIP/PRO manually (เช่น `/addrole 1234 vip 30`) |
 
 ## Promo Code
 
 | Command | Description |
 |---------|------------|
 | `/gencode <days> <max_uses> <vip\|pro>` | สร้างโค้ดอัตโนมัติ (ระบบสุ่มชื่อโค้ดให้ เช่น `VIP7-A1B2C3`) |
-| `/listcodes` | ดูรายการโค้ดทั้งหมด |
-| `/deletecode <code>` | ลบโค้ด |
+
+> 💡 ดู codes ทั้งหมดได้ผ่าน Admin Web Dashboard (ไม่มี /listcodes)
 
 ## Force Broadcasts (สำหรับทดสอบ + manual trigger)
 
@@ -43,9 +43,9 @@ tags: [commands, admin]
 
 ## Admin Dashboard (Web)
 
-| Command | Description |
-|---------|------------|
-| `/admin_dashboard` | เปิด admin dashboard URL พร้อม auto-login |
+เข้าได้ผ่าน:
+- callback `admin_web_dashboard` ในเมนู Admin Master Control
+- หรือกดปุ่ม "🌐 เปิด Admin Dashboard" ในเมนู
 
 Dashboard URLs:
 - `/admin/login` — login page
