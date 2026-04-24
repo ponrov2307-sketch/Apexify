@@ -38,7 +38,8 @@ from admin_service import (
 )
 from technical_tools import calculate_technical_indicators, get_fear_and_greed_index, generate_pro_annotated_chart
 from ai_analyzer import generate_apexify_report
-from alert_system import broadcast_hourly_urgent_news, check_and_broadcast_pro_news, run_alert_loop
+from alert_system import (broadcast_hourly_urgent_news, check_and_broadcast_pro_news,
+                          run_alert_loop, send_weekly_performance_digest)
 from slipok_service import verify_payment_slip
 from curl_cffi import requests as cffi_requests
 
@@ -281,6 +282,19 @@ def handle_force_news(message):
             bot.edit_message_text("❌ ประเภทข่าวไม่ถูกต้อง พิมพ์ `/force_news flash` หรือ `/force_news digest`", message.chat.id, load_msg.message_id)
     except Exception as e:
         bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข่าว: {e}", message.chat.id, load_msg.message_id)
+
+@bot.message_handler(commands=['force_weekly'])
+def handle_force_weekly(message):
+    """Admin: สั่งส่ง Weekly Digest ทันที (สำหรับทดสอบ)"""
+    if str(message.chat.id) != ADMIN_ID:
+        return
+    load_msg = bot.reply_to(message, "🚨 กำลังบรอดแคสต์ Weekly Digest...")
+    try:
+        send_weekly_performance_digest(bot)
+        bot.edit_message_text("✅ บรอดแคสต์ Weekly Digest สำเร็จ!", message.chat.id, load_msg.message_id)
+    except Exception as e:
+        bot.edit_message_text(f"❌ Error: {e}", message.chat.id, load_msg.message_id)
+
 
 @bot.message_handler(commands=['user_history'])
 def handle_user_history(message):

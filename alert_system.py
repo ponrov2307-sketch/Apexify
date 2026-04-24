@@ -1551,6 +1551,117 @@ def send_watchlist_daily_summary(bot_instance):
         print(f"✅ [WatchlistSummary] ส่งสำเร็จ {count} คน", flush=True)
 
 
+def send_weekly_performance_digest(bot_instance):
+    """Digest ประจำสัปดาห์ — ส่ง VIP/PRO ทุกวันศุกร์ 18:00 Thai time
+    รวม: Watchlist WoW, Track Record 30d, AI Economic Preview (สัปดาห์หน้า)
+    """
+    from database import get_user_watch, get_track_record_stats
+
+    # 🌟 1. Global Track Record (ใช้ซ้ำได้ ไม่ต้องคำนวณต่อ user)
+    stats_30d = get_track_record_stats(days=30)
+
+    # 🌟 2. AI-generated Economic Preview สัปดาห์หน้า (ถ้าคิวรีล้มเหลว ให้ skip section นี้)
+    economic_preview = None
+    try:
+        eco_prompt = """
+        ระบุเหตุการณ์เศรษฐกิจ/ตลาดสหรัฐฯ สำคัญที่จะเกิดใน 7 วันข้างหน้า
+        โฟกัส: FOMC, CPI, PPI, NFP, GDP, Fed speech, Earnings week ของบริษัทใหญ่
+        ตอบภาษาไทย bullet list 3-5 รายการ ห้ามเกิน 5 บรรทัด
+        รูปแบบ: "📅 วันที่ประมาณ — เหตุการณ์ (ผลกระทบคาด)"
+        ห้ามใส่ข้อความนำ/ท้าย ตอบเฉพาะ bullets
+        """
+        eco_resp = _gemini_generate_with_retry(eco_prompt)
+        economic_preview = eco_resp.text.strip()[:500]
+    except Exception as e:
+        print(f"[WeeklyDigest] AI eco preview failed: {e}", flush=True)
+
+    # 🌟 3. ดึง VIP + PRO + admin
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT user_id FROM users WHERE role IN ('vip', 'pro')")
+    recipients = [str(row[0]) for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+    if str(ADMIN_ID) not in recipients:
+        recipients.insert(0, str(ADMIN_ID))
+
+    count = 0
+    for user_id in recipients:
+        role = check_subscription(user_id)
+        if role not in ('vip', 'pro'):
+            continue
+        if not should_send_user_notification(user_id, category="general"):
+            continue
+
+        # Watchlist WoW (เทียบราคาปิด 5 วันก่อน)
+        tickers = []
+        try:
+            tickers = get_user_watch(user_id) or []
+        except Exception:
+            pass
+
+        watch_lines = []
+        for sym in tickers[:10]:  # จำกัด 10 ตัวแรก
+            try:
+                hist = yf.Ticker(sym).history(period='7d')
+                if len(hist) < 2:
+                    continue
+                close_now = float(hist['Close'].iloc[-1])
+                close_past = float(hist['Close'].iloc[0])
+                wow = (close_now - close_past) / close_past * 100 if close_past else 0
+                icon = "🟢" if wow >= 0 else "🔴"
+                watch_lines.append(f"{icon} `{sym}` {wow:+.2f}%  _${close_now:,.2f}_")
+            except Exception:
+                continue
+
+        # User's personal Plan outcomes (PRO only, ในสัปดาห์ที่ผ่านมา)
+        user_plan_line = ""
+        if role == 'pro':
+            try:
+                u_stats = get_track_record_stats(days=7, user_id=user_id)
+                if u_stats["total"] > 0:
+                    user_plan_line = (
+                        f"\n📊 *Plan ของคุณสัปดาห์นี้:* "
+                        f"{u_stats['tp1_hit'] + u_stats['tp2_hit']} hit / "
+                        f"{u_stats['sl_hit']} SL / {u_stats['open']} เปิดอยู่\n"
+                    )
+            except Exception:
+                pass
+
+        # สร้างข้อความ
+        tier_badge = "👑 PRO" if role == 'pro' else "💎 VIP"
+        msg_parts = [f"📰 **Apexify Weekly Digest** — {tier_badge}\n"]
+
+        if watch_lines:
+            msg_parts.append("*📋 Watchlist ของคุณ (WoW):*\n" + "\n".join(watch_lines))
+        else:
+            msg_parts.append("_📋 ยังไม่มีหุ้นใน Watchlist — เพิ่มได้โดยวิเคราะห์แล้วกด ⭐_")
+
+        if user_plan_line:
+            msg_parts.append(user_plan_line)
+
+        # Global track record
+        if stats_30d["closed"] > 0:
+            msg_parts.append(
+                f"\n*🎯 Apexify Track Record 30 วัน:*\n"
+                f"  Hit Rate: *{stats_30d['hit_rate_pct']:.1f}%* "
+                f"({stats_30d['wins']}/{stats_30d['closed']} Plans hit TP)"
+            )
+
+        if economic_preview:
+            msg_parts.append(f"\n*📅 สัปดาห์หน้าต้องจับตา:*\n{economic_preview}")
+
+        msg_parts.append("\n_ส่งทุกวันศุกร์ 18:00 | พิมพ์ /track ดูสถิติละเอียด_")
+
+        msg = "\n\n".join(msg_parts)
+
+        if safe_send(bot_instance, user_id, msg, parse_mode='Markdown'):
+            count += 1
+        time.sleep(0.5)
+
+    print(f"✅ [WeeklyDigest] ส่งสำเร็จ {count} คน", flush=True)
+
+
 def check_plan_outcomes():
     """ตรวจ Plan ที่ออกให้ PRO user แล้วว่า hit TP1/TP2/SL หรือ expired
     รันวันละครั้งตอนเช้า — ใช้ข้อมูลราคาจาก yfinance เปรียบเทียบย้อนหลัง
@@ -1699,6 +1810,7 @@ def run_alert_loop(bot_instance=None):
     last_watchlist_summary_date = None
     last_earnings_check_date = None
     last_plan_outcome_date = None
+    last_weekly_digest_date = None
 
     while True:
       try:
@@ -1763,6 +1875,12 @@ def run_alert_loop(bot_instance=None):
         if thai_time.hour == 5 and last_watchlist_summary_date != current_date_str:
             send_watchlist_daily_summary(bot_instance)
             last_watchlist_summary_date = current_date_str
+
+        # 🌟 Weekly Digest — ศุกร์ 18:00 Thai time (weekday()=4 = Friday)
+        if (thai_time.weekday() == 4 and thai_time.hour == 18
+                and last_weekly_digest_date != current_date_str):
+            send_weekly_performance_digest(bot_instance)
+            last_weekly_digest_date = current_date_str
 
         check_market_conditions()
         check_custom_price_alerts()
