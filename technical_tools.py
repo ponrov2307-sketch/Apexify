@@ -368,3 +368,120 @@ def calculate_technical_indicators(symbol, generate_chart=True):
                 f"⚠️ ดึงข้อมูลหุ้น '{symbol}' ไม่สำเร็จ — เซิร์ฟเวอร์ตลาดอาจจะหนาแน่นชั่วคราว "
                 f"ลองส่งใหม่อีกครั้งใน 30 วินาทีนะครับ 🙏"
             )
+
+
+def generate_pro_annotated_chart(symbol, plan):
+    """กราฟ PRO เฉพาะ — เพิ่ม Entry zone (สีเขียว/แดง shaded) + เส้น TP1/TP2/SL พร้อม label
+    plan = dict มี keys: entry_low, entry_high, tp1, tp2, sl
+    คืน BytesIO ของกราฟ หรือ None ถ้าวาดไม่ได้
+    """
+    try:
+        clean_symbol = _normalize_market_symbol(symbol)
+        ticker = yf.Ticker(clean_symbol)
+        data = ticker.history(period="1y")
+
+        if data.empty and "." not in clean_symbol and "-" not in clean_symbol:
+            fallback_data = yf.Ticker(f"{clean_symbol}.BK").history(period="1y")
+            if not fallback_data.empty:
+                clean_symbol = f"{clean_symbol}.BK"
+                data = fallback_data
+
+        if data.empty or len(data) < 20:
+            return None
+
+        data = calculate_indicators(data)
+        recent20 = data.tail(20)
+        support = float(recent20['Low'].min())
+        resistance = float(recent20['High'].max())
+        recent60 = data.tail(60)
+        price_bins = pd.cut(recent60['Close'], bins=10)
+        vol_profile = recent60.groupby(price_bins, observed=False)['Volume'].sum()
+        poc_price = float(vol_profile.idxmax().mid)
+
+        mpf = _load_chart_modules()
+        buf = io.BytesIO()
+
+        mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit', volume='in')
+        s = mpf.make_mpf_style(marketcolors=mc, base_mpf_style='nightclouds', gridstyle=':', rc={'font.size': 10})
+
+        add_plots = [
+            mpf.make_addplot(data['EMA20'].tail(60), color='#2962ff', width=1.5),
+            mpf.make_addplot(data['EMA50'].tail(60), color='#ff6d00', width=1.5),
+            mpf.make_addplot(data['EMA200'].tail(60), color='#d500f9', width=1.5),
+        ]
+
+        # 🌟 ดึงค่า plan + เช็คว่าเป็น valid number
+        entry_low = _safe_chart_float(plan.get('entry_low'))
+        entry_high = _safe_chart_float(plan.get('entry_high'))
+        tp1 = _safe_chart_float(plan.get('tp1'))
+        tp2 = _safe_chart_float(plan.get('tp2'))
+        sl = _safe_chart_float(plan.get('sl'))
+
+        # 🌟 หาว่า bias อะไร — ถ้า entry > current price = bearish (รอเด้งขาย), ไม่ใช่ — ปกติ entry < current = bullish (รอย่อซื้อ)
+        # สี Entry zone: เขียวสำหรับ bullish (รอย่อซื้อ), เหลืองสำหรับ wait
+        entry_color = '#00ff8855'  # เขียวโปร่ง
+
+        # 🌟 รวม hlines ทุกอัน + เพิ่ม TP/SL/POC
+        hline_values = [resistance, support, poc_price]
+        hline_colors = ['#ff6666', '#66ff66', '#ffff00']
+        hline_styles = ['-.', '-.', ':']
+
+        if tp1 is not None:
+            hline_values.append(tp1)
+            hline_colors.append('#00ff00')
+            hline_styles.append('--')
+        if tp2 is not None:
+            hline_values.append(tp2)
+            hline_colors.append('#00ff00')
+            hline_styles.append('-')
+        if sl is not None:
+            hline_values.append(sl)
+            hline_colors.append('#ff0000')
+            hline_styles.append('-')
+
+        # 🌟 Entry zone แบบ fill_between — ใช้ axhspan ผ่าน returnfig
+        fill_between_dict = None
+        if entry_low is not None and entry_high is not None:
+            ordered = sorted([entry_low, entry_high])
+            fill_between_dict = dict(
+                y1=ordered[0], y2=ordered[1],
+                alpha=0.25, color='#00ff00'
+            )
+
+        chart_title = (
+            f"\nApexify PRO Chart: {clean_symbol}  |  Entry Zone (Green) + TP (Green Lines) + SL (Red)\n"
+            f"EMA: 20(Blue) 50(Orange) 200(Purple)"
+        )
+
+        plot_kwargs = dict(
+            type='candle',
+            style=s,
+            title=chart_title,
+            volume=True,
+            panel_ratios=(4, 1),
+            addplot=add_plots,
+            hlines=dict(hlines=hline_values, colors=hline_colors, linestyle=hline_styles, linewidths=1.3),
+            savefig=dict(fname=buf, dpi=120, bbox_inches='tight', pad_inches=0.1),
+            figratio=(16, 9),
+            figscale=1.2,
+            tight_layout=True,
+        )
+        if fill_between_dict is not None:
+            plot_kwargs['fill_between'] = fill_between_dict
+
+        mpf.plot(data.tail(60), **plot_kwargs)
+        buf.seek(0)
+        return buf
+    except Exception as e:
+        print(f"[ProChart] {symbol} failed: {e}", flush=True)
+        return None
+
+
+def _safe_chart_float(value):
+    try:
+        result = float(value)
+        if pd.isna(result) or not result:
+            return None
+        return result
+    except (TypeError, ValueError):
+        return None

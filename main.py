@@ -36,7 +36,7 @@ from admin_service import (
     get_user_stats_snapshot,
     toggle_maintenance_status,
 )
-from technical_tools import calculate_technical_indicators, get_fear_and_greed_index
+from technical_tools import calculate_technical_indicators, get_fear_and_greed_index, generate_pro_annotated_chart
 from ai_analyzer import generate_apexify_report
 from alert_system import broadcast_hourly_urgent_news, check_and_broadcast_pro_news, run_alert_loop
 from slipok_service import verify_payment_slip
@@ -1293,7 +1293,7 @@ def inline_callbacks(call):
         if err or not tech_data:
             bot.edit_message_text(f"❌ ไม่สามารถดึงข้อมูล {symbol} ได้", user_id, load_msg.message_id)
             return
-        report = generate_apexify_report(tech_data, role=role)
+        report, _ = generate_apexify_report(tech_data, role=role)
         correct_symbol = tech_data['symbol']
         kb = InlineKeyboardMarkup(row_width=2)
         kb.add(InlineKeyboardButton(f"⭐ เพิ่ม {correct_symbol} เข้า Watchlist", callback_data=f"addwatch_{correct_symbol}"))
@@ -2148,7 +2148,11 @@ def handle_main(message):
         return
 
     load_msg = bot.reply_to(message, f"🔍 กำลังวิเคราะห์ **{symbol}** — ใช้เวลา ~10-20 วินาทีครับ", parse_mode="Markdown")
-    tech_data, chart, err = _get_cached_analysis(symbol)
+
+    # 🌟 Free: ไม่ต้องสร้างกราฟ (ประหยัดเวลา ~3-5 วิ + กันใช้ฟรีเหมือน premium)
+    # VIP: กราฟพื้นฐาน, PRO: จะสร้างกราฟ annotated หลังได้ plan
+    skip_chart = (role == 'free') or (role == 'pro')
+    tech_data, chart, err = _get_cached_analysis(symbol, generate_chart=not skip_chart)
 
     if err:
         bot.edit_message_text(err, message.chat.id, load_msg.message_id, parse_mode="Markdown")
@@ -2156,7 +2160,7 @@ def handle_main(message):
 
     # 🌟 Wrap AI report generation — กัน Gemini 503/safety crash ทำให้ load_msg ค้าง
     try:
-        report = generate_apexify_report(tech_data, role=role)
+        report, plan = generate_apexify_report(tech_data, role=role)
     except Exception as e:
         print(f"[Analyze] generate_apexify_report failed for {symbol}: {e}", flush=True)
         err_str = str(e).lower()
@@ -2168,6 +2172,14 @@ def handle_main(message):
             friendly = "⚠️ วิเคราะห์ไม่สำเร็จชั่วคราว ลองพิมพ์หุ้นส่งมาใหม่อีกครั้งครับ"
         bot.edit_message_text(friendly, message.chat.id, load_msg.message_id)
         return
+
+    # 🌟 PRO: สร้างกราฟ annotated หลังได้ plan
+    if role == 'pro' and plan:
+        try:
+            chart = generate_pro_annotated_chart(symbol, plan)
+        except Exception as e:
+            print(f"[Analyze] pro chart failed for {symbol}: {e}", flush=True)
+            chart = None
 
     if user_id != ADMIN_ID and role == 'free':
         increment_usage(user_id)
@@ -2188,34 +2200,15 @@ def handle_main(message):
     except Exception:
         pass
 
-    # 🌟 chart=None safety — ถ้าวาดกราฟไม่ได้ก็ส่ง report อย่างเดียว
+    # 🌟 ส่งรายงาน — Free: text only, VIP/PRO: chart + text
     if chart is None:
         _send_safe(bot, message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
-    elif role in ['vip', 'pro']:
+    else:
         try:
             bot.send_photo(message.chat.id, chart)
         except Exception:
             pass
         _send_safe(bot, message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
-    elif len(report) > 1000:
-        try:
-            bot.send_photo(message.chat.id, chart)
-        except Exception:
-            pass
-        try:
-            bot.send_message(message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
-        except Exception:
-            bot.send_message(message.chat.id, report, reply_markup=markup)
-    else:
-        try:
-            bot.send_photo(message.chat.id, chart, caption=report, parse_mode="Markdown", reply_markup=markup)
-        except Exception:
-            try:
-                chart.seek(0)
-                bot.send_photo(message.chat.id, chart)
-            except Exception:
-                pass
-            bot.send_message(message.chat.id, report, reply_markup=markup)
 
 if __name__ == "__main__":
     keep_alive()  # Flask ขึ้นก่อนเลย

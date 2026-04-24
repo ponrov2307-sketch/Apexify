@@ -968,14 +968,23 @@ def _generate_free_report(tech_data):
     if lower_band != 0 and upper_band != 0:
         report += f"• 🟡 **กรอบแกว่งตัว (BB):** `{lower_band:,.2f} - {upper_band:,.2f}`\n"
 
-    report += f"\n\n{DISCLAIMER_TEXT}"
+    report += "\n💎 *อัปเกรด VIP/PRO เพื่อดู:*\n"
+    report += "• 📈 กราฟเทคนิคพร้อม EMA + S/R + POC\n"
+    report += "• 🔭 AI Trend Radar 3 ระยะ (วัน/สัปดาห์/เดือน)\n"
+    report += "• 🎯 Entry/TP/SL ตัวเลขชัด + กราฟแสดง zone (PRO)\n"
+    report += "• 🔔 Smart Alerts + ตั้งเตือนราคา (PRO)\n"
+    report += f"\n{DISCLAIMER_TEXT}"
     return report
 
 
 def generate_apexify_report(tech_data, role="free"):
+    """คืน (report_text, plan_dict_or_none)
+    plan_dict = day_plan ของ deterministic_plan สำหรับ PRO เท่านั้น (ใช้วาดบนกราฟ)
+    Free/VIP คืน plan = None
+    """
     normalized_role = str(role or "free").lower()
     if normalized_role not in ("vip", "pro"):
-        return _generate_free_report(tech_data)
+        return _generate_free_report(tech_data), None
 
     symbol = tech_data.get("symbol") or tech_data.get("ticker") or "UNKNOWN"
     try:
@@ -986,16 +995,16 @@ def generate_apexify_report(tech_data, role="free"):
     try:
         trends, deterministic_plan, analysis = _build_member_analysis(context, normalized_role)
         if normalized_role == "vip":
-            return _render_vip_report(context, trends, analysis)
-        return _render_pro_report(context, trends, deterministic_plan, analysis)
+            return _render_vip_report(context, trends, analysis), None
+        return _render_pro_report(context, trends, deterministic_plan, analysis), deterministic_plan.get("day_plan")
     except Exception:
         fallback_context = context or _fallback_context_from_tech_data(tech_data)
         trends = _build_trend_summary(fallback_context)
         deterministic_plan = _build_deterministic_plan(fallback_context, _choose_dominant_bias(trends))
         analysis = _build_member_defaults(fallback_context, trends, deterministic_plan)
         if normalized_role == "vip":
-            return _render_vip_report(fallback_context, trends, analysis)
-        return _render_pro_report(fallback_context, trends, deterministic_plan, analysis)
+            return _render_vip_report(fallback_context, trends, analysis), None
+        return _render_pro_report(fallback_context, trends, deterministic_plan, analysis), deterministic_plan.get("day_plan")
 
 
 def analyze_payment_slip(file_path_or_bytes):
