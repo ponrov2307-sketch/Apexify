@@ -517,6 +517,57 @@ def handle_ask(message):
         bot.edit_message_text(friendly, message.chat.id, load_msg.message_id)
 
 
+@bot.message_handler(commands=['account', 'me'])
+def handle_account_command(message):
+    """Shortcut → ส่งข้อความ "💎 บัญชี / VIP" ให้ trigger flow เดิม"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    # Reuse logic ของปุ่ม "💎 บัญชี / VIP"
+    class FakeMsg:
+        def __init__(self, chat_id, msg_id):
+            from types import SimpleNamespace
+            self.chat = SimpleNamespace(id=chat_id)
+            self.from_user = SimpleNamespace(id=chat_id)
+            self.text = "💎 บัญชี / VIP"
+            self.message_id = msg_id
+    handle_main(FakeMsg(int(user_id), message.message_id))
+
+
+@bot.message_handler(commands=['myalerts'])
+def handle_my_alerts(message):
+    """แสดง price alerts ที่ตั้งไว้ — wrapper ของ hub_price_alert"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    role = check_subscription(user_id)
+    if role != 'pro' and user_id != ADMIN_ID:
+        bot.reply_to(message,
+            "🔒 **Price Alerts — ฟีเจอร์ PRO เท่านั้น**\n\n"
+            "อัปเกรด PRO เพื่อตั้งเตือนราคาส่วนตัว",
+            parse_mode="Markdown")
+        return
+    try:
+        alerts = get_user_price_alerts_db(user_id)
+        markup = InlineKeyboardMarkup()
+        if not alerts:
+            header = "🔔 *Price Alerts ของคุณ*\n\nยังไม่มีรายการเฝ้าดู\n\n"
+        else:
+            header = f"🔔 *Price Alerts ของคุณ* ({len(alerts)} รายการ)\n\n"
+            for alert in alerts:
+                a_id, sym, price, cond = alert
+                cond_text = "ขึ้นถึง" if cond == 'above' else "ลงถึง"
+                markup.add(InlineKeyboardButton(
+                    f"❌ {sym} {cond_text} {price:,.2f}",
+                    callback_data=f"delalert_{a_id}"
+                ))
+        footer = "➕ เพิ่มเตือนใหม่: `/setalert [หุ้น] [ราคา]`\nเช่น `/setalert PTT.BK 35`"
+        bot.reply_to(message, header + footer, parse_mode="Markdown", reply_markup=markup)
+    except Exception as e:
+        print(f"[/myalerts] error: {e}", flush=True)
+        bot.reply_to(message, "📡 ระบบขัดข้องชั่วคราว ลองอีกครั้งนะครับ")
+
+
 @bot.message_handler(commands=['demo', 'showcase', 'features'])
 def handle_demo(message):
     """แสดง overview ฟีเจอร์ทั้งหมด — ใช้ทั้งโชว์ user ใหม่ + sales pitch"""
@@ -3083,6 +3134,7 @@ if __name__ == "__main__":
             BotCommand("start", "เริ่มใช้งาน / ลงทะเบียน"),
             BotCommand("demo", "ทัวร์ฟีเจอร์ทั้งหมด — ดูบอททำอะไรได้บ้าง"),
             BotCommand("manual", "คู่มือคำสั่งทั้งหมด"),
+            BotCommand("account", "ดูสถานะบัญชี + Streak + โควต้า"),
             BotCommand("track", "สถิติ AI Plans — hit rate ย้อนหลัง"),
             BotCommand("fund", "ข้อมูลพื้นฐาน (P/E, EPS, Dividend) — VIP/PRO"),
             BotCommand("compare", "เปรียบเทียบ 2-3 หุ้น — PRO"),
