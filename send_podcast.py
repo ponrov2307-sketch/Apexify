@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 import yfinance as yf
 import telebot
-from config import TELEGRAM_TOKEN, GEMINI_API_KEY, gemini_client
+from config import TELEGRAM_TOKEN, GEMINI_API_KEY, gemini_client, ADMIN_ID
 from database import get_connection, check_subscription
 
 # ⚙️ ตั้งค่า API
@@ -113,15 +113,17 @@ async def main():
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
-    pro_users = cur.fetchall()
+    user_ids = [str(row[0]) for row in cur.fetchall()]
     cur.close()
     conn.close()
+    # 🌟 รวม ADMIN_ID ถ้าไม่มี (admin ได้ทุก feature ของ PRO)
+    if ADMIN_ID and str(ADMIN_ID) not in user_ids:
+        user_ids.insert(0, str(ADMIN_ID))
 
     count = 0
     # วนลูปส่งไฟล์เสียง
-    for row in pro_users:
-        user_id = row[0]
-        # เช็คให้ชัวร์ว่ายังไม่หมดอายุ
+    for user_id in user_ids:
+        # เช็คให้ชัวร์ว่ายังไม่หมดอายุ (admin returns 'pro' เสมอ)
         if check_subscription(user_id) == 'pro':
             try:
                 # ต้องเปิดไฟล์อ่านใหม่ทุกครั้งที่ส่ง
