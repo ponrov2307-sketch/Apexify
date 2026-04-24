@@ -34,7 +34,7 @@ tags: [pricing, payment]
 - เก็บใน column `users.free_trial_used`
 
 ### 🎁 Promo Code (`/redeem`)
-- Admin สร้างผ่าน `/createcode`
+- Admin สร้างผ่าน `/gencode <days> <max_uses> <vip|pro>` (ระบบสุ่มชื่อโค้ดให้)
 - เก็บในตาราง `promo_codes`
 - ระบุ days + max_uses + role_type
 

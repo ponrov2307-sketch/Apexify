@@ -133,12 +133,15 @@ tags: [sales, marketing, playbook]
 ระบบปัจจุบันรองรับ "แจกวัน VIP/PRO" ผ่านโค้ด:
 
 ```
-Admin สร้าง:  /createcode APEX2026 7 100 vip
-              (โค้ด, จำนวนวัน, max uses, role)
+Admin สร้าง:  /gencode 7 100 vip
+              (จำนวนวัน, max uses, role)
+              → ระบบ gen โค้ดให้: VIP7-A1B2C3
 
-User ใช้:    /redeem APEX2026
+User ใช้:    /redeem VIP7-A1B2C3
               → ได้ VIP +7 วัน ทันที
 ```
+
+> ⚠️ ระบบ gen ชื่อโค้ดให้อัตโนมัติ — admin ระบุชื่อโค้ดเองไม่ได้
 
 **Use cases ที่ใช้ได้เลย:**
 - 🎁 แจกผ่าน influencer ("ใช้โค้ด @username รับ VIP 7 วัน")

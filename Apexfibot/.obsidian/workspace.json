@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "19 - Facebook Post Templates.md",
+                "file": "21 - Broadcast Templates.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "19 - Facebook Post Templates"
+              "title": "21 - Broadcast Templates"
             }
           }
         ]
@@ -186,28 +186,29 @@
   },
   "active": "f4a75946de54bb11",
   "lastOpenFiles": [
+    "00 - Index.md",
+    "21 - Broadcast Templates.md",
+    "ยังไม่ได้ตั้งชื่อ.base",
+    "2026-04-24.md",
+    "ยังไม่ได้ตั้งชื่อ 2.canvas",
+    "ยังไม่ได้ตั้งชื่อ 1.canvas",
+    "ยังไม่ได้ตั้งชื่อ.canvas",
+    "20 - Video Scripts.md",
+    "19 - Facebook Post Templates.md",
     "18 - Feature Cheat Sheet.md",
     "17 - Sales Playbook.md",
     "19 - Facebook Post Templates.md.tmp.26604.1777048561368",
     "15 - Roadmap.md",
     "16 - Command Discoverability.md",
-    "19 - Facebook Post Templates.md",
     "03 - Tier Comparison.md",
-    "20 - Video Scripts.md",
-    "ยังไม่ได้ตั้งชื่อ.base",
     "02 - Tech Stack.md",
     "06 - Database Schema.md",
     "09 - Track Record System.md",
     "14 - Recent Changes.md",
     "08 - Alert System.md",
-    "ยังไม่ได้ตั้งชื่อ 2.canvas",
     "13 - Deploy.md",
     "12 - Admin Commands.md",
     "11 - User Commands.md",
-    "ยังไม่ได้ตั้งชื่อ 1.canvas",
-    "ยังไม่ได้ตั้งชื่อ.canvas",
-    "2026-04-24.md",
-    "00 - Index.md",
     "01 - Project Overview.md",
     "07 - AI System.md",
     "05 - Files Architecture.md",

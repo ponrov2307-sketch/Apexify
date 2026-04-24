@@ -28,7 +28,7 @@ tags: [commands, admin]
 
 | Command | Description |
 |---------|------------|
-| `/createcode <code> <days> <max_uses> <vip\|pro>` | สร้างโค้ดใหม่ |
+| `/gencode <days> <max_uses> <vip\|pro>` | สร้างโค้ดอัตโนมัติ (ระบบสุ่มชื่อโค้ดให้ เช่น `VIP7-A1B2C3`) |
 | `/listcodes` | ดูรายการโค้ดทั้งหมด |
 | `/deletecode <code>` | ลบโค้ด |
 

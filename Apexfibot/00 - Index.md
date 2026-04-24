@@ -42,6 +42,7 @@ tags: [moc, index]
 - [[18 - Feature Cheat Sheet]] — สรุปขายได้ใน 1 หน้า
 - [[19 - Facebook Post Templates]] — 15 templates พร้อมโพสต์
 - [[20 - Video Scripts]] — 5 scripts + hooks + production tips
+- [[21 - Broadcast Templates]] ⭐ — ข้อความสำเร็จรูปสำหรับ /broadcast
 
 ---
 

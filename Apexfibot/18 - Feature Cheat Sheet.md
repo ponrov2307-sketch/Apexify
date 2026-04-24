@@ -165,8 +165,8 @@ tags: [cheatsheet, reference]
 ### 💡 เกี่ยวกับ Promo Code (ใช้ได้แล้วแบบ "แจกของฟรี")
 
 **ใช้ได้:** สร้างโค้ด → user ใส่ → ได้วัน VIP/PRO ฟรี
-- Admin: `/createcode APEX2026 7 100 vip` (7 วัน, 100 uses, role=vip)
-- User: `/redeem APEX2026` → ได้ VIP +7 วัน
+- Admin: `/gencode 7 100 vip` (7 วัน, 100 uses, role=vip) → ระบบ gen `VIP7-A1B2C3` ให้
+- User: `/redeem VIP7-A1B2C3` → ได้ VIP +7 วัน
 
 **ใช้ไม่ได้ (ต้องสร้างระบบเพิ่ม):**
 - ❌ ส่วนลด % ราคา ("30% off")
