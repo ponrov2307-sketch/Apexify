@@ -415,6 +415,60 @@ def handle_settings(message):
     send_settings_panel(message.chat.id, user_id=user_id)
 
 
+@bot.message_handler(commands=['demo', 'showcase', 'features'])
+def handle_demo(message):
+    """แสดง overview ฟีเจอร์ทั้งหมด — ใช้ทั้งโชว์ user ใหม่ + sales pitch"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+
+    msg = (
+        "🚀 **Apexify — Full Feature Tour**\n\n"
+        "🤖 *บอทวิเคราะห์หุ้นด้วย AI — 3 สิ่งที่ Apexify ทำได้:*\n\n"
+        "**1️⃣ AI วิเคราะห์หุ้นให้ทันที**\n"
+        "   • พิมพ์ชื่อหุ้น → รายงานครบใน 10 วิ\n"
+        "   • Trend Radar 3 timeframes (วัน/สัปดาห์/เดือน)\n"
+        "   • Conviction Score 0-100\n"
+        "   • รองรับ 10+ ตลาดทั่วโลก (US, ไทย, HK, JP, ...)\n\n"
+        "**2️⃣ Plan เทรดสำเร็จรูป (PRO)** 🎯\n"
+        "   • Entry zone + TP1 + TP2 + SL เป็นตัวเลข\n"
+        "   • กราฟวาด zone ให้ดูเลย (Entry สีเขียว / SL สีแดง)\n"
+        "   • เงื่อนไขยืนยัน + ยกเลิก Plan\n"
+        "   • R:R warning เมื่อ setup ไม่ดี\n\n"
+        "**3️⃣ ติดตาม 24/7** 🔔\n"
+        "   • Smart Alerts (RSI, MACD, volume spike)\n"
+        "   • Custom Price Alerts (PRO)\n"
+        "   • Earnings Calendar + News feed\n"
+        "   • Morning Briefing 8:30 + Weekly Digest ศุกร์\n\n"
+        "**📊 พิสูจน์ว่าใช้ได้จริง:**\n"
+        "   • `/track` — Track Record 30/90 วัน hit rate\n"
+        "   • 🔥 ใช้ทุกวัน 7 วัน → รับ VIP 1 วันฟรี\n\n"
+        "**💎 ราคา:**\n"
+        "   🆓 Free — 3 ครั้ง/วัน (ลองก่อน)\n"
+        "   💎 VIP — 79฿/เดือน (ภาพรวม + Alerts)\n"
+        "   👑 PRO — 109฿/เดือน (Plan เทรด + ครบทุกอย่าง)\n\n"
+        "_💡 พิมพ์ `/` ใน Telegram เพื่อดูคำสั่งทั้งหมด หรือลองพิมพ์ `AAPL` ได้เลย_"
+    )
+
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("🔍 ลองวิเคราะห์ AAPL", callback_data="tutorial_analyze_AAPL"),
+        InlineKeyboardButton("🇹🇭 ลอง PTT.BK", callback_data="tutorial_analyze_PTT.BK"),
+    )
+    markup.add(
+        InlineKeyboardButton("📊 ดู Track Record", callback_data="hub_track"),
+        InlineKeyboardButton("📋 Full Commands", callback_data="menu_manual"),
+    )
+    markup.add(
+        InlineKeyboardButton("🆓 ทดลอง PRO 7 วันฟรี", callback_data="menu_freetrial"),
+        InlineKeyboardButton("💎 สมัคร VIP/PRO", callback_data="menu_vip"),
+    )
+    markup.add(
+        InlineKeyboardButton("🤝 ชวนเพื่อน รับ VIP ฟรี", callback_data="menu_referral"),
+    )
+    bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
+
+
 @bot.message_handler(commands=['track', 'stats', 'trackrecord'])
 def handle_track_record(message):
     """แสดงสถิติ Track Record ของ AI Plans — hit rate TP1/TP2/SL"""
@@ -1902,6 +1956,18 @@ def inline_callbacks(call):
         except Exception as e:
             bot.edit_message_text(f"❌ ระบบสแกนขัดข้อง: {e}", user_id, scan_msg.message_id)
 
+    elif call.data == 'menu_manual':
+        class FakeMsg:
+            def __init__(self, chat_id):
+                from types import SimpleNamespace
+                self.chat = SimpleNamespace(id=chat_id)
+                self.from_user = SimpleNamespace(id=chat_id)
+                self.text = '/manual'
+        try:
+            handle_manual(FakeMsg(int(user_id)))
+        except Exception as e:
+            bot.send_message(user_id, f"❌ Error: {e}")
+
     elif call.data == 'hub_track':
         # Reuse handler ของ /track
         class FakeMsg:
@@ -2733,6 +2799,7 @@ if __name__ == "__main__":
         from telebot.types import BotCommand
         bot.set_my_commands([
             BotCommand("start", "เริ่มใช้งาน / ลงทะเบียน"),
+            BotCommand("demo", "ทัวร์ฟีเจอร์ทั้งหมด — ดูบอททำอะไรได้บ้าง"),
             BotCommand("manual", "คู่มือคำสั่งทั้งหมด"),
             BotCommand("track", "สถิติ AI Plans — hit rate ย้อนหลัง"),
             BotCommand("fund", "ข้อมูลพื้นฐาน (P/E, EPS, Dividend) — VIP/PRO"),
