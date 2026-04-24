@@ -502,18 +502,18 @@ def handle_ask(message):
         reply = (
             f"💬 **Q:** _{question[:150]}_\n\n"
             f"🤖 **A:** {answer}\n\n"
-            f"_⚠️ ไม่ใช่คำแนะนำการลงทุน — ประเมินความเสี่ยงเองครับ_"
+            f"_💡 คำตอบเพื่อประกอบการพิจารณา • การลงทุนมีความเสี่ยง_"
         )
         bot.edit_message_text(reply, message.chat.id, load_msg.message_id, parse_mode="Markdown")
     except Exception as e:
         print(f"[/ask] error: {e}", flush=True)
         err_str = str(e).lower()
         if '503' in err_str or 'unavailable' in err_str:
-            friendly = "⚠️ AI กำลังโหลดหนัก ลองใหม่สักครู่นะครับ"
+            friendly = "✨ AI กำลังมีคนใช้งานเยอะเป็นพิเศษ ขอรบกวนลองอีกครั้งในอีกสักครู่ครับ 🙏"
         elif 'safety' in err_str:
-            friendly = "⚠️ AI ปฏิเสธตอบคำถามนี้ (ติด safety filter) ลองเปลี่ยนคำถามดูครับ"
+            friendly = "📋 AI ขอปฏิเสธตอบคำถามนี้ (ติดฟิลเตอร์ความปลอดภัย)\nรบกวนลองปรับคำถามใหม่ดูครับ"
         else:
-            friendly = "⚠️ ตอบไม่สำเร็จชั่วคราว ลองใหม่อีกครั้งครับ"
+            friendly = "📡 ขณะนี้ระบบตอบสนองช้ากว่าปกติ\nรบกวนลองอีกครั้งในอีกสักครู่ครับ"
         bot.edit_message_text(friendly, message.chat.id, load_msg.message_id)
 
 
@@ -598,11 +598,11 @@ def handle_track_record(message):
         f"{fmt(s30, '30 วันที่ผ่านมา')}\n\n"
         f"{fmt(s90, '90 วันที่ผ่านมา')}\n\n"
         "💡 *วิธีนับ:*\n"
-        "• TP1/TP2 hit = ราคาไปถึงเป้าหมาย (กำไร)\n"
+        "• TP1/TP2 hit = ราคาไปถึงเป้าหมาย (ได้กำไร)\n"
         "• SL hit = ราคาหลุดจุดตัดขาดทุน\n"
-        "• Expired = เกิน 45 วันไม่มีอะไรเกิด\n"
-        "• ไม่ใช่ผลการลงทุนจริง — คำนวณจาก high/low รายวัน\n\n"
-        "_⚠️ ผลย้อนหลังไม่ใช่การรับประกันผลในอนาคต_"
+        "• Expired = เกิน 45 วันยังไม่ถึงเป้า\n"
+        "• คำนวณจาก high/low รายวันของราคาหุ้น\n\n"
+        "_📘 สถิติย้อนหลังเพื่ออ้างอิง • ผลในอนาคตอาจแตกต่างได้_"
     )
     bot.reply_to(message, msg, parse_mode="Markdown")
 
@@ -1191,34 +1191,116 @@ def handle_manual(message):
         "`/ask <คำถาม>` — ถาม AI อะไรก็ได้ _(PRO)_\n\n"
 
         "**📊 Track Record & Streak**\n"
-        "`/track` — สถิติ AI Plans: hit rate TP1/TP2 ย้อนหลัง\n"
-        "🔥 ใช้ทุกวันติดต่อกัน → ครบ 7 วัน รับ VIP 1 วันฟรี!\n\n"
+        "`/track` — สถิติ AI Plans: hit rate TP1/TP2 ย้อนหลัง 30/90 วัน\n"
+        "🔥 **Daily Streak:** ใช้ทุกวันติดต่อกัน → ครบ 7 วัน รับ VIP 1 วันฟรี!\n\n"
 
         "**💎 บัญชี & สิทธิ์**\n"
-        "`/freetrial` — ทดลอง PRO 7 วันฟรี (ใช้ได้ 1 ครั้ง)\n"
-        "`/redeem [โค้ด]` — เติมโค้ดโปรโมชั่น\n\n"
+        "`/freetrial` — ทดลอง PRO 7 วันฟรี (ใช้ได้ 1 ครั้ง/บัญชี)\n"
+        "`/redeem APEX2026` — เติมโค้ดโปรโมชั่น\n"
+        "🤝 *ชวนเพื่อน:* ทั้งคู่ได้รางวัล (คุณ +3 quota, เพื่อน VIP 3 วันฟรี)\n\n"
 
         "**⚙️ การตั้งค่า**\n"
-        "`/settings` — ตั้งค่าการแจ้งเตือน, timezone, ภาษา\n"
-        "`/dashboard` — เปิด Web Dashboard\n\n"
+        "`/settings` — ตั้งค่า: แจ้งเตือน, timezone, ภาษา, ความถี่ digest\n"
+        "`/dashboard` — เปิด Web Dashboard (auto-login ผ่านลิงก์)\n\n"
 
-        "**📱 เมนูลัด**\n"
-        "📊 วิเคราะห์หุ้น — เริ่มวิเคราะห์\n"
-        "📱 เปิดเมนูหลัก — Hub ฟีเจอร์ทั้งหมด\n"
-        "💎 บัญชี / VIP — ดูสถานะ & สมัครแพ็กเกจ\n"
+        "**🎬 สำรวจฟีเจอร์**\n"
+        "`/demo` — ทัวร์ฟีเจอร์ทั้งหมดในหน้าเดียว\n"
+        "`/manual` — เปิดคู่มือนี้อีกครั้ง\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━━\n"
+        "**🌟 Workflow แนะนำ**\n\n"
+
+        "*👶 มือใหม่เริ่มต้น (Free):*\n"
+        "1️⃣ พิมพ์ชื่อหุ้น เช่น `AAPL` → ดูรายงาน\n"
+        "2️⃣ กด ⭐ เพิ่มเข้า Watchlist (สูงสุด 3 ตัว)\n"
+        "3️⃣ `/track` ดูสถิติว่า Apexify แม่นแค่ไหน\n"
+        "4️⃣ `/freetrial` ทดลอง PRO ฟรี 7 วัน\n\n"
+
+        "*📈 นักลงทุนระยะยาว (VIP):*\n"
+        "1️⃣ ดูข่าวเช้าจาก Morning Briefing (8:30 น.)\n"
+        "2️⃣ วิเคราะห์หุ้นที่สนใจ + `/fund` ดูความแข็งแกร่ง\n"
+        "3️⃣ `/ealert` สมัครรับแจ้งวันประกาศงบ\n"
+        "4️⃣ เช็ค Weekly Digest ทุกศุกร์ 18:00 น.\n\n"
+
+        "*🚀 เทรดเดอร์ระยะสั้น (PRO):*\n"
+        "1️⃣ `/compare` หาหุ้นที่ setup ดีที่สุด\n"
+        "2️⃣ ใช้ Entry zone / TP / SL ที่บอทคำนวณ\n"
+        "3️⃣ `/setalert` ตั้งเตือนราคาเป้าหมาย\n"
+        "4️⃣ `/ask` ถาม AI เพิ่มเติมเมื่อไม่มั่นใจ\n"
+        "5️⃣ รับ Smart Alerts (RSI/MACD/Volume spike) อัตโนมัติ\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━━\n"
+        "**❓ คำถามที่พบบ่อย**\n\n"
+        "*Q: หุ้นไทยต้องเติม .BK ไหม?*\n"
+        "A: ใส่ก็ดี ไม่ใส่ก็ได้ — บอทจะลอง `.BK` ให้อัตโนมัติ\n\n"
+
+        "*Q: ข้อมูลมาจากไหน?*\n"
+        "A: ราคาจาก Yahoo Finance + วิเคราะห์ด้วย Google Gemini AI\n\n"
+
+        "*Q: ทำไมใช้เวลา 10-20 วินาที?*\n"
+        "A: ระบบดึงข้อมูล 3 timeframes + วิเคราะห์ด้วย AI + วาดกราฟ\n\n"
+
+        "*Q: ถ้า AI ผิดจะฟ้องได้ไหม?*\n"
+        "A: รายงานเป็นข้อมูลประกอบการตัดสินใจเท่านั้น ไม่ใช่คำแนะนำการลงทุน การลงทุนมีความเสี่ยง ผู้ใช้ควรใช้ดุลยพินิจของตนเอง\n\n"
+
+        "*Q: ต่ออายุ VIP/PRO ยังไง?*\n"
+        "A: กดปุ่ม 💎 บัญชี / VIP → เลือกแพ็กเกจ → โอน → ส่งสลิป — ระบบ auto upgrade ใน 3 วินาที\n\n"
+
+        "*Q: ยกเลิกสมาชิกยังไง?*\n"
+        "A: ไม่มีการผูกบัตร — ปล่อยหมดอายุได้เลย (ใช้งานต่อได้จนครบวันที่จ่ายไว้)\n\n"
+
+        "*Q: แจ้งเตือนมาบ่อยไป ปิดยังไง?*\n"
+        "A: `/settings` → เลือกประเภทที่ต้องการปิด หรือกำหนดช่วงเวลาเงียบ\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━━\n"
+        "**💡 Tips & Tricks**\n\n"
+        "• ⚡ พิมพ์ `/` ใน Telegram = เห็นเมนูคำสั่งอัตโนมัติ\n"
+        "• ⭐ กด Watchlist หลังวิเคราะห์ → รับ daily summary ทุกเช้า\n"
+        "• 🔔 PRO: ตั้ง `/setalert` ทิ้งไว้ ไม่ต้องเฝ้ากราฟเอง\n"
+        "• 🎁 เติมโค้ดโปรโมฯ ก่อนสมัครเพื่อประหยัด\n"
+        "• 🤝 ชวนเพื่อน 3 คน = +10 วัน VIP ฟรี\n"
+        "• 📊 Track Record (`/track`) ดูได้ทุก tier — ไม่ต้องสมัคร\n"
+        "• 🔥 เปิดบอททุกวันเพื่อ streak reward (7 วัน = +1 วัน VIP)\n"
+        "• 🌐 Web Dashboard สะดวกสำหรับพิมพ์พอร์ตเยอะ ๆ\n"
+        "• 📱 เปิด Hub menu เพื่อดูฟีเจอร์ทั้งหมดในปุ่มเดียว\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━━\n"
+        "**📞 ติดต่อ / รายงานปัญหา**\n"
+        "หากพบปัญหาหรือมีคำแนะนำ ส่งข้อความถึงแอดมินได้โดยตรง\n"
+        "เรายินดีรับฟังและปรับปรุงอย่างต่อเนื่องครับ 🙏\n\n"
+
+        "_💡 ข้อมูลทั้งหมดเพื่อประกอบการตัดสินใจ การลงทุนมีความเสี่ยง โปรดใช้ดุลยพินิจของตนเอง_"
     )
     if str(user_id) == str(ADMIN_ID):
         msg += (
-            "\n**👑 Admin Commands**\n"
-            "`/addrole [uid] [vip/pro] [days]` — เพิ่ม role\n"
-            "`/gencode [days] [uses] [vip/pro]` — สร้างโค้ด\n"
+            "\n\n━━━━━━━━━━━━━━━━━━━━━\n"
+            "**👑 Admin Commands**\n"
+            "`/addrole [uid] [vip/pro] [days]` — เพิ่ม role ให้ user\n"
+            "`/gencode [days] [uses] [vip/pro]` — สร้างโค้ดโปรโมฯ\n"
             "`/ban [uid]` / `/unban [uid]` — จัดการ user\n"
             "`/broadcast [msg]` — ส่งข้อความทุกคน\n"
             "`/stats` — สถิติผู้ใช้\n"
             "`/maintenance` — toggle maintenance mode\n"
-            "`/force_news` — force ส่งข่าว\n"
+            "`/force_news flash/digest` — บรอดแคสต์ข่าวทันที\n"
+            "`/force_weekly` — บรอดแคสต์ Weekly Digest ทันที\n"
+            "`/force_backup` — backup database ทันที\n"
+            "`/system_health` — สถานะเซิร์ฟเวอร์ + memory\n"
+            "`/users_pro` — list VIP/PRO ทั้งหมด\n"
         )
-    bot.reply_to(message, msg, parse_mode="Markdown")
+
+    # 🌟 ถ้ายาวเกิน Telegram limit → แบ่งเป็น 2 message
+    if len(msg) <= 4096:
+        bot.reply_to(message, msg, parse_mode="Markdown")
+    else:
+        split_marker = "━━━━━━━━━━━━━━━━━━━━━\n**🌟 Workflow"
+        split_at = msg.find(split_marker)
+        if split_at > 0:
+            part1 = msg[:split_at]
+            part2 = "📖 **คู่มือ (ต่อ)**\n\n" + msg[split_at:]
+            bot.reply_to(message, part1, parse_mode="Markdown")
+            bot.send_message(message.chat.id, part2, parse_mode="Markdown")
+        else:
+            bot.reply_to(message, msg[:4000], parse_mode="Markdown")
 
 
 @bot.message_handler(commands=['addrole'])
@@ -2504,7 +2586,7 @@ def handle_compare(message):
             print(f"[compare] AI verdict failed: {e}", flush=True)
             comparison_lines.append("\n_(AI verdict ไม่ว่างตอนนี้ — ดูข้อมูลเทคนิคด้านบนประกอบ)_")
 
-        comparison_lines.append("\n_⚠️ ไม่ใช่คำแนะนำการลงทุน — ตรวจสอบและประเมินความเสี่ยงเอง_")
+        comparison_lines.append("\n_💡 ข้อมูลประกอบการตัดสินใจ • การลงทุนมีความเสี่ยง_")
 
         bot.edit_message_text("\n".join(comparison_lines), message.chat.id, load_msg.message_id, parse_mode="Markdown")
     except Exception as e:
@@ -2744,7 +2826,11 @@ def handle_main(message):
 
     symbol = text.upper()
     if len(symbol) > 10:
-        bot.reply_to(message, "❓ ไม่เข้าใจคำสั่งนั้น\n\nถ้าต้องการวิเคราะห์หุ้น ลองพิมพ์ชื่อหุ้นสั้นๆ เช่น `AAPL` หรือ `PTT.BK` ครับ", parse_mode="Markdown")
+        bot.reply_to(message,
+            "🤔 ยังไม่เข้าใจคำสั่งนี้ครับ\n\n"
+            "หากต้องการวิเคราะห์หุ้น พิมพ์ชื่อย่อหุ้นสั้นๆ เช่น `AAPL` หรือ `PTT.BK`\n"
+            "หรือพิมพ์ `/manual` เพื่อดูคำสั่งทั้งหมด",
+            parse_mode="Markdown")
         return
 
     usage = get_usage(user_id)
@@ -2765,18 +2851,18 @@ def handle_main(message):
             upsell_kb.add(InlineKeyboardButton("🆓 ทดลองใช้ PRO 7 วันฟรี!", callback_data="menu_freetrial"))
         upsell_kb.add(InlineKeyboardButton("🎁 เติมโค้ดส่วนลด", callback_data="menu_code"))
         upsell_msg = (
-            f"🔒 **โควต้าฟรีวันนี้หมดแล้ว** ({FREE_DAILY_QUOTA}/{FREE_DAILY_QUOTA})\n\n"
-            f"⏰ รีเซ็ตใหม่ในอีก **{_reset_str}** (เที่ยงคืน)\n\n"
-            f"💎 *อัปเกรดใช้งานไม่จำกัด + ปลดล็อกฟีเจอร์พรีเมียม:*\n"
-            f"• กราฟเทคนิคเต็มรูปแบบ\n"
-            f"• AI Trend Radar 3 ระยะ\n"
-            f"• Entry/TP/SL พร้อมกราฟ (PRO)\n"
-            f"• Smart Alerts + News (PRO)"
+            f"✨ **ขอบคุณที่ใช้ครบโควต้าประจำวันครับ** ({FREE_DAILY_QUOTA}/{FREE_DAILY_QUOTA})\n\n"
+            f"🕛 ระบบจะรีเซ็ตโควต้าใหม่ในอีก **{_reset_str}**\n\n"
+            f"💎 *สนใจใช้งานไม่จำกัด + ปลดล็อกฟีเจอร์พรีเมียม?*\n"
+            f"• 📊 กราฟเทคนิคเต็มรูปแบบ\n"
+            f"• 🔭 AI Trend Radar 3 ระยะ\n"
+            f"• 🎯 Entry / TP / SL ชัดเจน พร้อมกราฟ (PRO)\n"
+            f"• 🔔 Smart Alerts + สรุปข่าวรายวัน (PRO)"
         )
         bot.reply_to(message, upsell_msg, parse_mode="Markdown", reply_markup=upsell_kb)
         return
 
-    load_msg = bot.reply_to(message, f"🔍 กำลังวิเคราะห์ **{symbol}** — ใช้เวลา ~10-20 วินาทีครับ", parse_mode="Markdown")
+    load_msg = bot.reply_to(message, f"✨ Apexify AI กำลังรวบรวมข้อมูล **{symbol}** ให้คุณ\n_ขอเวลาประมาณ 10-20 วินาทีครับ_", parse_mode="Markdown")
 
     # 🌟 Free: ไม่ต้องสร้างกราฟ (ประหยัดเวลา ~3-5 วิ + กันใช้ฟรีเหมือน premium)
     # VIP: กราฟพื้นฐาน, PRO: จะสร้างกราฟ annotated หลังได้ plan
@@ -2794,11 +2880,11 @@ def handle_main(message):
         print(f"[Analyze] generate_apexify_report failed for {symbol}: {e}", flush=True)
         err_str = str(e).lower()
         if '503' in err_str or 'unavailable' in err_str or 'overloaded' in err_str or 'high demand' in err_str:
-            friendly = "⚠️ AI กำลังโหลดหนัก ขอเวลาสักครู่แล้วลองพิมพ์หุ้นส่งมาใหม่นะครับ 🙏"
+            friendly = "✨ ขณะนี้มีผู้ใช้งาน AI จำนวนมาก ขอรบกวนลองพิมพ์อีกครั้งในอีกสักครู่นะครับ 🙏"
         elif 'safety' in err_str or 'blocked' in err_str:
-            friendly = "⚠️ ระบบความปลอดภัยของ AI ปฏิเสธรอบนี้ ลองหุ้นตัวอื่นหรือลองใหม่ในอีกครู่ครับ"
+            friendly = "📋 ระบบความปลอดภัยของ AI ขอปฏิเสธหุ้นตัวนี้ชั่วคราว\nลองวิเคราะห์หุ้นตัวอื่นดูก่อนนะครับ"
         else:
-            friendly = "⚠️ วิเคราะห์ไม่สำเร็จชั่วคราว ลองพิมพ์หุ้นส่งมาใหม่อีกครั้งครับ"
+            friendly = "📡 ขณะนี้ข้อมูลยังไม่พร้อมให้บริการ\nรบกวนลองอีกครั้งในอีกสักครู่ครับ"
         bot.edit_message_text(friendly, message.chat.id, load_msg.message_id)
         return
 

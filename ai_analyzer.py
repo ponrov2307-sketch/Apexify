@@ -10,7 +10,7 @@ from technical_tools import build_multitimeframe_trade_context
 
 client = gemini_client
 
-DISCLAIMER_TEXT = "_⚠️ ไม่ใช่คำแนะนำการลงทุน — ตรวจสอบและประเมินความเสี่ยงด้วยตนเองทุกครั้ง_"
+DISCLAIMER_TEXT = "_💡 ข้อมูลประกอบการตัดสินใจ • การลงทุนมีความเสี่ยง โปรดใช้ดุลยพินิจของตนเอง_"
 
 UNSAFE_MARKDOWN_CHARS = r"[_`~>#\\+\\=\\|\\{\\}\\!\\*]"
 ABSOLUTE_LANGUAGE_PATTERNS = (
