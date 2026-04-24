@@ -1542,7 +1542,12 @@ def should_send_user_notification(user_id, category="general", now_utc=None):
 
 def process_referral(referrer_id, new_user_id):
     """จัดการเมื่อมีคนกดลิงก์ชวนเพื่อนเข้ามาใช้งานบอทครั้งแรก
-    รางวัล: ทุก 3 referrals = VIP 30 วัน (milestone), ฟรี user ได้ +3 โควต้าต่อคน"""
+    รางวัล Referrer:
+      - ทุก referral → ลด usage_count 3 (สำหรับ free) = +3 quota
+      - ทุก 3 referrals → upgrade เป็น VIP + ต่อ 10 วัน (milestone)
+    รางวัล Referred (v2 ใหม่):
+      - ทุก new user ผ่านลิงก์ → ได้ VIP ฟรี 3 วัน (welcome bonus)
+    """
     conn = get_connection()
     c = conn.cursor()
     try:
@@ -1558,7 +1563,6 @@ def process_referral(referrer_id, new_user_id):
         milestone_hit = (new_count % 3 == 0)
 
         if milestone_hit:
-            # ทุก 3 referrals → milestone reward +10 วันทุก role
             c.execute("""
                 UPDATE users SET
                     role = CASE WHEN role = 'pro' THEN 'pro' ELSE 'vip' END,
@@ -1566,16 +1570,26 @@ def process_referral(referrer_id, new_user_id):
                 WHERE user_id = %s
             """, (referrer_id,))
         else:
-            # per-referral: free user ได้ +3 โควต้า
             c.execute("SELECT role FROM users WHERE user_id = %s", (referrer_id,))
             row = c.fetchone()
             if row and row[0] not in ('vip', 'pro'):
                 c.execute("UPDATE users SET usage_count = GREATEST(0, usage_count - 3) WHERE user_id = %s", (referrer_id,))
 
+        # 🌟 Referred user bonus — VIP 3 วันฟรี (v2 ใหม่)
+        # ใช้ INSERT ON CONFLICT DO UPDATE เพราะ new user อาจยังไม่มี row
+        c.execute("""
+            INSERT INTO users (user_id, role, expiry_date, registered_date, status)
+            VALUES (%s, 'vip', NOW() + INTERVAL '3 days', NOW(), 'active')
+            ON CONFLICT (user_id) DO UPDATE SET
+                role = CASE WHEN users.role IN ('vip', 'pro') THEN users.role ELSE 'vip' END,
+                expiry_date = GREATEST(COALESCE(users.expiry_date, NOW()), NOW()) + INTERVAL '3 days'
+        """, (new_user_id,))
+
         conn.commit()
         return True, milestone_hit
     except Exception as e:
         print(f"Referral Error: {e}")
+        conn.rollback()
         return False, False
     finally:
         conn.close()

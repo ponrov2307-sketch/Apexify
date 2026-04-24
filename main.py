@@ -468,12 +468,14 @@ def send_welcome(message):
         full_name = message.from_user.username or f"User_{user_id[-4:]}"
     
     args = message.text.split()
+    referred_welcome_bonus = False
     if len(args) > 1 and args[1].startswith('REF_'):
         referrer_id = args[1].replace('REF_', '')
         if referrer_id != user_id:
             try:
                 success, milestone_hit = process_referral(referrer_id, user_id)
                 if success:
+                    referred_welcome_bonus = True
                     if milestone_hit:
                         new_count = get_referral_stats(referrer_id)
                         ref_role = check_subscription(referrer_id)
@@ -524,6 +526,22 @@ def send_welcome(message):
         "👇 กด **📱 เปิดเมนูหลัก** เพื่อดูฟีเจอร์ทั้งหมด"
     )
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
+
+    # 🌟 Referral welcome bonus — แจ้ง new user ว่าได้ VIP 3 วันฟรี
+    if referred_welcome_bonus:
+        try:
+            bot.send_message(user_id,
+                "🎁 **โบนัสต้อนรับ!**\n\n"
+                "คุณสมัครผ่านลิงก์ชวนเพื่อน\n"
+                "✨ **รับ VIP 3 วันฟรี** เรียบร้อยแล้ว!\n\n"
+                "💎 ใช้งานได้เต็มรูปแบบ:\n"
+                "• วิเคราะห์ไม่จำกัด + กราฟเทคนิค\n"
+                "• AI Trend Radar 3 ระยะ\n"
+                "• Morning Briefing + Digest News\n\n"
+                "_ลองพิมพ์ชื่อหุ้นใดๆ เช่น `AAPL` เพื่อเริ่มทดลองเลยครับ!_",
+                parse_mode="Markdown")
+        except Exception as e:
+            print(f"[ReferralWelcome] error: {e}", flush=True)
 
     # Tutorial card with inline keyboard
     tutorial_markup = InlineKeyboardMarkup(row_width=2)
@@ -1496,18 +1514,30 @@ def inline_callbacks(call):
             ref_link = f"https://t.me/{bot_username}?start=REF_{user_id}"
             next_milestone = 3 - (ref_count % 3) if ref_count % 3 != 0 else 3
             progress_bar = "🟩" * (ref_count % 3) + "⬜" * (3 - (ref_count % 3))
+            share_text = (
+                f"🚀 แนะนำบอทวิเคราะห์หุ้น AI ที่ผมใช้อยู่! "
+                f"สมัครผ่านลิงก์นี้รับ VIP 3 วันฟรีทันที 🎁\n{ref_link}"
+            )
             msg = (
                 "🤝 **ชวนเพื่อน รับรางวัล!** 🤝\n\n"
-                "🎁 **รางวัล Milestone:**\n"
-                "   ทุก **3 เพื่อน** → **+10 วัน ฟรี!**\n"
-                "   (ชวนครบ 6 = +20 วัน, 9 = +30 วัน ...)\n\n"
+                "🎁 **รางวัลของคุณ:**\n"
+                "   • ทุก **1 เพื่อน** → +3 โควต้า (free) / ลด counter\n"
+                "   • ทุก **3 เพื่อน** → **+10 วัน VIP/PRO!**\n"
+                "   • ชวนครบ 6 = +20 วัน, 9 = +30 วัน ...\n\n"
+                "🎁 **รางวัลเพื่อน (ใหม่!):**\n"
+                "   เพื่อนที่สมัครผ่านลิงก์คุณ → **รับ VIP 3 วันฟรี** ทันที\n\n"
                 f"📊 **ความคืบหน้าของคุณ:** {ref_count} คน\n"
                 f"   {progress_bar}  อีก {next_milestone} คน ถึง milestone!\n\n"
-                f"🔗 **ลิงก์ของคุณ:**\n`{ref_link}`\n\n"
-                "_คัดลอกลิงก์ส่งให้เพื่อน — เพื่อนต้องกด Start ผ่านลิงก์นี้เท่านั้น_"
+                f"🔗 **ลิงก์ของคุณ:**\n`{ref_link}`"
             )
-            bot.send_message(user_id, msg, parse_mode="Markdown")
+            share_kb = InlineKeyboardMarkup(row_width=1)
+            share_kb.add(InlineKeyboardButton(
+                "📤 แชร์ลิงก์ให้เพื่อน (Telegram)",
+                switch_inline_query=share_text,
+            ))
+            bot.send_message(user_id, msg, parse_mode="Markdown", reply_markup=share_kb)
         except Exception as e:
+            print(f"[menu_referral] error: {e}", flush=True)
             bot.send_message(user_id, "❌ ระบบชวนเพื่อนขัดข้องชั่วคราว กรุณาลองใหม่ครับ")
             
     elif call.data == 'menu_freetrial':
