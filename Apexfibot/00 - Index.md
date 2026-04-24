@@ -33,9 +33,15 @@ tags: [moc, index]
 - [[12 - Admin Commands]] — คำสั่งเฉพาะ admin
 - [[16 - Command Discoverability]] ⭐ — วิธีออกแบบให้ user หาคำสั่งเจอ
 
-### 📝 อื่นๆ
+### 📝 Strategy & History
 - [[14 - Recent Changes]] — Changelog ล่าสุด
-- [[15 - Roadmap]] — Done + In Progress + Future
+- [[15 - Roadmap]] ⭐ — **Strategic plan: Now → Next → Soon → Later → Vision**
+
+### 💼 Sales & Marketing
+- [[17 - Sales Playbook]] — Pitch + Objections + Personas + Templates
+- [[18 - Feature Cheat Sheet]] — สรุปขายได้ใน 1 หน้า
+- [[19 - Facebook Post Templates]] — 15 templates พร้อมโพสต์
+- [[20 - Video Scripts]] — 5 scripts + hooks + production tips
 
 ---
 
