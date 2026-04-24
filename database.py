@@ -723,6 +723,125 @@ def get_expiring_subscriptions(days_before: int):
     conn.close()
     return result
 
+
+# ==========================================
+# 🌟 Track Record — AI Plan outcome tracking
+# ==========================================
+def log_analysis_plan(user_id, symbol, bias, entry_low, entry_high, tp1, tp2, sl, price_at_issue):
+    """บันทึก Plan ที่ออกให้ PRO — ใช้ตรวจ outcome ภายหลัง"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            INSERT INTO analysis_plans
+            (user_id, symbol, bias, entry_low, entry_high, tp1, tp2, sl, price_at_issue)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (str(user_id), symbol.upper(), bias,
+              entry_low, entry_high, tp1, tp2, sl, price_at_issue))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"[log_plan] error: {e}")
+    finally:
+        conn.close()
+
+
+def get_pending_plans(min_age_hours=24, max_age_days=45):
+    """ดึง Plan ที่ยังเปิดอยู่ (outcome='open') อายุระหว่าง 1 วัน - 45 วัน
+    ต่ำกว่า 1 วันยังไม่ควรตรวจเพราะราคายังไม่ expected hit
+    เกิน 45 วันจะ mark expired
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT id, symbol, bias, entry_low, entry_high, tp1, tp2, sl,
+               price_at_issue, issued_at
+        FROM analysis_plans
+        WHERE outcome = 'open'
+          AND issued_at < NOW() - INTERVAL '%s hours'
+          AND issued_at > NOW() - INTERVAL '%s days'
+    """, (min_age_hours, max_age_days))
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def update_plan_outcome(plan_id, outcome, outcome_note=""):
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            UPDATE analysis_plans
+            SET outcome = %s, outcome_at = CURRENT_TIMESTAMP, outcome_note = %s
+            WHERE id = %s
+        """, (outcome, outcome_note[:200], plan_id))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"[update_plan_outcome] error: {e}")
+    finally:
+        conn.close()
+
+
+def expire_stale_plans(max_age_days=45):
+    """Mark แผนที่เกิน 45 วันยังไม่ hit อะไรเป็น expired"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            UPDATE analysis_plans
+            SET outcome = 'expired', outcome_at = CURRENT_TIMESTAMP
+            WHERE outcome = 'open'
+              AND issued_at < NOW() - INTERVAL '%s days'
+        """, (max_age_days,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+def get_track_record_stats(days=30, user_id=None):
+    """สถิติ outcome ในช่วง N วันที่ผ่านมา
+    คืน dict: {total, tp1_hit, tp2_hit, sl_hit, expired, open, hit_rate_pct}
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    where = "issued_at > NOW() - INTERVAL '%s days'"
+    params = [days]
+    if user_id:
+        where += " AND user_id = %s"
+        params.append(str(user_id))
+    c.execute(f"""
+        SELECT outcome, COUNT(*)
+        FROM analysis_plans
+        WHERE {where}
+        GROUP BY outcome
+    """, tuple(params))
+    counts = {row[0]: int(row[1]) for row in c.fetchall()}
+    conn.close()
+    tp1 = counts.get('tp1_hit', 0)
+    tp2 = counts.get('tp2_hit', 0)
+    sl = counts.get('sl_hit', 0)
+    expired = counts.get('expired', 0)
+    open_count = counts.get('open', 0)
+    closed = tp1 + tp2 + sl + expired
+    total = closed + open_count
+    wins = tp1 + tp2
+    hit_rate = (wins / closed * 100) if closed > 0 else 0.0
+    return {
+        "total": total,
+        "closed": closed,
+        "open": open_count,
+        "tp1_hit": tp1,
+        "tp2_hit": tp2,
+        "sl_hit": sl,
+        "expired": expired,
+        "wins": wins,
+        "hit_rate_pct": hit_rate,
+    }
+
+
 def add_promo_code(code, days, max_uses, role_type='vip'):
     conn = get_connection()
     c = conn.cursor()
@@ -1126,6 +1245,27 @@ def init_new_features_db():
             UNIQUE(user_id, symbol)
         )
     """)
+    # 🌟 Track Record — log ทุก Plan ที่ออกให้ PRO เพื่อตรวจ outcome ภายหลัง
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS analysis_plans (
+            id SERIAL PRIMARY KEY,
+            user_id TEXT,
+            symbol TEXT NOT NULL,
+            bias TEXT NOT NULL,
+            entry_low NUMERIC,
+            entry_high NUMERIC,
+            tp1 NUMERIC,
+            tp2 NUMERIC,
+            sl NUMERIC,
+            price_at_issue NUMERIC,
+            issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            outcome TEXT DEFAULT 'open',
+            outcome_at TIMESTAMP,
+            outcome_note TEXT
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_plans_outcome_issued ON analysis_plans(outcome, issued_at)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_plans_symbol ON analysis_plans(symbol)")
     for col_ddl in [
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_used BOOLEAN DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS free_trial_vip_given BOOLEAN DEFAULT FALSE",

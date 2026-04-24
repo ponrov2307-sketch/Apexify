@@ -400,6 +400,43 @@ def handle_settings(message):
         return
     send_settings_panel(message.chat.id, user_id=user_id)
 
+
+@bot.message_handler(commands=['track', 'stats', 'trackrecord'])
+def handle_track_record(message):
+    """แสดงสถิติ Track Record ของ AI Plans — hit rate TP1/TP2/SL"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    from database import get_track_record_stats
+    # Global stats (ทั้งระบบ) — สร้างความน่าเชื่อถือ + ตัวอย่างให้ free ดูด้วย
+    s30 = get_track_record_stats(days=30)
+    s90 = get_track_record_stats(days=90)
+
+    def fmt(s, label):
+        if s["closed"] == 0:
+            return f"*{label}:* ยังไม่มีข้อมูลพอ (เก็บสถิติเพิ่มอยู่)"
+        return (
+            f"*{label}* ({s['closed']} Plans ปิดแล้ว, {s['open']} ยังเปิด)\n"
+            f"  ✅ Hit Rate (TP1/TP2): *{s['hit_rate_pct']:.1f}%*\n"
+            f"  🎯 TP2 hit: {s['tp2_hit']} | TP1 hit: {s['tp1_hit']}\n"
+            f"  🛑 SL hit: {s['sl_hit']} | ⏱ Expired: {s['expired']}"
+        )
+
+    msg = (
+        "📊 **Apexify Track Record**\n"
+        "_สถิติ AI Plans ที่ออกให้ PRO_\n\n"
+        f"{fmt(s30, '30 วันที่ผ่านมา')}\n\n"
+        f"{fmt(s90, '90 วันที่ผ่านมา')}\n\n"
+        "💡 *วิธีนับ:*\n"
+        "• TP1/TP2 hit = ราคาไปถึงเป้าหมาย (กำไร)\n"
+        "• SL hit = ราคาหลุดจุดตัดขาดทุน\n"
+        "• Expired = เกิน 45 วันไม่มีอะไรเกิด\n"
+        "• ไม่ใช่ผลการลงทุนจริง — คำนวณจาก high/low รายวัน\n\n"
+        "_⚠️ ผลย้อนหลังไม่ใช่การรับประกันผลในอนาคต_"
+    )
+    bot.reply_to(message, msg, parse_mode="Markdown")
+
+
 # ==========================================
 # 🌟 ระบบ Start & Referral
 # ==========================================
@@ -961,6 +998,9 @@ def handle_manual(message):
         "`/ealert list` — ดูรายการที่สมัครไว้\n"
         "`/ealert remove AAPL` — ยกเลิก\n"
         "`/earnings AAPL` — วิเคราะห์งบการเงิน AI _(VIP/PRO)_\n\n"
+
+        "**📊 Track Record**\n"
+        "`/track` — สถิติ AI Plans: hit rate TP1/TP2 ย้อนหลัง\n\n"
 
         "**💎 บัญชี & สิทธิ์**\n"
         "`/freetrial` — ทดลอง PRO 7 วันฟรี (ใช้ได้ 1 ครั้ง)\n"
@@ -2201,6 +2241,22 @@ def handle_main(message):
         except Exception as e:
             print(f"[Analyze] pro chart failed for {symbol}: {e}", flush=True)
             chart = None
+        # 🌟 Track Record — log plan ไว้ตรวจ outcome ภายหลัง
+        try:
+            from database import log_analysis_plan
+            log_analysis_plan(
+                user_id=user_id,
+                symbol=tech_data.get('symbol', symbol),
+                bias='bullish' if plan.get('tp1') and plan.get('entry_low') and plan['tp1'] > plan['entry_low'] else 'bearish',
+                entry_low=plan.get('entry_low'),
+                entry_high=plan.get('entry_high'),
+                tp1=plan.get('tp1'),
+                tp2=plan.get('tp2'),
+                sl=plan.get('sl'),
+                price_at_issue=tech_data.get('price'),
+            )
+        except Exception as e:
+            print(f"[Analyze] log_plan failed: {e}", flush=True)
 
     if user_id != ADMIN_ID and role == 'free':
         increment_usage(user_id)

@@ -15,7 +15,8 @@ from database import (get_all_active_symbols, get_users_watching, init_db, check
                       should_send_user_notification, mark_digest_sent,
                       reset_daily_free_usage, get_expiring_subscriptions,
                       get_top_watched_symbols, get_all_earnings_subscriptions,
-                      mark_user_inactive, get_active_users)
+                      mark_user_inactive, get_active_users,
+                      get_pending_plans, update_plan_outcome, expire_stale_plans)
 import json
 import xml.etree.ElementTree as ET 
 import yfinance as yf
@@ -58,9 +59,22 @@ def _is_gemini_overloaded_error(err):
     )
 
 
+def _is_gemini_model_unavailable_error(err):
+    err_str = str(err)
+    return (
+        '404' in err_str
+        or 'NOTFOUND' in err_str
+        or 'no longer available' in err_str.lower()
+        or 'not found' in err_str.lower()
+    )
+
+
 def _gemini_generate_with_retry(prompt, model='gemini-2.5-flash', retries=4, delay=20):
-    """เรียก Gemini พร้อม retry + exponential backoff + fallback model เมื่อเจอ 503"""
-    fallback_chain = [model, 'gemini-2.0-flash', 'gemini-2.5-flash-lite']
+    """เรียก Gemini พร้อม retry + exponential backoff + fallback model
+    Retry เมื่อเจอ 503 (overload) หรือ 404 (model deprecated)
+    """
+    # ใช้โมเดลตระกูล 2.5 ทั้งหมด (2.0-flash ถูก deprecated แล้ว 2026)
+    fallback_chain = [model, 'gemini-2.5-flash-lite', 'gemini-2.5-pro']
     last_err = None
     for attempt in range(retries + 1):
         current_model = fallback_chain[min(attempt, len(fallback_chain) - 1)]
@@ -68,9 +82,15 @@ def _gemini_generate_with_retry(prompt, model='gemini-2.5-flash', retries=4, del
             return client.models.generate_content(model=current_model, contents=prompt)
         except Exception as e:
             last_err = e
+            # 404: โมเดลไม่มี → ข้ามไปโมเดลถัดไปทันที (ไม่ต้องรอ)
+            if _is_gemini_model_unavailable_error(e):
+                if attempt < retries:
+                    print(f"[Gemini] 404 {current_model} deprecated/unavailable, try next model", flush=True)
+                    continue
+            # 503: overload → wait แล้ว retry
             if _is_gemini_overloaded_error(e):
                 if attempt < retries:
-                    wait = delay * (2 ** attempt)  # 20, 40, 80, 160, 320
+                    wait = delay * (2 ** attempt)
                     print(f"[Gemini] 503 {current_model} try {attempt+1}/{retries}, wait {wait}s", flush=True)
                     time.sleep(wait)
                     continue
@@ -1531,6 +1551,91 @@ def send_watchlist_daily_summary(bot_instance):
         print(f"✅ [WatchlistSummary] ส่งสำเร็จ {count} คน", flush=True)
 
 
+def check_plan_outcomes():
+    """ตรวจ Plan ที่ออกให้ PRO user แล้วว่า hit TP1/TP2/SL หรือ expired
+    รันวันละครั้งตอนเช้า — ใช้ข้อมูลราคาจาก yfinance เปรียบเทียบย้อนหลัง
+    """
+    try:
+        pending = get_pending_plans(min_age_hours=24, max_age_days=45)
+    except Exception as e:
+        print(f"[PlanOutcome] get_pending_plans error: {e}", flush=True)
+        return
+    if not pending:
+        try:
+            expire_stale_plans(max_age_days=45)
+        except Exception:
+            pass
+        return
+
+    # group by symbol เพื่อลด API call
+    symbols = {}
+    for row in pending:
+        plan_id, symbol, bias, entry_low, entry_high, tp1, tp2, sl, price_at_issue, issued_at = row
+        symbols.setdefault(symbol, []).append(row)
+
+    updated = 0
+    for symbol, plans in symbols.items():
+        try:
+            earliest_issued = min(p[9] for p in plans)
+            # ดึงข้อมูลราคาตั้งแต่วันที่ออก Plan แรกสุด
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(start=earliest_issued.date(), interval="1d")
+            if hist.empty:
+                continue
+
+            for plan in plans:
+                plan_id, _, bias, e_low, e_high, tp1, tp2, sl, _, issued_at = plan
+                tp1_val = float(tp1) if tp1 is not None else None
+                tp2_val = float(tp2) if tp2 is not None else None
+                sl_val = float(sl) if sl is not None else None
+
+                # ดึงข้อมูลตั้งแต่วัน issued ของ plan นี้
+                plan_hist = hist[hist.index >= issued_at]
+                if plan_hist.empty:
+                    continue
+
+                highest = float(plan_hist['High'].max())
+                lowest = float(plan_hist['Low'].min())
+
+                # หาว่า SL/TP hit ก่อน ใครก่อน (by date)
+                sl_hit_date = None
+                tp1_hit_date = None
+                tp2_hit_date = None
+
+                for date, row_data in plan_hist.iterrows():
+                    hi = float(row_data['High'])
+                    lo = float(row_data['Low'])
+                    if sl_val is not None and lo <= sl_val and sl_hit_date is None:
+                        sl_hit_date = date
+                    if tp1_val is not None and hi >= tp1_val and tp1_hit_date is None:
+                        tp1_hit_date = date
+                    if tp2_val is not None and hi >= tp2_val and tp2_hit_date is None:
+                        tp2_hit_date = date
+
+                # ตัดสิน outcome ตามลำดับเวลา
+                if sl_hit_date and (tp1_hit_date is None or sl_hit_date < tp1_hit_date):
+                    update_plan_outcome(plan_id, 'sl_hit', f"SL {sl_val:.2f} hit on {sl_hit_date.strftime('%Y-%m-%d')}")
+                    updated += 1
+                elif tp2_hit_date:
+                    update_plan_outcome(plan_id, 'tp2_hit', f"TP2 {tp2_val:.2f} hit on {tp2_hit_date.strftime('%Y-%m-%d')}")
+                    updated += 1
+                elif tp1_hit_date:
+                    update_plan_outcome(plan_id, 'tp1_hit', f"TP1 {tp1_val:.2f} hit on {tp1_hit_date.strftime('%Y-%m-%d')}")
+                    updated += 1
+                # else: ยังเปิดอยู่
+        except Exception as e:
+            print(f"[PlanOutcome] {symbol} error: {e}", flush=True)
+            continue
+
+    try:
+        expire_stale_plans(max_age_days=45)
+    except Exception:
+        pass
+
+    if updated > 0:
+        print(f"✅ [PlanOutcome] อัปเดต {updated} plans", flush=True)
+
+
 def check_earnings_calendar(bot_instance):
     """แจ้งเตือน Earnings วันนี้ให้ผู้ใช้ที่สมัครไว้ — เรียกทุกวัน 8:00 น."""
     try:
@@ -1593,6 +1698,7 @@ def run_alert_loop(bot_instance=None):
     last_expiry_warning_date = None
     last_watchlist_summary_date = None
     last_earnings_check_date = None
+    last_plan_outcome_date = None
 
     while True:
       try:
@@ -1607,6 +1713,11 @@ def run_alert_loop(bot_instance=None):
             send_expiry_warnings(bot_instance)
             last_downgrade_date = current_date_str
             last_expiry_warning_date = current_date_str
+
+        # 🌟 Track Record — ตรวจ Plan outcome วันละครั้ง ตี 6 (ตลาด US ปิดแล้ว)
+        if thai_time.hour == 6 and last_plan_outcome_date != current_date_str:
+            check_plan_outcomes()
+            last_plan_outcome_date = current_date_str
 
         if thai_time.hour == 8 and last_earnings_check_date != current_date_str:
             check_earnings_calendar(bot_instance)
