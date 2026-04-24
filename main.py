@@ -1355,6 +1355,55 @@ def handle_payment_slip_check(message):
 # ==========================================
 # 🌟 ระบบปุ่มกด Inline
 # ==========================================
+@bot.callback_query_handler(func=lambda call: call.data.startswith('quick_'))
+def quick_action_callbacks(call):
+    """Contextual quick-action buttons after analysis"""
+    user_id = str(call.message.chat.id)
+    if not is_allowed(user_id):
+        return
+    role = check_subscription(user_id)
+    bot.answer_callback_query(call.id)
+
+    parts = call.data.split('_', 2)  # quick_fund_AAPL
+    if len(parts) < 3:
+        return
+    action = parts[1]
+    symbol = parts[2]
+
+    # Fake message object to reuse existing handlers
+    class FakeMessage:
+        def __init__(self, chat_id, text):
+            from types import SimpleNamespace
+            self.chat = SimpleNamespace(id=chat_id)
+            self.from_user = SimpleNamespace(id=chat_id)
+            self.text = text
+            self.message_id = call.message.message_id
+
+    if action == 'fund':
+        if role not in ('vip', 'pro') and user_id != ADMIN_ID:
+            bot.send_message(user_id, "🔒 Fundamentals = ฟีเจอร์ VIP/PRO")
+            return
+        fake = FakeMessage(int(user_id), f"/fund {symbol}")
+        handle_fundamentals(fake)
+
+    elif action == 'earnings':
+        if role not in ('vip', 'pro') and user_id != ADMIN_ID:
+            bot.send_message(user_id, "🔒 วิเคราะห์งบการเงิน = ฟีเจอร์ VIP/PRO")
+            return
+        fake = FakeMessage(int(user_id), f"/earnings {symbol}")
+        handle_earnings(fake)
+
+    elif action == 'compare':
+        if role != 'pro' and user_id != ADMIN_ID:
+            bot.send_message(user_id, "🔒 Stock Comparison = ฟีเจอร์ PRO เท่านั้น")
+            return
+        bot.send_message(user_id,
+            f"⚖️ *เปรียบเทียบ {symbol} กับหุ้นอื่น*\n\n"
+            f"พิมพ์คำสั่ง: `/compare {symbol} <หุ้น2>`\n"
+            f"ตัวอย่าง: `/compare {symbol} MSFT` หรือ `/compare {symbol} NVDA AMD`",
+            parse_mode="Markdown")
+
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('delalert_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_') or call.data.startswith('tutorial_') or call.data.startswith('qr_pay_'))
 def inline_callbacks(call):
     user_id = str(call.message.chat.id)
@@ -1852,6 +1901,32 @@ def inline_callbacks(call):
             bot.edit_message_text(result_msg, user_id, scan_msg.message_id, parse_mode="Markdown")
         except Exception as e:
             bot.edit_message_text(f"❌ ระบบสแกนขัดข้อง: {e}", user_id, scan_msg.message_id)
+
+    elif call.data == 'hub_track':
+        # Reuse handler ของ /track
+        class FakeMsg:
+            def __init__(self, chat_id):
+                from types import SimpleNamespace
+                self.chat = SimpleNamespace(id=chat_id)
+                self.from_user = SimpleNamespace(id=chat_id)
+                self.text = '/track'
+        try:
+            handle_track_record(FakeMsg(int(user_id)))
+        except Exception as e:
+            bot.send_message(user_id, f"❌ Error: {e}")
+
+    elif call.data == 'hub_earnings':
+        if role not in ('vip', 'pro') and user_id != ADMIN_ID:
+            bot.send_message(user_id, "🔒 Earnings Alert = ฟีเจอร์ VIP/PRO\n\nอัปเกรดเพื่อสมัครรับแจ้งวัน Earnings ของหุ้นที่สนใจ")
+            return
+        bot.send_message(user_id,
+            "📈 **Earnings Alert**\n\n"
+            "พิมพ์คำสั่งดังนี้:\n"
+            "• `/ealert AAPL` — สมัครแจ้งเตือนวัน Earnings\n"
+            "• `/ealert list` — ดูรายการที่สมัครไว้\n"
+            "• `/ealert remove AAPL` — ยกเลิก\n"
+            "• `/earnings AAPL` — วิเคราะห์งบล่าสุดด้วย AI",
+            parse_mode="Markdown")
 
     elif call.data == 'hub_price_alert':
         try:
@@ -2353,28 +2428,40 @@ def handle_main(message):
 
     elif text == "📱 เปิดเมนูหลัก":
         markup = InlineKeyboardMarkup(row_width=2)
+        # 📊 หมวด: วิเคราะห์ & ข้อมูลหุ้น
         markup.add(
             InlineKeyboardButton("📅 สรุปวันนี้", callback_data="hub_today"),
-            InlineKeyboardButton("🌍 สภาวะตลาดโลก", callback_data="hub_market")
+            InlineKeyboardButton("🌍 ตลาดโลก", callback_data="hub_market"),
         )
         markup.add(
-            InlineKeyboardButton("📰 ข่าวด่วนลงทุน", callback_data="hub_news"),
-            InlineKeyboardButton("📋 Watchlist ของฉัน", callback_data="hub_watchlist")
+            InlineKeyboardButton("📰 ข่าวด่วน", callback_data="hub_news"),
+            InlineKeyboardButton("📊 Track Record", callback_data="hub_track"),
         )
+        # 💼 หมวด: พอร์ต & Watchlist
+        markup.add(
+            InlineKeyboardButton("📋 Watchlist", callback_data="hub_watchlist"),
+            InlineKeyboardButton("💼 พอร์ตลงทุน", callback_data="hub_portfolio"),
+        )
+        # 🚀 หมวด: เครื่องมือพรีเมียม
         markup.add(
             InlineKeyboardButton("🚀 สแกนหุ้น (VIP)", callback_data="hub_scan"),
-            InlineKeyboardButton("💼 พอร์ตลงทุน", callback_data="hub_portfolio")
-        )
-        markup.add(
             InlineKeyboardButton("🔥 หุ้นเด่น (PRO)", callback_data="hub_screener"),
-            InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert")
         )
         markup.add(
-            InlineKeyboardButton("⚙️ ตั้งค่าการแจ้งเตือน", callback_data="settings_open"),
-            InlineKeyboardButton("🌐 Web Dashboard", callback_data="menu_dashboard")
+            InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert"),
+            InlineKeyboardButton("📈 Earnings Alert", callback_data="hub_earnings"),
+        )
+        # ⚙️ หมวด: ตั้งค่า
+        markup.add(
+            InlineKeyboardButton("⚙️ ตั้งค่าแจ้งเตือน", callback_data="settings_open"),
+            InlineKeyboardButton("🌐 Web Dashboard", callback_data="menu_dashboard"),
         )
 
-        msg = "📱 **Apexify Hub**\nเลือกฟีเจอร์ที่ต้องการได้เลยครับ:"
+        msg = (
+            "📱 **Apexify Hub**\n\n"
+            "💡 *เคล็ดลับ:* พิมพ์ `/` ในแชทเพื่อดูคำสั่งทั้งหมด\n"
+            "หรือพิมพ์ชื่อหุ้นเลย เช่น `AAPL` `PTT.BK`"
+        )
         bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
         return
         
@@ -2583,13 +2670,24 @@ def handle_main(message):
 
     correct_symbol = tech_data['symbol']
     markup = InlineKeyboardMarkup(row_width=2)
-    markup.add(InlineKeyboardButton(f"⭐ เพิ่ม {correct_symbol} เข้า Watchlist", callback_data=f"addwatch_{correct_symbol}"))
-    markup.add(
-        InlineKeyboardButton("💼 ดูพอร์ต", callback_data="hub_portfolio"),
-        InlineKeyboardButton("📱 เมนูหลัก", callback_data="hub_home")
-    )
+    markup.add(InlineKeyboardButton(f"⭐ Watchlist", callback_data=f"addwatch_{correct_symbol}"))
+
+    # 🌟 Contextual quick-actions (VIP/PRO เท่านั้น — แต่ละปุ่มจะเช็ค role ของตัวเองอีกที)
+    if role in ('vip', 'pro'):
+        markup.add(
+            InlineKeyboardButton(f"📊 Fundamentals", callback_data=f"quick_fund_{correct_symbol}"),
+            InlineKeyboardButton(f"📈 งบการเงิน", callback_data=f"quick_earnings_{correct_symbol}"),
+        )
     if role == 'pro':
-        markup.add(InlineKeyboardButton(f"🔔 ตั้งเตือนราคา {correct_symbol}", callback_data="hub_price_alert"))
+        markup.add(
+            InlineKeyboardButton(f"⚖️ เปรียบเทียบหุ้นอื่น", callback_data=f"quick_compare_{correct_symbol}"),
+            InlineKeyboardButton(f"🔔 ตั้งเตือนราคา", callback_data="hub_price_alert"),
+        )
+
+    markup.add(
+        InlineKeyboardButton("💼 พอร์ต", callback_data="hub_portfolio"),
+        InlineKeyboardButton("📱 เมนูหลัก", callback_data="hub_home"),
+    )
 
     try:
         bot.delete_message(message.chat.id, load_msg.message_id)
@@ -2629,6 +2727,28 @@ if __name__ == "__main__":
         run_alert_loop(bot)
 
     threading.Thread(target=_bg_init, daemon=True).start()
+
+    # 🌟 Set bot commands menu — แสดงใน Telegram เมื่อ user พิมพ์ "/"
+    try:
+        from telebot.types import BotCommand
+        bot.set_my_commands([
+            BotCommand("start", "เริ่มใช้งาน / ลงทะเบียน"),
+            BotCommand("manual", "คู่มือคำสั่งทั้งหมด"),
+            BotCommand("track", "สถิติ AI Plans — hit rate ย้อนหลัง"),
+            BotCommand("fund", "ข้อมูลพื้นฐาน (P/E, EPS, Dividend) — VIP/PRO"),
+            BotCommand("compare", "เปรียบเทียบ 2-3 หุ้น — PRO"),
+            BotCommand("earnings", "วิเคราะห์งบการเงินด้วย AI — VIP/PRO"),
+            BotCommand("ealert", "แจ้งเตือนวัน Earnings — VIP/PRO"),
+            BotCommand("setalert", "ตั้งเตือนราคา — PRO"),
+            BotCommand("myalerts", "ดู price alerts ที่ตั้งไว้"),
+            BotCommand("freetrial", "ทดลอง PRO 7 วันฟรี"),
+            BotCommand("redeem", "เติมโค้ดโปรโมชั่น"),
+            BotCommand("settings", "ตั้งค่าการแจ้งเตือน"),
+            BotCommand("dashboard", "เปิด Web Dashboard"),
+        ])
+        print("✅ Bot commands menu set", flush=True)
+    except Exception as e:
+        print(f"⚠️ set_my_commands failed: {e}", flush=True)
 
     # Webhook mode: ถ้ามี BOT_WEB_BASE_URL → ใช้ webhook, ไม่มี → fallback polling
     _base = BOT_WEB_BASE_URL.rstrip("/") if BOT_WEB_BASE_URL else ""
