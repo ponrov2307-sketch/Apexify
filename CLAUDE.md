@@ -37,7 +37,7 @@ Deploy บน **Railway.app** (production) หรือ **Linux server** ด้�
 ## User Roles
 
 ```
-free  → 10 การวิเคราะห์/วัน
+free  → 3 การวิเคราะห์/วัน
 vip   → ไม่จำกัด + briefing + podcast (79 บาท/เดือน)
 pro   → ทุกอย่าง + smart alerts + setalert + earnings (109 บาท/เดือน)
 admin → super user ไม่มีข้อจำกัด

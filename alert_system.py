@@ -1435,8 +1435,11 @@ def send_daily_portfolio_summary(bot_instance):
 # 🔔 แจ้งเตือนผู้ใช้ที่แพ็กเกจใกล้หมดอายุ
 # ==========================================
 def send_expiry_warnings(bot_instance):
-    """แจ้งเตือน VIP/PRO ที่หมดอายุใน 3 วัน และ 1 วัน"""
-    for days_left in (3, 1):
+    """แจ้งเตือน VIP/PRO ที่หมดอายุใน 7/3/1 วัน + inline button ต่ออายุ"""
+    from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+    DAY_WORDS = {7: "7 วัน", 3: "3 วัน", 1: "พรุ่งนี้"}
+    URGENCY = {7: "💡", 3: "⚠️", 1: "🚨"}
+    for days_left in (7, 3, 1):
         try:
             users = get_expiring_subscriptions(days_left)
         except Exception as e:
@@ -1444,19 +1447,33 @@ def send_expiry_warnings(bot_instance):
             continue
         for user_id, role, expiry_date in users:
             role_label = "💎 VIP" if role == "vip" else "👑 PRO"
-            day_word = "3 วัน" if days_left == 3 else "พรุ่งนี้"
+            day_word = DAY_WORDS[days_left]
+            urgency = URGENCY[days_left]
             msg = (
-                f"⚠️ **แพ็กเกจของคุณใกล้หมดอายุแล้ว!**\n\n"
-                f"📦 แพ็กเกจ: {role_label}\n"
+                f"{urgency} **แพ็กเกจของคุณใกล้หมดอายุแล้ว**\n\n"
+                f"📦 แพ็กเกจปัจจุบัน: {role_label}\n"
                 f"⏰ หมดอายุ: {str(expiry_date)[:10]}\n"
-                f"📅 เหลือเวลา: {day_word}\n\n"
-                f"กดปุ่ม **💎 บัญชี / VIP** เพื่อต่ออายุและใช้งานต่อเนื่องได้เลยครับ!"
+                f"📅 เหลือเวลา: **{day_word}**\n\n"
             )
+            if days_left == 1:
+                msg += "⚡ **ต่ออายุตอนนี้เลยเพื่อไม่ให้ขาดช่วง** — ไม่งั้นพรุ่งนี้ฟีเจอร์พรีเมียมจะถูกปิดทันที"
+            elif days_left == 3:
+                msg += "💎 ต่ออายุตอนนี้รับสิทธิ์ใช้งานต่อเนื่อง — ไม่เสียวันที่เหลือของแพ็กเกจปัจจุบัน"
+            else:
+                msg += "✨ เหลืออีก 7 วัน — ต่ออายุเตรียมไว้ใช้ได้ยาวๆ ต่อเนื่องไม่สะดุด"
+
+            kb = InlineKeyboardMarkup(row_width=2)
+            kb.add(
+                InlineKeyboardButton(f"💎 ต่ออายุ VIP 79฿", callback_data="menu_vip"),
+                InlineKeyboardButton(f"👑 ต่ออายุ PRO 109฿", callback_data="menu_vip"),
+            )
+            kb.add(InlineKeyboardButton("🎁 ใช้โค้ดส่วนลด", callback_data="menu_code"))
+
             try:
-                bot_instance.send_message(user_id, msg, parse_mode="Markdown")
+                bot_instance.send_message(user_id, msg, parse_mode="Markdown", reply_markup=kb)
             except Exception as e:
                 print(f"[expiry_warnings] send to {user_id} failed: {e}")
-    print(f"[expiry_warnings] ส่งแจ้งเตือนหมดอายุเรียบร้อย")
+    print(f"[expiry_warnings] ส่งแจ้งเตือนหมดอายุเรียบร้อย (7/3/1 วัน)")
 
 def send_watchlist_daily_summary(bot_instance):
     """ส่งสรุป Watchlist รายวันให้ทุก user ที่มี watchlist (23:00 Thai time)"""

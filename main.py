@@ -62,6 +62,9 @@ SETTINGS_NEWS_WINDOW_PRESETS = [
 ]
 SETTINGS_LANGUAGE_LABELS = {"th": "Thai", "en": "English"}
 
+# 🌟 โควต้าฟรีต่อวัน (รีเซ็ตเที่ยงคืน)
+FREE_DAILY_QUOTA = 3
+
 
 def _format_news_window(start_hour, end_hour):
     start = int(start_hour) % 24
@@ -461,7 +464,7 @@ def send_welcome(message):
     welcome_text = (
         f"⚡️ ยินดีต้อนรับคุณ **{full_name}** สู่ **Apexify!**\n\n"
         "🤖 บอทวิเคราะห์หุ้นด้วย AI — รองรับหุ้นทั่วโลก, แจ้งเตือนสัญญาณเทคนิค, สรุปข่าวตลาดรายวัน\n\n"
-        "🎁 **ทดลองใช้ฟรี 10 ครั้ง** ไม่ต้องสมัคร\n\n"
+        f"🎁 **ทดลองใช้ฟรี {FREE_DAILY_QUOTA} ครั้ง/วัน** ไม่ต้องสมัคร\n\n"
         "**เริ่มต้น 3 ขั้นตอน:**\n"
         "1️⃣ พิมพ์ชื่อหุ้น → รับรายงานวิเคราะห์ทันที\n"
         "   `AAPL` `TSLA` `NVDA` `PTT.BK` `AOT.BK`\n"
@@ -1361,7 +1364,7 @@ def inline_callbacks(call):
                 "*(โอนแล้วส่งสลิปในแชทนี้ ระบบอัปเกรดอัตโนมัติใน 3 วิ!)*\n\n"
 
                 "🆓 **BASIC (ฟรี)**\n"
-                "• สแกน AI 10 ครั้ง/วัน\n"
+                f"• สแกน AI {FREE_DAILY_QUOTA} ครั้ง/วัน\n"
                 "• Watchlist 3 ตัว\n"
                 "• Fear & Greed, PnL Card\n"
                 "• พอร์ตเว็บ 3 ตัว, DRIP/Simulator\n\n"
@@ -2062,7 +2065,7 @@ def handle_main(message):
             else: status_text = "🆓 Free"
             
             expiry_text = expiry if expiry else "ไม่มีวันหมดอายุ"
-            quota_text = f"ไม่จำกัด" if role in ['vip', 'pro'] else f"{usage}/10 ครั้ง"
+            quota_text = f"ไม่จำกัด" if role in ['vip', 'pro'] else f"{usage}/{FREE_DAILY_QUOTA} ครั้ง"
             reg_text = reg_date[:10] if reg_date else "ไม่ทราบ"
             
             msg = (
@@ -2137,14 +2140,32 @@ def handle_main(message):
         return
 
     usage = get_usage(user_id)
-    if user_id != ADMIN_ID and role == 'free' and usage >= 10:
+    if user_id != ADMIN_ID and role == 'free' and usage >= FREE_DAILY_QUOTA:
         from datetime import datetime as _dt, timedelta as _td
         _now_thai = _dt.utcnow() + _td(hours=7)
         _midnight = _now_thai.replace(hour=0, minute=0, second=0, microsecond=0) + _td(days=1)
         _mins_left = int((_midnight - _now_thai).total_seconds() // 60)
         _h, _m = divmod(_mins_left, 60)
         _reset_str = f"{_h} ชม. {_m} นาที" if _h else f"{_m} นาที"
-        bot.reply_to(message, f"🔒 โควต้าฟรีวันนี้หมดแล้ว (10/10)\n\n⏰ รีเซ็ตใหม่ในอีก **{_reset_str}** (เที่ยงคืน)\n\n💎 หรือสมัคร VIP/PRO เพื่อใช้งานไม่จำกัดครับ!", parse_mode="Markdown")
+        # 🌟 Inline upsell — ให้ user กดสมัครได้ทันทีไม่ต้อง dig menu
+        upsell_kb = InlineKeyboardMarkup(row_width=2)
+        upsell_kb.add(
+            InlineKeyboardButton("💎 สมัคร VIP 79฿/เดือน", callback_data="menu_vip"),
+            InlineKeyboardButton("👑 สมัคร PRO 109฿/เดือน", callback_data="menu_vip"),
+        )
+        if not has_used_free_trial(user_id):
+            upsell_kb.add(InlineKeyboardButton("🆓 ทดลองใช้ PRO 7 วันฟรี!", callback_data="menu_freetrial"))
+        upsell_kb.add(InlineKeyboardButton("🎁 เติมโค้ดส่วนลด", callback_data="menu_code"))
+        upsell_msg = (
+            f"🔒 **โควต้าฟรีวันนี้หมดแล้ว** ({FREE_DAILY_QUOTA}/{FREE_DAILY_QUOTA})\n\n"
+            f"⏰ รีเซ็ตใหม่ในอีก **{_reset_str}** (เที่ยงคืน)\n\n"
+            f"💎 *อัปเกรดใช้งานไม่จำกัด + ปลดล็อกฟีเจอร์พรีเมียม:*\n"
+            f"• กราฟเทคนิคเต็มรูปแบบ\n"
+            f"• AI Trend Radar 3 ระยะ\n"
+            f"• Entry/TP/SL พร้อมกราฟ (PRO)\n"
+            f"• Smart Alerts + News (PRO)"
+        )
+        bot.reply_to(message, upsell_msg, parse_mode="Markdown", reply_markup=upsell_kb)
         return
 
     load_msg = bot.reply_to(message, f"🔍 กำลังวิเคราะห์ **{symbol}** — ใช้เวลา ~10-20 วินาทีครับ", parse_mode="Markdown")
@@ -2183,7 +2204,7 @@ def handle_main(message):
 
     if user_id != ADMIN_ID and role == 'free':
         increment_usage(user_id)
-        report += f"\n\n🎁 **Trial:** {usage + 1}/10"
+        report += f"\n\n🎁 **Trial:** {usage + 1}/{FREE_DAILY_QUOTA}"
 
     correct_symbol = tech_data['symbol']
     markup = InlineKeyboardMarkup(row_width=2)
