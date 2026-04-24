@@ -157,23 +157,28 @@ Alerts ราคา + ข่าว + Earnings → ส่งเข้า Telegram
 🔗 t.me/Apexify_Trading_Bot
 ```
 
-### Template: "Promo Code"
+### Template: "Free Trial 7 วัน" (แทน promo code — ใช้ตอนนี้)
 
 ```
-🎁 โค้ดพิเศษจาก Apexify!
+🎁 ทดลองใช้ Apexify PRO ฟรี 7 วัน!
 
-ใช้โค้ด: **APEX2026**
-ได้ส่วนลด 30% เดือนแรก (VIP หรือ PRO)
+ไม่ต้องผูกบัตร ไม่ต้องโอนอะไรก่อน
+แค่กด /freetrial ในบอท → ใช้งานได้ทันที 7 วัน
 
-วิธีใช้:
-1. สมัครแพ็กเกจผ่าน /redeem APEX2026 ในบอท
-2. โอนเงินตามราคาหลังหักส่วนลด
-3. ส่งสลิป → อัปเกรดอัตโนมัติใน 3 วิ
+✅ วิเคราะห์หุ้นไม่จำกัด
+✅ Entry / TP / SL พร้อมกราฟ
+✅ Smart Alerts + Morning Briefing
+✅ ฟีเจอร์พรีเมียมครบทุกอย่าง
 
-⏰ หมดเขต 30 เม.ย. 2026
+หลัง 7 วัน → กลับเป็น Free อัตโนมัติ ไม่หักเงิน 💯
 
-🔗 t.me/Apexify_Trading_Bot
+🔗 ลองเลย: t.me/Apexify_Trading_Bot
+
+#FreeTrial #ApexifyBot #ทดลองฟรี
 ```
+
+> 💡 *Note: โค้ดส่วนลด/โปรลดราคา ไว้รอใช้ตอนมีฐาน user เยอะแล้ว
+> ตอนนี้เน้น Free Trial + Referral ก่อน*
 
 ---
 
@@ -292,6 +297,250 @@ Alerts ราคา + ข่าว + Earnings → ส่งเข้า Telegram
 3. bullet list อ่านง่าย
 4. จบด้วย CTA ชัดเจน
 5. มีลิงก์ + 3-5 hashtags
+
+---
+
+## 📋 8. Listicle Posts (engage สูง)
+
+### Template: "5 หุ้น Tech ที่น่าจับตา"
+```
+🚀 5 หุ้นเทคโนโลยีที่นักลงทุนไทยจับตาตอนนี้
+
+1. 🍎 AAPL — Apple
+2. 🎮 NVDA — Nvidia
+3. 🚗 TSLA — Tesla
+4. 🪟 MSFT — Microsoft
+5. 🛒 AMZN — Amazon
+
+อยากรู้ว่าตัวไหนน่าซื้อตอนนี้?
+พิมพ์ชื่อหุ้นใน Apexify → AI วิเคราะห์ให้ทันที
+🔗 t.me/Apexify_Trading_Bot
+
+⚠️ ไม่ใช่คำแนะนำลงทุน ใช้ดุลยพินิจของตนเอง
+
+#หุ้นTech #AAPL #NVDA #TSLA
+```
+
+### Template: "5 อาการ overbought ที่ต้องระวัง"
+```
+🚨 5 สัญญาณ overbought ที่ต้องระวัง
+
+1. RSI > 70 — ราคาร้อนเกินไป
+2. ราคาห่าง EMA20 > 10%
+3. Volume spike ติด 3 วัน
+4. Bollinger Band ทะลุ upper
+5. MACD divergence ขาลง
+
+วิธีเช็ค: พิมพ์ชื่อหุ้นใน Apexify → ดู indicators ครบใน 10 วิ
+🔗 t.me/Apexify_Trading_Bot
+
+#TechnicalAnalysis #RSI #หุ้น
+```
+
+---
+
+## 📊 9. Comparison Posts (เทียบกับฟรี)
+
+### Template: "Apexify vs Tradingview"
+```
+🤔 Apexify ต่างจาก Tradingview ยังไง?
+
+Tradingview (ฟรี):
+✅ ดูกราฟสวย
+❌ ต้องอ่าน indicators เอง
+❌ คิดจุดเข้า/ออกเอง
+❌ เปิดทุกวันเอง
+
+Apexify:
+✅ AI อ่านกราฟแทน
+✅ Entry / TP / SL ชัดเจน
+✅ Alerts อัตโนมัติ 24/7
+✅ ใช้ใน Telegram (ไม่ต้องโหลดแอปใหม่)
+
+ราคาแค่ 79฿/เดือน + ทดลอง 7 วันฟรี!
+🔗 t.me/Apexify_Trading_Bot
+
+#เทรดหุ้น #ApexifyBot
+```
+
+---
+
+## 🎯 10. Question / Poll Posts (interaction สูง)
+
+### Template: "แนวรับ vs แนวต้าน"
+```
+❓ คำถามถึงนักลงทุน:
+
+หุ้นที่คุณ "ซื้อแล้วได้กำไร" บ่อยที่สุด ส่วนใหญ่คุณ:
+
+🅰 ซื้อตอนทะลุแนวต้าน
+🅱 ซื้อตอนย่อมาแนวรับ
+🅲 ซื้อตามข่าว
+🅳 ซื้อแบบสุ่มๆ
+
+แชร์ประสบการณ์ในคอมเมนต์ครับ 👇
+
+PS: Apexify มีฟีเจอร์บอกแนวรับ/แนวต้านอัตโนมัติ
+🔗 t.me/Apexify_Trading_Bot
+```
+
+### Template: "ตัวไหน buy/wait?"
+```
+🆚 ระหว่าง 2 หุ้นนี้ — ตัวไหนน่าสะสม?
+
+🅰 AAPL — ราคา $185 RSI 62
+🅱 MSFT — ราคา $420 RSI 68
+
+โหวตในคอมเมนต์: A หรือ B + เหตุผล
+
+(เฉลย: PRO user ใช้ /compare AAPL MSFT ให้ AI ตัดสิน 🤖)
+🔗 t.me/Apexify_Trading_Bot
+
+#StockComparison
+```
+
+---
+
+## 🌟 11. User Story / Testimonial
+
+### Template: "นักลงทุนมือใหม่ใช้ Apexify"
+```
+📩 ข้อความจาก user ใหม่:
+
+"เพิ่งเริ่มลงทุนได้ 3 เดือน ก่อนใช้ Apexify ดูกราฟไม่เป็น
+เห็นเลขเยอะๆ ก็มึน หลังลองเดือนหนึ่ง อ่าน Plan ของบอท
+เริ่มเข้าใจเทคนิคพื้นฐาน + พอร์ตเริ่มเขียวขึ้นด้วยครับ"
+
+— A.W. (อนุญาตให้แชร์)
+
+ลองดูเลย: t.me/Apexify_Trading_Bot
+ทดลอง PRO 7 วันฟรี ไม่ผูกบัตร
+```
+
+---
+
+## 📚 12. Educational Carousel (FB Carousel)
+
+### Set 1: "อ่าน Apexify Report ยังไง"
+- Slide 1: ภาพ report → "นี่คือสิ่งที่คุณจะได้"
+- Slide 2: zoom Trend Radar → "AI วิเคราะห์ 3 ระยะ"
+- Slide 3: zoom Plan → "Entry/TP/SL ชัดเจน"
+- Slide 4: zoom กราฟ → "เห็น zone ทันที"
+- Slide 5: CTA → "ลองฟรี 7 วัน"
+
+**Caption:**
+```
+📖 อ่านรายงาน Apexify ยังไง?
+
+ปัดดูทั้ง 5 รูปครับ → คุณจะเข้าใจทุกส่วนของรายงาน
+ลองพิมพ์ชื่อหุ้นในบอทดูเลย ฟรี!
+
+🔗 t.me/Apexify_Trading_Bot
+
+#สอนเทรด #ApexifyBot
+```
+
+### Set 2: "5 คำสั่งที่ต้องใช้ใน Apexify"
+- Slide 1: พิมพ์ชื่อหุ้น
+- Slide 2: /track
+- Slide 3: /fund (PRO)
+- Slide 4: /compare (PRO)
+- Slide 5: /ask (PRO)
+
+---
+
+## 📱 13. Story Templates (Facebook/IG)
+
+### Story 1: "Stock of the Day"
+```
+📊 หุ้นวันนี้: NVDA
+
+🟢 Trend ขาขึ้น
+🔥 Conviction 78/100
+🎯 แนวต้าน $145
+
+ดูเต็ม: ลิงก์ใน bio →
+```
+**Visual:** background ดำ + กราฟ + ปุ่มลิงก์
+
+### Story 2: "Daily Reminder"
+```
+🌅 อย่าลืมเช็ค Apexify ก่อนตลาดเปิด!
+
+✅ Morning Briefing 8:30
+✅ Watchlist Summary
+
+t.me/Apexify_Trading_Bot
+```
+
+### Story 3: "Streak Flex"
+```
+🔥 7-day streak ใน Apexify!
+ได้ VIP +1 วันฟรี 🎁
+
+คุณก็ทำได้ — เปิดบอททุกวัน
+```
+
+---
+
+## 🎨 14. Image Specs (สำหรับนักออกแบบ)
+
+### Facebook Post (square)
+- Size: 1080 × 1080
+- Safe area: 940 × 940 (เผื่อ crop)
+- Title: 60-80px
+- Body: 32-40px
+- ใช้สีหลัก: น้ำเงิน-ขาว-ดำ + accent ส้ม
+
+### Facebook Cover Post
+- Size: 1200 × 630
+- Aspect: 1.91:1
+
+### Instagram Story
+- Size: 1080 × 1920 (vertical)
+- Safe area top/bottom: 250px (เผื่อ UI)
+
+### Image Templates ที่ควรมี
+- [ ] Logo Apexify (light + dark)
+- [ ] Bot screenshot mock-up frame
+- [ ] Quote card template
+- [ ] Stat card template (X% hit rate)
+- [ ] Promo card template (free trial)
+
+---
+
+## 🤖 15. AI-Generated Post Ideas (ขอ ChatGPT/Gemini ช่วย)
+
+ใช้ prompt นี้เมื่อขี้เกียจคิด:
+
+```
+ช่วยเขียน Facebook post โปรโมท Telegram bot วิเคราะห์หุ้นด้วย AI
+ชื่อ "Apexify" — ตอบเป็นภาษาไทย 4-6 บรรทัด
+รูปแบบ: เปิดด้วยคำถามที่ทำให้คนหยุดอ่าน
+เนื้อหา: เน้นว่าแก้ปัญหาอะไร
+จบด้วย CTA: ทดลองฟรี 7 วัน + ลิงก์
+ใช้ emoji 3-5 ตัว, hashtag 3 ตัว
+```
+
+---
+
+## 📅 30-Day Content Calendar Template
+
+| วัน | หัวข้อ | Type |
+|---|------|------|
+| 1 | Launch awareness | Awareness |
+| 2 | 3 indicators ที่ต้องดู | Educational |
+| 3 | หุ้นเด่นวันนี้ | Stock pick |
+| 4 | Track Record stats | Social Proof |
+| 5 | ทดลองฟรี 7 วัน | Free Trial |
+| 6 | Q&A poll | Engagement |
+| 7 | Sunday recap | Recap |
+| 8 | คำถามมือใหม่ | Educational |
+| 9 | Watchlist tips | Tips |
+| ... | (วนแบบนี้) | |
+| 28 | Customer testimonial | Social Proof |
+| 29 | Referral promo | Referral |
+| 30 | Month recap | Recap |
 
 ดูต่อ:
 - [[17 - Sales Playbook]]
