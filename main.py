@@ -622,7 +622,7 @@ def handle_demo(message):
     bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
 
 
-@bot.message_handler(commands=['track', 'stats', 'trackrecord'])
+@bot.message_handler(commands=['track', 'trackrecord'])
 def handle_track_record(message):
     """แสดงสถิติ Track Record ของ AI Plans — hit rate TP1/TP2/SL"""
     user_id = str(message.chat.id)
@@ -1250,10 +1250,11 @@ def handle_manual(message):
         "`/portfolio` หรือ `/port` — ดูพอร์ตทั้งหมด\n"
         "`/pnl` — สร้างการ์ด P&L แบบสวยงาม\n\n"
 
-        "**🔔 ตั้งเตือนราคา**\n"
+        "**🔔 ตั้งเตือนราคา** _(PRO)_\n"
         "`/setalert AAPL 200` — แจ้งเตือนเมื่อ AAPL ถึง $200\n"
         "`/setalert AAPL +5%` — แจ้งเตือนเมื่อขึ้น 5%\n"
         "`/setalert AAPL -3%` — แจ้งเตือนเมื่อลง 3%\n"
+        "`/myalerts` — ดู alerts ที่ตั้งไว้ทั้งหมด\n"
         "`/delalert AAPL` — ลบการแจ้งเตือนของ AAPL\n\n"
 
         "**📅 Earnings Calendar** _(VIP/PRO)_\n"
@@ -1270,8 +1271,9 @@ def handle_manual(message):
         "🔥 **Daily Streak:** ใช้ทุกวันติดต่อกัน → ครบ 7 วัน รับ VIP 1 วันฟรี!\n\n"
 
         "**💎 บัญชี & สิทธิ์**\n"
+        "`/account` หรือ `/me` — สถานะบัญชี + Streak + โควต้า\n"
         "`/freetrial` — ทดลอง PRO 7 วันฟรี (ใช้ได้ 1 ครั้ง/บัญชี)\n"
-        "`/redeem APEX2026` — เติมโค้ดโปรโมชั่น\n"
+        "`/redeem [โค้ด]` — เติมโค้ดโปรโมชั่น (เช่น VIP7-A1B2C3)\n"
         "🤝 *ชวนเพื่อน:* ทั้งคู่ได้รางวัล (คุณ +3 quota, เพื่อน VIP 3 วันฟรี)\n\n"
 
         "**⚙️ การตั้งค่า**\n"
@@ -1280,7 +1282,7 @@ def handle_manual(message):
 
         "**🎬 สำรวจฟีเจอร์**\n"
         "`/demo` — ทัวร์ฟีเจอร์ทั้งหมดในหน้าเดียว\n"
-        "`/manual` — เปิดคู่มือนี้อีกครั้ง\n\n"
+        "`/manual` หรือ `/help` — เปิดคู่มือนี้อีกครั้ง\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━━\n"
         "**🌟 Workflow แนะนำ**\n\n"
@@ -1349,18 +1351,29 @@ def handle_manual(message):
     if str(user_id) == str(ADMIN_ID):
         msg += (
             "\n\n━━━━━━━━━━━━━━━━━━━━━\n"
-            "**👑 Admin Commands**\n"
+            "**👑 Admin Commands** _(เห็นเฉพาะ admin)_\n\n"
+
+            "*📊 จัดการ User & Subscription*\n"
             "`/addrole [uid] [vip/pro] [days]` — เพิ่ม role ให้ user\n"
-            "`/gencode [days] [uses] [vip/pro]` — สร้างโค้ดโปรโมฯ\n"
+            "`/gencode [days] [uses] [vip/pro]` — สร้างโค้ด (ระบบ gen ชื่อ)\n"
             "`/ban [uid]` / `/unban [uid]` — จัดการ user\n"
-            "`/broadcast [msg]` — ส่งข้อความทุกคน\n"
-            "`/stats` — สถิติผู้ใช้\n"
-            "`/maintenance` — toggle maintenance mode\n"
+            "`/users_pro` — list VIP/PRO ทั้งหมด + วันหมด\n"
+            "`/user_history [uid]` — ดูประวัติ activity ของ user\n\n"
+
+            "*📈 สถิติ & Performance*\n"
+            "`/stats` — สถิติ user/รายได้\n"
+            "`/performance` — ผลกำไร/ขาดทุนของ AI plans\n\n"
+
+            "*📢 Broadcast & Force*\n"
+            "`/broadcast [msg]` — ส่งข้อความทุก active user\n"
             "`/force_news flash/digest` — บรอดแคสต์ข่าวทันที\n"
             "`/force_weekly` — บรอดแคสต์ Weekly Digest ทันที\n"
+            "`/mock_alert [symbol] [type]` — จำลอง alert ทดสอบ\n\n"
+
+            "*🛠 System*\n"
+            "`/maintenance` — toggle maintenance mode\n"
             "`/force_backup` — backup database ทันที\n"
             "`/system_health` — สถานะเซิร์ฟเวอร์ + memory\n"
-            "`/users_pro` — list VIP/PRO ทั้งหมด\n"
         )
 
     # 🌟 ถ้ายาวเกิน Telegram limit → แบ่งเป็น 2 message

@@ -66,7 +66,7 @@ tags: [commands, user]
 
 | Command | Description |
 |---------|------------|
-| `/track` หรือ `/stats` | สถิติ AI Plans 30/90 วัน hit rate TP1/TP2 |
+| `/track` หรือ `/trackrecord` | สถิติ AI Plans 30/90 วัน hit rate TP1/TP2 |
 
 ดู [[09 - Track Record System]]
 

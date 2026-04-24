@@ -96,7 +96,7 @@ def get_track_record_stats(days=30, user_id=None):
 
 ## User Interface
 
-### `/track` หรือ `/stats`
+### `/track` หรือ `/trackrecord`
 
 แสดงสถิติให้ทุก user ดู (รวม free):
 
