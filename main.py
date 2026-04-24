@@ -2147,14 +2147,27 @@ def handle_main(message):
         bot.reply_to(message, f"🔒 โควต้าฟรีวันนี้หมดแล้ว (10/10)\n\n⏰ รีเซ็ตใหม่ในอีก **{_reset_str}** (เที่ยงคืน)\n\n💎 หรือสมัคร VIP/PRO เพื่อใช้งานไม่จำกัดครับ!", parse_mode="Markdown")
         return
 
-    load_msg = bot.reply_to(message, f"🔍 กำลังวิเคราะห์ {symbol}...")
+    load_msg = bot.reply_to(message, f"🔍 กำลังวิเคราะห์ **{symbol}** — ใช้เวลา ~10-20 วินาทีครับ", parse_mode="Markdown")
     tech_data, chart, err = _get_cached_analysis(symbol)
-    
+
     if err:
-        bot.edit_message_text(err, message.chat.id, load_msg.message_id)
+        bot.edit_message_text(err, message.chat.id, load_msg.message_id, parse_mode="Markdown")
         return
 
-    report = generate_apexify_report(tech_data, role=role)
+    # 🌟 Wrap AI report generation — กัน Gemini 503/safety crash ทำให้ load_msg ค้าง
+    try:
+        report = generate_apexify_report(tech_data, role=role)
+    except Exception as e:
+        print(f"[Analyze] generate_apexify_report failed for {symbol}: {e}", flush=True)
+        err_str = str(e).lower()
+        if '503' in err_str or 'unavailable' in err_str or 'overloaded' in err_str or 'high demand' in err_str:
+            friendly = "⚠️ AI กำลังโหลดหนัก ขอเวลาสักครู่แล้วลองพิมพ์หุ้นส่งมาใหม่นะครับ 🙏"
+        elif 'safety' in err_str or 'blocked' in err_str:
+            friendly = "⚠️ ระบบความปลอดภัยของ AI ปฏิเสธรอบนี้ ลองหุ้นตัวอื่นหรือลองใหม่ในอีกครู่ครับ"
+        else:
+            friendly = "⚠️ วิเคราะห์ไม่สำเร็จชั่วคราว ลองพิมพ์หุ้นส่งมาใหม่อีกครั้งครับ"
+        bot.edit_message_text(friendly, message.chat.id, load_msg.message_id)
+        return
 
     if user_id != ADMIN_ID and role == 'free':
         increment_usage(user_id)
@@ -2170,17 +2183,25 @@ def handle_main(message):
     if role == 'pro':
         markup.add(InlineKeyboardButton(f"🔔 ตั้งเตือนราคา {correct_symbol}", callback_data="hub_price_alert"))
 
-    bot.delete_message(message.chat.id, load_msg.message_id)
+    try:
+        bot.delete_message(message.chat.id, load_msg.message_id)
+    except Exception:
+        pass
 
-    if role in ['vip', 'pro']:
-        if chart is not None:
-            try:
-                bot.send_photo(message.chat.id, chart)
-            except Exception:
-                pass
+    # 🌟 chart=None safety — ถ้าวาดกราฟไม่ได้ก็ส่ง report อย่างเดียว
+    if chart is None:
+        _send_safe(bot, message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
+    elif role in ['vip', 'pro']:
+        try:
+            bot.send_photo(message.chat.id, chart)
+        except Exception:
+            pass
         _send_safe(bot, message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
     elif len(report) > 1000:
-        bot.send_photo(message.chat.id, chart)
+        try:
+            bot.send_photo(message.chat.id, chart)
+        except Exception:
+            pass
         try:
             bot.send_message(message.chat.id, report, parse_mode="Markdown", reply_markup=markup)
         except Exception:
@@ -2189,8 +2210,11 @@ def handle_main(message):
         try:
             bot.send_photo(message.chat.id, chart, caption=report, parse_mode="Markdown", reply_markup=markup)
         except Exception:
-            chart.seek(0)
-            bot.send_photo(message.chat.id, chart)
+            try:
+                chart.seek(0)
+                bot.send_photo(message.chat.id, chart)
+            except Exception:
+                pass
             bot.send_message(message.chat.id, report, reply_markup=markup)
 
 if __name__ == "__main__":

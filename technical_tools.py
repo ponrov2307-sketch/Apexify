@@ -247,14 +247,22 @@ def build_multitimeframe_trade_context(symbol):
 
 def calculate_technical_indicators(symbol, generate_chart=True):
     import time
-    
+
     for attempt in range(2):
         try:
             clean_symbol = _normalize_market_symbol(symbol)
-            
+
             # 2. ดึงข้อมูลจริง 1 ปี
             ticker = yf.Ticker(clean_symbol)
             data = ticker.history(period="1y")
+
+            # 🌟 Auto-fallback: ถ้าไม่มี suffix และหา US ไม่เจอ → ลอง .BK (หุ้นไทย)
+            if data.empty and "." not in clean_symbol and "-" not in clean_symbol:
+                fallback_symbol = f"{clean_symbol}.BK"
+                fallback_data = yf.Ticker(fallback_symbol).history(period="1y")
+                if not fallback_data.empty:
+                    clean_symbol = fallback_symbol
+                    data = fallback_data
 
             if data.empty:
                 return None, None, (
@@ -269,7 +277,10 @@ def calculate_technical_indicators(symbol, generate_chart=True):
                     f"ลองตรวจสอบตัวสะกดแล้วพิมพ์ส่งมาใหม่อีกครั้งนะครับ!"
                 )
             if len(data) < 20:
-                return None, None, f"❌ ข้อมูลหุ้น '{clean_symbol}' มีน้อยเกินไป ระบบไม่สามารถคำนวณกราฟได้"
+                return None, None, (
+                    f"⏳ หุ้น '{clean_symbol}' เพิ่ง IPO หรือมีข้อมูลย้อนหลังไม่พอ "
+                    f"ระบบต้องใช้ราคาอย่างน้อย 20 วัน ลองหุ้นตัวอื่นดูนะครับ"
+                )
 
             # --- เริ่มคำนวณอินดิเคเตอร์ ---
             data = calculate_indicators(data)
@@ -352,4 +363,8 @@ def calculate_technical_indicators(symbol, generate_chart=True):
             if attempt == 0:
                 time.sleep(1)
                 continue
-            return None, None, f"❌ เกิดข้อผิดพลาดในการคำนวณกราฟ: {str(e)}"
+            print(f"[TechIndicators] {symbol} failed: {e}", flush=True)
+            return None, None, (
+                f"⚠️ ดึงข้อมูลหุ้น '{symbol}' ไม่สำเร็จ — เซิร์ฟเวอร์ตลาดอาจจะหนาแน่นชั่วคราว "
+                f"ลองส่งใหม่อีกครั้งใน 30 วินาทีนะครับ 🙏"
+            )
