@@ -331,9 +331,9 @@ def calculate_technical_indicators(symbol, generate_chart=True):
                     mpf.make_addplot(data['EMA200'].tail(60), color='#d500f9', width=1.5),
                 ]
 
-                # 🌟 อัปเดตหัวกราฟให้บอกสีเส้นใหม่
+                # 🌟 ใช้ \n จริง ไม่ใช่ \\n (literal backslash-n)
                 chart_title = (
-                    f"\\nApexify Pro Chart: {clean_symbol}\\n"
+                    f"\nApexify Pro Chart: {clean_symbol}\n"
                     f"EMA: 20(Blue) 50(Orange) 200(Purple) | Res(Red) Sup(Green) | POC(Yellow)"
                 )
 

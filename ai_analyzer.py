@@ -10,11 +10,7 @@ from technical_tools import build_multitimeframe_trade_context
 
 client = gemini_client
 
-DISCLAIMER_TEXT = (
-    "⚠️ *คำเตือน: รายงานนี้เป็นการวิเคราะห์อัตโนมัติเพื่อประกอบการตัดสินใจเท่านั้น "
-    "ไม่ใช่คำแนะนำการลงทุน ผู้ใช้งานควรตรวจสอบข้อมูลเพิ่มเติมและประเมินความเสี่ยง"
-    "ด้วยตนเองก่อนตัดสินใจทุกครั้ง*"
-)
+DISCLAIMER_TEXT = "_⚠️ ไม่ใช่คำแนะนำการลงทุน — ตรวจสอบและประเมินความเสี่ยงด้วยตนเองทุกครั้ง_"
 
 UNSAFE_MARKDOWN_CHARS = r"[_`~>#\\+\\=\\|\\{\\}\\!\\*]"
 ABSOLUTE_LANGUAGE_PATTERNS = (
@@ -131,6 +127,35 @@ def _format_range(low, high):
         return "N/A"
     ordered = sorted((low_value, high_value))
     return f"{ordered[0]:,.2f} - {ordered[1]:,.2f}"
+
+
+def _format_price_with_pct(value, reference_price):
+    """แสดงราคาพร้อม % ห่างจากราคาปัจจุบัน เช่น '340.00 (-11.0%)'"""
+    number = _safe_optional_float(value)
+    ref = _safe_optional_float(reference_price)
+    if number is None:
+        return "N/A"
+    if ref is None or ref == 0:
+        return f"{number:,.2f}"
+    pct = (number - ref) / ref * 100
+    sign = "+" if pct >= 0 else ""
+    return f"{number:,.2f} ({sign}{pct:.1f}%)"
+
+
+def _format_range_with_pct(low, high, reference_price):
+    low_value = _safe_optional_float(low)
+    high_value = _safe_optional_float(high)
+    ref = _safe_optional_float(reference_price)
+    if low_value is None or high_value is None:
+        return "N/A"
+    ordered = sorted((low_value, high_value))
+    base = f"{ordered[0]:,.2f} - {ordered[1]:,.2f}"
+    if ref is None or ref == 0:
+        return base
+    mid = (ordered[0] + ordered[1]) / 2
+    pct = (mid - ref) / ref * 100
+    sign = "+" if pct >= 0 else ""
+    return f"{base} ({sign}{pct:.1f}%)"
 
 
 def _first_valid(*values):
@@ -282,11 +307,13 @@ def _build_rr_note(rr_ratio):
     ratio = _safe_optional_float(rr_ratio)
     if ratio is None:
         return "ข้อมูลไม่เพียงพอ"
-    if ratio > 2:
-        return f"หน้าเทรดนี้ได้เปรียบค่อนข้างดี เสี่ยง 1 ส่วน แลกโอกาสผลตอบแทนราว {ratio:.2f} ส่วน แต่ยังควรคุมขนาดไม้ให้เหมาะ"
+    if ratio < 1.0:
+        return f"⚠️ {ratio:.2f} — ผลตอบแทนน้อยกว่าความเสี่ยง ควรรอจังหวะที่ดีกว่านี้"
     if ratio < 1.5:
-        return f"อัตราผลตอบแทนต่อความเสี่ยงราว {ratio:.2f} ส่วน ยังไม่เด่นมาก จึงควรรอ price action ช่วยยืนยันเพิ่ม"
-    return f"อัตราผลตอบแทนต่อความเสี่ยงราว {ratio:.2f} ส่วน ถือว่าใช้งานได้หากโครงสร้างราคาไม่เสีย"
+        return f"{ratio:.2f} — พอใช้ได้ แต่ควรรอ price action ยืนยันก่อนเข้า"
+    if ratio < 2.0:
+        return f"{ratio:.2f} — อยู่ในเกณฑ์ดี เหมาะเข้าเทรดได้"
+    return f"✅ {ratio:.2f} — ดีเยี่ยม เสี่ยง 1 ส่วน แลกผลตอบแทน {ratio:.1f} ส่วน"
 
 
 def _build_deterministic_plan(context, dominant_bias):
@@ -306,8 +333,13 @@ def _build_deterministic_plan(context, dominant_bias):
 
     if bias == "bullish":
         entry_anchor = _median([day.get("support"), day.get("poc"), day.get("ema20"), week.get("poc"), current_price]) or current_price
-        entry_low = min(entry_anchor * 0.995, current_price)
-        entry_high = max(entry_anchor * 1.005, current_price)
+        # 🌟 Entry range: anchor ± 1% — ไม่ stretch ไปถึงราคาปัจจุบัน (กันช่วงกว้างเกิน)
+        entry_low = entry_anchor * 0.99
+        entry_high = entry_anchor * 1.01
+        # ถ้า anchor สูงกว่าราคาปัจจุบัน (anchor = ราคาปัจจุบัน) ให้ลด entry ลงเล็กน้อย (รอย่อ)
+        if entry_low > current_price:
+            entry_low = current_price * 0.985
+            entry_high = current_price * 0.995
         entry_mid = (entry_low + entry_high) / 2
         sl_base = _first_valid(day.get("support"), week.get("support"), day.get("ema50"), entry_low * 0.97)
         sl = min(sl_base * 0.985, entry_mid * 0.985)
@@ -319,8 +351,10 @@ def _build_deterministic_plan(context, dominant_bias):
         if tp1 <= entry_mid:
             tp1 = entry_mid + risk * 1.2
         tp2 = _first_valid(week.get("resistance"), month.get("poc"), month.get("resistance"), tp1 + risk * 1.2)
-        if tp2 <= tp1:
-            tp2 = tp1 + max(risk, entry_mid * 0.03)
+        # 🌟 บังคับ TP2 ต้องห่างจาก TP1 อย่างน้อย 3% ของ entry (กัน TP1≈TP2)
+        min_tp_gap = entry_mid * 0.03
+        if tp2 <= tp1 + min_tp_gap:
+            tp2 = tp1 + max(risk * 1.2, min_tp_gap)
 
         rr_ratio = (tp2 - entry_mid) / max(entry_mid - sl, 0.01)
         add_anchor = _median([week.get("support"), day.get("support"), month.get("poc"), entry_mid]) or entry_mid
@@ -348,8 +382,10 @@ def _build_deterministic_plan(context, dominant_bias):
         if tp1 <= entry_mid:
             tp1 = entry_mid + risk * 1.2
         tp2 = _first_valid(day.get("resistance"), week.get("poc"), week.get("resistance"), tp1 + risk * 1.0)
-        if tp2 <= tp1:
-            tp2 = tp1 + max(risk, entry_mid * 0.03)
+        # 🌟 บังคับ TP2 ห่างจาก TP1 อย่างน้อย 3%
+        min_tp_gap = entry_mid * 0.03
+        if tp2 <= tp1 + min_tp_gap:
+            tp2 = tp1 + max(risk * 1.2, min_tp_gap)
 
         rr_ratio = (tp2 - entry_mid) / max(entry_mid - sl, 0.01)
         add_anchor = _median([week.get("support"), month.get("support"), entry_mid]) or entry_mid
@@ -427,6 +463,22 @@ def _default_ai_insight(context, dominant_bias):
 
 def _build_member_defaults(context, trends, deterministic_plan):
     strategy_defaults = _default_strategy_payload(deterministic_plan)
+    bias = _choose_dominant_bias(trends)
+    day = context.get("day", {})
+    support = _format_price(day.get("support"))
+    resistance = _format_price(day.get("resistance"))
+    if bias == "bearish":
+        watch_next_default = f"ราคาเด้งกลับมาทดสอบ {resistance} — ถ้าผ่านไม่ได้ มีสิทธิย่อต่อ"
+        confirmation_default = f"ราคายืนเหนือ {resistance} 2-3 วัน + Vol เพิ่ม"
+        invalidation_default = f"หลุด {support} พร้อม Vol สูง = แนวโน้มขาลงยังไม่จบ"
+    elif bias == "bullish":
+        watch_next_default = f"จับตาแนวต้าน {resistance} — ผ่านได้จะเปิด upside ใหม่"
+        confirmation_default = f"ปิดเหนือ {resistance} + RSI ไม่หลุด 50"
+        invalidation_default = f"หลุดแนวรับ {support} พร้อม Vol สูง = ยกเลิกแผน"
+    else:
+        watch_next_default = f"รอราคาเลือกทาง — ผ่าน {resistance} หรือหลุด {support}"
+        confirmation_default = "รอ price action ยืนยันทิศทางใน 2-3 วัน"
+        invalidation_default = "ภาพรวมยังไม่ชัด ยังไม่ควรรีบเข้า"
     return {
         "trend_radar": {
             "day": {"reason": trends["day"]["fallback_reason"]},
@@ -435,7 +487,10 @@ def _build_member_defaults(context, trends, deterministic_plan):
         },
         "day_plan": strategy_defaults["day_plan"],
         "position_plan": strategy_defaults["position_plan"],
-        "ai_insight": _default_ai_insight(context, _choose_dominant_bias(trends)),
+        "watch_next": watch_next_default,
+        "confirmation_signal": confirmation_default,
+        "invalidation": invalidation_default,
+        "ai_insight": _default_ai_insight(context, bias),
     }
 
 
@@ -462,24 +517,33 @@ def _build_member_prompt(context, trends, defaults, tier):
 {trend_snapshot('W', context.get('week', {}))}
 {trend_snapshot('M', context.get('month', {}))}
 
-กฎ: ภาษาไทย, โทนเป็นกลาง-ระวัง, bearish→แนะรอจังหวะซื้อที่แนวรับลึก/ยังไม่ควรรีบเข้า, extreme vol→เตือนใน ai_insight, ข้อมูลไม่พอ→"ข้อมูลไม่เพียงพอ", tier={tier_label}
+กฎภาษาไทย:
+- ใช้ภาษาไทยถูกต้อง สะกดถูก ห้ามใช้คำแปลก เช่น "เกรงทึ่ง" "ทดฐาน" "แนวราคา" → ใช้ "แข็งแกร่ง" "ทดสอบฐาน" "แนวโน้มราคา"
+- โทนเป็นกลาง-ระวัง bearish→แนะรอซื้อที่แนวรับลึก ห้ามรีบเข้า
+- extreme vol→เตือนใน ai_insight
+- ข้อมูลไม่พอ→"ข้อมูลไม่เพียงพอ"
+- tier={tier_label}
+- ทุกฟิลด์ที่ขอ "1 ประโยคสั้น" = ห้ามเกิน 80 ตัวอักษร และต้องเป็น actionable ไม่ใช่ขยายความซ้ำ
 
 {{
   "trend_radar": {{
-    "day": {{"reason": "1 ประโยค"}},
-    "week": {{"reason": "1 ประโยค"}},
-    "month": {{"reason": "1 ประโยค"}}
+    "day": {{"reason": "≤80 ตัวอักษร"}},
+    "week": {{"reason": "≤80 ตัวอักษร"}},
+    "month": {{"reason": "≤80 ตัวอักษร"}}
   }},
   "day_plan": {{
     "strategy_name": "ชื่อสั้น",
-    "strategy_line": "1 ประโยค"
+    "strategy_line": "≤80 ตัวอักษร"
   }},
   "position_plan": {{
     "strategy_name": "ชื่อสั้น",
-    "strategy_line": "1 ประโยค",
-    "advice": "1 ประโยค"
+    "strategy_line": "≤80 ตัวอักษร",
+    "advice": "≤80 ตัวอักษร"
   }},
-  "ai_insight": "1-2 ประโยค"
+  "watch_next": "จุด/เงื่อนไขที่ต้องเฝ้าจริงๆ ในไม่กี่วันข้างหน้า เช่น 'ราคาผ่าน 388 พร้อม Vol เพิ่ม' ≤120 ตัวอักษร",
+  "confirmation_signal": "เงื่อนไขที่ทำให้ Plan นี้ใช้ได้จริง เช่น 'ปิดเหนือ EMA20 + RSI ลงต่ำกว่า 70' ≤120 ตัวอักษร",
+  "invalidation": "เงื่อนไขที่ทำให้ Plan ใช้ไม่ได้และต้องยกเลิก เช่น 'หลุด 313 พร้อม Vol สูง' ≤120 ตัวอักษร",
+  "ai_insight": "สรุปแบบ actionable 1-2 ประโยค ห้ามซ้ำกับ trend_radar"
 }}
 """.strip()
 
@@ -529,6 +593,9 @@ def _merge_member_payload(defaults, payload, context):
     merged["position_plan"]["strategy_name"] = _clean_ai_text(position_payload.get("strategy_name"), merged["position_plan"]["strategy_name"])
     merged["position_plan"]["strategy_line"] = _clean_ai_text(position_payload.get("strategy_line"), merged["position_plan"]["strategy_line"])
     merged["position_plan"]["advice"] = _clean_ai_text(position_payload.get("advice"), merged["position_plan"]["advice"])
+    merged["watch_next"] = _clean_ai_text(payload.get("watch_next"), merged["watch_next"])
+    merged["confirmation_signal"] = _clean_ai_text(payload.get("confirmation_signal"), merged["confirmation_signal"])
+    merged["invalidation"] = _clean_ai_text(payload.get("invalidation"), merged["invalidation"])
     merged["ai_insight"] = _clean_ai_text(payload.get("ai_insight"), merged["ai_insight"])
 
     if context.get("is_extreme_volatility") and "indicator อาจเชื่อถือได้น้อยลง" not in merged["ai_insight"]:
@@ -772,6 +839,7 @@ def _fallback_context_from_tech_data(tech_data):
 
 
 def _render_vip_report(context, trends, analysis):
+    """VIP: ภาพรวม + Trend Radar + Watch Next + Insight (ไม่มี entry/TP/SL ตัวเลข — นั่นคือ PRO)"""
     return "\n".join(
         [
             _build_member_snapshot(context, trends, "vip"),
@@ -781,7 +849,11 @@ def _render_vip_report(context, trends, analysis):
             f"• 📅 *สัปดาห์:* {trends['week']['status_emoji']} {trends['week']['status_text']} — {analysis['trend_radar']['week']['reason']}",
             f"• 🔭 *เดือน:* {trends['month']['status_emoji']} {trends['month']['status_text']} — {analysis['trend_radar']['month']['reason']}",
             "",
+            f"*👀 Watch Next:* {analysis['watch_next']}",
+            "",
             f"*🧠 AI Insight:* {analysis['ai_insight']}",
+            "",
+            "_💎 อัปเกรดเป็น PRO เพื่อดู Entry/TP/SL ตัวเลข + R:R + Smart Alerts_",
             "",
             DISCLAIMER_TEXT,
         ]
@@ -793,6 +865,10 @@ def _render_pro_report(context, trends, deterministic_plan, analysis):
     day_plan = deterministic_plan["day_plan"]
     position_plan = deterministic_plan["position_plan"]
     bias_label = "⚠️ ขาลง — รอจังหวะ" if plan_bias == "bearish" else "✅ ขาขึ้น — เปิดรับความเสี่ยง"
+    current_price = _first_valid(
+        context.get("price"),
+        context.get("day", {}).get("price"),
+    )
 
     return "\n".join(
         [
@@ -805,24 +881,28 @@ def _render_pro_report(context, trends, deterministic_plan, analysis):
             "",
             f"*🎯 Actionable Plan — {bias_label}*",
             "",
-            f"*🏃 สายสั้น {'(รอจังหวะ)' if plan_bias == 'bearish' else '(Swing)'}*",
+            f"*🏃 สายสั้น {'(รอจังหวะ)' if plan_bias == 'bearish' else '(Swing)'} — กรอบ 1-4 สัปดาห์*",
             f"  💡 {analysis['day_plan']['strategy_name']} — {analysis['day_plan']['strategy_line']}",
-            f"  📍 *เข้าซื้อ:* {_format_range(day_plan['entry_low'], day_plan['entry_high'])}",
-            f"      ↳ {_entry_note_from_bias(plan_bias, context)}",
-            f"  🎯 *TP1:* {_format_price(day_plan['tp1'])}  _{_tp1_note_from_bias(plan_bias)}_",
-            f"  🎯 *TP2:* {_format_price(day_plan['tp2'])}  _{_tp2_note_from_bias(plan_bias)}_",
-            f"  🛑 *SL:* {_format_price(day_plan['sl'])}  _{_stop_note_from_bias(plan_bias)}_",
-            f"  ⚖️ *R:R* = 1 : {day_plan['rr_ratio']}  _{day_plan['rr_note']}_",
+            f"  📍 *เข้าซื้อ:* {_format_range_with_pct(day_plan['entry_low'], day_plan['entry_high'], current_price)}",
+            f"  🎯 *TP1:* {_format_price_with_pct(day_plan['tp1'], current_price)}",
+            f"  🎯 *TP2:* {_format_price_with_pct(day_plan['tp2'], current_price)}",
+            f"  🛑 *SL:* {_format_price_with_pct(day_plan['sl'], current_price)}",
+            f"  ⚖️ *R:R:* {day_plan['rr_note']}",
             "",
-            "*🧘 สายยาว (Position)*",
+            "*🧘 สายยาว (Position) — กรอบ 3-12 เดือน*",
             f"  💡 {analysis['position_plan']['strategy_name']} — {analysis['position_plan']['strategy_line']}",
-            f"  📍 *สะสมเพิ่ม:* {_format_range(position_plan['add_low'], position_plan['add_high'])}",
-            f"      ↳ {_position_add_note_from_bias(plan_bias)}",
-            f"  🎯 *เป้าระยะยาว:* {_format_price(position_plan['tp_long'])}",
-            f"  🛑 *Trailing Stop:* {_format_price(position_plan['trailing_stop'])}  _{_position_trailing_note_from_bias(plan_bias)}_",
-            f"  💬 {analysis['position_plan']['advice']}",
+            f"  📍 *สะสมเพิ่ม:* {_format_range_with_pct(position_plan['add_low'], position_plan['add_high'], current_price)}",
+            f"  🎯 *เป้าระยะยาว:* {_format_price_with_pct(position_plan['tp_long'], current_price)}",
+            f"  🛡 *Trailing Stop:* {_format_price_with_pct(position_plan['trailing_stop'], current_price)}",
+            "",
+            "*🧭 เงื่อนไข Plan*",
+            f"  ✅ *ยืนยันเข้า:* {analysis['confirmation_signal']}",
+            f"  ❌ *ยกเลิก Plan:* {analysis['invalidation']}",
+            f"  👀 *Watch Next:* {analysis['watch_next']}",
             "",
             f"*🧠 AI Insight:* {analysis['ai_insight']}",
+            "",
+            "_💡 Position Sizing: เสี่ยงไม่เกิน 1-2% ของพอร์ตต่อไม้ — คำนวณจาก SL ด้านบน_",
             "",
             DISCLAIMER_TEXT,
         ]
