@@ -148,6 +148,12 @@ def _compact_news_text(text, max_chars=180, max_lines=2):
     compact = "\n".join(cleaned_lines[:max_lines]).strip()
     if not compact:
         return ""
+    # 🌟 ยิง Thai quality guard ก่อน trim (กัน AI พิมพ์แปลก)
+    try:
+        from ai_analyzer import _fix_thai_typos
+        compact = _fix_thai_typos(compact)
+    except Exception:
+        pass
     if len(compact) <= max_chars:
         return compact
 

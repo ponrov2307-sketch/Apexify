@@ -84,6 +84,40 @@ def _polish_ai_playbook(text):
     return "\n".join(cleaned_lines)
 
 
+# 🌟 Thai Language Quality Guard — AI มักสร้างคำแปลกๆ แก้ก่อนส่ง user
+THAI_TYPO_FIXES = {
+    # คำผิดที่ AI ชอบใช้ (พบจริงใน production)
+    "เกรงทึ่ง": "แข็งแกร่ง",
+    "เกรงทึง": "แข็งแกร่ง",
+    "ทดฐาน": "ทดสอบฐาน",
+    "ทดฐานใหญ่": "ทดสอบฐานใหญ่",
+    "แนวราคา": "แนวโน้มราคา",
+    "พักฐาน": "ปรับฐาน",
+    "พัคฐาน": "ปรับฐาน",
+    "โมเมนตั้ม": "โมเมนตัม",  # บางครั้งใช้ไม้โท
+    "เข็งแกร่ง": "แข็งแกร่ง",
+    "อย่างมีนัยยะสำคัญ": "อย่างมีนัยสำคัญ",
+    "นัยยะ": "นัย",
+    "การการ": "การ",  # ซ้ำซ้อน
+    "ที่ที่": "ที่",
+    "และและ": "และ",
+}
+
+
+def _fix_thai_typos(text):
+    """แก้คำผิดที่ AI ชอบพิมพ์ให้ถูก + ลบช่องว่างซ้ำ"""
+    if not text:
+        return text
+    fixed = str(text)
+    for bad, good in THAI_TYPO_FIXES.items():
+        fixed = fixed.replace(bad, good)
+    # ลบช่องว่างระหว่างตัวเลขและ % เช่น "5 %" → "5%"
+    fixed = re.sub(r"(\d)\s+%", r"\1%", fixed)
+    # ลบซ้ำจุดจุด "..." > 3 จุด
+    fixed = re.sub(r"\.{4,}", "...", fixed)
+    return fixed
+
+
 def _clean_ai_text(text, fallback="ข้อมูลไม่เพียงพอ"):
     cleaned = str(text or "").replace("\r\n", " ").replace("\n", " ").strip()
     cleaned = re.sub(UNSAFE_MARKDOWN_CHARS, "", cleaned)
@@ -95,7 +129,8 @@ def _clean_ai_text(text, fallback="ข้อมูลไม่เพียงพ
     lowered = cleaned.lower()
     if any(token in lowered for token in ABSOLUTE_LANGUAGE_PATTERNS):
         return fallback
-    return cleaned
+    # 🌟 แก้คำผิดภาษาไทยก่อน return
+    return _fix_thai_typos(cleaned)
 
 
 def _extract_json_block(text):
@@ -494,7 +529,39 @@ def _build_member_defaults(context, trends, deterministic_plan):
     }
 
 
+# 🌟 System Instruction — static content ที่ใช้ซ้ำทุกคำขอ
+# Gemini 2.5 จะ cache ส่วนนี้อัตโนมัติ (implicit caching) → ลดค่า API + เร็วขึ้น
+_MEMBER_SYSTEM_INSTRUCTION = """
+คุณคือนักวิเคราะห์เทคนิคหุ้นของ Apexify — ตอบเป็น JSON object เท่านั้น ห้ามมี markdown หรือข้อความใดนอก JSON
+
+กฎเหล็ก:
+- ห้ามชี้นำซื้อขายเด็ดขาด (ห้ามใช้คำ: "ซื้อเลย" "ขายเลย" "การันตี" "รับประกัน" "100%")
+- ภาษาไทยสะกดถูกต้อง ห้ามใช้คำแปลก เช่น "เกรงทึ่ง"(→แข็งแกร่ง) "ทดฐาน"(→ทดสอบฐาน) "แนวราคา"(→แนวโน้มราคา) "โมเมนตั้ม"(→โมเมนตัม)
+- โทนเป็นกลาง-ระวัง: bearish→แนะรอซื้อที่แนวรับลึก ห้ามรีบเข้า
+- extreme volatility→เตือนใน ai_insight เสมอ
+- ข้อมูลไม่พอ→ใช้คำว่า "ข้อมูลไม่เพียงพอ"
+- ทุกฟิลด์ "สั้น" = ห้ามเกิน 80 ตัวอักษร และต้อง actionable ไม่ใช่ขยายความซ้ำ
+- ฟิลด์ watch_next/confirmation_signal/invalidation = ห้ามเกิน 120 ตัวอักษร
+
+Output schema (ตอบเฉพาะ JSON object ตามนี้):
+{
+  "trend_radar": {
+    "day": {"reason": "..."},
+    "week": {"reason": "..."},
+    "month": {"reason": "..."}
+  },
+  "day_plan": {"strategy_name": "...", "strategy_line": "..."},
+  "position_plan": {"strategy_name": "...", "strategy_line": "...", "advice": "..."},
+  "watch_next": "จุด/เงื่อนไขที่ต้องเฝ้าในไม่กี่วันข้างหน้า",
+  "confirmation_signal": "เงื่อนไขที่ทำให้ Plan ใช้ได้จริง",
+  "invalidation": "เงื่อนไขที่ทำให้ Plan ใช้ไม่ได้ ต้องยกเลิก",
+  "ai_insight": "สรุป actionable 1-2 ประโยค ห้ามซ้ำ trend_radar"
+}
+""".strip()
+
+
 def _build_member_prompt(context, trends, defaults, tier):
+    """Dynamic content per-symbol — prepend to contents (system_instruction มี rules แล้ว)"""
     def trend_snapshot(label, snapshot):
         if not snapshot.get("available"):
             return f"{label}: N/A"
@@ -509,55 +576,38 @@ def _build_member_prompt(context, trends, defaults, tier):
 
     tier_label = "VIP" if tier == "vip" else "PRO"
     return f"""
-นักวิเคราะห์เทคนิคของ Apexify — ตอบเป็น JSON เท่านั้น ห้ามมี markdown/คำนอก JSON ห้ามชี้นำซื้อขายเด็ดขาด
-
-{context.get('symbol')} @ {_format_price(context.get('price'))} | bias: D={trends['day']['bias']} W={trends['week']['bias']} M={trends['month']['bias']} | extreme_vol={str(bool(context.get('is_extreme_volatility'))).lower()}
+tier={tier_label} | {context.get('symbol')} @ {_format_price(context.get('price'))} | bias: D={trends['day']['bias']} W={trends['week']['bias']} M={trends['month']['bias']} | extreme_vol={str(bool(context.get('is_extreme_volatility'))).lower()}
 
 {trend_snapshot('D', context.get('day', {}))}
 {trend_snapshot('W', context.get('week', {}))}
 {trend_snapshot('M', context.get('month', {}))}
-
-กฎภาษาไทย:
-- ใช้ภาษาไทยถูกต้อง สะกดถูก ห้ามใช้คำแปลก เช่น "เกรงทึ่ง" "ทดฐาน" "แนวราคา" → ใช้ "แข็งแกร่ง" "ทดสอบฐาน" "แนวโน้มราคา"
-- โทนเป็นกลาง-ระวัง bearish→แนะรอซื้อที่แนวรับลึก ห้ามรีบเข้า
-- extreme vol→เตือนใน ai_insight
-- ข้อมูลไม่พอ→"ข้อมูลไม่เพียงพอ"
-- tier={tier_label}
-- ทุกฟิลด์ที่ขอ "1 ประโยคสั้น" = ห้ามเกิน 80 ตัวอักษร และต้องเป็น actionable ไม่ใช่ขยายความซ้ำ
-
-{{
-  "trend_radar": {{
-    "day": {{"reason": "≤80 ตัวอักษร"}},
-    "week": {{"reason": "≤80 ตัวอักษร"}},
-    "month": {{"reason": "≤80 ตัวอักษร"}}
-  }},
-  "day_plan": {{
-    "strategy_name": "ชื่อสั้น",
-    "strategy_line": "≤80 ตัวอักษร"
-  }},
-  "position_plan": {{
-    "strategy_name": "ชื่อสั้น",
-    "strategy_line": "≤80 ตัวอักษร",
-    "advice": "≤80 ตัวอักษร"
-  }},
-  "watch_next": "จุด/เงื่อนไขที่ต้องเฝ้าจริงๆ ในไม่กี่วันข้างหน้า เช่น 'ราคาผ่าน 388 พร้อม Vol เพิ่ม' ≤120 ตัวอักษร",
-  "confirmation_signal": "เงื่อนไขที่ทำให้ Plan นี้ใช้ได้จริง เช่น 'ปิดเหนือ EMA20 + RSI ลงต่ำกว่า 70' ≤120 ตัวอักษร",
-  "invalidation": "เงื่อนไขที่ทำให้ Plan ใช้ไม่ได้และต้องยกเลิก เช่น 'หลุด 313 พร้อม Vol สูง' ≤120 ตัวอักษร",
-  "ai_insight": "สรุปแบบ actionable 1-2 ประโยค ห้ามซ้ำกับ trend_radar"
-}}
 """.strip()
 
 
 def _request_member_payload(prompt, defaults):
+    """เรียก Gemini พร้อม system_instruction (implicit caching) + fallback"""
     fallback = json.loads(json.dumps(defaults, ensure_ascii=False))
+    try:
+        from google.genai import types as genai_types
+        config = genai_types.GenerateContentConfig(
+            system_instruction=_MEMBER_SYSTEM_INSTRUCTION,
+            temperature=0.3,
+            response_mime_type="application/json",
+        )
+    except ImportError:
+        config = None
+
     prompts = [
         prompt,
-        f"{prompt}\n\nย้ำอีกครั้ง: ตอบเฉพาะ JSON object ที่ parse ได้ทันที ห้ามมีข้อความอื่นนอก JSON",
+        f"{prompt}\n\nย้ำ: ตอบเฉพาะ JSON object ที่ parse ได้ทันที ห้ามมีข้อความอื่น",
     ]
 
     for candidate_prompt in prompts:
         try:
-            response = client.models.generate_content(model="gemini-2.5-flash", contents=candidate_prompt)
+            kwargs = {"model": "gemini-2.5-flash", "contents": candidate_prompt}
+            if config is not None:
+                kwargs["config"] = config
+            response = client.models.generate_content(**kwargs)
             raw_text = getattr(response, "text", "") or ""
             payload_block = _extract_json_block(raw_text)
             if not payload_block:
