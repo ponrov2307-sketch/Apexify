@@ -415,6 +415,108 @@ def handle_settings(message):
     send_settings_panel(message.chat.id, user_id=user_id)
 
 
+# 🌟 เก็บ symbol ล่าสุดที่ user วิเคราะห์ (สำหรับ /ask context)
+_user_last_symbol = {}  # {user_id: symbol}
+
+
+@bot.message_handler(commands=['ask'])
+def handle_ask(message):
+    """PRO: ถาม AI เป็นคำถามเฉพาะ (context-aware ถ้าวิเคราะห์หุ้นล่าสุด)
+    Examples: /ask ทำไม RSI สูง, /ask หุ้นไหนน่าสนตอนนี้
+    """
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    role = check_subscription(user_id)
+    if role != 'pro' and user_id != ADMIN_ID:
+        bot.reply_to(message,
+            "🔒 **AI Q&A — ฟีเจอร์ PRO เท่านั้น**\n\n"
+            "ถาม AI คำถามการลงทุน/หุ้น ได้ตลอด 24 ชม.\n\n"
+            "👑 อัปเกรดเป็น PRO เพื่อใช้ฟีเจอร์นี้",
+            parse_mode="Markdown")
+        return
+
+    # ดึงคำถาม
+    args = message.text.split(' ', 1)
+    if len(args) < 2 or not args[1].strip():
+        example_symbol = _user_last_symbol.get(user_id, "AAPL")
+        bot.reply_to(message,
+            "💬 **AI Q&A — วิธีใช้**\n\n"
+            "พิมพ์: `/ask <คำถาม>`\n\n"
+            "*ตัวอย่าง:*\n"
+            f"• `/ask ทำไม RSI {example_symbol} สูง?`\n"
+            "• `/ask อธิบาย MACD ให้หน่อย`\n"
+            "• `/ask หุ้นเทคโนโลยีกับ financial ตอนนี้อันไหนน่าสน?`\n"
+            "• `/ask ควรใช้ SL กี่ % ดี`\n\n"
+            "_ถามได้ทั้งคำถามทั่วไป + คำถามเกี่ยวกับหุ้นที่วิเคราะห์ล่าสุด_",
+            parse_mode="Markdown")
+        return
+
+    question = args[1].strip()[:500]  # cap 500 chars
+    load_msg = bot.reply_to(message, "🤔 AI กำลังคิด...")
+
+    try:
+        # 🌟 ถ้ามี symbol ล่าสุด → ใส่ context ให้ AI
+        last_symbol = _user_last_symbol.get(user_id)
+        context_section = ""
+        if last_symbol:
+            try:
+                tech_data, _, err = _get_cached_analysis(last_symbol, generate_chart=False)
+                if tech_data and not err:
+                    context_section = (
+                        f"\n[Context: user เพิ่งวิเคราะห์ {last_symbol} "
+                        f"ราคา ${tech_data.get('price', 0):.2f} "
+                        f"RSI={tech_data.get('rsi', 0):.1f} "
+                        f"MACD={tech_data.get('macd', 0):.2f}/{tech_data.get('macd_signal', 0):.2f} "
+                        f"S={tech_data.get('support', 0):.2f} R={tech_data.get('resistance', 0):.2f}]\n"
+                    )
+            except Exception:
+                pass
+
+        from ai_analyzer import client as ai_client
+        prompt = f"""
+คุณคือ Apexify AI Analyst — ตอบคำถามนักลงทุนภาษาไทย
+
+กฎ:
+- ตอบกระชับ 3-5 บรรทัด ห้ามยาวเกิน 400 ตัวอักษร
+- actionable สำหรับคนไทย — มีตัวอย่าง/ตัวเลขถ้าเป็นไปได้
+- ไม่ชี้นำซื้อขาย (ห้ามใช้ "ซื้อเลย" "ขายเลย" "การันตี")
+- ถ้าถามเกี่ยวกับหุ้นเฉพาะ ใช้ context ที่ให้
+- ถ้าไม่มีข้อมูลพอ บอกตรงๆ ห้ามมั่ว
+{context_section}
+คำถาม: {question}
+
+ตอบ:
+""".strip()
+
+        response = ai_client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        answer = response.text.strip()[:800]
+
+        # Thai quality guard
+        try:
+            from ai_analyzer import _fix_thai_typos
+            answer = _fix_thai_typos(answer)
+        except Exception:
+            pass
+
+        reply = (
+            f"💬 **Q:** _{question[:150]}_\n\n"
+            f"🤖 **A:** {answer}\n\n"
+            f"_⚠️ ไม่ใช่คำแนะนำการลงทุน — ประเมินความเสี่ยงเองครับ_"
+        )
+        bot.edit_message_text(reply, message.chat.id, load_msg.message_id, parse_mode="Markdown")
+    except Exception as e:
+        print(f"[/ask] error: {e}", flush=True)
+        err_str = str(e).lower()
+        if '503' in err_str or 'unavailable' in err_str:
+            friendly = "⚠️ AI กำลังโหลดหนัก ลองใหม่สักครู่นะครับ"
+        elif 'safety' in err_str:
+            friendly = "⚠️ AI ปฏิเสธตอบคำถามนี้ (ติด safety filter) ลองเปลี่ยนคำถามดูครับ"
+        else:
+            friendly = "⚠️ ตอบไม่สำเร็จชั่วคราว ลองใหม่อีกครั้งครับ"
+        bot.edit_message_text(friendly, message.chat.id, load_msg.message_id)
+
+
 @bot.message_handler(commands=['demo', 'showcase', 'features'])
 def handle_demo(message):
     """แสดง overview ฟีเจอร์ทั้งหมด — ใช้ทั้งโชว์ user ใหม่ + sales pitch"""
@@ -1085,7 +1187,8 @@ def handle_manual(message):
         "`/ealert remove AAPL` — ยกเลิก\n"
         "`/earnings AAPL` — วิเคราะห์งบการเงิน AI _(VIP/PRO)_\n"
         "`/fund AAPL` — P/E, EPS, Dividend, Market Cap _(VIP/PRO)_\n"
-        "`/compare AAPL MSFT` — เปรียบเทียบ 2-3 หุ้น + AI verdict _(PRO)_\n\n"
+        "`/compare AAPL MSFT` — เปรียบเทียบ 2-3 หุ้น + AI verdict _(PRO)_\n"
+        "`/ask <คำถาม>` — ถาม AI อะไรก็ได้ _(PRO)_\n\n"
 
         "**📊 Track Record & Streak**\n"
         "`/track` — สถิติ AI Plans: hit rate TP1/TP2 ย้อนหลัง\n"
@@ -1455,6 +1558,20 @@ def quick_action_callbacks(call):
             f"⚖️ *เปรียบเทียบ {symbol} กับหุ้นอื่น*\n\n"
             f"พิมพ์คำสั่ง: `/compare {symbol} <หุ้น2>`\n"
             f"ตัวอย่าง: `/compare {symbol} MSFT` หรือ `/compare {symbol} NVDA AMD`",
+            parse_mode="Markdown")
+
+    elif action == 'ask':
+        if role != 'pro' and user_id != ADMIN_ID:
+            bot.send_message(user_id, "🔒 AI Q&A = ฟีเจอร์ PRO เท่านั้น")
+            return
+        bot.send_message(user_id,
+            f"💬 *ถาม AI เกี่ยวกับ {symbol}*\n\n"
+            f"พิมพ์คำสั่ง: `/ask <คำถาม>`\n"
+            f"ตัวอย่าง:\n"
+            f"• `/ask ทำไม RSI {symbol} สูง?`\n"
+            f"• `/ask {symbol} ควรซื้อตอนไหน`\n"
+            f"• `/ask อธิบาย MACD ของ {symbol}`\n\n"
+            f"_AI จะใช้ข้อมูลวิเคราะห์ล่าสุดของ {symbol} เป็น context ให้เลย_",
             parse_mode="Markdown")
 
 
@@ -1958,26 +2075,28 @@ def inline_callbacks(call):
 
     elif call.data == 'menu_manual':
         class FakeMsg:
-            def __init__(self, chat_id):
+            def __init__(self, chat_id, msg_id):
                 from types import SimpleNamespace
                 self.chat = SimpleNamespace(id=chat_id)
                 self.from_user = SimpleNamespace(id=chat_id)
                 self.text = '/manual'
+                self.message_id = msg_id
         try:
-            handle_manual(FakeMsg(int(user_id)))
+            handle_manual(FakeMsg(int(user_id), call.message.message_id))
         except Exception as e:
             bot.send_message(user_id, f"❌ Error: {e}")
 
     elif call.data == 'hub_track':
         # Reuse handler ของ /track
         class FakeMsg:
-            def __init__(self, chat_id):
+            def __init__(self, chat_id, msg_id):
                 from types import SimpleNamespace
                 self.chat = SimpleNamespace(id=chat_id)
                 self.from_user = SimpleNamespace(id=chat_id)
                 self.text = '/track'
+                self.message_id = msg_id
         try:
-            handle_track_record(FakeMsg(int(user_id)))
+            handle_track_record(FakeMsg(int(user_id), call.message.message_id))
         except Exception as e:
             bot.send_message(user_id, f"❌ Error: {e}")
 
@@ -2735,6 +2854,9 @@ def handle_main(message):
         print(f"[streak] error: {e}", flush=True)
 
     correct_symbol = tech_data['symbol']
+    # 🌟 เก็บ symbol ล่าสุดของ user เพื่อใช้ใน /ask context
+    _user_last_symbol[user_id] = correct_symbol
+
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(InlineKeyboardButton(f"⭐ Watchlist", callback_data=f"addwatch_{correct_symbol}"))
 
@@ -2747,6 +2869,9 @@ def handle_main(message):
     if role == 'pro':
         markup.add(
             InlineKeyboardButton(f"⚖️ เปรียบเทียบหุ้นอื่น", callback_data=f"quick_compare_{correct_symbol}"),
+            InlineKeyboardButton(f"💬 ถาม AI เพิ่ม", callback_data=f"quick_ask_{correct_symbol}"),
+        )
+        markup.add(
             InlineKeyboardButton(f"🔔 ตั้งเตือนราคา", callback_data="hub_price_alert"),
         )
 
@@ -2804,6 +2929,7 @@ if __name__ == "__main__":
             BotCommand("track", "สถิติ AI Plans — hit rate ย้อนหลัง"),
             BotCommand("fund", "ข้อมูลพื้นฐาน (P/E, EPS, Dividend) — VIP/PRO"),
             BotCommand("compare", "เปรียบเทียบ 2-3 หุ้น — PRO"),
+            BotCommand("ask", "ถาม AI คำถามการลงทุน — PRO"),
             BotCommand("earnings", "วิเคราะห์งบการเงินด้วย AI — VIP/PRO"),
             BotCommand("ealert", "แจ้งเตือนวัน Earnings — VIP/PRO"),
             BotCommand("setalert", "ตั้งเตือนราคา — PRO"),
