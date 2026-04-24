@@ -493,31 +493,39 @@ def generate_pro_annotated_chart(symbol, plan):
         fig, axes = mpf.plot(recent60, **plot_kwargs)
         ax = axes[0]  # main price panel
 
-        # 🌟 ใส่ label "TP1 +X%" บนเส้น
-        x_pos = len(recent60) - 0.5  # ขวาสุดของกราฟ
+        # 🌟 ใส่ label ภายในกราฟด้านซ้าย (กัน clip จาก bbox_inches='tight')
+        # ใช้ transform=ax.transAxes สำหรับ x (0-1 ratio) และ data coord สำหรับ y
+        import matplotlib.transforms as mtransforms
+        trans = mtransforms.blended_transform_factory(ax.transAxes, ax.transData)
+        x_label = 0.02  # ซ้ายสุดของ axes (2% จากซ้าย)
 
-        def add_label(price, text, color):
+        def add_label(price, text, color, fc='#000000cc'):
             if price is None:
                 return
             pct = (price - current_price) / current_price * 100
-            label = f' {text} {pct:+.1f}%'
-            ax.annotate(
-                label, xy=(x_pos, price), xytext=(5, 0), textcoords='offset points',
-                color=color, fontsize=9, fontweight='bold', va='center', ha='left',
-                bbox=dict(boxstyle='round,pad=0.2', fc='#000000aa', ec=color, lw=0.8),
+            label = f' {text} {pct:+.1f}% '
+            ax.text(
+                x_label, price, label,
+                transform=trans,
+                color=color, fontsize=11, fontweight='bold',
+                va='center', ha='left',
+                bbox=dict(boxstyle='round,pad=0.3', fc=fc, ec=color, lw=1.2),
+                zorder=10,
             )
 
-        add_label(tp2, 'TP2', '#00ffaa')
-        add_label(tp1, 'TP1', '#00ff00')
+        add_label(tp2, '🎯 TP2', '#00ffaa')
+        add_label(tp1, '🎯 TP1', '#00ff00')
         if entry_low is not None and entry_high is not None:
-            add_label((entry_low + entry_high) / 2, 'ENTRY', '#88ff88')
-        add_label(sl, 'SL', '#ff5555')
-        # current price marker
-        ax.annotate(
-            f' Now {current_price:,.2f}', xy=(x_pos, current_price), xytext=(5, 0),
-            textcoords='offset points', color='#ffffff', fontsize=9, fontweight='bold',
+            add_label((entry_low + entry_high) / 2, '📍 ENTRY', '#ffff00', fc='#006400cc')
+        add_label(sl, '🛑 SL', '#ff5555')
+        # 🌟 current price marker — พื้น highlight
+        ax.text(
+            x_label, current_price, f' ▶ NOW {current_price:,.2f} ',
+            transform=trans,
+            color='#ffffff', fontsize=11, fontweight='bold',
             va='center', ha='left',
-            bbox=dict(boxstyle='round,pad=0.2', fc='#1976d2', ec='#ffffff', lw=0.8),
+            bbox=dict(boxstyle='round,pad=0.3', fc='#1976d2', ec='#ffffff', lw=1.2),
+            zorder=10,
         )
 
         fig.savefig(buf, dpi=120, bbox_inches='tight', pad_inches=0.15)
