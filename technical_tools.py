@@ -9,7 +9,7 @@ from cachetools import TTLCache
 
 ALLOWED_MARKET_SUFFIXES = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
 
-_yf_history_cache = TTLCache(maxsize=400, ttl=90)
+_yf_history_cache = TTLCache(maxsize=400, ttl=300)
 _yf_cache_lock = RLock()
 _yf_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="yfetch")
 
@@ -378,7 +378,7 @@ def calculate_technical_indicators(symbol, generate_chart=True):
                     panel_ratios=(4, 1), 
                     addplot=add_plots,
                     hlines=dict(hlines=[resistance, support, float(poc_price)], colors=['#ff0000', '#00ff00', '#ffff00'], linestyle='-.', linewidths=1.5),
-                    savefig=dict(fname=buf, dpi=120, bbox_inches='tight', pad_inches=0.1), 
+                    savefig=dict(fname=buf, dpi=100, bbox_inches='tight', pad_inches=0.1),
                     figratio=(16, 9), 
                     figscale=1.2,
                     tight_layout=True
@@ -585,7 +585,7 @@ def generate_pro_annotated_chart(symbol, plan):
             zorder=10,
         )
 
-        fig.savefig(buf, dpi=120, bbox_inches='tight', pad_inches=0.15, facecolor='white')
+        fig.savefig(buf, dpi=100, bbox_inches='tight', pad_inches=0.15, facecolor='white')
         plt.close(fig)
         buf.seek(0)
         return buf

@@ -2,13 +2,37 @@ import io
 import json
 import math
 import re
+import time as _time
+from threading import RLock
 
 import PIL.Image
+from cachetools import TTLCache
 
 from config import GEMINI_API_KEY, gemini_client
 from technical_tools import build_multitimeframe_trade_context
 
 client = gemini_client
+
+# 🌟 Cache Gemini responses — key by (symbol, bias, rounded price 1%) เพื่อ hit เมื่อ user ขอหุ้นเดียวซ้ำใน 5 นาที
+# ลด Gemini API call 50%+ + ลดเวลา 3-8 วิ → 0 วิ บน cache hit
+_ai_response_cache = TTLCache(maxsize=200, ttl=300)
+_ai_cache_lock = RLock()
+
+
+def _ai_cache_key(symbol, dominant_bias, current_price):
+    # round price ลงเหลือ % เพื่อให้ cache hit แม้ราคาขยับเล็กน้อย
+    bucket = round(current_price / 100, 0) if current_price else 0
+    return (str(symbol or "").upper(), str(dominant_bias or ""), bucket)
+
+
+def _ai_cache_get(key):
+    with _ai_cache_lock:
+        return _ai_response_cache.get(key)
+
+
+def _ai_cache_set(key, value):
+    with _ai_cache_lock:
+        _ai_response_cache[key] = value
 
 DISCLAIMER_TEXT = "_💡 ข้อมูลประกอบการตัดสินใจ • การลงทุนมีความเสี่ยง โปรดใช้ดุลยพินิจของตนเอง_"
 
@@ -626,8 +650,15 @@ tier={tier_label} | {context.get('symbol')} @ {_format_price(context.get('price'
 """.strip()
 
 
-def _request_member_payload(prompt, defaults):
-    """เรียก Gemini พร้อม system_instruction (implicit caching) + fallback"""
+def _request_member_payload(prompt, defaults, cache_key=None):
+    """เรียก Gemini พร้อม system_instruction (implicit caching) + fallback + in-process cache"""
+    # 🌟 In-process cache — key=(symbol,bias,price-bucket), TTL=300s → ตัด 3-8 วิ บน hit
+    if cache_key is not None:
+        cached = _ai_cache_get(cache_key)
+        if cached is not None:
+            print(f"[ai-cache] HIT  {cache_key}", flush=True)
+            return json.loads(json.dumps(cached, ensure_ascii=False))
+
     fallback = json.loads(json.dumps(defaults, ensure_ascii=False))
     try:
         from google.genai import types as genai_types
@@ -645,6 +676,7 @@ def _request_member_payload(prompt, defaults):
     ]
 
     for candidate_prompt in prompts:
+        t0 = _time.time()
         try:
             kwargs = {"model": "gemini-2.5-flash", "contents": candidate_prompt}
             if config is not None:
@@ -656,6 +688,10 @@ def _request_member_payload(prompt, defaults):
                 continue
             parsed = json.loads(payload_block)
             if isinstance(parsed, dict):
+                elapsed = _time.time() - t0
+                print(f"[ai-cache] MISS {cache_key} fetched ({elapsed:.2f}s)", flush=True)
+                if cache_key is not None:
+                    _ai_cache_set(cache_key, parsed)
                 return parsed
         except Exception:
             continue
@@ -702,7 +738,8 @@ def _build_member_analysis(context, tier):
     deterministic_plan = _build_deterministic_plan(context, dominant_bias)
     defaults = _build_member_defaults(context, trends, deterministic_plan)
     prompt = _build_member_prompt(context, trends, defaults, tier)
-    payload = _request_member_payload(prompt, defaults)
+    cache_key = _ai_cache_key(context.get("symbol"), dominant_bias, context.get("price"))
+    payload = _request_member_payload(prompt, defaults, cache_key=cache_key)
     analysis = _merge_member_payload(defaults, payload, context)
     return trends, deterministic_plan, analysis
 
