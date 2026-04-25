@@ -3,9 +3,11 @@ import os
 import time
 import zipfile
 from datetime import datetime, timedelta
+from threading import RLock
 
 import psutil
 import yfinance as yf
+from cachetools import TTLCache
 
 from database import (
     check_subscription,
@@ -19,6 +21,11 @@ ALLOWED_SYMBOL_SUFFIXES = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS",
 VIP_MONTHLY_PRICE = 79
 PRO_MONTHLY_PRICE = 109
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 🌟 Dashboard snapshot cache — ลด DB query + yfinance ซ้ำ
+# ถ้าหลายคนเปิด admin dashboard ในเวลาใกล้กัน หรือ refresh — instant
+_dashboard_snapshot_cache = TTLCache(maxsize=4, ttl=45)
+_dashboard_cache_lock = RLock()
 
 _MAINTENANCE_MODE = False
 
@@ -70,21 +77,48 @@ def get_system_health_snapshot():
 
 
 def get_user_stats_snapshot():
+    """🌟 1 query แทน N+1 — fetch role+expiry ทีเดียวแล้วคำนวณใน Python
+    เก่า: SELECT user_id × 1 + check_subscription × N (= 1+N queries)
+    ใหม่: SELECT user_id, role, expiry_date × 1 (= 1 query)
+    """
+    from datetime import datetime as _dt
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT user_id FROM users")
-        all_users = cursor.fetchall()
+        cursor.execute("SELECT user_id, role, expiry_date FROM users")
+        rows = cursor.fetchall()
     finally:
         conn.close()
 
-    stats = {"free": 0, "vip": 0, "pro": 0}
-    for row in all_users:
-        uid = row[0]
-        actual_role = check_subscription(uid)
-        stats[actual_role] = stats.get(actual_role, 0) + 1
+    # admin = pro เสมอ (สอดคล้อง check_subscription)
+    admin_id = None
+    try:
+        from config import ADMIN_ID as _ADMIN_ID
+        admin_id = str(_ADMIN_ID) if _ADMIN_ID else None
+    except Exception:
+        pass
 
-    total = len(all_users)
+    now = _dt.now()
+    stats = {"free": 0, "vip": 0, "pro": 0}
+    for uid, role, expiry in rows:
+        if admin_id and str(uid) == admin_id:
+            stats["pro"] += 1
+            continue
+        actual = "free"
+        if role in ("vip", "pro") and expiry is not None:
+            try:
+                if isinstance(expiry, _dt):
+                    exp = expiry.replace(tzinfo=None)
+                else:
+                    raw = str(expiry).strip().replace("T", " ")
+                    exp = _dt.fromisoformat(raw).replace(tzinfo=None)
+                if now < exp:
+                    actual = role
+            except (ValueError, TypeError):
+                pass
+        stats[actual] = stats.get(actual, 0) + 1
+
+    total = len(rows)
     estimated_revenue = (stats.get("vip", 0) * VIP_MONTHLY_PRICE) + (stats.get("pro", 0) * PRO_MONTHLY_PRICE)
 
     return {
@@ -310,6 +344,7 @@ def get_top_watched_symbols_snapshot(limit=8):
 
 
 def get_expiring_members_snapshot(limit=8):
+    """🌟 ลบ N+1 — ใช้ role+expiry ที่ fetch มาแล้วคำนวณ active เอง (สอดคล้อง check_subscription)"""
     row_limit = max(1, int(limit))
     now = datetime.now()
 
@@ -329,17 +364,15 @@ def get_expiring_members_snapshot(limit=8):
     revenue_at_risk_7_days = 0
 
     for user_id, role, expiry in rows:
-        active_role = check_subscription(user_id)
-        if active_role not in ("vip", "pro"):
+        # active = role ∈ {vip,pro} + expiry > now (เหมือน check_subscription แต่ไม่ query DB ซ้ำ)
+        if role not in ("vip", "pro") or expiry is None:
             continue
 
         expiry_dt = _coerce_datetime(expiry)
-        if expiry_dt is None:
+        if expiry_dt is None or expiry_dt < now:
             continue
 
         days_left = max(0, int((expiry_dt - now).total_seconds() // 86400))
-        if expiry_dt < now:
-            continue
 
         if days_left <= 3:
             expiring_3_days += 1
@@ -618,7 +651,17 @@ def get_user_info_snapshot(user_id):
 
 
 def get_admin_dashboard_snapshot(limit=15):
-    return {
+    """🌟 Cached 45s — refresh ที่ผ่านมาใน window นี้คืน instant
+    Dashboard เก่า: query DB 9 ครั้ง + yfinance fetch ทุก unique pending alert ทุก request
+    ตอนนี้: cache hit = 0 query, miss = build ใหม่ (รัน parallel sections ได้ในอนาคต)
+    """
+    cache_key = ("admin_dashboard", int(limit))
+    with _dashboard_cache_lock:
+        cached = _dashboard_snapshot_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    snapshot = {
         "maintenance": get_maintenance_snapshot(),
         "system_health": get_system_health_snapshot(),
         "user_stats": get_user_stats_snapshot(),
@@ -630,3 +673,6 @@ def get_admin_dashboard_snapshot(limit=15):
         "notification_settings": get_notification_settings_snapshot(),
         "generated_at": datetime.now(),
     }
+    with _dashboard_cache_lock:
+        _dashboard_snapshot_cache[cache_key] = snapshot
+    return snapshot
