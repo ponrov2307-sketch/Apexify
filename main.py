@@ -3225,14 +3225,17 @@ if __name__ == "__main__":
             for sym in POPULAR_TICKERS:
                 try:
                     from technical_tools import _fetch_history_cached
-                    _fetch_history_cached(sym, period="1y")
-                    _fetch_history_cached(sym, period="5y", interval="1wk")
-                    _fetch_history_cached(sym, period="10y", interval="1mo")
+                    # 🌟 ต้อง warm ทั้ง auto_adjust=True (calculate_technical_indicators) และ False (multi-timeframe context)
+                    # เพราะ key ต่างกัน — ถ้า warm แค่ค่าใดค่าหนึ่ง analyze flow จะ MISS อยู่ดี
+                    _fetch_history_cached(sym, period="1y", auto_adjust=True)   # for calculate_technical_indicators
+                    _fetch_history_cached(sym, period="1y", interval="1d", auto_adjust=False)  # for multi-tf
+                    _fetch_history_cached(sym, period="5y", interval="1wk", auto_adjust=False)
+                    _fetch_history_cached(sym, period="10y", interval="1mo", auto_adjust=False)
                 except Exception as e:
                     print(f"[prewarm] {sym} error: {e}", flush=True)
                 time.sleep(1)  # rate-limit yfinance ไม่ให้ถูก ban
-            print(f"[prewarm] cycle {cycle} done in {time.time()-t0:.1f}s — sleeping 30s", flush=True)
-            time.sleep(30)  # cycle ใหม่ก่อน cache TTL=90s หมดอายุ → keep ทุกตัว cached เสมอ
+            print(f"[prewarm] cycle {cycle} done in {time.time()-t0:.1f}s — sleeping 60s", flush=True)
+            time.sleep(60)  # TTL 300s, cycle ทุก ~75s → cache อยู่ตลอด
 
     threading.Thread(target=_prewarm_loop, daemon=True).start()
 
