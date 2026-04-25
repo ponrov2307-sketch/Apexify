@@ -64,7 +64,7 @@ ADMIN_ID=your_telegram_user_id
 DATABASE_URL=postgresql://user:password@host:5432/dbname
 
 # Dashboard URL (Railway) — Telegram bot magic-login จะชี้ user ไปที่นี่
-DASHBOARD_BASE_URL=https://web-production-XXXXX.up.railway.app
+DASHBOARD_BASE_URL=https://apexifyy.up.railway.app
 
 # Bot URL (Digital Ocean / wherever bot runs) — ใช้สำหรับ webhook + admin dashboard
 # ใช้ http://IP:PORT ถ้ารัน polling, https://domain ถ้ารัน webhook
