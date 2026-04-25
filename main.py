@@ -3215,16 +3215,20 @@ if __name__ == "__main__":
 
     def _prewarm_loop():
         time.sleep(20)  # รอ Flask + DB init เสร็จก่อน
+        cycle = 0
         while True:
+            cycle += 1
+            t0 = time.time()
             for sym in POPULAR_TICKERS:
                 try:
                     from technical_tools import _fetch_history_cached
                     _fetch_history_cached(sym, period="1y")
                     _fetch_history_cached(sym, period="5y", interval="1wk")
                     _fetch_history_cached(sym, period="10y", interval="1mo")
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[prewarm] {sym} error: {e}", flush=True)
                 time.sleep(1)  # rate-limit yfinance ไม่ให้ถูก ban
+            print(f"[prewarm] cycle {cycle} done in {time.time()-t0:.1f}s — sleeping 30s", flush=True)
             time.sleep(30)  # cycle ใหม่ก่อน cache TTL=90s หมดอายุ → keep ทุกตัว cached เสมอ
 
     threading.Thread(target=_prewarm_loop, daemon=True).start()

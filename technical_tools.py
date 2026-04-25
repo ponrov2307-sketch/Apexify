@@ -15,20 +15,26 @@ _yf_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="yfetch")
 
 
 def _fetch_history_cached(symbol, period="1y", interval="1d", auto_adjust=True):
+    import time as _t
     key = (symbol, period, interval, auto_adjust)
     with _yf_cache_lock:
         cached = _yf_history_cache.get(key)
     if cached is not None:
+        print(f"[yfcache] HIT  {symbol} {period}/{interval} (cache size={len(_yf_history_cache)})", flush=True)
         return cached.copy()
+    t0 = _t.time()
     try:
         df = yf.Ticker(symbol).history(period=period, interval=interval, auto_adjust=auto_adjust)
     except Exception as e:
         print(f"[yfetch] {symbol} {period}/{interval} failed: {e}", flush=True)
         return pd.DataFrame()
+    elapsed = _t.time() - t0
     if df is None or df.empty:
+        print(f"[yfcache] MISS {symbol} {period}/{interval} EMPTY ({elapsed:.2f}s)", flush=True)
         return pd.DataFrame()
     with _yf_cache_lock:
         _yf_history_cache[key] = df.copy()
+    print(f"[yfcache] MISS {symbol} {period}/{interval} fetched ({elapsed:.2f}s, cache size={len(_yf_history_cache)})", flush=True)
     return df
 
 
