@@ -29,6 +29,7 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       update_last_active, mark_user_inactive, get_active_users)
 from admin_service import (
     build_local_backup_zip,
+    get_dashboard_metrics,
     get_maintenance_status,
     get_paid_users_snapshot,
     get_performance_snapshot,
@@ -217,7 +218,7 @@ def handle_force_backup(message):
 @bot.message_handler(commands=['system_health'])
 def handle_system_health(message):
     if str(message.chat.id) != ADMIN_ID: return
-    
+
     load_msg = bot.reply_to(message, "⏳ กำลังดึงข้อมูลสถานะเซิร์ฟเวอร์...")
     try:
         snapshot = get_system_health_snapshot()
@@ -232,6 +233,34 @@ def handle_system_health(message):
         bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
     except Exception as e:
         bot.edit_message_text(f"❌ ไม่สามารถดึงข้อมูลระบบได้: {e}", message.chat.id, load_msg.message_id)
+
+
+@bot.message_handler(commands=['perf_stats'])
+def handle_perf_stats(message):
+    """🌟 Admin command — ดู cache hit rate + dashboard build time"""
+    if str(message.chat.id) != ADMIN_ID:
+        return
+    try:
+        metrics = get_dashboard_metrics()
+        from technical_tools import _yf_history_cache
+        from ai_analyzer import _ai_response_cache
+        msg = (
+            "📊 **Performance Metrics** 📊\n\n"
+            "**Admin Dashboard:**\n"
+            f"• Cache hits: {metrics['snapshot_cache_hits']}\n"
+            f"• Cache misses: {metrics['snapshot_cache_misses']}\n"
+            f"• Hit rate: {metrics['hit_rate_pct']:.1f}%\n"
+            f"• Last build: {metrics['last_build_seconds']:.2f}s\n\n"
+            "**yfinance cache (TTL 300s):**\n"
+            f"• Items: {len(_yf_history_cache)}/{_yf_history_cache.maxsize}\n\n"
+            "**AI response cache (TTL 300s):**\n"
+            f"• Items: {len(_ai_response_cache)}/{_ai_response_cache.maxsize}\n\n"
+            "_Cache miss = ครั้งแรกของหุ้น/dashboard ใหม่ (ปกติ)_\n"
+            "_Hit rate ยิ่งสูง = bot ยิ่งเร็ว_"
+        )
+        bot.reply_to(message, msg, parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ ดึงข้อมูลไม่สำเร็จ: {e}")
 
 @bot.message_handler(commands=['users_pro'])
 def handle_users_pro(message):

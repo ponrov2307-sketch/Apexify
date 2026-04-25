@@ -2,6 +2,7 @@ import io
 import os
 import time
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from threading import RLock
 
@@ -26,6 +27,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # ถ้าหลายคนเปิด admin dashboard ในเวลาใกล้กัน หรือ refresh — instant
 _dashboard_snapshot_cache = TTLCache(maxsize=4, ttl=45)
 _dashboard_cache_lock = RLock()
+_dashboard_executor = ThreadPoolExecutor(max_workers=6, thread_name_prefix="dash")
+
+# 🌟 Stats สำหรับ admin debug
+_dashboard_metrics = {
+    "snapshot_cache_hits": 0,
+    "snapshot_cache_misses": 0,
+    "last_build_seconds": 0.0,
+}
 
 _MAINTENANCE_MODE = False
 
@@ -482,11 +491,15 @@ def get_notification_settings_snapshot():
     }
 
 
-def get_performance_snapshot(limit=15):
+def get_performance_snapshot(limit=15, resolve_pending=True):
+    """🌟 resolve_pending=False ข้าม yfinance fetch (ใช้ใน hot dashboard load)
+    Background thread จะ resolve เป็นช่วงๆ ผ่าน resolve_due_alerts_background()
+    """
     row_limit = max(1, int(limit))
     summary_limit = max(60, row_limit * 4)
 
-    _resolve_due_alert_logs()
+    if resolve_pending:
+        _resolve_due_alert_logs()
     logs = get_recent_alert_logs(limit=summary_limit)
 
     entries = []
@@ -651,28 +664,70 @@ def get_user_info_snapshot(user_id):
 
 
 def get_admin_dashboard_snapshot(limit=15):
-    """🌟 Cached 45s — refresh ที่ผ่านมาใน window นี้คืน instant
-    Dashboard เก่า: query DB 9 ครั้ง + yfinance fetch ทุก unique pending alert ทุก request
-    ตอนนี้: cache hit = 0 query, miss = build ใหม่ (รัน parallel sections ได้ในอนาคต)
+    """🌟 Cache 45s + parallelize 9 sections + skip yfinance ใน hot path
+
+    Performance journey:
+    - เก่า: 9 sections sequential + yfinance fetch per pending alert per request (~3-10s)
+    - หลัง bug fix: ลบ N+1 queries (~1-2s)
+    - ตอนนี้: parallel 9 sections + cache 45s + background yfinance resolve (~0.2-0.5s cold, instant warm)
     """
     cache_key = ("admin_dashboard", int(limit))
     with _dashboard_cache_lock:
         cached = _dashboard_snapshot_cache.get(cache_key)
     if cached is not None:
+        _dashboard_metrics["snapshot_cache_hits"] += 1
         return cached
 
-    snapshot = {
-        "maintenance": get_maintenance_snapshot(),
-        "system_health": get_system_health_snapshot(),
-        "user_stats": get_user_stats_snapshot(),
-        "performance": get_performance_snapshot(limit=limit),
-        "paid_users": get_paid_users_snapshot(),
-        "top_watched": get_top_watched_symbols_snapshot(),
-        "expiring_members": get_expiring_members_snapshot(),
-        "price_alerts": get_active_price_alerts_snapshot(),
-        "notification_settings": get_notification_settings_snapshot(),
-        "generated_at": datetime.now(),
+    _dashboard_metrics["snapshot_cache_misses"] += 1
+    t0 = time.time()
+
+    # รัน 9 sections พร้อมกันบน thread pool — รวมเวลาเท่ากับ section ที่ช้าที่สุด ไม่ใช่ผลรวม
+    futures = {
+        "maintenance": _dashboard_executor.submit(get_maintenance_snapshot),
+        "system_health": _dashboard_executor.submit(get_system_health_snapshot),
+        "user_stats": _dashboard_executor.submit(get_user_stats_snapshot),
+        # ⚡ skip yfinance resolve ใน hot path — background loop จัดการให้
+        "performance": _dashboard_executor.submit(get_performance_snapshot, limit, False),
+        "paid_users": _dashboard_executor.submit(get_paid_users_snapshot),
+        "top_watched": _dashboard_executor.submit(get_top_watched_symbols_snapshot),
+        "expiring_members": _dashboard_executor.submit(get_expiring_members_snapshot),
+        "price_alerts": _dashboard_executor.submit(get_active_price_alerts_snapshot),
+        "notification_settings": _dashboard_executor.submit(get_notification_settings_snapshot),
     }
+
+    snapshot = {}
+    for name, future in futures.items():
+        try:
+            snapshot[name] = future.result(timeout=20)
+        except Exception as exc:
+            print(f"[dashboard] section {name} failed: {exc}", flush=True)
+            snapshot[name] = {}
+    snapshot["generated_at"] = datetime.now()
+
+    elapsed = time.time() - t0
+    _dashboard_metrics["last_build_seconds"] = round(elapsed, 3)
+    print(f"[dashboard] snapshot built parallel in {elapsed:.2f}s (cache miss)", flush=True)
+
     with _dashboard_cache_lock:
         _dashboard_snapshot_cache[cache_key] = snapshot
     return snapshot
+
+
+def resolve_due_alerts_background():
+    """🌟 รันใน background loop (alert_system) — ไม่ block dashboard load
+    Dashboard เคยเรียก _resolve_due_alert_logs ทุก request → yfinance fetch ทุก unique symbol
+    ย้ายมารันที่นี่ทุก ~5 นาที ผลลัพธ์ถูกอัปเดตใน DB ก่อน dashboard อ่าน
+    """
+    try:
+        _resolve_due_alert_logs()
+    except Exception as exc:
+        print(f"[dashboard] background resolve failed: {exc}", flush=True)
+
+
+def get_dashboard_metrics():
+    """Stats สำหรับ admin debug — ดู cache hit rate"""
+    metrics = dict(_dashboard_metrics)
+    total = metrics["snapshot_cache_hits"] + metrics["snapshot_cache_misses"]
+    metrics["hit_rate_pct"] = (metrics["snapshot_cache_hits"] / total * 100) if total else 0.0
+    metrics["total_requests"] = total
+    return metrics

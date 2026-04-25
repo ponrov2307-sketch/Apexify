@@ -1891,6 +1891,13 @@ def run_alert_loop(bot_instance=None):
         check_market_conditions()
         check_custom_price_alerts()
 
+        # 🌟 Resolve due alert outcomes ใน background — ออกจาก hot path ของ admin dashboard
+        try:
+            from admin_service import resolve_due_alerts_background
+            resolve_due_alerts_background()
+        except Exception as e:
+            print(f"[AlertLoop] resolve_due_alerts_background failed: {e}", flush=True)
+
       except Exception as e:
         print(f"[AlertLoop] Exception in loop body: {e}", flush=True)
 
