@@ -366,6 +366,12 @@ def _build_deterministic_plan(context, dominant_bias):
 
     bias = "bearish" if dominant_bias == "bearish" else "bullish"
 
+    # 🌟 ATR-based volatility — ใช้ปรับ stop placement ให้สมเหตุสมผลกับ volatility ของหุ้น
+    atr_day = _safe_optional_float(day.get("atr"))
+    atr_week = _safe_optional_float(week.get("atr"))
+    # day ATR ใช้กับ short stop, week ATR backup ถ้า day ใช้ไม่ได้
+    atr_for_stop = atr_day if (atr_day and atr_day > 0) else (atr_week / 5.0 if (atr_week and atr_week > 0) else None)
+
     if bias == "bullish":
         entry_anchor = _median([day.get("support"), day.get("poc"), day.get("ema20"), week.get("poc"), current_price]) or current_price
         # 🌟 Entry range: anchor ± 1% — ไม่ stretch ไปถึงราคาปัจจุบัน (กันช่วงกว้างเกิน)
@@ -377,9 +383,18 @@ def _build_deterministic_plan(context, dominant_bias):
             entry_high = current_price * 0.995
         entry_mid = (entry_low + entry_high) / 2
         sl_base = _first_valid(day.get("support"), week.get("support"), day.get("ema50"), entry_low * 0.97)
+        # 🌟 ATR-based SL: SL = entry_mid - 1.5×ATR (ATR ปรับตาม volatility)
+        # ถ้า ATR-based SL ลึกกว่า support → ใช้ ATR-based เพราะป้องกัน stop hunt
+        atr_sl_candidate = entry_mid - 1.5 * atr_for_stop if atr_for_stop else None
         sl = min(sl_base * 0.985, entry_mid * 0.985)
+        if atr_sl_candidate is not None and atr_sl_candidate < sl:
+            sl = atr_sl_candidate
         if sl >= entry_mid:
             sl = entry_mid * 0.97
+        # 🌟 SL ไม่ควรใกล้ราคาปัจจุบันเกินไป — กัน premature stop
+        min_stop_distance = (atr_for_stop * 0.5) if atr_for_stop else (entry_mid * 0.01)
+        if (entry_mid - sl) < min_stop_distance:
+            sl = entry_mid - min_stop_distance
 
         risk = max(entry_mid - sl, entry_mid * 0.015)
         tp1 = _first_valid(day.get("resistance"), week.get("poc"), entry_mid + risk * 1.2)
@@ -408,9 +423,16 @@ def _build_deterministic_plan(context, dominant_bias):
             entry_high = entry_low * 1.01
         entry_mid = (entry_low + entry_high) / 2
         sl_base = _first_valid(week.get("support"), month.get("support"), entry_low * 0.93)
+        # 🌟 ATR-based SL สำหรับ bearish (ใช้ ATR ใหญ่กว่า bullish เพราะ swing trade ระยะยาวกว่า)
+        atr_sl_candidate = entry_mid - 2.0 * atr_for_stop if atr_for_stop else None
         sl = min(sl_base * 0.97, entry_mid * 0.93)
+        if atr_sl_candidate is not None and atr_sl_candidate < sl:
+            sl = atr_sl_candidate
         if sl >= entry_mid:
             sl = entry_mid * 0.93
+        min_stop_distance = (atr_for_stop * 0.7) if atr_for_stop else (entry_mid * 0.015)
+        if (entry_mid - sl) < min_stop_distance:
+            sl = entry_mid - min_stop_distance
 
         risk = max(entry_mid - sl, entry_mid * 0.02)
         tp1 = _first_valid(day.get("resistance"), day.get("ema20"), entry_mid + risk * 1.2)
@@ -434,6 +456,24 @@ def _build_deterministic_plan(context, dominant_bias):
         trailing_stop = max(sl, _first_valid(week.get("support"), entry_mid * 0.95))
 
     rr_ratio_value = _safe_optional_float(rr_ratio)
+
+    # 🌟 Plan validation layer — ตรวจ consistency + ATR bounds ก่อน return
+    # 1. Bullish ต้อง: TP2 > TP1 > entry_high, SL < entry_low
+    # 2. TP1 ระยะห่างไม่ควรเกิน 3×ATR (กัน TP เพ้อฝัน)
+    # 3. SL ระยะห่างไม่ควรเกิน 3×ATR (กัน SL ลึกเกินจน 1 trade ผิดพอร์ตพังหมด)
+    plan_warnings = []
+    if bias == "bullish":
+        if tp2 <= tp1 or tp1 <= entry_mid or sl >= entry_mid:
+            plan_warnings.append("plan_consistency_failed")
+    else:
+        if tp2 <= tp1 or tp1 <= entry_mid or sl >= entry_mid:
+            plan_warnings.append("plan_consistency_failed")
+    if atr_for_stop and atr_for_stop > 0:
+        if abs(tp1 - entry_mid) > 3.0 * atr_for_stop:
+            plan_warnings.append("tp1_too_far_atr")
+        if abs(entry_mid - sl) > 3.0 * atr_for_stop:
+            plan_warnings.append("sl_too_far_atr")
+
     return {
         "bias": bias,
         "day_plan": {
@@ -444,6 +484,8 @@ def _build_deterministic_plan(context, dominant_bias):
             "sl": _round_price(sl),
             "rr_ratio": f"{rr_ratio_value:.2f}" if rr_ratio_value is not None else "N/A",
             "rr_note": _build_rr_note(rr_ratio_value),
+            "atr": _round_price(atr_for_stop) if atr_for_stop else None,
+            "validation_warnings": plan_warnings,
         },
         "position_plan": {
             "add_low": _round_price(add_low),

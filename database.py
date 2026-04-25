@@ -393,7 +393,8 @@ _pool = None
 def _get_pool():
     global _pool
     if _pool is None:
-        _pool = psycopg2.pool.ThreadedConnectionPool(2, 10, _get_db_url())
+        # 🌟 5-30 connections — รองรับ bot 8 threads + alert loop + Flask + pre-warm
+        _pool = psycopg2.pool.ThreadedConnectionPool(5, 30, _get_db_url())
         atexit.register(lambda: _pool.closeall())
     return _pool
 

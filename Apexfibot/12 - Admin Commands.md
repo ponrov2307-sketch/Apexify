@@ -23,6 +23,16 @@ tags: [commands, admin]
 | `/users_pro` | รายชื่อ PRO/VIP users + วันหมดอายุ |
 | `/user_history <user_id>` | ดูประวัติ activity ของ user |
 | `/addrole <user_id> <vip\|pro> <days>` | ให้สิทธิ์ VIP/PRO manually (เช่น `/addrole 1234 vip 30`) |
+| `/ban <user_id>` | แบน user — บอทจะไม่ตอบคำสั่งใดๆ จาก user นี้ |
+| `/unban <user_id>` | ยกเลิกแบน |
+
+## Stats & Performance
+
+| Command | Description |
+|---------|------------|
+| `/stats` | สถิติ user/รายได้/usage (override `/track` aliases เพราะลบ `stats` ออก) |
+| `/performance` | ผลกำไร/ขาดทุนของ AI Plans (วัด accuracy แบบ aggregate) |
+| `/streak_debug` | ดูสถานะ Daily Streak ของ user (debug) |
 
 ## Promo Code
 
@@ -36,6 +46,7 @@ tags: [commands, admin]
 
 | Command | Description |
 |---------|------------|
+| `/broadcast <ข้อความ>` | ส่งข้อความถึง active users ทุกคน (background thread, Markdown ได้) — ดู [[21 - Broadcast Templates]] |
 | `/force_news flash` | บรอดแคสต์ Flash News ทันที (1 ข่าวเด่น) |
 | `/force_news digest` | บรอดแคสต์ Digest News ทันที (2 ข่าว) |
 | `/force_weekly` ⭐ | บรอดแคสต์ Weekly Digest ทันที (ไม่ต้องรอศุกร์) |

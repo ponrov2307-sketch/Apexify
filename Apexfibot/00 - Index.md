@@ -36,6 +36,7 @@ tags: [moc, index]
 ### 📝 Strategy & History
 - [[14 - Recent Changes]] — Changelog ล่าสุด
 - [[15 - Roadmap]] ⭐ — **Strategic plan: Now → Next → Soon → Later → Vision**
+- [[25 - Performance and Accuracy Roadmap]] 🆕 — Speed audit + AI accuracy improvements + GitHub libs research
 
 ### 💼 Sales & Marketing
 - [[17 - Sales Playbook]] — Pitch + Objections + Personas + Templates
@@ -43,6 +44,9 @@ tags: [moc, index]
 - [[19 - Facebook Post Templates]] — 15 templates พร้อมโพสต์
 - [[20 - Video Scripts]] — 5 scripts + hooks + production tips
 - [[21 - Broadcast Templates]] ⭐ — ข้อความสำเร็จรูปสำหรับ /broadcast
+- [[22 - Sales Templates Mega Pack]] 🆕 — FB/IG/Line/X/TikTok/Pantip/LinkedIn/SMS/Email — 60+ templates
+- [[23 - DM and Closing Scripts]] 🆕 — Greeting → Discovery → Pitch → Demo → Close → Follow-up
+- [[24 - Objection Handling Pack]] 🆕 — รับมือคำถามยาก 40+ scripts ทุกหมวด
 
 ---
 

@@ -44,7 +44,8 @@ from slipok_service import verify_payment_slip
 from curl_cffi import requests as cffi_requests
 
 telebot.logger.setLevel(logging.WARNING)
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
+# 🌟 num_threads=8 — handler รันใน thread pool ใหญ่ → bot ไม่ block ระหว่างผู้ใช้คนเดียววิเคราะห์ 10-20 วิ
+bot = telebot.TeleBot(TELEGRAM_TOKEN, num_threads=8)
 
 # ==========================================
 # 🌟 ระบบ Anti-Spam ดักจับคนป่วนรัวข้อความ
@@ -3042,7 +3043,13 @@ def handle_main(message):
         bot.reply_to(message, upsell_msg, parse_mode="Markdown", reply_markup=upsell_kb)
         return
 
-    load_msg = bot.reply_to(message, f"✨ Apexify AI กำลังรวบรวมข้อมูล **{symbol}** ให้คุณ\n_ขอเวลาประมาณ 10-20 วินาทีครับ_", parse_mode="Markdown")
+    load_msg = bot.reply_to(message, f"🔍 กำลังดึงข้อมูล **{symbol}**...", parse_mode="Markdown")
+
+    def _safe_edit(text):
+        try:
+            bot.edit_message_text(text, message.chat.id, load_msg.message_id, parse_mode="Markdown")
+        except Exception:
+            pass
 
     # 🌟 Free: ไม่ต้องสร้างกราฟ (ประหยัดเวลา ~3-5 วิ + กันใช้ฟรีเหมือน premium)
     # VIP: กราฟพื้นฐาน, PRO: จะสร้างกราฟ annotated หลังได้ plan
@@ -3050,8 +3057,10 @@ def handle_main(message):
     tech_data, chart, err = _get_cached_analysis(symbol, generate_chart=not skip_chart)
 
     if err:
-        bot.edit_message_text(err, message.chat.id, load_msg.message_id, parse_mode="Markdown")
+        _safe_edit(err)
         return
+
+    _safe_edit(f"🤖 AI กำลังวิเคราะห์ **{symbol}**...")
 
     # 🌟 Wrap AI report generation — กัน Gemini 503/safety crash ทำให้ load_msg ค้าง
     try:
@@ -3070,6 +3079,7 @@ def handle_main(message):
 
     # 🌟 PRO: สร้างกราฟ annotated หลังได้ plan
     if role == 'pro' and plan:
+        _safe_edit(f"🎨 กำลังวาดกราฟ **{symbol}** + Plan...")
         try:
             chart = generate_pro_annotated_chart(symbol, plan)
         except Exception as e:
@@ -3194,6 +3204,30 @@ if __name__ == "__main__":
         run_alert_loop(bot)
 
     threading.Thread(target=_bg_init, daemon=True).start()
+
+    # 🌟 Pre-warm yfinance cache — popular tickers refresh ทุก 5 นาที
+    # ทำให้ user ที่ขอหุ้นเหล่านี้ได้รายงานเกือบทันที (cache hit)
+    POPULAR_TICKERS = [
+        "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA",
+        "PTT.BK", "KBANK.BK", "AOT.BK", "ADVANC.BK", "CPALL.BK",
+        "0700.HK", "7203.T",
+    ]
+
+    def _prewarm_loop():
+        time.sleep(20)  # รอ Flask + DB init เสร็จก่อน
+        while True:
+            for sym in POPULAR_TICKERS:
+                try:
+                    from technical_tools import _fetch_history_cached
+                    _fetch_history_cached(sym, period="1y")
+                    _fetch_history_cached(sym, period="5y", interval="1wk")
+                    _fetch_history_cached(sym, period="10y", interval="1mo")
+                except Exception:
+                    pass
+                time.sleep(1)  # rate-limit yfinance ไม่ให้ถูก ban
+            time.sleep(30)  # cycle ใหม่ก่อน cache TTL=90s หมดอายุ → keep ทุกตัว cached เสมอ
+
+    threading.Thread(target=_prewarm_loop, daemon=True).start()
 
     # 🌟 Set bot commands menu — แสดงใน Telegram เมื่อ user พิมพ์ "/"
     try:

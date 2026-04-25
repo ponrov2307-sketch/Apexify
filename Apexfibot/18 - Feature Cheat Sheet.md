@@ -18,32 +18,32 @@ tags: [cheatsheet, reference]
 
 ## 📊 Master Feature Table
 
-| ฟีเจอร์ | Free | VIP 79฿ | PRO 109฿ |
-|---------|:---:|:---:|:---:|
-| วิเคราะห์ AI text | 3/วัน | ∞ | ∞ |
-| กราฟเทคนิค | ❌ | ✅ basic | ✅ **annotated** |
-| AI Trend Radar 3 TF | ❌ | ✅ | ✅ |
-| Conviction Score | ❌ | ✅ | ✅ |
-| Watch Next + AI Insight | ❌ | ✅ | ✅ |
-| **Entry/TP/SL ตัวเลข** | ❌ | ❌ | ✅ |
-| **กราฟวาด zone Entry/TP/SL** | ❌ | ❌ | ✅ |
-| **Confirmation/Invalidation** | ❌ | ❌ | ✅ |
-| **R:R Warning** | ❌ | ❌ | ✅ |
-| **/fund** P/E, EPS, Dividend | ❌ | ✅ | ✅ |
-| **/compare** เปรียบเทียบหุ้น | ❌ | ❌ | ✅ |
-| **/earnings** AI วิเคราะห์งบ | ❌ | ✅ | ✅ |
-| Smart Alerts (RSI/MACD/Whale) | ❌ | ❌ | ✅ |
-| Custom Price Alerts | ❌ | ❌ | ✅ |
-| Earnings Alerts | ❌ | ✅ | ✅ |
-| Morning Briefing + Podcast | ❌ | ✅ | ✅ |
-| Flash News + Digest News | ❌ | ✅ | ✅ |
-| Weekly Digest (ศุกร์) | ❌ | ✅ | ✅ |
-| Watchlist | 3 | 10 | ∞ |
-| Portfolio | 3 | 10 | ∞ |
-| Daily Watchlist Summary | ✅ | ✅ | ✅ |
-| **/track** Track Record | ✅ | ✅ | ✅ |
-| **🔥 Daily Streak** (+1 วัน VIP/7วัน) | ✅ | ✅ | ✅ |
-| 🤝 Referral (ใหม่ได้ VIP 3 วัน) | ✅ | ✅ | ✅ |
+| ฟีเจอร์                               | Free  | VIP 79฿ |    PRO 109฿     |
+| ------------------------------------- | :---: | :-----: | :-------------: |
+| วิเคราะห์ AI text                     | 3/วัน |    ∞    |        ∞        |
+| กราฟเทคนิค                            |   ❌   | ✅ basic | ✅ **annotated** |
+| AI Trend Radar 3 TF                   |   ❌   |    ✅    |        ✅        |
+| Conviction Score                      |   ❌   |    ✅    |        ✅        |
+| Watch Next + AI Insight               |   ❌   |    ✅    |        ✅        |
+| **Entry/TP/SL ตัวเลข**                |   ❌   |    ❌    |        ✅        |
+| **กราฟวาด zone Entry/TP/SL**          |   ❌   |    ❌    |        ✅        |
+| **Confirmation/Invalidation**         |   ❌   |    ❌    |        ✅        |
+| **R:R Warning**                       |   ❌   |    ❌    |        ✅        |
+| **/fund** P/E, EPS, Dividend          |   ❌   |    ✅    |        ✅        |
+| **/compare** เปรียบเทียบหุ้น          |   ❌   |    ❌    |        ✅        |
+| **/earnings** AI วิเคราะห์งบ          |   ❌   |    ✅    |        ✅        |
+| Smart Alerts (RSI/MACD/Whale)         |   ❌   |    ❌    |        ✅        |
+| Custom Price Alerts                   |   ❌   |    ❌    |        ✅        |
+| Earnings Alerts                       |   ❌   |    ✅    |        ✅        |
+| Morning Briefing + Podcast            |   ❌   |    ✅    |        ✅        |
+| Flash News + Digest News              |   ❌   |    ✅    |        ✅        |
+| Weekly Digest (ศุกร์)                 |   ❌   |    ✅    |        ✅        |
+| Watchlist                             |   3   |   10    |        ∞        |
+| Portfolio                             |   3   |   10    |        ∞        |
+| Daily Watchlist Summary               |   ✅   |    ✅    |        ✅        |
+| **/track** Track Record               |   ✅   |    ✅    |        ✅        |
+| **🔥 Daily Streak** (+1 วัน VIP/7วัน) |   ✅   |    ✅    |        ✅        |
+| 🤝 Referral (ใหม่ได้ VIP 3 วัน)       |   ✅   |    ✅    |        ✅        |
 
 ---
 
@@ -60,25 +60,36 @@ tags: [cheatsheet, reference]
 
 ---
 
-## 🎮 13 Commands (จำได้ก็ดี)
+## 🎮 16 Commands ใน Dropdown (พิมพ์ `/` เห็นทั้งหมด)
 
 ### พื้นฐาน (จำให้ได้)
 - พิมพ์ชื่อหุ้น เช่น `AAPL` `PTT.BK` → วิเคราะห์
-- `/manual` — คู่มือทั้งหมด
-- `/track` — สถิติ AI Plans
+- `/start` `/demo` `/manual` (alias `/help`) — เริ่ม + ทัวร์ + คู่มือ
+- `/account` (alias `/me`) — สถานะบัญชี + Streak + โควต้า
+- `/settings` — ตั้งค่าแจ้งเตือน
+- `/dashboard` — เปิด Web Dashboard
+- `/track` (alias `/trackrecord`) — สถิติ AI Plans
 
 ### พรีเมียม (พูดถึงเวลาขาย)
-- `/fund AAPL` — ข้อมูลพื้นฐาน (VIP/PRO)
+- `/fund AAPL` (alias `/fundamentals`) — ข้อมูลพื้นฐาน (VIP/PRO)
 - `/compare AAPL MSFT` — เปรียบเทียบ (PRO)
 - `/earnings AAPL` — วิเคราะห์งบ (VIP/PRO)
+- `/ask <คำถาม>` — ถาม AI ตรงๆ (PRO)
 - `/setalert AAPL 200` — ตั้งเตือนราคา (PRO)
+- `/myalerts` — ดู alerts ทั้งหมด
 - `/ealert AAPL` — แจ้ง Earnings (VIP/PRO)
 
 ### บัญชี
 - `/freetrial` — ทดลอง PRO 7 วันฟรี
 - `/redeem CODE` — เติมโค้ด
 
-> 💡 user **ไม่ต้องจำ** — พิมพ์ `/` ใน Telegram เห็นทั้งหมดเลย
+### Hidden (ไม่ขึ้น dropdown แต่ใช้งานได้)
+- `/add AAPL 10 150` — บันทึกซื้อหุ้น (สัญลักษณ์ จำนวน ต้นทุน)
+- `/portfolio` (alias `/port`) — ดูพอร์ต
+- `/pnl` — สร้างการ์ด P&L รูปสวย
+- `/delalert AAPL` — ลบ alert
+
+> 💡 user **ไม่ต้องจำ** — พิมพ์ `/` ใน Telegram เห็น 16 ตัวหลักเลย
 
 ---
 
@@ -99,7 +110,7 @@ tags: [cheatsheet, reference]
 
 ---
 
-## 🌍 ตลาดที่รองรับ (ไว้ตอบคำถาม)
+## 🌍 ตลาดที่รองรับ 
 
 | ประเทศ | Suffix | ตัวอย่าง |
 |--------|-------|---------|

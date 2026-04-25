@@ -18,6 +18,7 @@ binaryornot==0.4.4
 blinker==1.9.0
 brotli==1.2.0
 cachetools==6.2.6
+diskcache==5.6.3
 certifi==2026.1.4
 cffi==2.0.0
 chardet==5.2.0
@@ -182,6 +183,9 @@ supabase==2.28.0
 supabase-auth==2.28.0
 supabase-functions==2.28.0
 ta==0.11.0
+# pandas-ta==0.3.14b0  # ต้องการ Python <3.14 — ติดตั้งบน DO server (Python 3.10) ได้ปกติ
+finnhub-python==2.4.20
+aiolimiter==1.2.1
 tabulate==0.9.0
 tenacity==9.1.4
 text-unidecode==1.3

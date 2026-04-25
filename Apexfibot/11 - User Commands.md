@@ -14,6 +14,7 @@ tags: [commands, user]
 |---------|------------|:---:|
 | `/start` | ลงทะเบียน + welcome | All |
 | `/start REF_<id>` | สมัครผ่าน referral link → รับ VIP 3 วันฟรี | All |
+| `/demo` (alias `/showcase` `/features`) | ทัวร์ฟีเจอร์ทั้งหมดในหน้าเดียว | All |
 | `/manual` หรือ `/help` | คู่มือใช้งาน + ปุ่มลัด | All |
 | `/settings` | ตั้งค่าการแจ้งเตือน, timezone, ภาษา | All |
 | `/dashboard` | เปิด Web Dashboard (auto-login link) | All |
@@ -37,7 +38,9 @@ tags: [commands, user]
 | Command/Action | Description | Tier |
 |---------------|------------|:---:|
 | กด ⭐ ใต้รายงาน | เพิ่มเข้า Watchlist | All (Free=3, VIP=10, PRO=∞) |
-| `/portfolio` หรือกดปุ่มเมนู | ดูพอร์ต + P&L | All (free=3, VIP=10, PRO=∞) |
+| `/add AAPL 10 150` | บันทึกซื้อหุ้น (สัญลักษณ์ จำนวน ต้นทุน) | All |
+| `/portfolio` หรือ `/port` | ดูพอร์ต + P&L | All (free=3, VIP=10, PRO=∞) |
+| `/pnl` | สร้างการ์ด P&L รูปสวยส่งโชว์ได้ | All |
 | Web dashboard | เพิ่ม/ลบ portfolio entries ได้สะดวก | All |
 
 ## Premium Commands
@@ -50,8 +53,9 @@ tags: [commands, user]
 | `/ealert list` | ดูรายการที่สมัครไว้ | VIP/PRO |
 | `/ealert remove AAPL` | ยกเลิก | VIP/PRO |
 | `/earnings AAPL` | วิเคราะห์งบการเงิน AI | VIP/PRO |
-| `/fund AAPL` | P/E, EPS, Dividend, Market Cap, Beta, 52W | VIP/PRO |
+| `/fund AAPL` (alias `/fundamentals`) | P/E, EPS, Dividend, Market Cap, Beta, 52W | VIP/PRO |
 | `/compare AAPL MSFT` | เปรียบเทียบ 2-3 หุ้น + AI verdict | PRO |
+| `/ask <คำถาม>` | ถาม AI ตรงๆ — ใช้ context หุ้นล่าสุดด้วย | PRO |
 
 ### Smart Alerts (PRO)
 
@@ -61,6 +65,7 @@ tags: [commands, user]
 | `/setalert AAPL +5%` | เพิ่ม 5% จากราคาปัจจุบัน | PRO |
 | `/setalert AAPL -3%` | ลด 3% จากราคาปัจจุบัน | PRO |
 | `/myalerts` | ดูรายการ alert ที่ตั้งไว้ | PRO |
+| `/delalert AAPL` | ลบการแจ้งเตือนของหุ้นนั้น | PRO |
 
 ## Track Record & Engagement (ทุก tier ดูได้)
 

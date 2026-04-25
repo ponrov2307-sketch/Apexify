@@ -6,7 +6,7 @@ tags: [ux, commands, design]
 
 ## ปัญหา
 
-Apexify มี 13+ คำสั่ง — user ใหม่จำไม่หมด, user เก่าลืม → ไม่ใช้ฟีเจอร์ที่จ่ายเงินไปแล้ว
+Apexify มี 16 คำสั่งใน Telegram dropdown (ยังมี hidden อีกหลายตัว เช่น `/add` `/portfolio` `/pnl` `/delalert`) — user ใหม่จำไม่หมด, user เก่าลืม → ไม่ใช้ฟีเจอร์ที่จ่ายเงินไปแล้ว
 
 ## Solution (3 ทาง — ทำครบแล้ว)
 
@@ -20,10 +20,13 @@ Apexify มี 13+ คำสั่ง — user ใหม่จำไม่หม
 from telebot.types import BotCommand
 bot.set_my_commands([
     BotCommand("start", "เริ่มใช้งาน / ลงทะเบียน"),
+    BotCommand("demo", "ทัวร์ฟีเจอร์ทั้งหมด — ดูบอททำอะไรได้บ้าง"),
     BotCommand("manual", "คู่มือคำสั่งทั้งหมด"),
+    BotCommand("account", "ดูสถานะบัญชี + Streak + โควต้า"),
     BotCommand("track", "สถิติ AI Plans — hit rate ย้อนหลัง"),
     BotCommand("fund", "ข้อมูลพื้นฐาน (P/E, EPS, Dividend) — VIP/PRO"),
     BotCommand("compare", "เปรียบเทียบ 2-3 หุ้น — PRO"),
+    BotCommand("ask", "ถาม AI คำถามการลงทุน — PRO"),
     BotCommand("earnings", "วิเคราะห์งบการเงินด้วย AI — VIP/PRO"),
     BotCommand("ealert", "แจ้งเตือนวัน Earnings — VIP/PRO"),
     BotCommand("setalert", "ตั้งเตือนราคา — PRO"),
@@ -36,6 +39,10 @@ bot.set_my_commands([
 ```
 
 ✅ Run ทุกครั้งตอน startup — ถ้าเพิ่ม command ใหม่ **อย่าลืมแก้ list นี้**
+
+> ⚠️ คำสั่งที่ **มีในโค้ดแต่ไม่ได้อยู่ใน dropdown** (ใช้งานได้ปกติ แต่ user หาไม่เจอจาก `/`):
+> `/add` `/portfolio` `/port` `/pnl` `/delalert`
+> → ผู้ใช้ส่วนใหญ่เข้าผ่าน Quick-Action button + Hub menu แทน — ถ้าจะให้ขึ้น dropdown ต้องเพิ่มในรายการข้างบน
 
 ### 2. 🎬 Contextual Quick-Action Buttons
 

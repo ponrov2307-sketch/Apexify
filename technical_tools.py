@@ -2,9 +2,34 @@ import yfinance as yf
 import pandas as pd
 import io
 import requests
+from concurrent.futures import ThreadPoolExecutor
+from threading import RLock
+from cachetools import TTLCache
 
 
 ALLOWED_MARKET_SUFFIXES = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+
+_yf_history_cache = TTLCache(maxsize=400, ttl=90)
+_yf_cache_lock = RLock()
+_yf_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="yfetch")
+
+
+def _fetch_history_cached(symbol, period="1y", interval="1d", auto_adjust=True):
+    key = (symbol, period, interval, auto_adjust)
+    with _yf_cache_lock:
+        cached = _yf_history_cache.get(key)
+    if cached is not None:
+        return cached.copy()
+    try:
+        df = yf.Ticker(symbol).history(period=period, interval=interval, auto_adjust=auto_adjust)
+    except Exception as e:
+        print(f"[yfetch] {symbol} {period}/{interval} failed: {e}", flush=True)
+        return pd.DataFrame()
+    if df is None or df.empty:
+        return pd.DataFrame()
+    with _yf_cache_lock:
+        _yf_history_cache[key] = df.copy()
+    return df
 
 
 def _load_chart_modules():
@@ -44,37 +69,38 @@ def calculate_indicators(data):
     data['EMA20'] = data['Close'].ewm(span=20, adjust=False).mean()
     data['EMA50'] = data['Close'].ewm(span=50, adjust=False).mean()
     data['EMA200'] = data['Close'].ewm(span=200, adjust=False).mean()
-    
+
     # RSI (14)
     delta = data['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     data['RSI'] = 100 - (100 / (1 + rs))
-    
+
     # MACD
     ema12 = data['Close'].ewm(span=12, adjust=False).mean()
     ema26 = data['Close'].ewm(span=26, adjust=False).mean()
     data['MACD'] = ema12 - ema26
     data['Signal_Line'] = data['MACD'].ewm(span=9, adjust=False).mean()
-    
+
     # Bollinger Bands (20)
     data['BB_Middle'] = data['Close'].rolling(window=20).mean()
     std = data['Close'].rolling(window=20).std()
     data['BB_Upper'] = data['BB_Middle'] + (2 * std)
     data['BB_Lower'] = data['BB_Middle'] - (2 * std)
-    
-    # OBV
-    obv = [0]
-    for i in range(1, len(data.Close)):
-        if data.Close.iloc[i] > data.Close.iloc[i-1]:
-            obv.append(obv[-1] + data.Volume.iloc[i])
-        elif data.Close.iloc[i] < data.Close.iloc[i-1]:
-            obv.append(obv[-1] - data.Volume.iloc[i])
-        else:
-            obv.append(obv[-1])
-    data['OBV'] = obv
-    
+
+    # ATR (14) — Average True Range — สำหรับ stop sizing แบบ volatility-aware
+    high_low = data['High'] - data['Low']
+    high_close = (data['High'] - data['Close'].shift()).abs()
+    low_close = (data['Low'] - data['Close'].shift()).abs()
+    true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    data['ATR'] = true_range.rolling(window=14).mean()
+
+    # OBV (vectorized — เร็วกว่า loop เดิม ~50x)
+    direction = data['Close'].diff().fillna(0)
+    obv_step = data['Volume'].where(direction > 0, -data['Volume'].where(direction < 0, 0))
+    data['OBV'] = obv_step.cumsum()
+
     return data
 
 
@@ -188,6 +214,7 @@ def _build_interval_snapshot(data, label):
         'ema20': ema20,
         'ema50': _safe_float(latest.get('EMA50')),
         'ema200': _safe_float(latest.get('EMA200')),
+        'atr': _safe_float(latest.get('ATR')),
         'volume': latest_volume,
         'avg_volume': avg_volume,
         'volume_ratio': volume_ratio,
@@ -206,22 +233,19 @@ def _build_interval_snapshot(data, label):
 
 def build_multitimeframe_trade_context(symbol):
     clean_symbol = _normalize_market_symbol(symbol)
-    ticker = yf.Ticker(clean_symbol)
 
-    try:
-        daily_data = ticker.history(period="1y", interval="1d", auto_adjust=False)
-    except Exception:
-        daily_data = pd.DataFrame()
-
-    try:
-        weekly_data = ticker.history(period="5y", interval="1wk", auto_adjust=False)
-    except Exception:
-        weekly_data = pd.DataFrame()
-
-    try:
-        monthly_data = ticker.history(period="10y", interval="1mo", auto_adjust=False)
-    except Exception:
-        monthly_data = pd.DataFrame()
+    fetch_specs = (
+        ("1y", "1d"),
+        ("5y", "1wk"),
+        ("10y", "1mo"),
+    )
+    futures = [
+        _yf_executor.submit(_fetch_history_cached, clean_symbol, period, interval, False)
+        for period, interval in fetch_specs
+    ]
+    daily_data = futures[0].result()
+    weekly_data = futures[1].result()
+    monthly_data = futures[2].result()
 
     day_snapshot = _build_interval_snapshot(daily_data, 'day')
     week_snapshot = _build_interval_snapshot(weekly_data, 'week')
@@ -252,14 +276,13 @@ def calculate_technical_indicators(symbol, generate_chart=True):
         try:
             clean_symbol = _normalize_market_symbol(symbol)
 
-            # 2. ดึงข้อมูลจริง 1 ปี
-            ticker = yf.Ticker(clean_symbol)
-            data = ticker.history(period="1y")
+            # 2. ดึงข้อมูลจริง 1 ปี (cached + thread-safe)
+            data = _fetch_history_cached(clean_symbol, period="1y")
 
             # 🌟 Auto-fallback: ถ้าไม่มี suffix และหา US ไม่เจอ → ลอง .BK (หุ้นไทย)
             if data.empty and "." not in clean_symbol and "-" not in clean_symbol:
                 fallback_symbol = f"{clean_symbol}.BK"
-                fallback_data = yf.Ticker(fallback_symbol).history(period="1y")
+                fallback_data = _fetch_history_cached(fallback_symbol, period="1y")
                 if not fallback_data.empty:
                     clean_symbol = fallback_symbol
                     data = fallback_data
@@ -310,12 +333,13 @@ def calculate_technical_indicators(symbol, generate_chart=True):
                 'ema200': float(latest['EMA200']),
                 'bb_upper': float(latest['BB_Upper']),
                 'bb_lower': float(latest['BB_Lower']),
+                'atr': float(latest['ATR']) if pd.notna(latest.get('ATR')) else None,
                 'support': support,
                 'resistance': resistance,
                 'poc_price': float(poc_price), # 🌟 ส่งค่าราคากระจุกตัวไปให้ AI วิเคราะห์
                 'obv_trend': "เพิ่มขึ้น 📈" if latest['OBV'] > prev['OBV'] else "ลดลง 📉",
                 'fear_greed': get_fear_and_greed_index(),
-                'volume': float(latest['Volume']), 
+                'volume': float(latest['Volume']),
                 'avg_volume': float(data['Volume'].rolling(window=20).mean().iloc[-1])
             }
 
@@ -379,11 +403,10 @@ def generate_pro_annotated_chart(symbol, plan):
     """
     try:
         clean_symbol = _normalize_market_symbol(symbol)
-        ticker = yf.Ticker(clean_symbol)
-        data = ticker.history(period="1y")
+        data = _fetch_history_cached(clean_symbol, period="1y")
 
         if data.empty and "." not in clean_symbol and "-" not in clean_symbol:
-            fallback_data = yf.Ticker(f"{clean_symbol}.BK").history(period="1y")
+            fallback_data = _fetch_history_cached(f"{clean_symbol}.BK", period="1y")
             if not fallback_data.empty:
                 clean_symbol = f"{clean_symbol}.BK"
                 data = fallback_data
