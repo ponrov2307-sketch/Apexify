@@ -300,6 +300,8 @@ def get_paid_users_snapshot():
     items = []
     for uid, role, expiry, uname, last_active, status in users_list:
         active_role = check_subscription(uid)
+        if active_role not in ("pro", "vip"):
+            continue
         la_str = ""
         if last_active:
             la_str = last_active.strftime("%Y-%m-%d %H:%M") if hasattr(last_active, 'strftime') else str(last_active)[:16]
@@ -309,8 +311,8 @@ def get_paid_users_snapshot():
                 "username": uname or "Unknown",
                 "role": str(role),
                 "expiry_date": _format_expiry_date(expiry),
-                "is_active": active_role in ("pro", "vip"),
-                "status_label": "Active" if active_role in ("pro", "vip") else "Expired",
+                "is_active": True,
+                "status_label": "Active",
                 "last_active": la_str,
                 "bot_status": status or "active",
             }

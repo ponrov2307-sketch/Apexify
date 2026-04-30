@@ -1090,6 +1090,24 @@ def claim_slip_and_add_subscription(user_id: str, ref_no: str, role: str, days: 
             return "error", None
 
         current_role, current_expiry = result
+
+        # 🛡️ ปฏิเสธ downgrade ถ้ายังมี subscription ที่สูงกว่า active อยู่
+        # เคส: PRO ยังไม่หมดอายุ + จ่าย VIP → block + แจ้ง admin คืนเงิน
+        if role == 'vip' and current_role == 'pro' and current_expiry:
+            try:
+                if isinstance(current_expiry, datetime):
+                    cur_exp_dt = current_expiry.replace(tzinfo=None)
+                else:
+                    cur_exp_dt = datetime.fromisoformat(
+                        str(current_expiry).strip().replace('T', ' ')
+                    ).replace(tzinfo=None)
+                if cur_exp_dt > now:
+                    # คงสลิปใน used_slips ไว้ (ลูกค้าโอนเงินจริง) ไม่ rollback
+                    conn.commit()
+                    return "downgrade_blocked", cur_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
+            except (ValueError, TypeError):
+                pass
+
         new_expiry = _calculate_subscription_expiry(
             role,
             days,
@@ -1690,17 +1708,28 @@ def process_referral(referrer_id, new_user_id):
 
         milestone_hit = (new_count % 3 == 0)
 
+        # 🛡️ ใช้ check_subscription เพื่อให้ใช้ effective tier (เคารพ expiry)
+        # กันเคส role='pro' ค้างใน DB (หมดอายุแล้ว) → ได้ bonus PRO ฟรี
+        effective_role = check_subscription(referrer_id)
+
         if milestone_hit:
-            c.execute("""
-                UPDATE users SET
-                    role = CASE WHEN role = 'pro' THEN 'pro' ELSE 'vip' END,
-                    expiry_date = GREATEST(COALESCE(expiry_date, NOW()), NOW()) + INTERVAL '10 days'
-                WHERE user_id = %s
-            """, (referrer_id,))
+            if effective_role == 'pro':
+                # PRO active → คง PRO + ต่อ 10 วัน
+                c.execute("""
+                    UPDATE users SET
+                        expiry_date = GREATEST(COALESCE(expiry_date, NOW()), NOW()) + INTERVAL '10 days'
+                    WHERE user_id = %s
+                """, (referrer_id,))
+            else:
+                # Free, VIP active, หรือ premium หมดอายุ → upgrade/extend VIP
+                c.execute("""
+                    UPDATE users SET
+                        role = 'vip',
+                        expiry_date = GREATEST(COALESCE(expiry_date, NOW()), NOW()) + INTERVAL '10 days'
+                    WHERE user_id = %s
+                """, (referrer_id,))
         else:
-            c.execute("SELECT role FROM users WHERE user_id = %s", (referrer_id,))
-            row = c.fetchone()
-            if row and row[0] not in ('vip', 'pro'):
+            if effective_role == 'free':
                 c.execute("UPDATE users SET usage_count = GREATEST(0, usage_count - 3) WHERE user_id = %s", (referrer_id,))
 
         # 🌟 Referred user bonus — VIP 3 วันฟรี (v2 ใหม่)

@@ -1644,6 +1644,32 @@ def handle_payment_slip_check(message):
                     parse_mode="Markdown",
                 )
                 return
+            if claim_status == "downgrade_blocked":
+                bot.edit_message_text(
+                    (
+                        "🛑 **คุณยังเป็น PRO อยู่ไม่สามารถซื้อ VIP ได้**\n\n"
+                        f"PRO ของคุณหมดอายุ: `{expiry}`\n"
+                        "ระบบไม่อัปเดตสิทธิ์เพื่อกัน PRO ของคุณหายครับ\n\n"
+                        "💬 ทีมงานจะติดต่อคืนเงินภายใน 24 ชม."
+                    ),
+                    message.chat.id,
+                    progress_msg.message_id,
+                    parse_mode="Markdown",
+                )
+                bot.send_message(
+                    ADMIN_ID,
+                    (
+                        f"🛑 **DOWNGRADE BLOCKED — ต้องคืนเงิน!**\n"
+                        f"User `{user_id}` โอน `{amount:,.2f}` บาท (VIP) ทั้งที่ยังเป็น PRO อยู่\n"
+                        f"PRO หมดอายุ: `{expiry}`\n"
+                        f"Ref: `{ref_no}`\n"
+                        f"ผู้โอน: `{slip_result.get('sender_display_name') or '-'}`\n"
+                        f"➡️ ติดต่อคืนเงินผู้ใช้"
+                    ),
+                    parse_mode="Markdown",
+                )
+                return
+
             if claim_status != "success" or not expiry:
                 bot.edit_message_text(
                     "⚠️ Apexify ตรวจสอบสลิปได้แล้ว แต่ยังไม่สามารถอัปเดตสิทธิ์ได้ กรุณาลองใหม่อีกครั้ง",
@@ -2327,34 +2353,94 @@ def inline_callbacks(call):
                 bot.send_message(user_id, "🔒 **ฟีเจอร์ระดับพรีเมียม (PRO Exclusive)**\nสแกนหุ้นเด่นอัตโนมัติสงวนสิทธิ์ให้ลูกค้าระดับ PRO เท่านั้นครับ 👑", parse_mode="Markdown")
                 return
             
-            scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหาหุ้นเด่น...**\n*(ค้นหาจากกลุ่ม SET50 และ US Tech ที่เพิ่งเกิด Golden Cross หรือ RSI ตกเข้าโซน Oversold)*")
-            
-            scan_list = ['PTT.BK', 'AOT.BK', 'ADVANC.BK', 'CPALL.BK', 'DELTA.BK', 'GULF.BK', 'KBANK.BK', 'SCB.BK', 'BDMS.BK', 'BBL.BK', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'GOOGL']
-            
-            found_stocks = []
-            for sym in scan_list:
+            scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหุ้นเมกาเด่น...**\n*(สแกน 60 ตัว large/mid-cap US แบบขนาน — คัด 10 อันดับน่าสะสมที่สุด)*")
+
+            # 🇺🇸 US large/mid-cap universe — กระจาย 8 sectors ละ ~7-8 ตัว
+            scan_list = [
+                # Mega Tech / Internet
+                'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NFLX', 'CRM', 'ORCL',
+                # Semi / Hardware
+                'NVDA', 'AMD', 'AVGO', 'TSM', 'INTC', 'QCOM', 'MU', 'ASML',
+                # Software / AI
+                'ADBE', 'NOW', 'PLTR', 'SNOW', 'CRWD', 'PANW', 'SHOP',
+                # Consumer Discretionary
+                'TSLA', 'COST', 'NKE', 'MCD', 'SBUX', 'DIS', 'LOW', 'HD',
+                # Consumer Staples
+                'WMT', 'PG', 'KO', 'PEP',
+                # Financials
+                'JPM', 'BAC', 'V', 'MA', 'GS', 'BLK', 'AXP',
+                # Healthcare / Pharma
+                'LLY', 'UNH', 'JNJ', 'PFE', 'ABBV', 'MRK', 'TMO',
+                # Energy
+                'XOM', 'CVX', 'COP',
+                # Industrial / Other
+                'CAT', 'BA', 'GE', 'UBER', 'ABNB',
+            ]
+
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            def _score_symbol(sym):
                 try:
                     tech_data, _, err = calculate_technical_indicators(sym, generate_chart=False)
-                    if err or not tech_data: continue
-                    
+                    if err or not tech_data:
+                        return None
+
                     rsi = tech_data['rsi']
                     ema50 = tech_data['ema50']
                     ema200 = tech_data['ema200']
                     price = tech_data['price']
-                    
-                    is_golden = (ema50 > ema200) and (ema50 / ema200 < 1.02)
-                    is_oversold = rsi < 30
-                    
-                    if is_golden or is_oversold:
-                        reason = "✨ เพิ่งเกิด Golden Cross (เทรนด์เปลี่ยนเป็นขาขึ้น)" if is_golden else f"🎯 น่าสะสม (RSI ต่ำเพียง {rsi:.2f})"
-                        found_stocks.append(f"📌 **{sym}** (ราคา: {price:,.2f})\n   👉 {reason}")
-                except Exception:
-                    pass
-            
-            if found_stocks:
-                result_msg = "🔥 **หุ้นเด่นน่าเก็บประจำวัน (Apexify Screener)** 🔥\n\n" + "\n\n".join(found_stocks)
+
+                    score = 0
+                    reasons = []
+
+                    if ema50 > ema200:
+                        ratio = ema50 / ema200
+                        if ratio < 1.03:
+                            score += 100
+                            reasons.append("✨ Golden Cross (เพิ่งเกิด)")
+                        elif ratio < 1.08:
+                            score += 60
+                            reasons.append("📈 เทรนด์ขาขึ้นยังไม่ extended")
+                        elif ratio < 1.15:
+                            score += 30
+
+                    if rsi < 30:
+                        score += 100
+                        reasons.append(f"🎯 Oversold (RSI {rsi:.1f})")
+                    elif rsi < 40:
+                        score += 70
+                        reasons.append(f"💎 ใกล้แนวรับ (RSI {rsi:.1f})")
+                    elif 40 <= rsi <= 55:
+                        score += 30
+                        reasons.append(f"⚖️ โมเมนตัมเป็นกลาง (RSI {rsi:.1f})")
+
+                    if score > 0:
+                        return (score, sym, price, reasons)
+                    return None
+                except Exception as e:
+                    print(f"[Screener] {sym} ล้มเหลว: {e}")
+                    return None
+
+            candidates = []
+            # 16 workers: yfinance bound, network parallel ดีสุด ~12-16
+            with ThreadPoolExecutor(max_workers=16, thread_name_prefix="screener") as pool:
+                futures = {pool.submit(_score_symbol, sym): sym for sym in scan_list}
+                for fut in as_completed(futures):
+                    result = fut.result()
+                    if result is not None:
+                        candidates.append(result)
+
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            top_10 = candidates[:10]
+
+            if top_10:
+                lines = []
+                for i, (_, sym, price, reasons) in enumerate(top_10, 1):
+                    reason_text = " + ".join(reasons) if reasons else "📊 น่าจับตา"
+                    lines.append(f"**{i}. {sym}** (${price:,.2f})\n   👉 {reason_text}")
+                result_msg = "🔥 **Apexify US Picks — 10 หุ้นเมกาเด่นวันนี้** 🔥\n\n" + "\n\n".join(lines) + "\n\n💡 พิมพ์ชื่อหุ้นเพื่อให้ AI วิเคราะห์เชิงลึก"
             else:
-                result_msg = "🔥 **หุ้นเด่นน่าเก็บประจำวัน** 🔥\n\nขณะนี้ยังไม่พบหุ้นที่เข้าเกณฑ์ Golden Cross หรือ Oversold แบบชัดเจนครับ\n*(Apexify แนะนำให้จับตาดูตลาด หรือถือเงินสดรอดูสถานการณ์)*"
+                result_msg = "🔥 **Apexify US Picks** 🔥\n\nขณะนี้ตลาดสหรัฐฯ ยังไม่มีหุ้นเข้าเกณฑ์น่าสะสมชัดเจน\n*(เทรนด์ extended ทั้งกระดาน — แนะนำให้รอจังหวะ pullback)*"
                 
             bot.edit_message_text(result_msg, user_id, scan_msg.message_id, parse_mode="Markdown")
         except Exception as e:

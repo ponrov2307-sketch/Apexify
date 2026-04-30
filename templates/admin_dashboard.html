@@ -657,7 +657,7 @@
           <tbody>
             {% for u in paid_users %}
             <tr>
-              <td><span class="mono" style="font-size:11px">{{ u.user_id[:8] }}…</span><br><span style="font-size:11px;color:var(--text-muted)">{{ u.username or '' }}</span></td>
+              <td><span class="mono" style="font-size:11px">{{ u.user_id }}</span><br><span style="font-size:11px;color:var(--text-muted)">{{ u.username or '' }}</span></td>
               <td>
                 {% if u.role == 'pro' %}<span class="badge badge-purple">PRO</span>
                 {% else %}<span class="badge badge-blue">VIP</span>{% endif %}
