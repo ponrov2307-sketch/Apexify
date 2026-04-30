@@ -2353,28 +2353,45 @@ def inline_callbacks(call):
                 bot.send_message(user_id, "🔒 **ฟีเจอร์ระดับพรีเมียม (PRO Exclusive)**\nสแกนหุ้นเด่นอัตโนมัติสงวนสิทธิ์ให้ลูกค้าระดับ PRO เท่านั้นครับ 👑", parse_mode="Markdown")
                 return
             
-            scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหุ้นเมกาเด่น...**\n*(สแกน 60 ตัว large/mid-cap US แบบขนาน — คัด 10 อันดับน่าสะสมที่สุด)*")
+            scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหุ้นเมกาเด่น...**\n*(สแกน 150 ตัว US large/mid-cap แบบขนาน — คัด 10 อันดับน่าสะสมที่สุด)*")
 
-            # 🇺🇸 US large/mid-cap universe — กระจาย 8 sectors ละ ~7-8 ตัว
+            # 🇺🇸 US large/mid-cap universe — 150 ตัว ครอบคลุม 13 sectors
             scan_list = [
-                # Mega Tech / Internet
+                # Mega Tech & Internet (15)
                 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NFLX', 'CRM', 'ORCL',
-                # Semi / Hardware
+                'ADBE', 'NOW', 'IBM', 'CSCO', 'INTU', 'ANET', 'SHOP',
+                # Semi / Hardware (15)
                 'NVDA', 'AMD', 'AVGO', 'TSM', 'INTC', 'QCOM', 'MU', 'ASML',
-                # Software / AI
-                'ADBE', 'NOW', 'PLTR', 'SNOW', 'CRWD', 'PANW', 'SHOP',
-                # Consumer Discretionary
+                'AMAT', 'KLAC', 'LRCX', 'MRVL', 'ON', 'ARM', 'TXN',
+                # Software / SaaS / AI (15)
+                'PLTR', 'SNOW', 'CRWD', 'PANW', 'DDOG', 'NET', 'FTNT', 'ZS',
+                'MDB', 'TEAM', 'WDAY', 'SQ', 'U', 'EA', 'TTWO',
+                # Consumer Discretionary (15)
                 'TSLA', 'COST', 'NKE', 'MCD', 'SBUX', 'DIS', 'LOW', 'HD',
-                # Consumer Staples
-                'WMT', 'PG', 'KO', 'PEP',
-                # Financials
-                'JPM', 'BAC', 'V', 'MA', 'GS', 'BLK', 'AXP',
-                # Healthcare / Pharma
-                'LLY', 'UNH', 'JNJ', 'PFE', 'ABBV', 'MRK', 'TMO',
-                # Energy
-                'XOM', 'CVX', 'COP',
-                # Industrial / Other
-                'CAT', 'BA', 'GE', 'UBER', 'ABNB',
+                'TJX', 'ROST', 'LULU', 'BKNG', 'MAR', 'F', 'GM',
+                # Consumer Staples (15)
+                'WMT', 'PG', 'KO', 'PEP', 'MO', 'PM', 'MDLZ', 'KMB',
+                'CL', 'EL', 'KHC', 'GIS', 'K', 'SYY', 'STZ',
+                # Financials (15)
+                'JPM', 'BAC', 'V', 'MA', 'GS', 'BLK', 'AXP', 'MS',
+                'C', 'WFC', 'SCHW', 'USB', 'COF', 'PYPL', 'AFL',
+                # Healthcare / Pharma (15)
+                'LLY', 'UNH', 'JNJ', 'PFE', 'ABBV', 'MRK', 'TMO', 'ABT',
+                'BMY', 'AMGN', 'GILD', 'REGN', 'VRTX', 'ELV', 'CVS',
+                # Energy (10)
+                'XOM', 'CVX', 'COP', 'OXY', 'EOG', 'SLB', 'MPC', 'PSX',
+                'KMI', 'EPD',
+                # Industrial (12)
+                'CAT', 'BA', 'GE', 'UPS', 'FDX', 'HON', 'LMT', 'RTX',
+                'NOC', 'DE', 'ETN', 'EMR',
+                # REIT (5)
+                'O', 'PLD', 'AMT', 'EQIX', 'SPG',
+                # Materials (5)
+                'LIN', 'FCX', 'NEM', 'APD', 'SHW',
+                # Travel / Leisure (8)
+                'UBER', 'ABNB', 'HLT', 'DAL', 'AAL', 'LUV', 'CCL', 'RCL',
+                # Telecom / Retail (5)
+                'T', 'VZ', 'TMUS', 'CMCSA', 'TGT',
             ]
 
             from concurrent.futures import ThreadPoolExecutor, as_completed
