@@ -8,10 +8,14 @@ Design:
 - Dedup via url_hash UNIQUE constraint on breaking_news_log.
 - Throttle: max 1 alert per user per 30 min (anti-spam).
 - Quiet hours: Thai 02:00-08:00 → bundled into morning briefing instead of push.
+- Audio: HIGH alerts also get a short Thai voice clip via edge_tts (same voice
+  as morning podcast: th-TH-PremwadeeNeural).
 """
 
+import asyncio
 import hashlib
 import json
+import os
 import re
 import time
 import xml.etree.ElementTree as ET
@@ -178,8 +182,11 @@ _CLASSIFY_PROMPT = """คุณเป็นนักวิเคราะห์�
 - MEDIUM: ข่าวสำคัญรองลง คาด 0.2-0.5% เช่น คำสัมภาษณ์ Fed, retail sales, ISM
 - LOW: ข่าวทั่วไปไม่น่าทำให้ตลาดเคลื่อนแรง
 
+หากข่าวเฉพาะบริษัท (เช่น Boeing 777 grounded, Apple recalls, Tesla recall) ระบุ ticker ของบริษัทนั้นใน "tickers"
+หากเป็นข่าวมหภาค/ตลาด/นโยบาย (CPI, FOMC, war, OPEC) ที่กระทบทั้งตลาด → "tickers": [] (แสดงว่ากระทบวงกว้าง)
+
 ตอบ JSON:
-{{"importance": "HIGH|MEDIUM|LOW", "summary_th": "สรุปไทย 80 ตัวอักษรกระชับ", "reasoning": "เหตุผลภาษาไทย 1 ประโยค"}}"""
+{{"importance": "HIGH|MEDIUM|LOW", "summary_th": "สรุปไทย 80 ตัวอักษรกระชับ", "reasoning": "เหตุผลภาษาไทย 1 ประโยค", "tickers": []}}"""
 
 
 _GEMINI_FALLBACK_CHAIN = ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro")
@@ -222,6 +229,7 @@ def gemini_classify_breaking(item: dict) -> dict | None:
             "importance": "MEDIUM" if keyword_tier(item["title"]) else "LOW",
             "summary_th": item["title"][:80],
             "reasoning": "Gemini unavailable — keyword fallback (downgraded)",
+            "tickers": [],
         }
 
     prompt = _CLASSIFY_PROMPT.format(title=item["title"], source=item["source"])
@@ -234,11 +242,17 @@ def gemini_classify_breaking(item: dict) -> dict | None:
         importance = str(data.get("importance", "LOW")).upper()
         if importance not in ("HIGH", "MEDIUM", "LOW"):
             importance = "LOW"
+        # Normalize tickers list
+        raw_tickers = data.get("tickers") or []
+        if isinstance(raw_tickers, str):
+            raw_tickers = [raw_tickers]
+        tickers = [str(t).upper().strip() for t in raw_tickers if str(t).strip()][:10]
         return {
             **item,
             "importance": importance,
             "summary_th": str(data.get("summary_th", item["title"]))[:200],
             "reasoning": str(data.get("reasoning", ""))[:300],
+            "tickers": tickers,
         }
     except Exception as e:
         print(f"[BreakingNews] Gemini classify failed (all retries): {e}", flush=True)
@@ -248,7 +262,55 @@ def gemini_classify_breaking(item: dict) -> dict | None:
             "importance": "MEDIUM" if keyword_tier(item["title"]) else "LOW",
             "summary_th": item["title"][:80],
             "reasoning": "Gemini error — keyword fallback (downgraded)",
+            "tickers": [],
         }
+
+
+# ========== Thai TTS (Edge TTS) ==========
+
+_TTS_VOICE = "th-TH-PremwadeeNeural"  # Same voice as morning podcast
+
+
+def _build_audio_script(record: dict) -> str:
+    """Build a natural-sounding Thai script from the news record.
+
+    Edge TTS reads English brand names readably; we just stitch summary +
+    reasoning into a flowing sentence for narration.
+    """
+    summary = (record.get("summary_th") or record.get("title") or "").strip()
+    reasoning = (record.get("reasoning") or "").strip()
+    parts = ["ข่าวด่วนตลาดสหรัฐ", summary]
+    if reasoning:
+        parts.append(reasoning)
+    return ". ".join(p for p in parts if p)
+
+
+async def _tts_save(text: str, out_path: str) -> bool:
+    try:
+        import edge_tts
+        communicate = edge_tts.Communicate(text, _TTS_VOICE)
+        await communicate.save(out_path)
+        return True
+    except Exception as e:
+        print(f"[BreakingNews] edge_tts failed: {e}", flush=True)
+        return False
+
+
+def generate_audio_for_breaking(record: dict) -> str | None:
+    """Sync wrapper. Returns path to saved mp3 or None."""
+    text = _build_audio_script(record)
+    if not text:
+        return None
+    safe_id = (record.get("url_hash") or "tmp")[:16]
+    out_path = f"breaking_{safe_id}.mp3"
+    try:
+        ok = asyncio.run(_tts_save(text, out_path))
+    except Exception as e:
+        print(f"[BreakingNews] TTS run failed: {e}", flush=True)
+        return None
+    if ok and os.path.exists(out_path):
+        return out_path
+    return None
 
 
 # ========== Format for Telegram ==========
@@ -365,16 +427,56 @@ def process_breaking_news(bot_instance, *, dry_run: bool = False) -> dict:
             continue
 
         msg = format_breaking_message(record)
+
+        # Personalization: macro news → broadcast all; company-specific → only
+        # send to subscribers whose portfolio/watchlist intersects the tickers.
+        target_subs = subscribers
+        record_tickers = set(record.get("tickers", []))
+        if record_tickers:
+            from database import get_user_portfolio, get_user_watch
+            target_subs = []
+            for uid in subscribers:
+                try:
+                    held = {p["ticker"].upper() for p in (get_user_portfolio(uid) or [])}
+                    watched = {w.upper() for w in (get_user_watch(uid) or [])}
+                except Exception:
+                    held, watched = set(), set()
+                if record_tickers & (held | watched):
+                    target_subs.append(uid)
+            print(f"[BreakingNews] ticker-specific {sorted(record_tickers)} → "
+                  f"{len(target_subs)}/{len(subscribers)} subs match", flush=True)
+
+        if not target_subs:
+            continue
+
+        # Generate Thai voice clip once per news (reused for all subscribers)
+        audio_path = generate_audio_for_breaking(record)
+
         sent_count = 0
-        for uid in subscribers:
+        for uid in target_subs:
             try:
                 bot_instance.send_message(uid, msg, parse_mode="Markdown",
                                           disable_web_page_preview=False)
                 sent_count += 1
+                # Voice follows text — best-effort
+                if audio_path:
+                    try:
+                        with open(audio_path, "rb") as f:
+                            bot_instance.send_voice(chat_id=uid, voice=f,
+                                                     caption="🎧 ฟังสรุปข่าว")
+                    except Exception as e:
+                        print(f"[BreakingNews] voice to {uid} failed: {e}", flush=True)
                 # Soft throttle so Telegram doesn't 429 us
                 time.sleep(0.05)
             except Exception as e:
                 print(f"[BreakingNews] push to {uid} failed: {e}", flush=True)
+
+        # Cleanup audio file after push round
+        if audio_path and os.path.exists(audio_path):
+            try:
+                os.remove(audio_path)
+            except Exception:
+                pass
 
         if sent_count > 0:
             try:

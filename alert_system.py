@@ -3,7 +3,7 @@ import hashlib
 import math
 import difflib
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import telebot
 import requests 
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY, gemini_client
@@ -1199,6 +1199,44 @@ def _get_top_movers_section():
 # ==========================================
 # 🌟 ฟีเจอร์ Morning Apexify Briefing (08:30 น.)
 # ==========================================
+def _get_overnight_breaking_section() -> str:
+    """Pull HIGH-tier breaking news classified in past 14h (overnight US market window).
+
+    Why 14h: morning briefing fires 08:30 Thai. 14h back covers ~18:30 prev day Thai
+    = 11:30 ET prev session — captures pre-market through after-hours macro releases
+    (CPI/NFP at 08:30 ET, FOMC at 14:00 ET, etc).
+    """
+    try:
+        from database import get_recent_breaking_news
+        items = get_recent_breaking_news(limit=10, importance="HIGH")
+    except Exception as e:
+        print(f"[MorningBriefing] overnight breaking fetch failed: {e}", flush=True)
+        return ""
+    if not items:
+        return ""
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=14)
+    fresh = []
+    for it in items:
+        try:
+            ts_str = it.get("classified_at")
+            if not ts_str:
+                continue
+            ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            if ts >= cutoff:
+                fresh.append(it)
+        except Exception:
+            continue
+    if not fresh:
+        return ""
+    lines = ["🚨 **ข่าวด่วนเมื่อคืน:**"]
+    for n in fresh[:5]:
+        summary = n.get("summary_th") or n.get("title", "")[:80]
+        lines.append(f"• {summary}")
+    return "\n".join(lines) + "\n\n"
+
+
 def send_morning_briefing(bot_instance, force=False):
     try:
         if not force and not _claim_dispatch_once("morning_briefing", _current_thai_date_str()):
@@ -1278,6 +1316,8 @@ def send_morning_briefing(bot_instance, force=False):
                 if econ_events else ""
             )
 
+            overnight_breaking_section = _get_overnight_breaking_section()
+
             msg = (
                 f"🌅 **Apexify Morning Briefing** 🌅\n\n"
                 f"📊 **สรุปตลาดโลกเมื่อคืน:**\n"
@@ -1285,6 +1325,7 @@ def send_morning_briefing(bot_instance, force=False):
                 f"• Bitcoin: {btc_close:,.2f}\n"
                 f"• ทองคำโลก (Gold): {gold_close:,.2f}\n\n"
                 f"{thai_market_section}"
+                f"{overnight_breaking_section}"
                 f"{macro_assets_section}"
                 f"{movers_section}"
                 f"{top_movers_section}"

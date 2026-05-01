@@ -2180,3 +2180,93 @@ def get_recent_breaking_news(limit: int = 20, importance: str | None = None) -> 
         "classified_at": r[7].isoformat() if r[7] else None,
         "sent_to_count": r[8],
     } for r in rows]
+
+
+# ==========================================
+# Pending Referrals — manual capture from users who didn't use REF_ link
+# ==========================================
+
+def has_pending_referral(new_user_id: str) -> bool:
+    """Has this user already submitted a 'who referred you' answer?"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "SELECT 1 FROM pending_referrals WHERE new_user_id = %s LIMIT 1",
+            (str(new_user_id),),
+        )
+        return c.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def add_pending_referral(new_user_id: str, new_user_name: str | None,
+                         referrer_query: str) -> int | None:
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            INSERT INTO pending_referrals (new_user_id, new_user_name, referrer_query)
+            VALUES (%s, %s, %s)
+            RETURNING id
+            """,
+            (str(new_user_id), new_user_name, str(referrer_query)[:200]),
+        )
+        new_id = c.fetchone()[0]
+        conn.commit()
+        return int(new_id)
+    except Exception as e:
+        print(f"[PendingRef] insert error: {e}")
+        conn.rollback()
+        return None
+    finally:
+        conn.close()
+
+
+def list_pending_referrals(limit: int = 50) -> list[dict]:
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            SELECT id, new_user_id, new_user_name, referrer_query, submitted_at, awarded
+            FROM pending_referrals
+            WHERE awarded = FALSE
+            ORDER BY submitted_at DESC
+            LIMIT %s
+            """,
+            (int(limit),),
+        )
+        rows = c.fetchall()
+    finally:
+        conn.close()
+    return [{
+        "id": r[0], "new_user_id": r[1], "new_user_name": r[2],
+        "referrer_query": r[3],
+        "submitted_at": r[4].isoformat() if r[4] else None,
+        "awarded": r[5],
+    } for r in rows]
+
+
+def mark_referral_awarded(pending_id: int, referrer_id: str) -> bool:
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            UPDATE pending_referrals
+            SET resolved_referrer_id = %s, awarded = TRUE, awarded_at = NOW()
+            WHERE id = %s AND awarded = FALSE
+            """,
+            (str(referrer_id), int(pending_id)),
+        )
+        affected = c.rowcount
+        conn.commit()
+        return affected > 0
+    except Exception as e:
+        print(f"[PendingRef] mark awarded error: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()

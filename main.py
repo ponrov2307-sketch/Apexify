@@ -804,6 +804,27 @@ def send_welcome(message):
     )
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
 
+    # 🌟 ขอข้อมูลผู้แนะนำ — เฉพาะ user ใหม่ที่ไม่ได้มากับลิงก์ REF_
+    # PP P. case: เพื่อนส่งแคปหน้าจอ + URL ทำให้ referral หาย → กู้ผ่านฟอร์มนี้
+    try:
+        from database import has_pending_referral
+        if not referred_welcome_bonus and not has_pending_referral(user_id):
+            ref_markup = InlineKeyboardMarkup(row_width=2)
+            ref_markup.add(
+                InlineKeyboardButton("✋ มาเอง", callback_data="referral_self"),
+                InlineKeyboardButton("👥 มีเพื่อนแนะนำ", callback_data="referral_friend"),
+            )
+            bot.send_message(
+                int(user_id),
+                "🤝 **มีเพื่อนแนะนำ Apexify ให้คุณไหมครับ?**\n\n"
+                "ถ้ามี เพื่อนของคุณจะได้รับ VIP +10 วัน เป็นรางวัลขอบคุณ\n"
+                "(ระบบจะถามชื่อ/Telegram ID ของเพื่อน)",
+                parse_mode="Markdown",
+                reply_markup=ref_markup,
+            )
+    except Exception as e:
+        print(f"[ReferralCapture] ask error: {e}", flush=True)
+
     # 🌟 Referral welcome bonus — แจ้ง new user ว่าได้ VIP 3 วันฟรี
     if referred_welcome_bonus:
         try:
@@ -1238,6 +1259,108 @@ def handle_free_trial(message):
             parse_mode="Markdown")
     else:
         bot.reply_to(message, "📡 ระบบขัดข้องชั่วคราว ขออภัยในความไม่สะดวก รบกวนลองอีกครั้งในสักครู่ครับ")
+
+
+def _capture_referrer_input(message):
+    """Receives the user's reply to 'who referred you?' — save to pending_referrals."""
+    user_id = str(message.chat.id)
+    txt = (message.text or "").strip()
+    if not txt or txt.startswith("/"):
+        bot.send_message(int(user_id), "ยกเลิกแล้วครับ ใช้ /start หากต้องการเริ่มใหม่")
+        return
+    try:
+        from database import add_pending_referral
+        first = message.from_user.first_name or ""
+        last = message.from_user.last_name or ""
+        name = f"{first} {last}".strip()
+        add_pending_referral(user_id, name, txt)
+        bot.send_message(
+            int(user_id),
+            "✅ *ได้รับข้อมูลแล้วครับ*\n\n"
+            "ทีมงานจะตรวจสอบและให้รางวัลกับเพื่อนคุณภายใน 24 ชม.\n"
+            "ขอบคุณที่ช่วยบอกต่อ Apexify ครับ 🤝",
+            parse_mode="Markdown",
+        )
+        try:
+            bot.send_message(
+                int(ADMIN_ID),
+                f"🎁 *New referral submission*\n\n"
+                f"From user: `{user_id}` ({name or '-'})\n"
+                f"Referrer query: `{txt[:120]}`\n\n"
+                f"_ใช้ /pending\\_refs เพื่อดูรายการ_",
+                parse_mode="Markdown",
+            )
+        except Exception as e:
+            print(f"[ReferralCapture] admin notify failed: {e}", flush=True)
+    except Exception as e:
+        bot.send_message(int(user_id), f"❌ บันทึกไม่สำเร็จ ({e}) — ลองใหม่ผ่าน /start")
+
+
+@bot.message_handler(commands=['pending_refs'])
+def handle_pending_refs(message):
+    """[Admin] ดู pending referral submissions"""
+    user_id = str(message.chat.id)
+    if str(user_id) != str(ADMIN_ID):
+        return
+    from database import list_pending_referrals
+    rows = list_pending_referrals(limit=20)
+    if not rows:
+        bot.reply_to(message, "✅ ไม่มี pending referral")
+        return
+    lines = ["📋 *Pending Referrals* (รอ admin จับคู่)", ""]
+    for r in rows:
+        lines.append(
+            f"`#{r['id']}` user `{r['new_user_id']}` ({r['new_user_name'] or '-'})\n"
+            f"   → ระบุว่ามาจาก: *{r['referrer_query']}*\n"
+            f"   _submitted: {r['submitted_at'][:16] if r['submitted_at'] else '-'}_"
+        )
+    lines.append("\n_จับคู่ด้วย:_ `/award_ref <id> <referrer_telegram_id>`")
+    bot.reply_to(message, "\n".join(lines), parse_mode="Markdown")
+
+
+@bot.message_handler(commands=['award_ref'])
+def handle_award_ref(message):
+    """[Admin] /award_ref <pending_id> <referrer_telegram_id>"""
+    user_id = str(message.chat.id)
+    if str(user_id) != str(ADMIN_ID):
+        return
+    parts = (message.text or "").split()
+    if len(parts) != 3:
+        bot.reply_to(message, "Usage: `/award_ref <pending_id> <referrer_telegram_id>`",
+                     parse_mode="Markdown")
+        return
+    try:
+        pid = int(parts[1])
+        ref_id = parts[2].lstrip("@")
+    except ValueError:
+        bot.reply_to(message, "❌ pending_id ต้องเป็นตัวเลข")
+        return
+    from database import mark_referral_awarded
+    # NOTE: Use existing process_referral logic to actually grant the reward
+    # by simulating a back-dated referral. We import process_referral lazily.
+    try:
+        from database import process_referral
+        # Find the new_user from pending row
+        from database import list_pending_referrals
+        target = next((r for r in list_pending_referrals(limit=200) if r["id"] == pid), None)
+        if not target:
+            bot.reply_to(message, f"❌ pending_id `{pid}` ไม่พบ หรือ awarded ไปแล้ว",
+                         parse_mode="Markdown")
+            return
+        success, milestone = process_referral(ref_id, target["new_user_id"])
+        if not success:
+            bot.reply_to(message, "❌ process_referral ล้มเหลว — อาจ user ใหม่ยังไม่ register เป็น row หรือ already-recorded")
+            return
+        mark_referral_awarded(pid, ref_id)
+        bot.reply_to(
+            message,
+            f"✅ Awarded — referrer `{ref_id}` ได้รับ "
+            f"{'milestone bonus + 10 days' if milestone else '+3 quota'}\n"
+            f"new user `{target['new_user_id']}` ได้ VIP 3 วันฟรี",
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error: {e}")
 
 
 def _send_breaking_status_card(chat_id: int, enabled: bool):
@@ -1910,7 +2033,7 @@ def quick_action_callbacks(call):
             parse_mode="Markdown")
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('delalert_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_') or call.data.startswith('tutorial_') or call.data.startswith('qr_pay_'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('delalert_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_') or call.data.startswith('tutorial_') or call.data.startswith('qr_pay_') or call.data == 'breaking_toggle' or call.data.startswith('referral_'))
 def inline_callbacks(call):
     user_id = str(call.message.chat.id)
     if not is_allowed(user_id): return
@@ -2166,6 +2289,25 @@ def inline_callbacks(call):
 
     elif call.data == 'menu_dashboard':
         send_dashboard_login_link(user_id)
+
+    elif call.data == 'referral_self':
+        try:
+            bot.edit_message_text(
+                "✅ มาเอง — ขอให้สนุกกับ Apexify ครับ! 🚀",
+                call.message.chat.id, call.message.message_id,
+            )
+        except Exception:
+            pass
+
+    elif call.data == 'referral_friend':
+        prompt_msg = bot.send_message(
+            int(user_id),
+            "👥 พิมพ์ชื่อหรือ Telegram ID ของเพื่อนที่แนะนำคุณ\n\n"
+            "_เช่น @username, ชื่อจริง, หรือเลข Telegram ID_\n"
+            "_พิมพ์ /cancel เพื่อยกเลิก_",
+            parse_mode="Markdown",
+        )
+        bot.register_next_step_handler(prompt_msg, _capture_referrer_input)
 
     elif call.data == 'hub_today':
         try:
@@ -3512,6 +3654,7 @@ if __name__ == "__main__":
             BotCommand("ealert", "แจ้งเตือนวัน Earnings — VIP/PRO"),
             BotCommand("setalert", "ตั้งเตือนราคา — PRO"),
             BotCommand("myalerts", "ดู price alerts ที่ตั้งไว้"),
+            BotCommand("breaking", "ข่าวด่วนตลาด US (เปิด/ปิด) — PRO"),
             BotCommand("freetrial", "ทดลอง PRO 7 วันฟรี"),
             BotCommand("redeem", "เติมโค้ดโปรโมชั่น"),
             BotCommand("settings", "ตั้งค่าการแจ้งเตือน"),
