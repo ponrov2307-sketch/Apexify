@@ -257,4 +257,95 @@ A: 1 บัญชี Telegram → ใช้ได้ทุกเครื่อ�
 - inbox Facebook: [link]
 - รอตอบ: 1-3 ชม.
 
+---
+
+## 🌍 ลูกค้าต่างประเทศ — Manual Flow
+
+> ลูกค้านอกไทยที่จ่ายผ่านบัตรอย่างเดียว — ระบบ auto Stripe ยังไม่ launch
+
+### 🏳️ Plan A — PayPal (admin's account)
+**ทักลูกค้า:**
+```
+ขอบคุณที่สนใจครับ 🙏
+
+จ่ายข้ามประเทศได้ทาง PayPal ครับ:
+💳 paypal.me/[admin-paypal-id]
+
+💎 VIP 79฿ (~$2.30)
+👑 PRO 109฿ (~$3.20)
+
+โอนเสร็จ cap หน้าจอ + Telegram username ส่งมาที่นี่
+ผมจะ upgrade บัญชีให้ใน 1-2 ชม.ครับ ✅
+```
+
+### 🏳️ Plan B — Ko-fi (ถ้า PayPal ยังไม่ผ่าน KYC)
+> Ko-fi ใช้ Stripe หลังบ้าน — KYC ผ่อนคลายกว่า PayPal เยอะ
+
+**Setup (one-time, ~5-10 นาที):**
+1. ko-fi.com → Sign up (ใช้ Gmail)
+2. ผูก Stripe Express (Stripe จะถามแค่ email verification + bank — ไม่ลึกเท่า PayPal)
+3. ตั้ง products:
+   - "Apexify VIP — 1 month" = 79฿
+   - "Apexify PRO — 1 month" = 109฿
+   - "Apexify VIP — 1 year" = 790฿
+   - "Apexify PRO — 1 year" = 1,090฿
+4. แชร์ลิงก์ลูกค้า: ko-fi.com/[your-name]/shop
+
+**ทักลูกค้า:**
+```
+จ่ายด้วยบัตรเครดิตได้ที่ ko-fi.com/[your-name] ครับ
+เลือกแพ็กเกจ → กรอกบัตร → จ่าย
+รับเงินเสร็จ ผมเห็นใน admin → upgrade ให้ใน 1-2 ชม.
+```
+
+### 🏳️ Plan C — Wise (เหมาะลูกค้าที่ใช้ Wise อยู่แล้ว)
+```
+Wise transfer → เข้าบัญชีไทย:
+KBank 135-1-34469-1
+เกียรติศักดิ์ วุฒิจันทร์
+```
+
+### 🏳️ Plan D — USDT (สำหรับลูกค้าที่ถือ crypto)
+```
+USDT TRC20: [your-wallet-address]
+ยอด: $2.30 (VIP) / $3.20 (PRO)
+fee network ~$1
+```
+
+---
+
+## 🔧 Troubleshooting — PayPal KYC ติด NIN
+
+**สาเหตุพบบ่อย:**
+- Format เลขบัตร: ต้อง `1234567890123` ไม่มีขีด
+- ชื่อในบัญชี ≠ ชื่อในบัตรประชาชน (ห้ามใส่ชื่อเล่น/อังกฤษ)
+- ใช้ NIN เดียวกับบัญชี PayPal เก่า → contact support
+- Browser cache → ลอง incognito หรือ mobile app
+
+**ติดต่อ PayPal TH ถ้ายังไม่ผ่าน:**
+- โทร 02-029-9000 (จ-ศ 9-18 น.)
+- chat: paypal.com/th → Help → Chat
+- บอก: "Cannot verify Thai national ID for personal account"
+
+**ถ้า PayPal ยังไม่ผ่าน → ข้ามไป Plan B (Ko-fi)** — setup เร็วกว่า + KYC ง่ายกว่า
+
+---
+
+## 📊 เมื่อไหร่ควรทำ Stripe เต็มรูปแบบ
+
+> ตอนนี้ scale ยังเล็ก — manual flow คุ้มกว่า dev time
+
+**Trigger ที่ควรเริ่ม:**
+- ลูกค้าต่างประเทศ ≥ 5 คน/เดือน
+- หรือคนถามจ่ายโดยบัตร ≥ 3 คน/สัปดาห์
+- หรือตัดสินใจจดทะเบียนพาณิชย์อยู่แล้ว
+
+**ลำดับงานเมื่อทำ Stripe เต็ม:**
+1. จดทะเบียนพาณิชย์ออนไลน์ (DBD) — 1 วัน
+2. สมัคร Stripe TH + รอ approve — 2-3 วัน
+3. Code: backend + frontend + webhook — 1 วัน
+4. Test mode + go live — 0.5 วัน
+
+รวม ~5 วันถึง production
+
 #payment #billing
