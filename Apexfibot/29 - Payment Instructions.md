@@ -262,21 +262,47 @@ A: 1 บัญชี Telegram → ใช้ได้ทุกเครื่อ�
 ## 🌍 ลูกค้าต่างประเทศ — Manual Flow
 
 > ลูกค้านอกไทยที่จ่ายผ่านบัตรอย่างเดียว — ระบบ auto Stripe ยังไม่ launch
+> Plan A (PayPal) verified working ตั้งแต่ 2026-05-01
 
-### 🏳️ Plan A — PayPal (admin's account)
-**ทักลูกค้า:**
+### 🏳️ Plan A ⭐ — PayPal (verified working)
+
+**ข้อมูลบัญชี:**
+- **PayPal.me link:** [ใส่ link จริง เช่น `paypal.me/yourname`]
+- **PayPal email:** [ใส่ email ที่ใช้สมัคร]
+
+**ราคาในสกุลเงินอื่น (ใช้ rate ~33฿/USD):**
+| Package | THB | USD ประมาณ |
+|---|---|---|
+| VIP 1 เดือน | 79฿ | $2.40 |
+| PRO 1 เดือน | 109฿ | $3.30 |
+| VIP 1 ปี | 790฿ | $24 |
+| PRO 1 ปี | 1,090฿ | $33 |
+
+**Template ส่งลูกค้า:**
 ```
-ขอบคุณที่สนใจครับ 🙏
+จ่ายด้วยบัตรเครดิตผ่าน PayPal ได้เลยครับ 💳
 
-จ่ายข้ามประเทศได้ทาง PayPal ครับ:
-💳 paypal.me/[admin-paypal-id]
+💎 VIP 1 เดือน — 79฿ (~$2.40 USD)
+👑 PRO 1 เดือน — 109฿ (~$3.30 USD)
+💎 VIP 1 ปี — 790฿ (~$24)
+👑 PRO 1 ปี — 1,090฿ (~$33)
 
-💎 VIP 79฿ (~$2.30)
-👑 PRO 109฿ (~$3.20)
-
-โอนเสร็จ cap หน้าจอ + Telegram username ส่งมาที่นี่
-ผมจะ upgrade บัญชีให้ใน 1-2 ชม.ครับ ✅
+ลิงก์: paypal.me/[your-paypal-id]
+เลือกแพ็กเกจ → กรอกยอด → จ่าย
+แคปหน้ายืนยัน + Telegram username ส่งมาที่นี่
+admin จะ upgrade ให้ภายใน 1-2 ชม.ครับ ✅
 ```
+
+**Workflow admin หลังลูกค้าจ่าย:**
+1. รับ notification email จาก PayPal
+2. ตรวจ:
+   - ยอดตรงแพ็กเกจไหม
+   - email/PayPal ID ตรงกับลูกค้าไหม
+3. ขอ **Telegram user_id** จากลูกค้า (ไม่ใช่ username) — บอกให้พิมพ์ `/account` ในบอท ดูตัวเลขที่ User ID
+4. ใน bot admin: `/addrole <user_id> <vip|pro> <days>`
+   - เช่น `/addrole 1234567890 vip 30` — VIP 30 วัน
+   - เช่น `/addrole 1234567890 pro 365` — PRO 1 ปี
+5. ตอบลูกค้าใน DM ว่า upgrade เรียบร้อย — ให้พิมพ์ `/account` เพื่อ verify
 
 ### 🏳️ Plan B — Ko-fi (ถ้า PayPal ยังไม่ผ่าน KYC)
 > Ko-fi ใช้ Stripe หลังบ้าน — KYC ผ่อนคลายกว่า PayPal เยอะ
