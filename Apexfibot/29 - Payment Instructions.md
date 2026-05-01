@@ -267,7 +267,7 @@ A: 1 บัญชี Telegram → ใช้ได้ทุกเครื่อ�
 ### 🏳️ Plan A ⭐ — PayPal (verified working)
 
 **ข้อมูลบัญชี:**
-- **PayPal.me link:** [ใส่ link จริง เช่น `paypal.me/yourname`]
+- **PayPal.me link:** [paypal.me/Apexify23](https://paypal.me/Apexify23)
 - **PayPal email:** [ใส่ email ที่ใช้สมัคร]
 
 **ราคาในสกุลเงินอื่น (ใช้ rate ~33฿/USD):**
@@ -287,7 +287,7 @@ A: 1 บัญชี Telegram → ใช้ได้ทุกเครื่อ�
 💎 VIP 1 ปี — 790฿ (~$24)
 👑 PRO 1 ปี — 1,090฿ (~$33)
 
-ลิงก์: paypal.me/[your-paypal-id]
+ลิงก์: paypal.me/Apexify23
 เลือกแพ็กเกจ → กรอกยอด → จ่าย
 แคปหน้ายืนยัน + Telegram username ส่งมาที่นี่
 admin จะ upgrade ให้ภายใน 1-2 ชม.ครับ ✅
