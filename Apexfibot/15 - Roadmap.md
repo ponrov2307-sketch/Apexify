@@ -37,7 +37,24 @@ tags: [roadmap, planning, strategy]
 - ✅ /manual ขยาย 3x (workflow + FAQ + tips)
 - ✅ Obsidian Vault 21 ไฟล์ (technical + sales)
 
-ดูประวัติเต็ม: [[14 - Recent Changes]]
+### Sprint 4 (Web Dashboard — Trade Plan v2) — 2026-05-01
+**Phase 1 — Actionable**
+- ✅ Trade Plan reasons แปลเป็นไทย ทุก action
+- ✅ Position-sizing แนะนำต่อการ์ด (`Trim 33% at TP1 · 50% at TP2`)
+- ✅ Concentration warning per holding (warn ≥25%, danger ≥40%)
+- ✅ "Apply Plan" wizard — กดเดียวตั้ง 3 alerts (TP1/TP2/SL)
+
+**Phase 2 — Insight Badges**
+- ✅ Catalyst detector — เตือน earnings ภายใน 14 วัน
+- ✅ Volume confirmation — เทียบกับ 20-day avg (surge/high/thin)
+- ✅ Confidence breakdown — tap C-score expand factor list
+
+**Resilience**
+- ✅ News page Gemini fallback chain (`flash → flash-lite → pro`)
+- ✅ News stale-cache-on-overload (ถ้า 503 → ใช้ cache 4 ชม.)
+- ✅ yfinance.news 8s timeout (เคยค้างเป็นนาที)
+
+ดู [[2026-05-01]] | ดูประวัติเต็ม: [[14 - Recent Changes]]
 
 ---
 
@@ -47,16 +64,16 @@ tags: [roadmap, planning, strategy]
 > โฟกัส: **deploy + เริ่มหา user จริง**
 
 ### Action Items สัปดาห์นี้
-- [ ] **Deploy ล่าสุดบน Digital Ocean** (`git pull && systemctl restart`)
+- [x] **Deploy ล่าสุดบน Digital Ocean** (`git pull && systemctl restart`)
 - [ ] **ทดสอบ flow ทั้งหมดด้วยตัวเอง** (เผื่อมี bug)
   - วิเคราะห์ AAPL / PTT.BK
   - กด /freetrial / /freetrial ซ้ำ
   - กด /compare /fund /ask
   - กด /demo / /track
 - [ ] **สร้าง welcome promo code** (เช่น `WELCOME2026` แจก VIP 7 วัน)
-- [ ] **โพสต์ Facebook ครั้งแรก** (ใช้ template จาก [[19]])
+- [x] **โพสต์ Facebook ครั้งแรก** (ใช้ template จาก [[19]])
 - [ ] **อัด TikTok 1 คลิป** (ใช้ script จาก [[20]])
-- [ ] **ทักเพื่อน 5 คนแรก** ให้ลอง /freetrial
+- [x] **ทักเพื่อน 5 คนแรก** ให้ลอง /freetrial
 
 ### Metrics ที่ต้องเริ่มเก็บ
 - Daily active users

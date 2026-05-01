@@ -157,6 +157,113 @@ Alerts ราคา + ข่าว + Earnings → ส่งเข้า Telegram
 🔗 t.me/Apexify_Trading_Bot
 ```
 
+### Template: 🆕 Trade Plan v2 — Web Dashboard launch (2026-05-01) ⭐
+
+> โพสต์สำหรับเปิดตัว Trade Plan v2 บน apexifyy.up.railway.app
+
+**Version A — Pain → Feature → Demo (engaging)**
+```
+"แล้วผมต้องขายเท่าไหร่ดี?"
+
+นี่คือคำถามที่ลูกค้าถามผมบ่อยที่สุด...
+หลังจากบอทบอกว่า "TAKE PROFIT"
+
+— "ขายหมดเลย?"
+— "ขายแค่ครึ่ง?"
+— "หรือถือต่อ?"
+
+เพราะแค่บอกให้ "ขาย" มันยังไม่พอ 😩
+
+🚀 วันนี้ — Apexify Trade Plan v2 เปิดตัวแล้ว
+
+แต่ละการ์ดในแดชบอร์ดของคุณ ตอนนี้บอกครบ:
+
+✅ ขายออกกี่ % ที่ TP1
+✅ ขายเพิ่มกี่ % ที่ TP2
+🚨 มี earnings ใกล้ๆ ระวังไหม
+🔥 Volume hot/cold (signal จริงหรือ noise)
+⚠️ หุ้นนี้กระจุก > 25% ของพอร์ตหรือยัง
+📊 ทำไม AI ให้คะแนน C75 (กดดู factor breakdown ได้)
+
+🔔 + ปุ่ม "ใช้แผนนี้" — กดเดียวตั้ง alerts ทั้ง TP1, TP2, SL
+
+ลูกค้า PRO ใช้ได้เลย ไม่ต้องอัปเดตอะไร 💚
+🔗 apexifyy.up.railway.app
+
+#ApexifyDashboard #TradePlan #วิเคราะห์หุ้น
+```
+
+**Version B — Feature list (clean)**
+```
+🚀 อัปเดตใหญ่: Apexify Web Dashboard v2
+
+🎯 Trade Plan ที่บอกครบ — ไม่ใช่แค่ buy/sell
+
+แต่ละการ์ดในพอร์ต ตอนนี้แสดง:
+
+▸ Position sizing — ขายออกกี่ % ที่แต่ละ TP
+🚨 Earnings catalyst — เตือนถ้ามีงบใน 14 วัน
+🔥 Volume pulse — เทียบกับ 20 วันย้อนหลัง
+⚠️ Concentration — เตือนถ้าหุ้นนี้เกิน 25% ของพอร์ต
+📊 Confidence breakdown — เปิดดูที่มาคะแนนได้
+
+🔔 ใหม่: ปุ่ม "ใช้แผนนี้"
+   กดเดียว → ตั้ง 3 price alerts (TP1/TP2/SL) ทันที
+
+PRO/VIP ทุกคนใช้ได้แล้ว — ไม่ต้องอัปเดต
+🔗 apexifyy.up.railway.app
+
+ทักหากมี feedback 💚
+#ApexifyBot #FeatureUpdate
+```
+
+**Version C — Visual-friendly (สั้น, มีรูป screenshot ประกอบ)**
+```
+ก่อน: 🤖 "TAKE PROFIT NVDA"
+หลัง: 🤖 "TAKE PROFIT NVDA — ขาย 33% ที่ TP1, อีก 50% ที่ TP2
+        🚨 Earnings ใน 3 วัน — ระวังแกว่ง
+        🔥 Vol +180% มีคนหนุนจริง"
+
+ไม่ใช่แค่บอกให้ทำ — บอกว่า "ทำเท่าไหร่" + "เมื่อไหร่"
+
+🔗 apexifyy.up.railway.app
+สำหรับลูกค้า PRO/VIP — เข้าได้เลย
+
+#ApexifyTradePlan
+```
+
+**Version D — Carousel/long-form (เล่ารายละเอียด)**
+```
+🧠 ทำไม Apexify Trade Plan v2 ถึงต่างจากคำแนะนำหุ้นทั่วไป?
+
+1️⃣ ให้คำตอบที่ "ทำได้จริง"
+ทั่วไป: "ควรซื้อ AAPL"
+Apexify: "AAPL — เข้า $182-186, ขาย 33% ที่ $209, อีก 50% ที่ $225, ตัด $172"
+
+2️⃣ บอก context รอบหุ้น
+🚨 ถ้ามี earnings ใกล้ → เตือนล่วงหน้า
+🔥 ถ้า volume hot → ราคามีคนหนุนจริง
+❄️ ถ้า volume thin → ระวัง noise
+
+3️⃣ ดูแลพอร์ตรวม ไม่ใช่หุ้นเดี่ยว
+หุ้นนี้กระจุกเกินไปไหม? (>25% ของพอร์ต)
+ถ้าเกิน → เตือนให้ลด weight
+
+4️⃣ Transparency
+กด C-score ดูได้ ว่าคะแนนมาจากอะไร
+(Trend +12, Action +8, R:R +8 ฯลฯ)
+
+5️⃣ One-click action
+ปุ่ม "ใช้แผนนี้" → ตั้ง alerts 3 ระดับ
+ไม่ต้องเปิดเมนูเพิ่ม
+
+🔗 ลองดูเลย: apexifyy.up.railway.app
+
+#ApexifyDashboard #TradePlan #InvestmentTools
+```
+
+---
+
 ### Template: "Free Trial 7 วัน"
 
 ```

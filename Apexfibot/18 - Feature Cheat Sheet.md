@@ -129,6 +129,29 @@ tags: [cheatsheet, reference]
 
 ---
 
+## 🌐 Web Dashboard (apexifyy.up.railway.app) — สำหรับ PRO/VIP
+
+> Telegram bot = quick chat | Web Dashboard = deep view (ใช้คู่กัน)
+
+### หน้าหลัก / (Trade Plan v2 — 2026-05-01) ⭐
+แต่ละการ์ดในพอร์ตแสดง:
+- 📊 **Position sizing** — `ขายออก 33% ที่ TP1 · อีก 50% ที่ TP2`
+- 🚨 **Catalyst detector** — เตือนถ้ามี earnings ใน 14 วัน
+- 🔥 **Volume pulse** — เทียบกับ 20-day avg (surge/high/thin)
+- ⚠️ **Concentration warning** — ถ้าหุ้น ≥25% ของพอร์ต
+- 📈 **Confidence breakdown** — กด C-score ดู factor ที่มาได้
+- 🔔 **Apply Plan button** — กดเดียวตั้ง 3 alerts (TP1/TP2/SL)
+
+### หน้าอื่นในแดชบอร์ด
+- `/news` — AI summarize ข่าวพอร์ต (Gemini fallback chain + 30-min cache)
+- `/morning` — Morning Briefing (ขยายจาก Telegram)
+- `/heatmap` — heatmap ทั้งตลาด + watchlist
+- `/transactions` + `/pnl` — บันทึกธุรกรรม + สรุป FIFO P&L (ใช้ยื่นภาษี)
+- `/earnings` + `/economic-calendar`
+- `/matchmaker` — AI Stock Matchmaker (~290 หุ้น curated)
+
+---
+
 ## 🏆 Differentiators (ทำไมต้อง Apexify ไม่ใช่ X)
 
 ### vs Tradingview (ฟรี)
@@ -146,6 +169,10 @@ tags: [cheatsheet, reference]
 ### vs ChatGPT plugin หุ้น
 - ChatGPT ไม่มี real-time data
 - **Apexify: yfinance live + cron alerts**
+
+### vs Tradingview/Yahoo (web dashboard เปรียบเทียบ)
+- TV/Yahoo: ดูได้แต่ไม่มีแผนชัดเจน
+- **Apexify Dashboard: position sizing + earnings warning + apply plan ปุ่มเดียว**
 
 ---
 

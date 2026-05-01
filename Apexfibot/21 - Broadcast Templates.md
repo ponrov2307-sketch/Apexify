@@ -114,6 +114,65 @@ tags: [broadcast, templates, admin]
 ลองเลย! 🚀
 ```
 
+### Template: Trade Plan v2 (PRO/VIP — web dashboard) ⭐ 2026-05-01
+
+> สำหรับ broadcast ลูกค้า PRO/VIP เพื่อแจ้งฟีเจอร์ใหม่บน dashboard
+
+**Version A — สั้น (focus actionable):**
+```
+🚀 Trade Plan v2 — แดชบอร์ดอัปเดต!
+
+แต่ละการ์ดในพอร์ตของคุณตอนนี้บอกชัดขึ้น:
+
+▸ ขายออกกี่ % ที่ TP1, TP2 (position sizing)
+🚨 มี earnings ใกล้ๆ ไหม (catalyst alert)
+🔥 Volume hot/cold เทียบ 20 วัน
+⚠️ หุ้นนี้กี่ % ของพอร์ต — ลดได้ไหม
+
+เด็ดสุด:
+🔔 ปุ่ม "ใช้แผนนี้" — กดเดียวตั้ง alerts
+ทั้ง TP1, TP2, SL ครบ ไม่ต้องตั้งทีละตัว
+
+เข้าดู: apexifyy.up.railway.app
+```
+
+**Version B — ยาว (focus value):**
+```
+👑 ลูกค้า PRO ใหม่: Trade Plan v2 พร้อมใช้แล้ว!
+
+ก่อนหน้านี้ AI บอกแค่ "TAKE PROFIT" "HOLD"
+ตอนนี้บอกครบ:
+
+✅ ขายออกกี่ % ที่ TP1
+✅ ขายเพิ่มกี่ % ที่ TP2
+✅ มี earnings ใกล้ๆ ระวังไหม
+✅ Volume สูงเป็นพิเศษไหม (signal จริงหรือ noise)
+✅ หุ้นนี้กระจุกเกินไปไหม
+✅ ทำไม AI ให้คะแนนเท่านี้ (กด C-score expand ดูได้)
+
+ฟีเจอร์ที่ลูกค้าขอกันมา:
+🔔 ปุ่ม "ใช้แผนนี้" — กดเดียว → ตั้ง 3 alerts
+   (TP1, TP2, SL) ครบเลย ไม่ต้องเปิดเมนู alert
+
+ดู apexifyy.up.railway.app
+
+ขอบคุณที่อยู่กับเรา 💚
+ทีม Apexify
+```
+
+**Version C — สั้นมาก (Telegram message ultra-compact):**
+```
+🚀 Trade Plan v2 บนเว็บแดชบอร์ด
+
+📊 ใหม่ในการ์ดหุ้น:
+• Position sizing (ขายเท่าไหร่)
+• Catalyst alert (earnings เร็วๆ นี้)
+• Volume hot/cold
+• ปุ่ม "ใช้แผน" → ตั้ง alerts ทีเดียว
+
+🔗 apexifyy.up.railway.app
+```
+
 ### Template: Daily Streak ประกาศ (ครั้งแรก deploy)
 
 ```

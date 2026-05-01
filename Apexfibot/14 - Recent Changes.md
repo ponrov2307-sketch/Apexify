@@ -6,6 +6,45 @@ tags: [changelog]
 
 > เรียงจากใหม่สุดลงล่าง — เก็บแค่ commits สำคัญ
 
+## 2026-05-01 (Trade Plan v2 + News Resilience)
+
+> ดู daily note: [[2026-05-01]]
+
+### `a811065` — News: Gemini fallback chain + stale-cache-on-overload ⭐
+- **Root cause** — gemini-2.5-flash 503 บ่อยช่วง US market open
+- เพิ่ม fallback chain: `flash → flash-lite → pro` (เดิมมีแค่ flash)
+- Stale-cache-on-overload — ถ้า fetch fail แต่มี cache ≤4 ชม. ใช้ cache แทน error
+- Error message สุภาพขึ้น (ไม่ dump 503 stack trace ให้ user เห็น)
+
+### `57411f1` — News: per-ticker timeout + 30-min cache
+- `yfinance.Ticker.news` ครอบ 8s timeout (เคยค้างหลายนาที)
+- `portfolio_news` ครอบ 25s asyncio timeout per ticker
+- Summary cache 30 นาที per ticker — refresh = instant
+
+### `08fbb9f` — Hotfix: NameError concurrent not defined
+- `_build_portfolio_context` ใช้ `concurrent.futures.ThreadPoolExecutor` โดยไม่ import
+- แก้โดย import inline match pattern กับ `_fetch_earnings`
+
+### `f4c4c91` — Trade Plan v2 (Phase 1 + 2) ⭐⭐
+**Phase 1 — Actionable**
+- Reasons แปลเป็นไทย ผ่าน i18n keys
+- Position sizing line (`▸ ขายออก 33% ที่ TP1 · อีก 50% ที่ TP2`)
+- Concentration warning — badge ถ้าหุ้น ≥25% (warn) / ≥40% (danger)
+- Apply Plan wizard — กดเดียวตั้ง 3 alerts (TP1/TP2/SL) + USD currency-safe
+
+**Phase 2 — Insight Badges**
+- Catalyst detector — เตือน earnings ใน ≤14 วัน
+- Volume confirmation — surge/high/thin badge เทียบกับ 20-day avg
+- Confidence breakdown — กด C-score → expand factors (Trend, Action, R:R)
+
+**Backend ใหม่:**
+- `batch_get_volume_pulse()` — batch volume vs 20d avg
+- `/api/market/portfolio-context` — earnings + volume parallel, cache 10min
+
+ดู [[2026-05-01]] สำหรับรายละเอียด
+
+---
+
 ## 2026-04-24 (Sprint Day)
 
 ### `f17c462` — Command Discoverability ⭐

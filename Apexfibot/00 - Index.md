@@ -38,6 +38,11 @@ tags: [moc, index]
 - [[15 - Roadmap]] ⭐ — **Strategic plan: Now → Next → Soon → Later → Vision**
 - [[25 - Performance and Accuracy Roadmap]] 🆕 — Speed audit + AI accuracy improvements + GitHub libs research
 
+### 🗒️ Daily Logs
+- [[2026-05-01]] ⭐ — **Trade Plan v2 + News Resilience** (Phase 1 + 2 done)
+- [[2026-04-25]]
+- [[2026-04-24]]
+
 ### 💼 Sales & Marketing
 - [[17 - Sales Playbook]] — Pitch + Objections + Personas + Templates
 - [[18 - Feature Cheat Sheet]] — สรุปขายได้ใน 1 หน้า
@@ -47,6 +52,12 @@ tags: [moc, index]
 - [[22 - Sales Templates Mega Pack]] 🆕 — FB/IG/Line/X/TikTok/Pantip/LinkedIn/SMS/Email — 60+ templates
 - [[23 - DM and Closing Scripts]] 🆕 — Greeting → Discovery → Pitch → Demo → Close → Follow-up
 - [[24 - Objection Handling Pack]] 🆕 — รับมือคำถามยาก 40+ scripts ทุกหมวด
+
+### 🎯 Customer Service Quick Reference
+- [[26 - DM Quick Replies]] ⭐ — Top 10 คำถามใน DM พร้อม copy-paste
+- [[27 - Comment Reply Templates]] ⭐ — ตอบคอมเม้น FB/TikTok/IG ตามอารมณ์
+- [[28 - User Guide (How to Use)]] ⭐ — คู่มือใช้งานสำหรับลูกค้า (sharable)
+- [[29 - Payment Instructions]] ⭐ — วิธีชำระเงิน + FAQ + ปัญหาที่อาจเจอ
 
 ---
 
@@ -58,11 +69,14 @@ tags: [moc, index]
 | Main code | `main.py` |
 | Bot token | `.env` (BOT_TOKEN) |
 | Admin ID | `.env` (ADMIN_ID) |
-| Deploy target | Digital Ocean (systemd) |
+| Deploy target (bot) | Digital Ocean (systemd) |
+| **Web Dashboard** | apexifyy.up.railway.app (Next.js + FastAPI on Railway) |
+| **Web repo** | `C:\Users\Kiatt\Desktop\code\APEXIFYYY\ApexifyWebmaster` |
+| **Web GitHub** | github.com/ponrov2307-sketch/ApexifyWebmaster |
 | Pricing VIP | 79฿/เดือน, 790฿/ปี |
 | Pricing PRO | 109฿/เดือน, 1,090฿/ปี |
 | Free quota | 3 ครั้ง/วัน |
-| GitHub | github.com/ponrov2307-sketch/Apexify |
+| GitHub (bot) | github.com/ponrov2307-sketch/Apexify |
 
 ---
 
