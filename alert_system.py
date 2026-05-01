@@ -1807,6 +1807,8 @@ def run_alert_loop(bot_instance=None):
     last_hourly_news_time = time.time() - FLASH_NEWS_INTERVAL_SECONDS
     last_global_news_time = time.time() - DIGEST_NEWS_CHECK_INTERVAL_SECONDS
     last_stock_news_check_time = time.time() - STOCK_NEWS_CHECK_INTERVAL_SECONDS
+    last_breaking_news_time = 0.0
+    BREAKING_NEWS_INTERVAL_SECONDS = 5 * 60  # poll every 5 min (matches loop cadence)
     last_morning_briefing_date = None
     last_xd_check_date = None
     last_podcast_date = None
@@ -1890,6 +1892,19 @@ def run_alert_loop(bot_instance=None):
 
         check_market_conditions()
         check_custom_price_alerts()
+
+        # 🚨 Breaking News — poll macro RSS, classify HIGH via Gemini, push to PRO
+        if current_time - last_breaking_news_time >= BREAKING_NEWS_INTERVAL_SECONDS:
+            try:
+                from breaking_news import process_breaking_news
+                stats = process_breaking_news(bot_instance)
+                if stats["high"] > 0 or stats["pushed_users"] > 0:
+                    print(f"[BreakingNews] high={stats['high']} pushed={stats['pushed_users']} "
+                          f"shortlisted={stats['shortlisted']} dup={stats['skipped_dup']}",
+                          flush=True)
+            except Exception as e:
+                print(f"[BreakingNews] loop error: {e}", flush=True)
+            last_breaking_news_time = time.time()
 
         # 🌟 Resolve due alert outcomes ใน background — ออกจาก hot path ของ admin dashboard
         try:

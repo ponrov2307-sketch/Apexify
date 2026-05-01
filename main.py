@@ -1240,6 +1240,101 @@ def handle_free_trial(message):
         bot.reply_to(message, "📡 ระบบขัดข้องชั่วคราว ขออภัยในความไม่สะดวก รบกวนลองอีกครั้งในสักครู่ครับ")
 
 
+@bot.message_handler(commands=['breaking_on', 'breakingon'])
+def handle_breaking_on(message):
+    """เปิดรับแจ้งเตือนข่าวด่วนตลาด US (PRO เท่านั้น)"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    role = check_subscription(user_id)
+    if role != 'pro':
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("👑 สมัคร PRO 109฿", callback_data="menu_vip"),
+            InlineKeyboardButton("✨ Free Trial 7 วัน", callback_data="menu_freetrial"),
+        )
+        bot.reply_to(message,
+            "🔒 **ข่าวด่วนตลาด US — ฟีเจอร์ PRO เท่านั้น**\n\n"
+            "🚨 ระบบจะแจ้งเตือนเฉพาะข่าวที่กระทบ S&P 500/Nasdaq จริง\n"
+            "เช่น CPI, NFP, FOMC, สงคราม, OPEC cut\n\n"
+            "AI Gemini คัดเฉพาะระดับ HIGH ส่งให้ — ไม่สแปม",
+            parse_mode="Markdown", reply_markup=markup)
+        return
+    try:
+        from database import set_breaking_news_subscription
+        set_breaking_news_subscription(user_id, True)
+        bot.reply_to(message,
+            "✅ **เปิดแจ้งเตือนข่าวด่วนแล้ว!**\n\n"
+            "🚨 จะแจ้งเฉพาะข่าวระดับ **HIGH** ที่กระทบตลาด US มาก\n"
+            "🌙 ช่วง 02:00-08:00 น. (ไทย) จะรวมไว้ใน Morning Briefing แทน\n\n"
+            "_ปิดได้ทุกเมื่อด้วย /breaking\\_off_",
+            parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ เปิดไม่สำเร็จ: {e}")
+
+
+@bot.message_handler(commands=['breaking_off', 'breakingoff'])
+def handle_breaking_off(message):
+    """ปิดรับแจ้งเตือนข่าวด่วน"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    try:
+        from database import set_breaking_news_subscription
+        set_breaking_news_subscription(user_id, False)
+        bot.reply_to(message,
+            "🔕 **ปิดแจ้งเตือนข่าวด่วนแล้ว**\n\n"
+            "_เปิดใหม่ได้ทุกเมื่อด้วย /breaking\\_on_",
+            parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ ปิดไม่สำเร็จ: {e}")
+
+
+@bot.message_handler(commands=['breaking_status', 'breakingstatus'])
+def handle_breaking_status(message):
+    """ดูสถานะการสมัครข่าวด่วน"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    from database import is_subscribed_breaking_news
+    role = check_subscription(user_id)
+    enabled = is_subscribed_breaking_news(user_id)
+    if role != 'pro':
+        bot.reply_to(message,
+            "🔒 ฟีเจอร์ข่าวด่วนสำหรับ PRO เท่านั้น\nพิมพ์ /breaking\\_on เพื่อสมัคร",
+            parse_mode="Markdown")
+        return
+    icon = "🔔 ON" if enabled else "🔕 OFF"
+    bot.reply_to(message,
+        f"📡 **สถานะข่าวด่วน:** {icon}\n\n"
+        f"_ใช้ /breaking\\_on หรือ /breaking\\_off เพื่อสลับ_",
+        parse_mode="Markdown")
+
+
+@bot.message_handler(commands=['breaking_test'])
+def handle_breaking_test(message):
+    """[Admin] ทดสอบ breaking news pipeline"""
+    user_id = str(message.chat.id)
+    if str(user_id) != str(ADMIN_ID):
+        return
+    bot.reply_to(message, "⏳ กำลังทดสอบ breaking news pipeline...")
+    try:
+        from breaking_news import process_breaking_news
+        stats = process_breaking_news(bot, dry_run=False)
+        bot.send_message(user_id,
+            f"📊 **Breaking News Test Result**\n\n"
+            f"🔍 Fetched: `{stats['fetched']}`\n"
+            f"📋 Shortlisted: `{stats['shortlisted']}`\n"
+            f"🤖 Classified: `{stats['classified']}`\n"
+            f"🚨 HIGH: `{stats['high']}`\n"
+            f"📤 Pushed (users): `{stats['pushed_users']}`\n"
+            f"♻️ Skipped dup: `{stats['skipped_dup']}`\n"
+            f"🌙 Quiet hour: `{stats['skipped_quiet']}`",
+            parse_mode="Markdown")
+    except Exception as e:
+        bot.send_message(user_id, f"❌ Error: {e}")
+
+
 @bot.message_handler(commands=['ealert'])
 def handle_ealert(message):
     """Earnings Calendar Alert: /ealert [SYMBOL] | /ealert list | /ealert remove SYMBOL"""

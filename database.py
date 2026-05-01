@@ -2028,3 +2028,162 @@ def get_all_earnings_subscriptions() -> dict:
     for sym, uid in rows:
         result.setdefault(sym, []).append(uid)
     return result
+
+
+# ==========================================
+# Breaking News Alert — subscribers + log helpers
+# ==========================================
+
+def is_breaking_news_seen(url_hash: str) -> bool:
+    """Dedup check — has this article already been classified?"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT 1 FROM breaking_news_log WHERE url_hash = %s LIMIT 1",
+                  (url_hash,))
+        return c.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def log_breaking_news(url_hash: str, source: str, title: str, link: str,
+                      summary_th: str, importance: str, reasoning: str) -> int | None:
+    """Insert classified news. Returns id, or None on duplicate."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            INSERT INTO breaking_news_log
+                (url_hash, source, title, link, summary_th, importance, reasoning)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (url_hash) DO NOTHING
+            RETURNING id
+            """,
+            (url_hash, source, title, link, summary_th, importance, reasoning),
+        )
+        row = c.fetchone()
+        conn.commit()
+        return int(row[0]) if row else None
+    except Exception as e:
+        print(f"[BreakingNews] log insert error: {e}")
+        conn.rollback()
+        return None
+    finally:
+        conn.close()
+
+
+def mark_breaking_news_sent(news_id: int, count: int) -> None:
+    """Update sent_to_count after successful push."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "UPDATE breaking_news_log SET sent_to_count = %s WHERE id = %s",
+            (int(count), int(news_id)),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+def is_subscribed_breaking_news(user_id: str) -> bool:
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "SELECT enabled FROM breaking_news_subscribers WHERE user_id = %s",
+            (str(user_id),),
+        )
+        row = c.fetchone()
+        return bool(row and row[0])
+    finally:
+        conn.close()
+
+
+def set_breaking_news_subscription(user_id: str, enabled: bool) -> None:
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            INSERT INTO breaking_news_subscribers (user_id, enabled)
+            VALUES (%s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET
+                enabled = EXCLUDED.enabled,
+                updated_at = NOW()
+            """,
+            (str(user_id), bool(enabled)),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[BreakingNews] subscription update error: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+def get_breaking_news_subscribers() -> list[str]:
+    """All currently-enabled PRO subscribers. Filtered to PRO at push time."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            SELECT s.user_id
+            FROM breaking_news_subscribers s
+            JOIN users u ON u.user_id = s.user_id
+            WHERE s.enabled = TRUE
+              AND u.role IN ('pro', 'admin')
+              AND (u.expiry_date IS NULL OR u.expiry_date > NOW())
+            """
+        )
+        return [r[0] for r in c.fetchall()]
+    finally:
+        conn.close()
+
+
+def get_recent_breaking_news(limit: int = 20, importance: str | None = None) -> list[dict]:
+    """For web banner / API — recent classified news, newest first."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        if importance:
+            c.execute(
+                """
+                SELECT id, source, title, link, summary_th, importance,
+                       reasoning, classified_at, sent_to_count
+                FROM breaking_news_log
+                WHERE importance = %s
+                ORDER BY classified_at DESC
+                LIMIT %s
+                """,
+                (importance.upper(), int(limit)),
+            )
+        else:
+            c.execute(
+                """
+                SELECT id, source, title, link, summary_th, importance,
+                       reasoning, classified_at, sent_to_count
+                FROM breaking_news_log
+                ORDER BY classified_at DESC
+                LIMIT %s
+                """,
+                (int(limit),),
+            )
+        rows = c.fetchall()
+    finally:
+        conn.close()
+    return [{
+        "id": r[0],
+        "source": r[1],
+        "title": r[2],
+        "link": r[3],
+        "summary_th": r[4],
+        "importance": r[5],
+        "reasoning": r[6],
+        "classified_at": r[7].isoformat() if r[7] else None,
+        "sent_to_count": r[8],
+    } for r in rows]
