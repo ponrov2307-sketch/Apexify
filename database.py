@@ -2270,3 +2270,158 @@ def mark_referral_awarded(pending_id: int, referrer_id: str) -> bool:
         return False
     finally:
         conn.close()
+
+
+# ==========================================
+# Achievement Badges — gamification for engagement (esp. trial users)
+# ==========================================
+
+# Badge catalog: code → (label, description). Adding a new badge:
+# 1. Add row here
+# 2. Add detection logic in `evaluate_achievements()` below
+# 3. Decide if it gets a reward (+1 day VIP etc.) — call grant_streak_reward
+ACHIEVEMENT_CATALOG = {
+    "first_analysis":  ("🎯 First Analysis",     "วิเคราะห์หุ้นครั้งแรก"),
+    "ten_analyses":    ("🔥 10 Stocks Analyzed", "วิเคราะห์ครบ 10 ตัวแล้ว"),
+    "fifty_analyses":  ("💯 Power Analyst",      "วิเคราะห์ครบ 50 ตัว"),
+    "first_watch":     ("⭐ First Watchlist",     "เพิ่ม watchlist ครั้งแรก"),
+    "watch_full_free": ("👀 Watchful Eye",        "Free watchlist เต็ม 3 ตัว"),
+    "first_trial":     ("✨ Trial Activated",     "เริ่มทดลอง PRO 7 วัน"),
+    "first_referral":  ("🤝 First Referral",      "ชวนเพื่อนคนแรกสำเร็จ"),
+    "streak_7":        ("🔥 7-Day Streak",        "ใช้บอท 7 วันติด"),
+    "streak_30":       ("⚡ 30-Day Streak",       "ใช้บอท 30 วันติด"),
+    "first_pro":       ("👑 PRO Member",          "อัปเกรดเป็น PRO"),
+    "first_vip":       ("💎 VIP Member",          "อัปเกรดเป็น VIP"),
+}
+
+
+def has_achievement(user_id: str, badge_code: str) -> bool:
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "SELECT 1 FROM user_achievements WHERE user_id = %s AND badge_code = %s LIMIT 1",
+            (str(user_id), badge_code),
+        )
+        return c.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def grant_achievement(user_id: str, badge_code: str) -> bool:
+    """Insert badge if not already earned. Returns True if newly granted."""
+    if badge_code not in ACHIEVEMENT_CATALOG:
+        return False
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            INSERT INTO user_achievements (user_id, badge_code)
+            VALUES (%s, %s)
+            ON CONFLICT (user_id, badge_code) DO NOTHING
+            RETURNING badge_code
+            """,
+            (str(user_id), badge_code),
+        )
+        granted = c.fetchone() is not None
+        conn.commit()
+        return granted
+    except Exception as e:
+        print(f"[Achievement] grant error: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+
+def get_user_achievements(user_id: str) -> list[dict]:
+    """Return list of {code, label, description, earned_at} for user."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "SELECT badge_code, earned_at FROM user_achievements WHERE user_id = %s ORDER BY earned_at",
+            (str(user_id),),
+        )
+        rows = c.fetchall()
+    finally:
+        conn.close()
+    out = []
+    for code, earned in rows:
+        meta = ACHIEVEMENT_CATALOG.get(code, (code, ""))
+        out.append({
+            "code": code,
+            "label": meta[0],
+            "description": meta[1],
+            "earned_at": earned.isoformat() if earned else None,
+        })
+    return out
+
+
+def evaluate_achievements(user_id: str, *, context: str | None = None) -> list[str]:
+    """Check user state and grant any newly-earned badges. Returns list of newly-granted codes.
+
+    Call this from analyze flow + watchlist add + trial activate + payment claim.
+    `context` is an optional hint (e.g., 'analyze', 'watch_add', 'trial', 'pro_grant')
+    so we can short-circuit irrelevant checks.
+    """
+    new_grants: list[str] = []
+
+    # 1. Analysis count badges (driven by usage_count)
+    if context in (None, "analyze"):
+        try:
+            usage = get_usage(user_id) or 0
+            if usage >= 1 and not has_achievement(user_id, "first_analysis"):
+                if grant_achievement(user_id, "first_analysis"):
+                    new_grants.append("first_analysis")
+            if usage >= 10 and not has_achievement(user_id, "ten_analyses"):
+                if grant_achievement(user_id, "ten_analyses"):
+                    new_grants.append("ten_analyses")
+            if usage >= 50 and not has_achievement(user_id, "fifty_analyses"):
+                if grant_achievement(user_id, "fifty_analyses"):
+                    new_grants.append("fifty_analyses")
+        except Exception:
+            pass
+
+    # 2. Watchlist badges
+    if context in (None, "watch_add"):
+        try:
+            watch = get_user_watch(user_id) or []
+            if len(watch) >= 1 and not has_achievement(user_id, "first_watch"):
+                if grant_achievement(user_id, "first_watch"):
+                    new_grants.append("first_watch")
+            if len(watch) >= 3 and not has_achievement(user_id, "watch_full_free"):
+                if grant_achievement(user_id, "watch_full_free"):
+                    new_grants.append("watch_full_free")
+        except Exception:
+            pass
+
+    # 3. Tier badges (driven by check_subscription)
+    if context in (None, "tier_change", "trial", "pro_grant"):
+        try:
+            role = check_subscription(user_id)
+            if role == 'pro' and not has_achievement(user_id, "first_pro"):
+                if grant_achievement(user_id, "first_pro"):
+                    new_grants.append("first_pro")
+            if role == 'vip' and not has_achievement(user_id, "first_vip"):
+                if grant_achievement(user_id, "first_vip"):
+                    new_grants.append("first_vip")
+        except Exception:
+            pass
+
+    # 4. Streak badges
+    if context in (None, "analyze"):
+        try:
+            sinfo = get_streak_info(user_id) or {"current": 0}
+            cur = sinfo.get("current", 0)
+            if cur >= 7 and not has_achievement(user_id, "streak_7"):
+                if grant_achievement(user_id, "streak_7"):
+                    new_grants.append("streak_7")
+            if cur >= 30 and not has_achievement(user_id, "streak_30"):
+                if grant_achievement(user_id, "streak_30"):
+                    new_grants.append("streak_30")
+        except Exception:
+            pass
+
+    return new_grants

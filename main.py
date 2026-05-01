@@ -1296,6 +1296,59 @@ def _capture_referrer_input(message):
         bot.send_message(int(user_id), f"❌ บันทึกไม่สำเร็จ ({e}) — ลองใหม่ผ่าน /start")
 
 
+@bot.message_handler(commands=['badges', 'achievements'])
+def handle_badges(message):
+    """ดู badges ที่สะสมไว้ + คำแนะนำหา badges ถัดไป"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    from database import get_user_achievements, ACHIEVEMENT_CATALOG
+    earned = get_user_achievements(user_id)
+    earned_codes = {b["code"] for b in earned}
+    total = len(ACHIEVEMENT_CATALOG)
+    have = len(earned_codes)
+    lines = [
+        f"🏆 *Badges & Achievements* — {have}/{total}",
+        "",
+    ]
+    if earned:
+        lines.append("*✅ ที่ได้แล้ว:*")
+        for b in earned:
+            lines.append(f"  {b['label']} — _{b['description']}_")
+        lines.append("")
+    locked = [c for c in ACHIEVEMENT_CATALOG if c not in earned_codes]
+    if locked:
+        lines.append("*🔒 รอปลดล็อก:*")
+        for code in locked[:5]:  # show top 5 next
+            label, desc = ACHIEVEMENT_CATALOG[code]
+            lines.append(f"  ⬜ {label} — _{desc}_")
+        if len(locked) > 5:
+            lines.append(f"  _...และอีก {len(locked) - 5} badges_")
+    bot.reply_to(message, "\n".join(lines), parse_mode="Markdown")
+
+
+@bot.message_handler(commands=['contact', 'support', 'admin_contact'])
+def handle_contact(message):
+    """ติดต่อแอดมิน — Telegram @apexify_admin"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("💬 แชทกับ Admin", url="https://t.me/apexify_admin"))
+    bot.reply_to(message,
+        "🆘 *ติดต่อแอดมิน Apexify*\n\n"
+        "Telegram: [@apexify\\_admin](https://t.me/apexify_admin)\n\n"
+        "ใช้ติดต่อ:\n"
+        "• สอบถามเรื่องบัญชี / การชำระเงิน\n"
+        "• แจ้งปัญหาการใช้งาน\n"
+        "• ขอความช่วยเหลือเรื่องสิทธิ์\n"
+        "• เสนอแนะฟีเจอร์ใหม่",
+        parse_mode="Markdown",
+        reply_markup=markup,
+        disable_web_page_preview=True,
+    )
+
+
 @bot.message_handler(commands=['pending_refs'])
 def handle_pending_refs(message):
     """[Admin] ดู pending referral submissions"""
@@ -1361,6 +1414,38 @@ def handle_award_ref(message):
         )
     except Exception as e:
         bot.reply_to(message, f"❌ Error: {e}")
+
+
+# Day-trade coach state — in-memory dict {(user_id, ticker, date_str): count}
+# OK to lose on restart; coaching is a soft nudge not data-critical.
+_daytrade_count: dict = {}
+
+# Day-trade coach messages keyed by analysis count for the same ticker today.
+_DAYTRADE_COACH_MESSAGES = {
+    5: ("🧘 *Discipline check:* คุณวิเคราะห์ {symbol} แล้ว 5 ครั้งวันนี้\n"
+        "_ตลาดไม่ได้เปลี่ยนทุก 30 นาที — เก็บแผนเดิมไว้แล้วรอสัญญาณยืนยัน 1-2 วันก็พอครับ_"),
+    8: ("⏸ *FOMO alert:* วิเคราะห์ {symbol} 8 ครั้งวันนี้แล้ว\n"
+        "_นักลงทุนเก่งๆ เน้น \"รอจังหวะที่ใช่\" มากกว่า \"จับจังหวะให้ครบ\"_\n"
+        "_ลองพักดู 24 ชม. แล้วค่อยตัดสินใจอีกที_"),
+    12: ("🛑 *Trade journaling tip:* {symbol} ถูกวิเคราะห์ 12+ ครั้งวันนี้\n"
+         "_นี่อาจเป็น signal ของอารมณ์ ไม่ใช่การวิเคราะห์ — บางทีพอร์ตที่ดีคือพอร์ตที่ \"ไม่ทำอะไร\"_"),
+}
+
+
+def _maybe_append_daytrade_coach(user_id: str, symbol: str, report: str) -> str:
+    """Append a discipline-coach note when user re-analyzes the same ticker too often."""
+    from datetime import datetime, timedelta, timezone
+    if str(user_id) == str(ADMIN_ID):
+        return report
+    today = datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%d")
+    key = (str(user_id), str(symbol).upper(), today)
+    _daytrade_count[key] = _daytrade_count.get(key, 0) + 1
+    count = _daytrade_count[key]
+    # Trigger at exact thresholds only — once per threshold per day
+    msg = _DAYTRADE_COACH_MESSAGES.get(count)
+    if msg:
+        return report + "\n\n" + msg.format(symbol=symbol)
+    return report
 
 
 def _send_breaking_status_card(chat_id: int, enabled: bool):
@@ -2714,6 +2799,26 @@ def inline_callbacks(call):
             "• `/earnings AAPL` — วิเคราะห์งบล่าสุดด้วย AI",
             parse_mode="Markdown")
 
+    elif call.data == 'hub_badges':
+        from database import get_user_achievements, ACHIEVEMENT_CATALOG
+        earned = get_user_achievements(user_id)
+        earned_codes = {b["code"] for b in earned}
+        total = len(ACHIEVEMENT_CATALOG)
+        have = len(earned_codes)
+        lines = [f"🏆 *Badges* — {have}/{total}", ""]
+        if earned:
+            lines.append("*✅ ที่ได้แล้ว:*")
+            for b in earned:
+                lines.append(f"  {b['label']} — _{b['description']}_")
+            lines.append("")
+        locked = [c for c in ACHIEVEMENT_CATALOG if c not in earned_codes]
+        if locked:
+            lines.append("*🔒 รอปลดล็อก:*")
+            for code in locked[:5]:
+                label, desc = ACHIEVEMENT_CATALOG[code]
+                lines.append(f"  ⬜ {label} — _{desc}_")
+        bot.send_message(int(user_id), "\n".join(lines), parse_mode="Markdown")
+
     elif call.data == 'hub_breaking':
         if role != 'pro' and user_id != ADMIN_ID:
             markup = InlineKeyboardMarkup(row_width=2)
@@ -3296,10 +3401,14 @@ def handle_main(message):
         markup.add(
             InlineKeyboardButton("🚨 ข่าวด่วนตลาด US (PRO)", callback_data="hub_breaking"),
         )
-        # ⚙️ หมวด: ตั้งค่า
+        # ⚙️ หมวด: ตั้งค่า + ติดต่อ
         markup.add(
             InlineKeyboardButton("⚙️ ตั้งค่าแจ้งเตือน", callback_data="settings_open"),
             InlineKeyboardButton("🌐 Web Dashboard", callback_data="menu_dashboard"),
+        )
+        markup.add(
+            InlineKeyboardButton("🏆 Badges", callback_data="hub_badges"),
+            InlineKeyboardButton("💬 ติดต่อแอดมิน", url="https://t.me/apexify_admin"),
         )
 
         msg = (
@@ -3506,7 +3615,39 @@ def handle_main(message):
 
     if user_id != ADMIN_ID and role == 'free':
         increment_usage(user_id)
-        report += f"\n\n🎁 **Trial:** {usage + 1}/{FREE_DAILY_QUOTA}"
+        # 🌟 Quota visibility — show usage explicitly so trial users feel pressure to upgrade
+        used = usage + 1
+        remaining = FREE_DAILY_QUOTA - used
+        if remaining <= 0:
+            report += f"\n\n📊 **Free Trial:** ใช้ครบ {used}/{FREE_DAILY_QUOTA} วันนี้แล้ว — รีเซ็ตเที่ยงคืน 🌙\n💎 อัปเกรด VIP/PRO เพื่อใช้ไม่จำกัด"
+        elif remaining == 1:
+            report += f"\n\n⚠️ **Free Trial:** เหลือ {remaining} ครั้งสุดท้ายวันนี้ ({used}/{FREE_DAILY_QUOTA})"
+        else:
+            report += f"\n\n📊 **Free Trial:** {used}/{FREE_DAILY_QUOTA} วันนี้ (เหลือ {remaining} ครั้ง)"
+
+    # 🌟 Day-trade discipline coach — แจ้งเตือนถ้าวิเคราะห์ซ้ำหุ้นเดียวกันถี่เกินใน 1 วัน
+    # ตลาดไม่เปลี่ยนทุก 30 นาที — โค้ชเตือนให้ใจเย็น (PP P. ขอ)
+    try:
+        report = _maybe_append_daytrade_coach(user_id, symbol, report)
+    except Exception as e:
+        print(f"[DaytradeCoach] error: {e}", flush=True)
+
+    # 🌟 Achievement badges — gamification, ตรวจหลัง increment_usage
+    try:
+        from database import evaluate_achievements, ACHIEVEMENT_CATALOG
+        new_badges = evaluate_achievements(user_id, context="analyze")
+        if new_badges:
+            badge_lines = []
+            for code in new_badges:
+                label, desc = ACHIEVEMENT_CATALOG.get(code, (code, ""))
+                badge_lines.append(f"{label} — _{desc}_")
+            badge_msg = "🏆 **ปลดล็อก Badge ใหม่!**\n" + "\n".join(badge_lines)
+            try:
+                bot.send_message(user_id, badge_msg, parse_mode="Markdown")
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[Achievement] eval error: {e}", flush=True)
 
     # 🌟 Daily Streak — อัปเดตทุกครั้งที่วิเคราะห์หุ้น
     streak_notification = None
@@ -3655,10 +3796,12 @@ if __name__ == "__main__":
             BotCommand("setalert", "ตั้งเตือนราคา — PRO"),
             BotCommand("myalerts", "ดู price alerts ที่ตั้งไว้"),
             BotCommand("breaking", "ข่าวด่วนตลาด US (เปิด/ปิด) — PRO"),
+            BotCommand("badges", "ดู Achievement badges ที่สะสม"),
             BotCommand("freetrial", "ทดลอง PRO 7 วันฟรี"),
             BotCommand("redeem", "เติมโค้ดโปรโมชั่น"),
             BotCommand("settings", "ตั้งค่าการแจ้งเตือน"),
             BotCommand("dashboard", "เปิด Web Dashboard"),
+            BotCommand("contact", "ติดต่อแอดมิน @apexify_admin"),
         ])
         print("✅ Bot commands menu set", flush=True)
     except Exception as e:
