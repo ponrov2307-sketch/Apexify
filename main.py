@@ -1240,9 +1240,27 @@ def handle_free_trial(message):
         bot.reply_to(message, "📡 ระบบขัดข้องชั่วคราว ขออภัยในความไม่สะดวก รบกวนลองอีกครั้งในสักครู่ครับ")
 
 
-@bot.message_handler(commands=['breaking_on', 'breakingon'])
-def handle_breaking_on(message):
-    """เปิดรับแจ้งเตือนข่าวด่วนตลาด US (PRO เท่านั้น)"""
+def _send_breaking_status_card(chat_id: int, enabled: bool):
+    """Render the breaking-news settings card with toggle button."""
+    icon = "🔔 เปิดอยู่" if enabled else "🔕 ปิดอยู่"
+    btn_label = "🔕 ปิดข่าวด่วน" if enabled else "🔔 เปิดข่าวด่วน"
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton(btn_label, callback_data="breaking_toggle"))
+    text = (
+        "🚨 *ข่าวด่วนตลาด US*\n\n"
+        f"สถานะ: *{icon}*\n\n"
+        "ระบบจะแจ้งเฉพาะข่าวระดับ HIGH ที่กระทบ S&P 500 / Nasdaq จริง\n"
+        "เช่น CPI, NFP, FOMC, สงคราม, OPEC cut\n\n"
+        "🌙 ช่วง 02:00-08:00 น. (ไทย) จะรวมไว้ใน Morning Briefing"
+    )
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
+
+
+@bot.message_handler(commands=['breaking', 'breaking_on', 'breakingon',
+                               'breaking_off', 'breakingoff',
+                               'breaking_status', 'breakingstatus'])
+def handle_breaking(message):
+    """หน้าตั้งค่าข่าวด่วน — มีปุ่มเปิด/ปิด"""
     user_id = str(message.chat.id)
     if not is_allowed(user_id):
         return
@@ -1253,62 +1271,18 @@ def handle_breaking_on(message):
             InlineKeyboardButton("👑 สมัคร PRO 109฿", callback_data="menu_vip"),
             InlineKeyboardButton("✨ Free Trial 7 วัน", callback_data="menu_freetrial"),
         )
-        bot.reply_to(message,
-            "🔒 **ข่าวด่วนตลาด US — ฟีเจอร์ PRO เท่านั้น**\n\n"
+        bot.reply_to(
+            message,
+            "🔒 *ข่าวด่วนตลาด US — ฟีเจอร์ PRO เท่านั้น*\n\n"
             "🚨 ระบบจะแจ้งเตือนเฉพาะข่าวที่กระทบ S&P 500/Nasdaq จริง\n"
             "เช่น CPI, NFP, FOMC, สงคราม, OPEC cut\n\n"
             "AI Gemini คัดเฉพาะระดับ HIGH ส่งให้ — ไม่สแปม",
-            parse_mode="Markdown", reply_markup=markup)
-        return
-    try:
-        from database import set_breaking_news_subscription
-        set_breaking_news_subscription(user_id, True)
-        bot.reply_to(message,
-            "✅ **เปิดแจ้งเตือนข่าวด่วนแล้ว!**\n\n"
-            "🚨 จะแจ้งเฉพาะข่าวระดับ **HIGH** ที่กระทบตลาด US มาก\n"
-            "🌙 ช่วง 02:00-08:00 น. (ไทย) จะรวมไว้ใน Morning Briefing แทน\n\n"
-            "_ปิดได้ทุกเมื่อด้วย /breaking\\_off_",
-            parse_mode="Markdown")
-    except Exception as e:
-        bot.reply_to(message, f"❌ เปิดไม่สำเร็จ: {e}")
-
-
-@bot.message_handler(commands=['breaking_off', 'breakingoff'])
-def handle_breaking_off(message):
-    """ปิดรับแจ้งเตือนข่าวด่วน"""
-    user_id = str(message.chat.id)
-    if not is_allowed(user_id):
-        return
-    try:
-        from database import set_breaking_news_subscription
-        set_breaking_news_subscription(user_id, False)
-        bot.reply_to(message,
-            "🔕 **ปิดแจ้งเตือนข่าวด่วนแล้ว**\n\n"
-            "_เปิดใหม่ได้ทุกเมื่อด้วย /breaking\\_on_",
-            parse_mode="Markdown")
-    except Exception as e:
-        bot.reply_to(message, f"❌ ปิดไม่สำเร็จ: {e}")
-
-
-@bot.message_handler(commands=['breaking_status', 'breakingstatus'])
-def handle_breaking_status(message):
-    """ดูสถานะการสมัครข่าวด่วน"""
-    user_id = str(message.chat.id)
-    if not is_allowed(user_id):
+            parse_mode="Markdown",
+            reply_markup=markup,
+        )
         return
     from database import is_subscribed_breaking_news
-    role = check_subscription(user_id)
-    enabled = is_subscribed_breaking_news(user_id)
-    if role != 'pro':
-        bot.reply_to(message,
-            "🔒 ฟีเจอร์ข่าวด่วนสำหรับ PRO เท่านั้น\nพิมพ์ /breaking\\_on เพื่อสมัคร",
-            parse_mode="Markdown")
-        return
-    icon = "🔔 ON" if enabled else "🔕 OFF"
-    bot.reply_to(message,
-        f"📡 **สถานะข่าวด่วน:** {icon}\n\n"
-        f"_ใช้ /breaking\\_on หรือ /breaking\\_off เพื่อสลับ_",
-        parse_mode="Markdown")
+    _send_breaking_status_card(int(user_id), is_subscribed_breaking_news(user_id))
 
 
 @bot.message_handler(commands=['breaking_test'])
@@ -2598,6 +2572,59 @@ def inline_callbacks(call):
             "• `/earnings AAPL` — วิเคราะห์งบล่าสุดด้วย AI",
             parse_mode="Markdown")
 
+    elif call.data == 'hub_breaking':
+        if role != 'pro' and user_id != ADMIN_ID:
+            markup = InlineKeyboardMarkup(row_width=2)
+            markup.add(
+                InlineKeyboardButton("👑 สมัคร PRO 109฿", callback_data="menu_vip"),
+                InlineKeyboardButton("✨ Free Trial 7 วัน", callback_data="menu_freetrial"),
+            )
+            bot.send_message(user_id,
+                "🔒 *ข่าวด่วนตลาด US — ฟีเจอร์ PRO เท่านั้น*\n\n"
+                "🚨 ระบบจะแจ้งเตือนเฉพาะข่าวที่กระทบ S&P 500/Nasdaq จริง\n"
+                "เช่น CPI, NFP, FOMC, สงคราม, OPEC cut\n\n"
+                "AI Gemini คัดเฉพาะระดับ HIGH ส่งให้ — ไม่สแปม",
+                parse_mode="Markdown", reply_markup=markup)
+            return
+        from database import is_subscribed_breaking_news
+        _send_breaking_status_card(int(user_id), is_subscribed_breaking_news(user_id))
+
+    elif call.data == 'breaking_toggle':
+        if role != 'pro' and user_id != ADMIN_ID:
+            bot.answer_callback_query(call.id, "🔒 PRO เท่านั้น", show_alert=True)
+            return
+        try:
+            from database import is_subscribed_breaking_news, set_breaking_news_subscription
+            now_on = is_subscribed_breaking_news(user_id)
+            new_state = not now_on
+            set_breaking_news_subscription(user_id, new_state)
+            # Edit existing message in place to reflect new state
+            icon = "🔔 เปิดอยู่" if new_state else "🔕 ปิดอยู่"
+            btn_label = "🔕 ปิดข่าวด่วน" if new_state else "🔔 เปิดข่าวด่วน"
+            new_markup = InlineKeyboardMarkup()
+            new_markup.add(InlineKeyboardButton(btn_label, callback_data="breaking_toggle"))
+            new_text = (
+                "🚨 *ข่าวด่วนตลาด US*\n\n"
+                f"สถานะ: *{icon}*\n\n"
+                "ระบบจะแจ้งเฉพาะข่าวระดับ HIGH ที่กระทบ S&P 500 / Nasdaq จริง\n"
+                "เช่น CPI, NFP, FOMC, สงคราม, OPEC cut\n\n"
+                "🌙 ช่วง 02:00-08:00 น. (ไทย) จะรวมไว้ใน Morning Briefing"
+            )
+            try:
+                bot.edit_message_text(
+                    new_text, call.message.chat.id, call.message.message_id,
+                    parse_mode="Markdown", reply_markup=new_markup,
+                )
+            except Exception:
+                # Fallback: send new card if edit fails (e.g., message too old)
+                _send_breaking_status_card(int(user_id), new_state)
+            bot.answer_callback_query(
+                call.id,
+                "✅ เปิดแจ้งเตือนแล้ว" if new_state else "🔕 ปิดแจ้งเตือนแล้ว",
+            )
+        except Exception as e:
+            bot.answer_callback_query(call.id, f"❌ {e}", show_alert=True)
+
     elif call.data == 'hub_price_alert':
         try:
             if role != 'pro' and user_id != ADMIN_ID:
@@ -3123,6 +3150,9 @@ def handle_main(message):
         markup.add(
             InlineKeyboardButton("🔔 ตั้งเตือนราคา (PRO)", callback_data="hub_price_alert"),
             InlineKeyboardButton("📈 Earnings Alert", callback_data="hub_earnings"),
+        )
+        markup.add(
+            InlineKeyboardButton("🚨 ข่าวด่วนตลาด US (PRO)", callback_data="hub_breaking"),
         )
         # ⚙️ หมวด: ตั้งค่า
         markup.add(

@@ -2126,23 +2126,16 @@ def set_breaking_news_subscription(user_id: str, enabled: bool) -> None:
 
 
 def get_breaking_news_subscribers() -> list[str]:
-    """All currently-enabled PRO subscribers. Filtered to PRO at push time."""
+    """Enabled subscribers, filtered to active PRO via check_subscription
+    so we don't have to second-guess the TEXT vs timestamp shape of expiry_date."""
     conn = get_connection()
     c = conn.cursor()
     try:
-        c.execute(
-            """
-            SELECT s.user_id
-            FROM breaking_news_subscribers s
-            JOIN users u ON u.user_id = s.user_id
-            WHERE s.enabled = TRUE
-              AND u.role IN ('pro', 'admin')
-              AND (u.expiry_date IS NULL OR u.expiry_date > NOW())
-            """
-        )
-        return [r[0] for r in c.fetchall()]
+        c.execute("SELECT user_id FROM breaking_news_subscribers WHERE enabled = TRUE")
+        candidates = [r[0] for r in c.fetchall()]
     finally:
         conn.close()
+    return [uid for uid in candidates if check_subscription(uid) == 'pro']
 
 
 def get_recent_breaking_news(limit: int = 20, importance: str | None = None) -> list[dict]:
