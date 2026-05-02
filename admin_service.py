@@ -1030,17 +1030,36 @@ def get_webmaster_metrics_snapshot():
     where migrations haven't been applied), returns zeros instead of crashing.
     """
     metrics = {
+        # Transaction core
         "tx_total": 0,
         "tx_active_users": 0,
         "tx_this_month": 0,
+        "tx_this_week": 0,
+        "tx_last_week": 0,
+        "tx_growth_wow_pct": 0.0,
+        "tx_buy_count": 0,
+        "tx_sell_count": 0,
         "tx_with_proof": 0,
         "tx_with_proof_pct": 0.0,
-        "tx_proofs_pending_purge": 0,  # soft-deleted in 30-day grace
-        "tx_top_tickers": [],          # [(ticker, count), ...]
+        "tx_proofs_pending_purge": 0,
+        "tx_top_tickers": [],
+        "tx_top_brokers": [],          # [(broker, count), ...]
+        "tx_currency_split": {},       # {"USD": 12, "THB": 4}
         "fees_total_thb": 0.0,
+        # Dividends
         "div_total_count": 0,
         "div_total_amount": 0.0,
-        "active_users_7d": 0,          # users with tx updated in last 7d
+        # Engagement
+        "active_users_7d": 0,
+        "active_users_30d": 0,
+        # Cross-user portfolios (webmaster uses 'portfolios' table)
+        "portfolio_active_users": 0,
+        "portfolio_top_held": [],      # [(ticker, holders), ...]
+        # Storage usage
+        "proof_storage_bytes_total": 0,
+        # Realized P&L cache (sum across all users + years)
+        "realized_pnl_thb_total": 0.0,
+        "realized_pnl_users_count": 0,
         "available": False,
     }
     conn = get_connection()
@@ -1073,25 +1092,84 @@ def get_webmaster_metrics_snapshot():
         )
         metrics["tx_this_month"] = int(c.fetchone()[0] or 0)
 
-        # Top tickers
+        # Top tickers (top 8)
         c.execute(
             """
             SELECT ticker, COUNT(*) AS cnt FROM transactions
              WHERE deleted_at IS NULL
-             GROUP BY ticker ORDER BY cnt DESC LIMIT 5
+             GROUP BY ticker ORDER BY cnt DESC LIMIT 8
             """
         )
         metrics["tx_top_tickers"] = [(r[0], int(r[1])) for r in c.fetchall()]
 
-        # Active webmaster users — at least 1 tx update in last 7d
+        # Top brokers (top 5) — empty broker treated as "Manual"
         c.execute(
             """
-            SELECT COUNT(DISTINCT user_id) FROM transactions
-             WHERE deleted_at IS NULL
-               AND updated_at >= NOW() - INTERVAL '7 days'
+            SELECT COALESCE(NULLIF(TRIM(broker), ''), 'Manual') AS b, COUNT(*) AS cnt
+              FROM transactions WHERE deleted_at IS NULL
+             GROUP BY b ORDER BY cnt DESC LIMIT 5
             """
         )
-        metrics["active_users_7d"] = int(c.fetchone()[0] or 0)
+        metrics["tx_top_brokers"] = [(r[0], int(r[1])) for r in c.fetchall()]
+
+        # Buy / Sell breakdown
+        c.execute(
+            """
+            SELECT side, COUNT(*) FROM transactions
+             WHERE deleted_at IS NULL
+             GROUP BY side
+            """
+        )
+        for side, cnt in c.fetchall():
+            if side == "buy":
+                metrics["tx_buy_count"] = int(cnt or 0)
+            elif side == "sell":
+                metrics["tx_sell_count"] = int(cnt or 0)
+
+        # Currency split
+        c.execute(
+            """
+            SELECT UPPER(currency), COUNT(*) FROM transactions
+             WHERE deleted_at IS NULL
+             GROUP BY UPPER(currency)
+            """
+        )
+        metrics["tx_currency_split"] = {r[0] or "USD": int(r[1] or 0) for r in c.fetchall()}
+
+        # Active webmaster users — last 7 + 30 days
+        c.execute(
+            """
+            SELECT
+                SUM(CASE WHEN updated_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) AS d7,
+                SUM(CASE WHEN updated_at >= NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END) AS d30
+              FROM (SELECT DISTINCT user_id, MAX(updated_at) AS updated_at
+                    FROM transactions WHERE deleted_at IS NULL
+                    GROUP BY user_id) AS uniq_users
+            """
+        )
+        row = c.fetchone()
+        metrics["active_users_7d"] = int(row[0] or 0)
+        metrics["active_users_30d"] = int(row[1] or 0)
+
+        # Week-over-week growth (this week vs prev week)
+        c.execute(
+            """
+            SELECT
+                SUM(CASE WHEN transaction_date >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) AS w0,
+                SUM(CASE WHEN transaction_date >= NOW() - INTERVAL '14 days'
+                          AND transaction_date <  NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) AS w1
+              FROM transactions WHERE deleted_at IS NULL
+            """
+        )
+        row = c.fetchone()
+        metrics["tx_this_week"] = int(row[0] or 0)
+        metrics["tx_last_week"] = int(row[1] or 0)
+        if metrics["tx_last_week"] > 0:
+            metrics["tx_growth_wow_pct"] = round(
+                (metrics["tx_this_week"] - metrics["tx_last_week"]) / metrics["tx_last_week"] * 100, 1
+            )
+        elif metrics["tx_this_week"] > 0:
+            metrics["tx_growth_wow_pct"] = 100.0  # came from zero
 
         # Total fees (sum) — informational
         c.execute(
@@ -1102,19 +1180,21 @@ def get_webmaster_metrics_snapshot():
         )
         metrics["fees_total_thb"] = float(c.fetchone()[0] or 0)
 
-        # Photo proof adoption (only if migration 002 applied)
+        # Photo proof adoption + storage bytes (only if migration 002 applied)
         try:
             c.execute(
                 """
                 SELECT
                     SUM(CASE WHEN proof_path IS NOT NULL AND proof_deleted_at IS NULL THEN 1 ELSE 0 END) AS active,
-                    SUM(CASE WHEN proof_deleted_at IS NOT NULL THEN 1 ELSE 0 END) AS pending_purge
+                    SUM(CASE WHEN proof_deleted_at IS NOT NULL THEN 1 ELSE 0 END) AS pending_purge,
+                    COALESCE(SUM(CASE WHEN proof_path IS NOT NULL THEN proof_size_bytes ELSE 0 END), 0) AS bytes_used
                   FROM transactions WHERE deleted_at IS NULL
                 """
             )
             row = c.fetchone()
             metrics["tx_with_proof"] = int(row[0] or 0)
             metrics["tx_proofs_pending_purge"] = int(row[1] or 0)
+            metrics["proof_storage_bytes_total"] = int(row[2] or 0)
             if metrics["tx_total"]:
                 metrics["tx_with_proof_pct"] = round(
                     metrics["tx_with_proof"] / metrics["tx_total"] * 100, 1
@@ -1134,6 +1214,40 @@ def get_webmaster_metrics_snapshot():
             row = c.fetchone()
             metrics["div_total_count"] = int(row[0] or 0)
             metrics["div_total_amount"] = float(row[1] or 0)
+        except Exception:
+            conn.rollback()
+
+        # Cross-user portfolio holdings (webmaster `portfolios` table)
+        try:
+            c.execute(
+                """
+                SELECT COUNT(DISTINCT user_id) FROM portfolios
+                """
+            )
+            metrics["portfolio_active_users"] = int(c.fetchone()[0] or 0)
+            c.execute(
+                """
+                SELECT ticker, COUNT(DISTINCT user_id) AS holders
+                  FROM portfolios
+                 GROUP BY ticker ORDER BY holders DESC LIMIT 8
+                """
+            )
+            metrics["portfolio_top_held"] = [(r[0], int(r[1])) for r in c.fetchall()]
+        except Exception:
+            conn.rollback()  # portfolios table may not exist or have user_id column
+
+        # Cached realized P&L sum (across all years, all users)
+        try:
+            c.execute(
+                """
+                SELECT COUNT(DISTINCT user_id),
+                       COALESCE(SUM(realized_pnl_thb), 0)
+                  FROM pnl_yearly_cache
+                """
+            )
+            row = c.fetchone()
+            metrics["realized_pnl_users_count"] = int(row[0] or 0)
+            metrics["realized_pnl_thb_total"] = float(row[1] or 0)
         except Exception:
             conn.rollback()
 
