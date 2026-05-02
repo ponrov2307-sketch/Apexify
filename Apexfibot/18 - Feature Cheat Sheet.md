@@ -60,7 +60,7 @@ tags: [cheatsheet, reference]
 
 ---
 
-## 🎮 16 Commands ใน Dropdown (พิมพ์ `/` เห็นทั้งหมด)
+## 🎮 20 Commands ใน Dropdown (พิมพ์ `/` เห็นทั้งหมด)
 
 ### พื้นฐาน (จำให้ได้)
 - พิมพ์ชื่อหุ้น เช่น `AAPL` `PTT.BK` → วิเคราะห์
@@ -79,9 +79,15 @@ tags: [cheatsheet, reference]
 - `/myalerts` — ดู alerts ทั้งหมด
 - `/ealert AAPL` — แจ้ง Earnings (VIP/PRO)
 
-### บัญชี
+### บัญชี / ชำระเงิน
 - `/freetrial` — ทดลอง PRO 7 วันฟรี
 - `/redeem CODE` — เติมโค้ด
+- `/payment` — สมัคร/ต่ออายุ + ดู QR (alias ของ `/account`)
+- `/contact` — ติดต่อแอดมิน
+
+### อื่นๆ
+- `/breaking` — เปิด/ปิด Breaking News alerts (PRO)
+- `/badges` — ดู Achievement badges ที่สะสม
 
 ### Hidden (ไม่ขึ้น dropdown แต่ใช้งานได้)
 - `/add AAPL 10 150` — บันทึกซื้อหุ้น (สัญลักษณ์ จำนวน ต้นทุน)

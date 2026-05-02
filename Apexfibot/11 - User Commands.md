@@ -66,6 +66,7 @@ tags: [commands, user]
 | `/setalert AAPL -3%` | ลด 3% จากราคาปัจจุบัน | PRO |
 | `/myalerts` | ดูรายการ alert ที่ตั้งไว้ | PRO |
 | `/delalert AAPL` | ลบการแจ้งเตือนของหุ้นนั้น | PRO |
+| `/breaking` (alias `/breaking_on/off/status`) | เปิด/ปิด Breaking News alerts (Fed/CPI/FOMC/wires) | PRO |
 
 ## Track Record & Engagement (ทุก tier ดูได้)
 
@@ -89,6 +90,9 @@ tags: [commands, user]
 | `/freetrial` | ทดลอง PRO 7 วันฟรี (1 ครั้ง/บัญชี) |
 | `/redeem [โค้ด]` | เติมโค้ดโปรโมชั่น |
 | `/account` หรือ `/me` | ดูสถานะบัญชี + Streak + โควต้า |
+| `/payment` | สมัคร/ต่ออายุ VIP/PRO + ดู QR ชำระเงิน (alias ของ /account) |
+| `/contact` (alias `/support`, `/admin_contact`) | ติดต่อแอดมิน @apexify_admin |
+| `/badges` (alias `/achievements`) | ดู Achievement badges ที่สะสม |
 
 ## Quick Menu (ปุ่ม keyboard)
 
@@ -139,9 +143,11 @@ tags: [commands, user]
 
 | Command | Behavior |
 |---------|---------|
-| `/menu_referral` callback | เปิดหน้าชวนเพื่อน + ปุ่มแชร์ |
-| `/menu_freetrial` callback | กระตุ้นใช้ free trial |
-| `/menu_code` callback | บอกวิธีใช้ /redeem |
+| `menu_referral` (callback_data) | เปิดหน้าชวนเพื่อน + ปุ่มแชร์ — เข้าผ่าน Hub button ไม่ใช่พิมพ์ |
+| `menu_freetrial` (callback_data) | กระตุ้นใช้ free trial — เข้าผ่าน Hub button |
+| `menu_code` (callback_data) | บอกวิธีใช้ /redeem — เข้าผ่าน Hub button |
+
+> ⚠️ `menu_*` คือ **callback_data ของปุ่ม inline** ไม่ใช่ slash command — user พิมพ์ `/menu_referral` ตรงๆ ไม่ได้ ต้องเข้าผ่าน Hub menu
 
 ดูต่อ:
 - [[12 - Admin Commands]]

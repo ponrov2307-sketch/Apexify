@@ -28,7 +28,7 @@ User ส่งลิงก์ชวนเพื่อน → เพื่อน�
 
 ## Flow
 
-### 1. User ขอลิงก์ (`/menu_referral`)
+### 1. User ขอลิงก์ (กดปุ่ม `🤝 ชวนเพื่อน` ใน Hub menu — callback_data: `menu_referral`)
 
 ```python
 ref_link = f"https://t.me/{bot_username}?start=REF_{user_id}"
