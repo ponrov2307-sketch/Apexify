@@ -503,6 +503,608 @@ login ด้วย Telegram → /dashboard
 
 ---
 
+## 🌐 Web Dashboard Push Series (WD1–WD10) ⭐
+
+> ชุดข้อความเฉพาะสำหรับ **ดัน user ไปลองใช้ Web Dashboard** (apexifyy.up.railway.app)
+> ส่งสัปดาห์ละ 1 ตัว rotate 10 สัปดาห์ — เน้น angle ต่างกันทุกครั้ง
+> Login ใช้ `/dashboard` ในบอท → magic link เปิดเอง ไม่ต้องสมัครใหม่
+
+---
+
+### WD1 — เปิดตัว/Headline (ทุก tier)
+```
+🌐 Apexify มี Web Dashboard แล้ว!
+
+apexifyy.up.railway.app
+
+ทุกอย่างที่บอททำได้ + อีกเพียบ:
+📊 พอร์ต + P&L แบบ real-time
+🔥 AI Daily Pulse สรุปตลาดทุกเช้า
+📈 Heatmap หุ้นในพอร์ตเป็นภาพ
+💰 Tax Export ยื่นภาษีได้
+
+login ครั้งเดียว → พิมพ์ /dashboard
+ไม่ต้องสมัครใหม่ ไม่ต้องจำ password
+```
+
+---
+
+### WD2 — Tax Export ยื่นภาษี (PRO)
+```
+💰 ยื่นภาษีปีนี้สบายขึ้น
+
+Web Dashboard มีหน้า P&L Tax Export
+สำหรับลูกค้า PRO โดยเฉพาะ:
+
+✅ บันทึกซื้อ-ขายแต่ละครั้ง (manual)
+✅ FIFO matching อัตโนมัติ
+✅ รวมค่าธรรมเนียม + ภาษี ณ ที่จ่าย
+✅ สรุปกำไรขาดทุน THB รายปี
+✅ Export CSV format ภ.ง.ด.
+
+→ apexifyy.up.railway.app/pnl
+เริ่มบันทึกธุรกรรมก่อน ปลายปีไม่ต้องนั่งคิดเอง
+
+login: /dashboard
+```
+
+---
+
+### WD3 — Heatmap พอร์ตเป็นภาพ (VIP/PRO)
+```
+🔥 ดูพอร์ตทั้งก้อนในวินาทีเดียว
+
+Web Dashboard → tab Heatmap
+
+สี่เขียว = หุ้นที่บวก
+สีแดง = หุ้นที่ลบ
+ขนาดกล่อง = น้ำหนักในพอร์ต
+
+ไม่ต้องไล่ดูทีละตัวเหมือนใน Telegram
+เห็นปุ๊บรู้ปั๊บ ตัวไหนฉุดพอร์ต ตัวไหนพยุง
+
+→ apexifyy.up.railway.app/heatmap
+login: /dashboard
+```
+
+---
+
+### WD4 — AI Daily Pulse ทุกเช้า (ทุก tier)
+```
+☀️ ทุกเช้าก่อนเปิดตลาด
+
+Web Dashboard มี AI Daily Pulse:
+🤖 Gemini สรุปตลาดเมกาเมื่อคืน
+📊 หุ้นเด่น / sector ที่ขยับ
+⚠️ ความเสี่ยงที่ต้องระวัง
+🎯 Watch list สำหรับวันนี้
+
+อ่านในชาเช้า 1 แก้ว — รู้ทันตลาด
+update auto ทุก 30 นาที
+
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
+### WD5 — Share Card อวดพอร์ต (Free → ทุก tier)
+```
+🎨 อวดพอร์ตให้สวยกว่า screenshot
+
+Web Dashboard → ปุ่ม "Share Card"
+สร้างภาพ P&L 1080×1350 (IG portrait):
+
+📸 มูลค่าพอร์ต + กำไร/ขาดทุน
+📈 Top 3 ตัวที่ทำเงินเยอะสุด
+🎨 ดีไซน์สะอาด ลง story ได้เลย
+🔒 มี privacy mask ถ้าไม่อยากโชว์ตัวเลขจริง
+
+โหลดภาพ → ลง FB / IG / Twitter ได้ทันที
+→ apexifyy.up.railway.app
+```
+
+---
+
+### WD6 — Mobile-Friendly (objection handle)
+```
+📱 เปิดบนมือถือก็ใช้ได้ครบ
+
+Web Dashboard ออกแบบ mobile-first:
+✅ ตารางพอร์ต scroll ลื่น
+✅ กราฟแตะซูมได้
+✅ ปุ่มใหญ่กดง่าย
+✅ ไม่ต้องลงแอป — เปิด browser อย่างเดียว
+
+ทดสอบในมือถือคุณเลย:
+apexifyy.up.railway.app
+
+login ด้วย /dashboard ในบอทนี้ → คลิกลิงก์ที่บอทส่งให้ → เข้าได้ทันที
+```
+
+---
+
+### WD7 — Free user ก็ใช้ได้ (Free hook)
+```
+🎁 Free user ก็เข้า Web Dashboard ได้
+
+ฟรีได้:
+📊 ดูพอร์ต + P&L
+📈 Watchlist + Heatmap
+🔥 AI Daily Pulse
+📰 ข่าวตลาด
+🎯 Matchmaker หาหุ้นใหม่
+
+PRO ปลดล็อกเพิ่ม:
+🚨 Breaking News real-time
+💰 Tax Export
+📅 Earnings Calendar เต็มรูปแบบ
+
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
+### WD8 — Privacy Mask (objection: ไม่อยากโชว์ตัวเลข)
+```
+🔒 เปิดพอร์ตในที่ทำงาน/ร้านกาแฟได้สบาย
+
+Web Dashboard มี Privacy Toggle:
+แตะปุ่ม 👁 → ตัวเลขทั้งหน้าเปลี่ยนเป็น *
+
+$1,672.14 → $*,***.**
+850,000 บาท → ***,*** บาท
+
+✅ Layout ไม่เพี้ยน — ตัวเลขถูกปิดทีละหลัก
+✅ แตะอีกครั้งเพื่อโชว์
+✅ จำสถานะไว้ — เปิดมาครั้งหน้าก็ยังปิดอยู่
+
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
+### WD9 — Matchmaker หาหุ้นใหม่ (VIP/PRO)
+```
+🎯 อยากซื้อหุ้นใหม่แต่ไม่รู้ตัวไหน?
+
+Web Dashboard → Matchmaker
+ตอบ 3 คำถามสั้นๆ:
+1️⃣ สาย growth / dividend / value?
+2️⃣ ทนความเสี่ยงได้แค่ไหน?
+3️⃣ ระยะลงทุน?
+
+→ AI คัดหุ้นจาก 150 ตัว universe สหรัฐ
+→ ขึ้นมา 5-10 ตัวที่ match กับสไตล์คุณ
+→ คลิกแต่ละตัวดูบทวิเคราะห์เต็ม
+
+ไม่ต้องเดาเอง ไม่ต้อง scroll หาทั้งวัน
+→ apexifyy.up.railway.app/matchmaker
+```
+
+---
+
+### WD10 — ทำไมต้องใช้ทั้งบอท + Dashboard
+```
+🔄 บอท + Dashboard ใช้คู่กันได้ผลที่สุด
+
+📱 Telegram bot — ใช้ตอน:
+• อยู่นอกบ้าน
+• อยากวิเคราะห์ 1 ตัวเร็วๆ
+• รับ alert / breaking news
+
+🌐 Web Dashboard — ใช้ตอน:
+• เปิดดูพอร์ตรวมเช้า/เย็น
+• บันทึกธุรกรรม + ดู P&L
+• อยากเห็น Heatmap / Charts ใหญ่
+• Export CSV ยื่นภาษี
+
+ข้อมูลเดียวกัน sync ทันที — ไม่ต้องกรอกซ้ำ
+→ apexifyy.up.railway.app
+```
+
+---
+
+### WD11 — Health Score ตรวจสุขภาพพอร์ต (VIP/PRO)
+```
+🏥 พอร์ตคุณสุขภาพ "ดี" หรือ "ป่วย"?
+
+Web Dashboard → Portfolio Health Score
+ตรวจ 4 มิติพื้นฐาน:
+✅ Diversification (≥ 5 ตัวขึ้นไป)
+✅ Concentration (Top 3 รวม ≤ 60%)
+✅ Sector spread — กระจายธุรกิจไหม
+✅ Currency / Country spread
+
+เห็นคะแนนทันที + จุดที่ควร rebalance
+ไม่ต้องคิดเอง — ระบบ flag ให้
+
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
+### WD12 — Watchlist Heatmap (ทุก tier)
+```
+👀 หุ้นใน Watchlist ตัวไหนวิ่งวันนี้?
+
+Web Dashboard → Watchlist Heatmap
+✅ Equal-weight grid — ทุกตัวเห็นเท่ากัน
+✅ สีแสดง % เปลี่ยนแปลงวันนี้
+✅ แดงเข้ม = ลงแรง / เขียวเข้ม = ขึ้นแรง
+
+ไม่ต้องเปิดดูทีละตัวใน Telegram
+ปรากฏการณ์ "หุ้นกลุ่มไหน hot" — มองปุ๊บรู้ปั๊บ
+
+→ apexifyy.up.railway.app/heatmap
+login: /dashboard
+```
+
+---
+
+### WD13 — ข้อมูลปลอดภัย — Auto Backup (ทุก tier)
+```
+🔒 ข้อมูลพอร์ตคุณ "ไม่หาย"
+
+ทำไมเรื่องนี้สำคัญ:
+คู่แข่งบางเจ้าลูกค้าเคยข้อมูลหายตอน login เครื่องใหม่
+→ Apexify ออกแบบให้:
+
+✅ เก็บใน Supabase cloud DB
+✅ Backup อัตโนมัติทุกวัน
+✅ Multi-device sync 100%
+✅ ลบผิด — recover ได้ใน 30 วัน
+✅ Export CSV เก็บเองได้ทุกเมื่อ
+✅ "Last synced HH:MM" โชว์ทุกหน้า
+
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
+### WD14 — Magic Login ครั้งเดียว (objection: ขี้เกียจสมัคร)
+```
+🔑 ไม่ต้องสมัคร ไม่ต้องจำ password
+
+Web Dashboard ใช้ Magic Login:
+1️⃣ พิมพ์ /dashboard ในบอทนี้
+2️⃣ บอทส่งลิงก์ — กดเลย
+3️⃣ เข้าใช้ได้ทันที
+
+✅ JWT signed — ปลอดภัย
+✅ Session 24 ชม. — ไม่ต้องล็อกอินบ่อย
+✅ ไม่ต้องตั้ง email + password
+✅ ตัวบอทเองคือ "บัญชี" ของคุณ
+
+ลองเลย → /dashboard
+```
+
+---
+
+### WD15 — Earnings Calendar (PRO)
+```
+📅 หุ้นไหนจะประกาศงบสัปดาห์นี้?
+
+Web Dashboard → Earnings Calendar
+✅ ปฏิทินรายเดือน / รายสัปดาห์
+✅ เน้นหุ้นที่คุณถืออยู่ + watchlist
+✅ EPS estimate vs Actual ย้อนหลัง 4Q
+✅ AI วิเคราะห์ความคาดหวังก่อนงบ
+✅ หลังประกาศ — สรุปทันที beat / miss
+
+PRO ปลดล็อกเต็มรูปแบบ
+ไม่งงตอนราคาแกว่งหลังงบประกาศอีก
+
+→ apexifyy.up.railway.app/earnings
+login: /dashboard
+```
+
+---
+
+### WD16 — Economic Calendar / Macro (PRO)
+```
+🌍 ข้อมูลเศรษฐกิจสำคัญสัปดาห์นี้
+
+Web Dashboard → Economic Calendar
+✅ FED meeting / CPI / PPI / NFP / GDP
+✅ อันดับความสำคัญ (🔴🟠🟡)
+✅ Forecast vs Actual real-time
+✅ เวลาตามเขตเวลาไทย (UTC+7)
+
+🌐 Macro page เพิ่มเติม:
+✅ DXY / VIX / 10Y yield
+✅ Gold / Oil / BTC
+
+ก่อนเข้าซื้อ — เช็ค macro ก่อน
+→ apexifyy.up.railway.app/economic-calendar
+login: /dashboard
+```
+
+---
+
+### WD17 — Breaking News Banner (PRO)
+```
+🚨 ข่าวด่วนที่ขยับตลาด — โผล่บน Dashboard ทันที
+
+Web Dashboard มี Breaking News Banner
+แถบสีแดงด้านบนเมื่อ HIGH impact:
+🔴 Fed rate decision
+🔴 CPI / PPI surprise
+🔴 GDP shock / Geopolitical event
+
+✅ AI Gemini classify ความสำคัญ
+✅ สรุปไทย — อ่าน 10 วิเข้าใจ
+✅ Dismiss ได้ทีละข่าว
+✅ Sync กับบอท push ใน Telegram
+
+PRO เท่านั้น — สาย active trader ห้ามพลาด
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
+### WD18 — Benchmark พอร์ตชนะ S&P ไหม (VIP/PRO)
+```
+📈 พอร์ตคุณชนะ S&P 500 จริงไหม?
+
+Web Dashboard → Benchmark
+เปรียบเทียบ performance พอร์ตคุณกับ:
+✅ S&P 500
+✅ NASDAQ
+✅ SET Index
+✅ Custom benchmark ที่คุณเลือก
+
+📊 กราฟ overlay 1M / 3M / 6M / 1Y / YTD
+📊 % return เทียบกัน
+📊 Volatility / Max Drawdown
+
+รู้ว่าตัวเองเก่งจริง หรือแค่ตลาดดี
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
+### WD19 — Morning Briefing auto-load (ทุก tier)
+```
+☕ Briefing ตลาดเช้า — ไม่ต้องกดปุ่ม
+
+Web Dashboard → หน้า Morning
+✅ เปิดเข้ามา = generate ให้ทันที
+✅ สรุปตลาดเมกาเมื่อคืน
+✅ Asia open + ไทย preview
+✅ Top movers + sector ที่ขยับ
+✅ ความเสี่ยง / catalyst วันนี้
+
+อ่านพร้อมกาแฟ 1 แก้ว = อัปเดตครบ
+อัปเดตทุก 30 นาที — ตอนตลาดเปิดยังสด
+
+→ apexifyy.up.railway.app/morning
+login: /dashboard
+```
+
+---
+
+### WD20 — Tutorial Overlay สอนใช้ (ใหม่กับ Dashboard)
+```
+🎓 ใหม่กับ Web Dashboard? ไม่งงแน่
+
+ครั้งแรกที่เข้า — มี Tutorial overlay 5 ขั้น:
+1️⃣ ตำแหน่งพอร์ตอยู่ไหน
+2️⃣ Watchlist เพิ่ม/ลบยังไง
+3️⃣ AI Daily Pulse คืออะไร
+4️⃣ Heatmap อ่านยังไง
+5️⃣ ตั้ง alert จาก Web ได้
+
+✅ 3 นาทีจบ
+✅ Skip ได้ทุกขั้นตอน
+✅ เปิดซ้ำได้จาก Help menu
+✅ Persist — ไม่โผล่ซ้ำหลังจบ
+
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
+### WD21 — Dividend Tracking ปันผล (VIP/PRO)
+```
+💎 ปันผลปีนี้ได้รวมเท่าไรแล้ว?
+
+Web Dashboard → Dividend Page
+✅ รวมปันผลปีนี้ (THB + USD)
+✅ Yield on Cost รายตัว
+✅ ปฏิทิน ex-div date หุ้นที่ถืออยู่
+✅ คาดการณ์ปันผลเดือนหน้า / ปีหน้า
+✅ Tax withheld แยก US 15%
+
+นักลงทุนสายปันผล — ติดตามรายเดือนได้ครบ
+ไม่ต้องเปิด broker app ทีละเจ้า
+
+→ apexifyy.up.railway.app/dividend
+login: /dashboard
+```
+
+---
+
+### WD22 — Watchlist Limit Visualizer (Free → upsell)
+```
+👀 อยากใส่ Watchlist เยอะกว่านี้?
+
+Web Dashboard แสดง limit ชัดเจน:
+🆓 Free: 5 ตัว
+👑 VIP: 20 ตัว
+🚀 PRO: ไม่จำกัด
+
+✅ Visual bar — เห็นเต็มแค่ไหน
+✅ ช่องล็อก — บอกว่าเพิ่มได้อีกกี่ตัว
+✅ ปุ่ม Upgrade — เห็นราคาทันที
+
+ไม่ต้องลบทิ้งเพื่อใส่ตัวใหม่ทุกครั้ง
+→ apexifyy.up.railway.app/watchlist
+login: /dashboard
+```
+
+---
+
+### WD23 — USD/THB Toggle (เน้นลูกค้าต่างประเทศ + คนเทรดเมกา)
+```
+💱 ดูพอร์ตเป็น USD หรือ THB ก็ได้
+
+Web Dashboard มี Currency Toggle:
+แตะปุ่ม USD ↔ THB:
+✅ มูลค่าพอร์ตทั้งก้อน
+✅ P&L รวม / รายตัว
+✅ ราคาต้นทุน + ราคาตลาด
+✅ ทุกตัวเลขแปลงทันที
+
+✅ Live FX rate (USDTHB อัปเดตทุก 30 นาที)
+✅ จำสถานะไว้ — ครั้งหน้าเปิดมาก็ตรง
+
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
+### WD24 — Multi-device Sync (ทุก tier)
+```
+📱💻 มือถือ + คอม sync เห็นเหมือนกันทันที
+
+Web Dashboard เก็บข้อมูลใน cloud (ไม่ใช่ local):
+✅ บันทึกบน iPhone — เปิด iPad เห็นทันที
+✅ แก้บน MacBook — มือถือ refresh ก็เห็น
+✅ ไม่ต้อง export/import ข้ามเครื่อง
+✅ "Last synced HH:MM" โชว์ทุกหน้า
+
+ออฟฟิศ + บ้าน + นอกบ้าน — ใช้ได้ทุกที่
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
+### WD25 — Time-saver vs Telegram (objection handle)
+```
+⏱ ดูพอร์ต 10 ตัวใน Telegram = scroll นาน
+
+Web Dashboard ดูได้ใน 5 วินาที:
+📊 ตารางทุกตัวพร้อมกัน
+🔥 Heatmap visual ทั้งก้อน
+💰 P&L รวม + รายตัว
+📈 กราฟใหญ่ — ไม่ใช่ภาพ thumbnail
+
+📱 Telegram = วิเคราะห์ตัวเดียวเร็ว ⚡
+🌐 Web = รวมทุกตัวในจอเดียว 🖼
+
+ใช้คู่กันคือถูกที่สุด
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
+### WD26 — Soft Delete กู้คืนได้ (ทุก tier)
+```
+😱 ลบหุ้นออกจากพอร์ตผิดตัว — ไม่เป็นไร
+
+Web Dashboard ใช้ Soft Delete:
+✅ ไม่ลบจริงทันที — ทำเครื่องหมายไว้
+✅ Recycle Bin เก็บ 30 วัน
+✅ Recover ด้วยปุ่มเดียว — ข้อมูลกลับมาเหมือนเดิม
+
+ทำผิดได้ — แก้กลับได้
+ไม่ต้องกลัวลบทับธุรกรรมที่ใช้ยื่นภาษี
+
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
+### WD27 — Payment / Upgrade ในเว็บ (ลูกค้าใหม่)
+```
+💳 อัปเกรด VIP/PRO ในเว็บ — สะดวกกว่า DM admin
+
+Web Dashboard → Payment Page
+✅ การ์ดราคา VIP / PRO เปรียบเทียบชัด
+✅ คัดลอกเลขบัญชี / PromptPay ปุ่มเดียว
+✅ QR code โหลดง่าย
+✅ Upload สลิปยืนยันในหน้าเดียว
+✅ Status update ภายใน 5 นาที
+
+นานาชาติ — มี PayPal link ด้วย
+ไม่ต้องเปิด LINE คุย admin
+
+→ apexifyy.up.railway.app/payment
+login: /dashboard
+```
+
+---
+
+### WD28 — News Feed Personalized (VIP/PRO)
+```
+📰 News Feed ที่เน้นหุ้นของคุณเอง
+
+Web Dashboard → News Page
+✅ Filter เฉพาะหุ้นในพอร์ต + watchlist
+✅ Sources: Reuters / CNBC / MarketWatch / WSJ
+✅ AI summary เป็นไทย
+✅ Sentiment tag (Bullish / Bearish / Neutral)
+✅ ลิงก์ไปอ่านต้นฉบับได้
+
+ไม่ต้อง scroll ข่าวที่ไม่เกี่ยว
+ตื่นเช้าอ่าน 5 ข่าว = อัปเดตหุ้นที่ถือทั้งวัน
+
+→ apexifyy.up.railway.app/news
+login: /dashboard
+```
+
+---
+
+### WD29 — Add Stock + Auto-log Transaction (PRO)
+```
+➕ เพิ่มหุ้นเข้าพอร์ต + บันทึกธุรกรรม = ขั้นตอนเดียว
+
+Web Dashboard → ปุ่ม + Add Stock
+1️⃣ ค้นหา ticker (autocomplete)
+2️⃣ ใส่จำนวน + ราคาต้นทุน
+3️⃣ Popup ถาม "บันทึกธุรกรรมด้วยไหม?"
+4️⃣ Pre-fill วันนี้ → กด OK เสร็จ
+
+→ Portfolio + Transaction Log update พร้อมกัน
+→ ปลายปีกด Export ยื่นภาษีได้เลย
+→ ไม่ต้องนั่งรวม Excel เอง
+
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
+### WD30 — Web Dashboard ฟรี ไม่มีค่าใช้จ่ายแยก (Free hook)
+```
+🎉 Web Dashboard ฟรี — ไม่มีค่าสมาชิกแยก
+
+ลูกค้า Apexify ทุกคนได้ใช้ทันที:
+✅ Free tier — เข้าใช้ฟีเจอร์พื้นฐาน
+✅ VIP — ปลดล็อกเพิ่ม (Heatmap, Health, Dividend)
+✅ PRO — ครบทุกหน้า + Tax Export
+
+login ด้วย Telegram (ฟรี) — ไม่ต้องสมัครใหม่
+สิทธิ์ที่มีในบอท = สิทธิ์เดียวกันใน Web
+
+→ apexifyy.up.railway.app
+login: /dashboard
+```
+
+---
+
 ## 💡 Tips สำหรับ admin
 
 ### ลำดับการส่ง (อาทิตย์ละ 1 ตัว)
@@ -511,13 +1113,58 @@ login ด้วย Telegram → /dashboard
 3. **อาทิตย์ที่ 3**: T4 (/track) — สร้างความน่าเชื่อถือ
 4. **อาทิตย์ที่ 4**: T11 (/portfolio) — engagement
 5. **อาทิตย์ที่ 5**: T6 (/fund) — เพิ่ม value VIP
-6. **อาทิตย์ที่ 6**: T13 (Web Dashboard) — แสดงของใหม่
-7. ... rotate ต่อไปได้
+6. **อาทิตย์ที่ 6**: WD1 (เปิดตัว Web Dashboard) — broad reveal
+7. **อาทิตย์ที่ 7**: WD4 (AI Daily Pulse) — habit formation ตอนเช้า
+8. **อาทิตย์ที่ 8**: WD3 (Heatmap) — visual hook
+9. **อาทิตย์ที่ 9**: WD2 (Tax Export) — push PRO conversion
+10. **อาทิตย์ที่ 10**: WD5 (Share Card) — encourage UGC
+11. ... rotate ต่อไปได้
+
+### Web Dashboard Push — ลำดับแนะนำ (ดัน dashboard 6 อาทิตย์ติด)
+1. **WD1** เปิดตัว — รู้ว่ามี
+2. **WD30** ฟรีไม่มีค่าใช้จ่ายแยก — ลด barrier
+3. **WD14** Login ขั้นตอนเดียว — ลด friction
+4. **WD4 หรือ WD19** AI Daily Pulse / Morning — สร้าง habit
+5. **WD3 หรือ WD12** Heatmap — visual hook
+6. **WD2 หรือ WD9** Tax Export / Matchmaker — push PRO
+
+### Web Dashboard 30 ตัว — จัดหมวดเลือกง่าย
+
+🆕 **Discovery / Headline** — ใช้ครั้งแรกในชุด
+- WD1 (เปิดตัวรวม), WD25 (เทียบกับ Telegram = time saver)
+
+🆓 **Free hook / ลด barrier** — กระตุ้น Free user เข้าลอง
+- WD7 (Free ก็เข้าได้), WD14 (login ครั้งเดียว), WD30 (ฟรีไม่แยก), WD20 (Tutorial แม้ใหม่)
+
+💰 **PRO Upsell** — เน้นปลดล็อกฟีเจอร์
+- WD2 (Tax Export), WD9 (Matchmaker), WD15 (Earnings), WD16 (Macro), WD17 (Breaking News), WD29 (Auto-log Transaction)
+
+📊 **Visual / Engagement** — feature ที่เห็นค่าทันที
+- WD3 (Portfolio Heatmap), WD12 (Watchlist Heatmap), WD18 (Benchmark), WD19 (Morning auto), WD21 (Dividend), WD28 (News personalized)
+
+🔐 **Trust / Safety** — ขจัดความกลัว
+- WD8 (Privacy Mask), WD13 (Auto Backup), WD26 (Soft Delete recovery)
+
+📱 **Friction killer** — แก้ objection เรื่องการใช้งาน
+- WD6 (Mobile-friendly), WD14 (Magic login), WD24 (Multi-device sync)
+
+📈 **Power feature** — สาย active ใช้บ่อย
+- WD11 (Health Score), WD22 (Watchlist limit), WD23 (USD/THB), WD27 (Payment in-web)
+
+🎨 **Social / Viral** — กระตุ้นแชร์
+- WD5 (Share Card 1080×1350)
+
+🔄 **Combo / Behavior** — สร้าง habit ระยะยาว
+- WD4 (AI Daily Pulse), WD10 (Bot+Web combo), WD25 (Time-saver)
 
 ### เลือกตาม persona
-- **Free user เยอะ** → T1, T2, T3, T11, T12, T14
-- **VIP เยอะ** → T6, T10, T15, T13 (push ไป PRO)
-- **PRO เยอะ** → T7, T8, T9, T13 (deep features)
+- **Free user เยอะ** → T1, T2, T3, T11, T12, T14, **WD1, WD5, WD7, WD20, WD30**
+- **VIP เยอะ (push ไป PRO)** → T6, T10, T15, **WD2, WD9, WD15, WD16, WD17, WD21**
+- **PRO เยอะ (deep retention)** → T7, T8, T9, **WD11, WD18, WD23, WD28, WD29**
+- **คน lapse / ไม่เข้านาน** → **WD1, WD4, WD6, WD14, WD19** (ทุกตัว = ลด friction + สร้าง habit)
+- **คนสายปันผล** → **WD21, WD13, WD27**
+- **คนสาย active trader** → **WD15, WD16, WD17, WD18**
+- **ลูกค้าต่างประเทศ** → **WD23, WD27** (USD/THB + PayPal payment)
 
 ### ลบลิงก์ก่อนส่ง
 ถ้า template มี `/freetrial` หรือ `/track` ในข้อความ — Telegram จะ render เป็นปุ่มกดได้อัตโนมัติ ✅

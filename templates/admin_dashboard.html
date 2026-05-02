@@ -4,214 +4,428 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Apexify — Admin Control Center</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    /* ───────────────────────────────────────────
+       Apexify Admin — Claude Design System
+       Warm cream palette · Source Serif headlines ·
+       Coral accent · Generous whitespace · Soft paper cards
+       ─────────────────────────────────────────── */
     :root {
-      --bg: #0D1117;
-      --surface: #161B22;
-      --surface2: #1C2128;
-      --border: rgba(255,255,255,0.08);
-      --green: #00C076;
-      --green-dim: rgba(0,192,118,0.15);
-      --blue: #0A84FF;
-      --blue-dim: rgba(10,132,255,0.15);
-      --purple: #BF5AF2;
-      --purple-dim: rgba(191,90,242,0.15);
-      --danger: #FF453A;
-      --danger-dim: rgba(255,69,58,0.15);
-      --amber: #FF9F0A;
-      --amber-dim: rgba(255,159,10,0.15);
-      --text: #E6EDF3;
-      --text-muted: #8B949E;
-      --text-faint: #484F58;
-      --radius: 12px;
-      --sidebar-w: 220px;
+      /* Surfaces — warm cream */
+      --cream: #FAF9F5;
+      --paper: #FFFFFF;
+      --paper2: #F0EEE6;
+      --border: #E5E1D8;
+      --border-strong: #D9D4C7;
+
+      /* Brand — Claude coral */
+      --primary: #CC785C;
+      --primary-hover: #B8694F;
+      --primary-soft: #F5E6DE;
+
+      /* Status — warm tints, not neon */
+      --success: #5C8559;
+      --success-soft: #E8EFE6;
+      --danger: #B84B3D;
+      --danger-soft: #F5E0DD;
+      --warning: #D4923A;
+      --warning-soft: #F5E8D5;
+      --info: #5B7B9A;
+      --info-soft: #E1E8EF;
+      --accent: #8B6FA8;
+      --accent-soft: #ECE3F0;
+
+      /* Text — warm grayscale */
+      --text: #2C2828;
+      --text-body: #3D3929;
+      --text-muted: #7C7568;
+      --text-faint: #A39E91;
+
+      /* Geometry */
+      --radius: 8px;
+      --radius-lg: 12px;
+      --sidebar-w: 240px;
+
+      /* Soft paper shadows */
+      --shadow-sm: 0 1px 2px rgba(60,50,40,0.04);
+      --shadow-md: 0 2px 8px rgba(60,50,40,0.06), 0 1px 2px rgba(60,50,40,0.04);
+      --shadow-lg: 0 4px 16px rgba(60,50,40,0.08);
+
+      /* Type stack */
+      --serif: 'Source Serif 4', 'Source Serif Pro', 'Tiempos Headline', Georgia, serif;
+      --sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', sans-serif;
+      --mono: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
     }
-    * { box-sizing: border-box; -webkit-font-smoothing: antialiased; margin: 0; padding: 0; }
+    * { box-sizing: border-box; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
-    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; }
+    body { background: var(--cream); color: var(--text-body); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 
     /* ── Shell ── */
     .shell { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
 
     /* ── Sidebar ── */
     .sidebar {
-      background: var(--surface);
+      background: var(--paper);
       border-right: 1px solid var(--border);
-      padding: 24px 16px;
+      padding: 28px 18px;
       display: flex; flex-direction: column;
       position: sticky; top: 0; height: 100vh;
       overflow-y: auto;
     }
-    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; text-decoration: none; color: var(--text); font-weight: 800; font-size: 17px; }
-    .brand-icon { width: 32px; height: 32px; background: var(--green); border-radius: 8px; display: grid; place-items: center; color: #000; font-size: 16px; flex-shrink: 0; }
-    .nav-label { font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.08em; padding: 0 8px; margin-bottom: 6px; margin-top: 20px; }
-    .nav a {
+    .brand {
       display: flex; align-items: center; gap: 10px;
-      padding: 8px 10px; border-radius: 8px;
-      color: var(--text-muted); text-decoration: none; font-size: 13px; font-weight: 500;
+      margin-bottom: 32px; text-decoration: none;
+      color: var(--text);
+      font-family: var(--serif);
+      font-weight: 600; font-size: 22px;
+      letter-spacing: -0.01em;
+    }
+    .brand-icon {
+      width: 30px; height: 30px;
+      background: var(--primary); border-radius: 7px;
+      display: grid; place-items: center;
+      color: var(--paper); font-size: 14px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .nav-label {
+      font-size: 11px; font-weight: 600;
+      color: var(--text-faint);
+      text-transform: uppercase; letter-spacing: 0.1em;
+      padding: 0 8px; margin: 24px 0 8px;
+    }
+    .nav a {
+      display: flex; align-items: center; gap: 11px;
+      padding: 8px 11px; border-radius: 6px;
+      color: var(--text-muted); text-decoration: none;
+      font-size: 13px; font-weight: 500;
       transition: background 0.15s, color 0.15s;
     }
-    .nav a:hover { background: var(--surface2); color: var(--text); }
-    .nav a .ico { font-size: 15px; width: 20px; text-align: center; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px var(--green-dim); margin-top: auto; margin-left: 10px; }
+    .nav a:hover { background: var(--paper2); color: var(--text); }
+    .nav a .ico { font-size: 14px; width: 18px; text-align: center; opacity: 0.75; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
     .sidebar-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
     .sidebar-footer span { font-size: 11px; color: var(--text-faint); }
     {% if maintenance.enabled %}
-    .status-dot { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-dim); }
+    .status-dot { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
     {% endif %}
 
     /* ── Main ── */
-    .main { padding: 32px 40px; max-width: 1440px; margin: 0 auto; width: 100%; }
+    .main { padding: 36px 44px; max-width: 1440px; margin: 0 auto; width: 100%; }
 
     /* ── Header ── */
-    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
-    .page-title { font-size: 22px; font-weight: 700; }
-    .page-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .page-header {
+      display: flex; align-items: flex-end; justify-content: space-between;
+      margin-bottom: 32px; padding-bottom: 22px;
+      border-bottom: 1px solid var(--border);
+    }
+    .page-title {
+      font-family: var(--serif);
+      font-size: 32px; font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.02em; line-height: 1.1;
+    }
+    .page-meta { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
     .header-actions { display: flex; gap: 8px; align-items: center; }
-    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; transition: opacity 0.15s, transform 0.1s; }
-    .btn:active { transform: scale(0.97); }
-    .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
-    .btn-ghost:hover { border-color: rgba(255,255,255,0.18); }
-    .btn-green { background: var(--green); color: #000; }
-    .btn-green:hover { opacity: 0.88; }
-    .btn-danger { background: var(--danger-dim); color: var(--danger); border: 1px solid var(--danger); }
-    .btn-blue { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue); }
-    .btn-purple { background: var(--purple-dim); color: var(--purple); border: 1px solid var(--purple); }
-    .btn-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 14px; border-radius: 6px;
+      border: 1px solid transparent;
+      cursor: pointer; background: transparent;
+      font-family: var(--sans); font-size: 13px; font-weight: 500;
+      transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-ghost { background: var(--paper); color: var(--text-body); border-color: var(--border); }
+    .btn-ghost:hover { border-color: var(--border-strong); background: var(--paper2); }
+    .btn-primary { background: var(--primary); color: var(--paper); border-color: var(--primary); }
+    .btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+    .btn-success { background: var(--success-soft); color: var(--success); border-color: var(--success); }
+    .btn-success:hover { background: var(--success); color: var(--paper); }
+    .btn-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+    .btn-danger:hover { background: var(--danger); color: var(--paper); }
+    .btn-info { background: var(--info-soft); color: var(--info); border-color: var(--info); }
+    .btn-info:hover { background: var(--info); color: var(--paper); }
+    .btn-accent { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+    .btn-accent:hover { background: var(--accent); color: var(--paper); }
+    .btn-warning { background: var(--warning-soft); color: var(--warning); border-color: var(--warning); }
+    .btn-warning:hover { background: var(--warning); color: var(--paper); }
     .btn-sm { padding: 5px 10px; font-size: 12px; }
     .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
-    .spinner { display: none; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: currentColor; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    .spinner {
+      display: none; width: 14px; height: 14px;
+      border: 2px solid rgba(60,50,40,0.18);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── Flash ── */
     .flashes { margin-bottom: 20px; }
-    .flash { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 8px; }
-    .flash-success { background: var(--green-dim); border: 1px solid var(--green); color: var(--green); }
-    .flash-error { background: var(--danger-dim); border: 1px solid var(--danger); color: var(--danger); }
+    .flash { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 8px; border: 1px solid; }
+    .flash-success { background: var(--success-soft); border-color: var(--success); color: var(--success); }
+    .flash-error { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
 
     /* ── Quick Actions ── */
-    .quick-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 28px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
-    .quick-actions-label { font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.08em; align-self: center; margin-right: 4px; flex-basis: 100%; margin-bottom: 4px; }
+    .quick-actions {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      margin-bottom: 32px; padding: 18px 22px;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+    }
+    .quick-actions-label {
+      font-size: 11px; font-weight: 600;
+      color: var(--text-faint);
+      text-transform: uppercase; letter-spacing: 0.1em;
+      align-self: center; margin-right: 4px;
+      flex-basis: 100%; margin-bottom: 4px;
+    }
 
     /* ── Stats Grid ── */
     .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
     .stat-card {
-      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 20px 22px; position: relative; overflow: hidden;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 22px 24px;
+      position: relative; overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.18s, border-color 0.18s;
     }
-    .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: var(--radius) var(--radius) 0 0; }
-    .stat-card.green::before { background: var(--green); }
-    .stat-card.blue::before { background: var(--blue); }
-    .stat-card.purple::before { background: var(--purple); }
-    .stat-card.amber::before { background: var(--amber); }
+    .stat-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+    .stat-card::before {
+      content: ''; position: absolute;
+      top: 0; left: 0; bottom: 0; width: 3px;
+    }
+    .stat-card.success::before { background: var(--success); }
+    .stat-card.info::before { background: var(--info); }
+    .stat-card.accent::before { background: var(--accent); }
+    .stat-card.warning::before { background: var(--warning); }
     .stat-card.danger::before { background: var(--danger); }
-    .stat-label { font-size: 12px; color: var(--text-muted); font-weight: 500; margin-bottom: 10px; }
-    .stat-value { font-size: 28px; font-weight: 700; line-height: 1; }
-    .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+    .stat-card.primary::before { background: var(--primary); }
+    .stat-label { font-size: 12px; color: var(--text-muted); font-weight: 500; margin-bottom: 12px; }
+    .stat-value {
+      font-family: var(--serif);
+      font-size: 30px; font-weight: 600;
+      color: var(--text);
+      line-height: 1; letter-spacing: -0.02em;
+    }
+    .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
 
-    /* ── 2-col grid ── */
+    /* ── Multi-col grids ── */
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
     .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
 
     /* ── Card ── */
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
-    .card-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 18px; display: flex; align-items: center; gap: 6px; }
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .card-title {
+      font-size: 11px; font-weight: 600;
+      color: var(--text-faint);
+      text-transform: uppercase; letter-spacing: 0.1em;
+      margin-bottom: 20px;
+      display: flex; align-items: center; gap: 8px;
+    }
     .card-title .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-    .dot-green { background: var(--green); }
-    .dot-blue { background: var(--blue); }
-    .dot-purple { background: var(--purple); }
-    .dot-amber { background: var(--amber); }
+    .dot-success { background: var(--success); }
+    .dot-info { background: var(--info); }
+    .dot-accent { background: var(--accent); }
+    .dot-warning { background: var(--warning); }
+    .dot-primary { background: var(--primary); }
 
     /* ── Chart containers ── */
     .chart-wrap { position: relative; height: 200px; }
 
     /* ── Progress bar ── */
-    .progress-row { margin-bottom: 14px; }
+    .progress-row { margin-bottom: 16px; }
     .progress-row:last-child { margin-bottom: 0; }
-    .progress-meta { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 12px; }
-    .progress-bg { height: 6px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+    .progress-meta { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; color: var(--text-body); }
+    .progress-bg { height: 5px; background: var(--paper2); border-radius: 99px; overflow: hidden; }
     .progress-fill { height: 100%; border-radius: 99px; transition: width 1s ease; }
 
     /* ── Table ── */
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; padding: 10px 14px; color: var(--text-faint); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); }
-    td { padding: 12px 14px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+    th {
+      text-align: left; padding: 10px 14px;
+      color: var(--text-faint); font-weight: 600;
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-body);
+      vertical-align: middle;
+    }
     tr:last-child td { border-bottom: none; }
-    tr:hover td { background: var(--surface2); }
-    .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; }
-    .badge-green { background: var(--green-dim); color: var(--green); }
-    .badge-red { background: var(--danger-dim); color: var(--danger); }
-    .badge-gray { background: rgba(139,148,158,0.15); color: var(--text-muted); }
-    .badge-blue { background: var(--blue-dim); color: var(--blue); }
-    .badge-purple { background: var(--purple-dim); color: var(--purple); }
-    .badge-amber { background: var(--amber-dim); color: var(--amber); }
-    .mono { font-family: 'Courier New', monospace; font-size: 12px; }
+    tr:hover td { background: var(--paper2); }
+
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 10px; border-radius: 99px;
+      font-size: 11px; font-weight: 600;
+    }
+    .badge-success { background: var(--success-soft); color: var(--success); }
+    .badge-danger { background: var(--danger-soft); color: var(--danger); }
+    .badge-gray { background: var(--paper2); color: var(--text-muted); }
+    .badge-info { background: var(--info-soft); color: var(--info); }
+    .badge-accent { background: var(--accent-soft); color: var(--accent); }
+    .badge-warning { background: var(--warning-soft); color: var(--warning); }
+    .badge-primary { background: var(--primary-soft); color: var(--primary); }
+    .mono { font-family: var(--mono); font-size: 12px; }
 
     /* ── Symbol row ── */
-    .sym-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .sym-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+    }
     .sym-row:last-child { border-bottom: none; }
-    .sym-name { font-weight: 600; font-size: 13px; }
+    .sym-name { font-weight: 600; font-size: 13px; color: var(--text); }
     .sym-count { font-size: 12px; color: var(--text-muted); }
-    .sym-bar { flex: 1; height: 4px; background: var(--surface2); border-radius: 99px; margin: 0 12px; overflow: hidden; }
-    .sym-bar-fill { height: 100%; background: var(--green); border-radius: 99px; }
+    .sym-bar {
+      flex: 1; height: 4px;
+      background: var(--paper2); border-radius: 99px;
+      margin: 0 14px; overflow: hidden;
+    }
+    .sym-bar-fill { height: 100%; background: var(--primary); border-radius: 99px; }
 
     /* ── Modal ── */
     .modal-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
-      display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+      position: fixed; inset: 0;
+      background: rgba(60,50,40,0.4);
+      backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center;
+      z-index: 1000; padding: 20px;
     }
     .modal-overlay.open { display: flex; }
     .modal {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-      padding: 28px; width: 100%; max-width: 480px; position: relative;
-      animation: modal-in 0.2s ease;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+      width: 100%; max-width: 480px; position: relative;
+      box-shadow: var(--shadow-lg);
+      animation: modal-in 0.22s cubic-bezier(.2,.8,.2,1);
     }
-    @keyframes modal-in { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: none; } }
-    .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 20px; }
-    .modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; line-height: 1; padding: 4px 8px; border-radius: 6px; }
-    .modal-close:hover { background: var(--surface2); color: var(--text); }
-    .form-group { margin-bottom: 16px; }
-    .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+    @keyframes modal-in {
+      from { opacity: 0; transform: translateY(8px) scale(0.98); }
+      to { opacity: 1; transform: none; }
+    }
+    .modal-title {
+      font-family: var(--serif);
+      font-size: 20px; font-weight: 600;
+      color: var(--text);
+      margin-bottom: 22px; letter-spacing: -0.01em;
+    }
+    .modal-close {
+      position: absolute; top: 16px; right: 16px;
+      background: none; border: none;
+      color: var(--text-muted);
+      font-size: 18px; cursor: pointer; line-height: 1;
+      padding: 4px 8px; border-radius: 6px;
+    }
+    .modal-close:hover { background: var(--paper2); color: var(--text); }
+    .form-group { margin-bottom: 18px; }
+    .form-label {
+      display: block; font-size: 12px; font-weight: 600;
+      color: var(--text-body); margin-bottom: 6px;
+    }
     .form-input, .form-select, .form-textarea {
-      width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-      padding: 10px 12px; color: var(--text); font-family: 'Inter', sans-serif; font-size: 13px;
-      outline: none; transition: border-color 0.15s;
+      width: 100%;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-family: var(--sans); font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--green); }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-soft);
+    }
     .form-textarea { min-height: 100px; resize: vertical; }
-    .form-select option { background: var(--surface); }
-    .modal-result { margin-top: 16px; padding: 12px 14px; border-radius: 8px; font-size: 13px; display: none; }
-    .modal-result.ok { background: var(--green-dim); border: 1px solid var(--green); color: var(--green); display: block; }
-    .modal-result.err { background: var(--danger-dim); border: 1px solid var(--danger); color: var(--danger); display: block; }
-    .user-info-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-top: 12px; display: none; }
+    .form-select option { background: var(--paper); }
+    .modal-result {
+      margin-top: 16px; padding: 12px 14px;
+      border-radius: 8px; font-size: 13px;
+      display: none; border: 1px solid;
+    }
+    .modal-result.ok { background: var(--success-soft); border-color: var(--success); color: var(--success); display: block; }
+    .modal-result.err { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); display: block; }
+    .user-info-card {
+      background: var(--paper2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px; margin-top: 12px;
+      display: none;
+    }
     .user-info-card.open { display: block; }
-    .user-info-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .user-info-row {
+      display: flex; justify-content: space-between;
+      padding: 7px 0; border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
     .user-info-row:last-child { border-bottom: none; }
     .user-info-label { color: var(--text-muted); }
 
     /* ── Toast ── */
     #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
     .toast {
-      padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 500;
-      max-width: 320px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-      animation: toast-in 0.3s ease; border-left: 3px solid;
+      padding: 12px 18px; border-radius: 8px;
+      font-size: 13px; font-weight: 500;
+      background: var(--paper); color: var(--text);
+      max-width: 320px;
+      box-shadow: var(--shadow-lg);
+      animation: toast-in 0.3s ease;
+      border: 1px solid var(--border);
+      border-left-width: 3px;
     }
     @keyframes toast-in { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
-    .toast-success { background: var(--surface); border-color: var(--green); color: var(--text); }
-    .toast-error { background: var(--surface); border-color: var(--danger); color: var(--text); }
-    .toast-info { background: var(--surface); border-color: var(--blue); color: var(--text); }
+    .toast-success { border-left-color: var(--success); }
+    .toast-error { border-left-color: var(--danger); }
+    .toast-info { border-left-color: var(--info); }
 
-    /* ── Maintenance banner ── */
-    .maintenance-banner { background: var(--danger-dim); border: 1px solid var(--danger); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: var(--danger); display: flex; align-items: center; gap: 8px; }
-
-    /* ── Expiry warning ── */
-    .expiry-warning { background: var(--amber-dim); border: 1px solid var(--amber); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: var(--amber); }
+    /* ── Banners ── */
+    .maintenance-banner {
+      background: var(--danger-soft);
+      border: 1px solid var(--danger);
+      border-radius: 10px;
+      padding: 14px 18px; margin-bottom: 20px;
+      font-size: 13px; color: var(--danger);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .expiry-warning {
+      background: var(--warning-soft);
+      border: 1px solid var(--warning);
+      border-radius: 10px;
+      padding: 14px 18px; margin-bottom: 20px;
+      font-size: 13px; color: var(--warning);
+    }
 
     /* ── Section title ── */
-    .section-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: var(--text); }
+    .section-title {
+      font-family: var(--serif);
+      font-size: 22px; font-weight: 600;
+      margin: 32px 0 18px;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
 
     /* ── Responsive ── */
     @media (max-width: 1024px) {
@@ -219,7 +433,8 @@
       .sidebar { display: none; }
       .stats-grid { grid-template-columns: repeat(2, 1fr); }
       .two-col, .three-col { grid-template-columns: 1fr; }
-      .main { padding: 20px; }
+      .main { padding: 24px 20px; }
+      .page-title { font-size: 26px; }
     }
   </style>
 </head>
@@ -246,7 +461,7 @@
         <option value="pro">PRO เท่านั้น</option>
       </select>
     </div>
-    <button class="btn btn-green" id="bc-send-btn" onclick="doBroadcast()" style="width:100%">
+    <button class="btn btn-primary" id="bc-send-btn" onclick="doBroadcast()" style="width:100%">
       <span class="spinner" id="bc-spinner"></span> ส่งเดี๋ยวนี้
     </button>
     <div class="modal-result" id="bc-result"></div>
@@ -273,7 +488,7 @@
       <label class="form-label">จำนวนวัน</label>
       <input class="form-input" id="ar-days" type="number" value="30" min="1" max="3650">
     </div>
-    <button class="btn btn-green" id="ar-btn" onclick="doAddRole()" style="width:100%">
+    <button class="btn btn-primary" id="ar-btn" onclick="doAddRole()" style="width:100%">
       <span class="spinner" id="ar-spinner"></span> อัปเกรด
     </button>
     <div class="modal-result" id="ar-result"></div>
@@ -304,7 +519,7 @@
       <div class="user-info-row"><span class="user-info-label">ใช้งานล่าสุด</span><span id="ul-last-active">—</span></div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-danger btn-sm" id="ul-ban-btn" onclick="doBanFromLookup(true)" style="flex:1">🚫 Ban</button>
-        <button class="btn btn-green btn-sm" id="ul-unban-btn" onclick="doBanFromLookup(false)" style="flex:1">✅ Unban</button>
+        <button class="btn btn-success btn-sm" id="ul-unban-btn" onclick="doBanFromLookup(false)" style="flex:1">✅ Unban</button>
       </div>
     </div>
     <div class="modal-result" id="ul-result"></div>
@@ -326,7 +541,7 @@
       </select>
     </div>
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">⚠️ Briefing/Podcast จะส่งทันทีแม้ส่งไปแล้วในวันนี้</p>
-    <button class="btn btn-amber" id="fs-btn" onclick="doForceSend()" style="width:100%">
+    <button class="btn btn-warning" id="fs-btn" onclick="doForceSend()" style="width:100%">
       <span class="spinner" id="fs-spinner"></span> ส่งเดี๋ยวนี้
     </button>
     <div class="modal-result" id="fs-result"></div>
@@ -424,7 +639,7 @@
       <div class="header-actions">
         <button class="btn btn-ghost" onclick="location.reload()">↻ Refresh</button>
         <form method="post" action="/admin/actions/maintenance" style="margin:0">
-          <button class="btn {% if maintenance.enabled %}btn-green{% else %}btn-danger{% endif %}" type="submit">
+          <button class="btn {% if maintenance.enabled %}btn-success{% else %}btn-danger{% endif %}" type="submit">
             {% if maintenance.enabled %}✅ ปิด Maintenance{% else %}⚠️ เปิด Maintenance{% endif %}
           </button>
         </form>
@@ -437,31 +652,31 @@
     <!-- Quick Actions -->
     <div class="quick-actions">
       <div class="quick-actions-label">Quick Actions</div>
-      <button class="btn btn-green" onclick="openModal('modal-broadcast')">📣 Broadcast</button>
-      <button class="btn btn-blue" onclick="openModal('modal-add-role')">👑 Add Role</button>
+      <button class="btn btn-primary" onclick="openModal('modal-broadcast')">📣 Broadcast</button>
+      <button class="btn btn-info" onclick="openModal('modal-add-role')">👑 Add Role</button>
       <button class="btn btn-ghost" onclick="openModal('modal-user-lookup')">🔍 User Lookup</button>
-      <button class="btn btn-amber" onclick="openModal('modal-force-send')">🚀 Force Send</button>
+      <button class="btn btn-warning" onclick="openModal('modal-force-send')">🚀 Force Send</button>
       <button class="btn btn-danger" onclick="openModal('modal-ban')">🚫 Ban / Unban</button>
     </div>
 
     <!-- Stats Grid -->
     <div id="stats" class="stats-grid">
-      <div class="stat-card green">
+      <div class="stat-card success">
         <div class="stat-label">รายได้ต่อเดือน (ประมาณ)</div>
         <div class="stat-value">฿{{ "{:,}".format(user_stats.estimated_monthly_revenue or 0) }}</div>
         <div class="stat-sub">{{ user_stats.vip_users or 0 }} VIP · {{ user_stats.pro_users or 0 }} PRO</div>
       </div>
-      <div class="stat-card blue">
+      <div class="stat-card info">
         <div class="stat-label">ผู้ใช้ทั้งหมด</div>
         <div class="stat-value">{{ user_stats.total_users or 0 }}</div>
         <div class="stat-sub">Free: {{ user_stats.free_users or 0 }} · Paid: {{ (user_stats.vip_users or 0) + (user_stats.pro_users or 0) }}</div>
       </div>
-      <div class="stat-card purple">
+      <div class="stat-card accent">
         <div class="stat-label">Price Alerts ที่ใช้งาน</div>
         <div class="stat-value">{{ price_alerts.total_alerts or 0 }}</div>
         <div class="stat-sub">{{ price_alerts.unique_users or 0 }} ผู้ใช้ตั้ง alert อยู่</div>
       </div>
-      <div class="stat-card {% if expiring_members.expiring_7_days and expiring_members.expiring_7_days > 0 %}amber{% else %}green{% endif %}">
+      <div class="stat-card {% if expiring_members.expiring_7_days and expiring_members.expiring_7_days > 0 %}warning{% else %}success{% endif %}">
         <div class="stat-label">Risk (7 วัน)</div>
         <div class="stat-value">฿{{ "{:,}".format(expiring_members.revenue_at_risk_7_days or 0) }}</div>
         <div class="stat-sub">{{ expiring_members.expiring_7_days or 0 }} คน หมดอายุใน 7 วัน</div>
@@ -470,22 +685,22 @@
 
     <!-- Second row stats -->
     <div class="stats-grid" style="margin-bottom:24px">
-      <div class="stat-card green">
+      <div class="stat-card success">
         <div class="stat-label">Win Rate (Resolved)</div>
         <div class="stat-value">{{ "%.1f"|format(performance.win_rate or 0) }}%</div>
         <div class="stat-sub">Avg Edge: {{ "%.2f"|format(performance.average_edge_pct or 0) }}%</div>
       </div>
-      <div class="stat-card blue">
+      <div class="stat-card info">
         <div class="stat-label">Signals Resolved</div>
         <div class="stat-value">{{ (performance.win_count or 0) + (performance.loss_count or 0) }}</div>
         <div class="stat-sub">{{ performance.pending_count or 0 }} pending</div>
       </div>
-      <div class="stat-card purple">
+      <div class="stat-card accent">
         <div class="stat-label">Win / Loss</div>
         <div class="stat-value">{{ performance.win_count or 0 }} / {{ performance.loss_count or 0 }}</div>
         <div class="stat-sub">resolved signals</div>
       </div>
-      <div class="stat-card blue">
+      <div class="stat-card info">
         <div class="stat-label">ARR (ประมาณ)</div>
         <div class="stat-value">฿{{ "{:,}".format((user_stats.estimated_monthly_revenue or 0) * 12) }}</div>
         <div class="stat-sub">annual run rate</div>
@@ -495,11 +710,11 @@
     <!-- Charts -->
     <div class="two-col">
       <div class="card">
-        <div class="card-title"><span class="dot dot-green"></span>User Distribution</div>
+        <div class="card-title"><span class="dot dot-success"></span>User Distribution</div>
         <div class="chart-wrap"><canvas id="userChart"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-title"><span class="dot dot-blue"></span>Digest Frequency</div>
+        <div class="card-title"><span class="dot dot-info"></span>Digest Frequency</div>
         <div class="chart-wrap"><canvas id="digestChart"></canvas></div>
       </div>
     </div>
@@ -507,26 +722,26 @@
     <!-- Analytics Charts (loaded via API) -->
     <div class="section-title" id="analytics">📈 Analytics</div>
     <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
-      <div class="stat-card green">
+      <div class="stat-card success">
         <div class="stat-label">DAU (24h)</div>
         <div class="stat-value" id="stat-dau">—</div>
       </div>
-      <div class="stat-card blue">
+      <div class="stat-card info">
         <div class="stat-label">WAU (7d)</div>
         <div class="stat-value" id="stat-wau">—</div>
       </div>
-      <div class="stat-card purple">
+      <div class="stat-card accent">
         <div class="stat-label">MAU (30d)</div>
         <div class="stat-value" id="stat-mau">—</div>
       </div>
     </div>
     <div class="two-col" style="margin-bottom:24px">
       <div class="card">
-        <div class="card-title"><span class="dot dot-green"></span>User Growth (30 วัน)</div>
+        <div class="card-title"><span class="dot dot-success"></span>User Growth (30 วัน)</div>
         <div class="chart-wrap"><canvas id="growthChart"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-title"><span class="dot dot-blue"></span>Payments (30 วัน)</div>
+        <div class="card-title"><span class="dot dot-info"></span>Payments (30 วัน)</div>
         <div class="chart-wrap"><canvas id="paymentChart"></canvas></div>
       </div>
     </div>
@@ -534,7 +749,7 @@
     <!-- Hot Symbols + System Health -->
     <div class="two-col" id="system">
       <div class="card">
-        <div class="card-title"><span class="dot dot-amber"></span>Hot Symbols — Watchlist Focus</div>
+        <div class="card-title"><span class="dot dot-warning"></span>Hot Symbols — Watchlist Focus</div>
         {% set syms = top_watched['items'] if top_watched else [] %}
         {% set max_count = syms[0]['watchers'] if syms else 1 %}
         {% for item in syms %}
@@ -548,19 +763,19 @@
         {% endfor %}
       </div>
       <div class="card">
-        <div class="card-title"><span class="dot dot-blue"></span>System Health</div>
+        <div class="card-title"><span class="dot dot-info"></span>System Health</div>
         {% if system_health %}
         <div class="progress-row">
           <div class="progress-meta"><span>CPU</span><span>{{ system_health.cpu_usage or 0 }}%</span></div>
-          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.cpu_usage or 0 }}%;background:{% if (system_health.cpu_usage or 0) > 80 %}var(--danger){% elif (system_health.cpu_usage or 0) > 60 %}var(--amber){% else %}var(--green){% endif %}"></div></div>
+          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.cpu_usage or 0 }}%;background:{% if (system_health.cpu_usage or 0) > 80 %}var(--danger){% elif (system_health.cpu_usage or 0) > 60 %}var(--warning){% else %}var(--success){% endif %}"></div></div>
         </div>
         <div class="progress-row">
           <div class="progress-meta"><span>RAM</span><span>{{ "%.1f"|format(system_health.ram_used_gb or 0) }} / {{ "%.1f"|format(system_health.ram_total_gb or 0) }} GB ({{ system_health.ram_percent or 0 }}%)</span></div>
-          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.ram_percent or 0 }}%;background:{% if (system_health.ram_percent or 0) > 80 %}var(--danger){% elif (system_health.ram_percent or 0) > 60 %}var(--amber){% else %}var(--blue){% endif %}"></div></div>
+          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.ram_percent or 0 }}%;background:{% if (system_health.ram_percent or 0) > 80 %}var(--danger){% elif (system_health.ram_percent or 0) > 60 %}var(--warning){% else %}var(--info){% endif %}"></div></div>
         </div>
         <div class="progress-row">
           <div class="progress-meta"><span>Disk</span><span>{{ system_health.disk_percent or 0 }}%</span></div>
-          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.disk_percent or 0 }}%;background:{% if (system_health.disk_percent or 0) > 80 %}var(--danger){% elif (system_health.disk_percent or 0) > 60 %}var(--amber){% else %}var(--purple){% endif %}"></div></div>
+          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.disk_percent or 0 }}%;background:{% if (system_health.disk_percent or 0) > 80 %}var(--danger){% elif (system_health.disk_percent or 0) > 60 %}var(--warning){% else %}var(--accent){% endif %}"></div></div>
         </div>
         <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted)">
           ⏱ Uptime: <strong style="color:var(--text)">{{ system_health.uptime_hours or 0 }} ชั่วโมง</strong>
@@ -573,7 +788,7 @@
 
     <!-- Performance Table -->
     <div id="performance" class="card" style="margin-bottom:24px">
-      <div class="card-title"><span class="dot dot-green"></span>Signal Performance Stream</div>
+      <div class="card-title"><span class="dot dot-success"></span>Signal Performance Stream</div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -593,7 +808,7 @@
               <td><span style="font-size:12px;color:var(--text-muted)">{{ entry.alert_type or '—' }}</span></td>
               <td>
                 {% if entry.diff_pct is not none %}
-                  <span style="color:{% if entry.diff_pct > 0 %}var(--green){% elif entry.diff_pct < 0 %}var(--danger){% else %}var(--text-muted){% endif %};font-weight:600">
+                  <span style="color:{% if entry.diff_pct > 0 %}var(--success){% elif entry.diff_pct < 0 %}var(--danger){% else %}var(--text-muted){% endif %};font-weight:600">
                     {% if entry.diff_pct > 0 %}+{% endif %}{{ "%.2f"|format(entry.diff_pct) }}%
                   </span>
                 {% else %}—{% endif %}
@@ -602,8 +817,8 @@
                 {% if entry.max_favorable_pct is not none %}+{{ "%.2f"|format(entry.max_favorable_pct) }}% / {{ "%.2f"|format(entry.max_adverse_pct) }}%{% else %}—{% endif %}
               </td>
               <td>
-                {% if entry.status == 'win' %}<span class="badge badge-green">WIN</span>
-                {% elif entry.status == 'loss' %}<span class="badge badge-red">LOSS</span>
+                {% if entry.status == 'win' %}<span class="badge badge-success">WIN</span>
+                {% elif entry.status == 'loss' %}<span class="badge badge-danger">LOSS</span>
                 {% else %}<span class="badge badge-gray">PENDING</span>{% endif %}
               </td>
               <td style="font-size:12px;color:var(--text-muted)">{{ entry.evaluation_due_at or '—' }}</td>
@@ -619,7 +834,7 @@
     <!-- Signal Breakdown -->
     {% if performance.breakdown %}
     <div class="card" style="margin-bottom:24px">
-      <div class="card-title"><span class="dot dot-purple"></span>Signal Quality Breakdown</div>
+      <div class="card-title"><span class="dot dot-accent"></span>Signal Quality Breakdown</div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -630,12 +845,12 @@
             <tr>
               <td>{{ data.alert_type }}</td>
               <td>
-                <span style="color:{% if data.win_rate >= 60 %}var(--green){% elif data.win_rate >= 40 %}var(--amber){% else %}var(--danger){% endif %};font-weight:600">
+                <span style="color:{% if data.win_rate >= 60 %}var(--success){% elif data.win_rate >= 40 %}var(--warning){% else %}var(--danger){% endif %};font-weight:600">
                   {{ "%.1f"|format(data.win_rate) }}%
                 </span>
               </td>
               <td>{{ data.resolved_count }}</td>
-              <td style="color:{% if data.average_edge_pct > 0 %}var(--green){% elif data.average_edge_pct < 0 %}var(--danger){% else %}var(--text-muted){% endif %}">
+              <td style="color:{% if data.average_edge_pct > 0 %}var(--success){% elif data.average_edge_pct < 0 %}var(--danger){% else %}var(--text-muted){% endif %}">
                 {% if data.average_edge_pct > 0 %}+{% endif %}{{ "%.2f"|format(data.average_edge_pct) }}%
               </td>
             </tr>
@@ -648,7 +863,7 @@
 
     <!-- Premium Members -->
     <div id="members" class="card" style="margin-bottom:24px">
-      <div class="card-title"><span class="dot dot-purple"></span>Premium Member Matrix</div>
+      <div class="card-title"><span class="dot dot-accent"></span>Premium Member Matrix</div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -659,15 +874,15 @@
             <tr>
               <td><span class="mono" style="font-size:11px">{{ u.user_id }}</span><br><span style="font-size:11px;color:var(--text-muted)">{{ u.username or '' }}</span></td>
               <td>
-                {% if u.role == 'pro' %}<span class="badge badge-purple">PRO</span>
-                {% else %}<span class="badge badge-blue">VIP</span>{% endif %}
+                {% if u.role == 'pro' %}<span class="badge badge-accent">PRO</span>
+                {% else %}<span class="badge badge-info">VIP</span>{% endif %}
               </td>
               <td style="font-size:12px">{{ u.expiry_date or '—' }}</td>
               <td style="font-size:12px">{{ u.last_active or '—' }}</td>
               <td>
-                {% if u.bot_status == 'inactive' %}<span class="badge badge-red">Blocked</span>
-                {% elif u.is_active %}<span class="badge badge-green">Active</span>
-                {% else %}<span class="badge badge-red">Expired</span>{% endif %}
+                {% if u.bot_status == 'inactive' %}<span class="badge badge-danger">Blocked</span>
+                {% elif u.is_active %}<span class="badge badge-success">Active</span>
+                {% else %}<span class="badge badge-danger">Expired</span>{% endif %}
               </td>
             </tr>
             {% else %}
@@ -682,10 +897,25 @@
 </div>
 
 <script>
-  // ── Charts ──
+  // ── Charts (Claude design palette) ──
+  const CL = {
+    primary: '#CC785C',
+    primarySoft: 'rgba(204,120,92,0.18)',
+    success: '#5C8559',
+    successSoft: 'rgba(92,133,89,0.16)',
+    info: '#5B7B9A',
+    infoSoft: 'rgba(91,123,154,0.18)',
+    accent: '#8B6FA8',
+    accentSoft: 'rgba(139,111,168,0.18)',
+    warning: '#D4923A',
+    warningSoft: 'rgba(212,146,58,0.18)',
+    neutral: '#D9D4C7',
+    grid: 'rgba(60,50,40,0.08)',
+    tick: '#7C7568',
+  };
   const chartOpts = {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { labels: { color: '#8B949E', font: { family: 'Inter', size: 12 }, padding: 14 } } }
+    plugins: { legend: { labels: { color: CL.tick, font: { family: 'Inter', size: 12 }, padding: 14 } } }
   };
 
   new Chart(document.getElementById('userChart'), {
@@ -694,8 +924,8 @@
       labels: ['Free', 'VIP', 'PRO'],
       datasets: [{
         data: [{{ user_stats.free_users or 0 }}, {{ user_stats.vip_users or 0 }}, {{ user_stats.pro_users or 0 }}],
-        backgroundColor: ['#1C2128', '#0A84FF', '#BF5AF2'],
-        borderColor: ['#0A84FF55', '#0A84FF', '#BF5AF2'],
+        backgroundColor: [CL.neutral, CL.info, CL.accent],
+        borderColor: ['#FFFFFF', '#FFFFFF', '#FFFFFF'],
         borderWidth: 2, hoverOffset: 6
       }]
     },
@@ -711,17 +941,17 @@
       datasets: [{
         label: 'users',
         data: digestDist.map(d => d.count || 0),
-        backgroundColor: ['#00C07644', '#0A84FF44', '#BF5AF244', '#FF9F0A44'],
-        borderColor: ['#00C076', '#0A84FF', '#BF5AF2', '#FF9F0A'],
-        borderWidth: 2, borderRadius: 6
+        backgroundColor: [CL.primarySoft, CL.infoSoft, CL.accentSoft, CL.warningSoft],
+        borderColor: [CL.primary, CL.info, CL.accent, CL.warning],
+        borderWidth: 1.5, borderRadius: 6
       }]
     },
     options: {
       ...chartOpts,
       plugins: { ...chartOpts.plugins, legend: { display: false } },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8B949E' } },
-        y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8B949E' } }
+        x: { grid: { color: CL.grid }, ticks: { color: CL.tick } },
+        y: { grid: { color: CL.grid }, ticks: { color: CL.tick } }
       }
     }
   });
@@ -748,17 +978,18 @@
           datasets: [{
             label: 'New Users',
             data: growth.map(g => g.count),
-            borderColor: '#00C076',
-            backgroundColor: 'rgba(0,192,118,0.1)',
-            fill: true, tension: 0.3, borderWidth: 2, pointRadius: 3
+            borderColor: CL.success,
+            backgroundColor: CL.successSoft,
+            fill: true, tension: 0.3, borderWidth: 2, pointRadius: 3,
+            pointBackgroundColor: CL.success, pointBorderColor: '#FFFFFF', pointBorderWidth: 1.5
           }]
         },
         options: {
           ...chartOpts,
           plugins: { ...chartOpts.plugins, legend: { display: false } },
           scales: {
-            x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8B949E', maxTicksLimit: 10 } },
-            y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8B949E' }, beginAtZero: true }
+            x: { grid: { color: CL.grid }, ticks: { color: CL.tick, maxTicksLimit: 10 } },
+            y: { grid: { color: CL.grid }, ticks: { color: CL.tick }, beginAtZero: true }
           }
         }
       });
@@ -772,17 +1003,17 @@
           datasets: [{
             label: 'Payments',
             data: pay.map(p => p.count),
-            backgroundColor: '#0A84FF44',
-            borderColor: '#0A84FF',
-            borderWidth: 2, borderRadius: 6
+            backgroundColor: CL.primarySoft,
+            borderColor: CL.primary,
+            borderWidth: 1.5, borderRadius: 6
           }]
         },
         options: {
           ...chartOpts,
           plugins: { ...chartOpts.plugins, legend: { display: false } },
           scales: {
-            x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8B949E', maxTicksLimit: 10 } },
-            y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8B949E' }, beginAtZero: true }
+            x: { grid: { color: CL.grid }, ticks: { color: CL.tick, maxTicksLimit: 10 } },
+            y: { grid: { color: CL.grid }, ticks: { color: CL.tick }, beginAtZero: true }
           }
         }
       });
@@ -884,11 +1115,11 @@
         const u = d.user;
         document.getElementById('ul-name').textContent = u.username || '—';
         document.getElementById('ul-id').textContent = u.user_id;
-        document.getElementById('ul-role').innerHTML = `<span class="badge badge-${u.role === 'pro' ? 'purple' : u.role === 'vip' ? 'blue' : 'gray'}">${u.role.toUpperCase()}</span>`;
+        document.getElementById('ul-role').innerHTML = `<span class="badge badge-${u.role === 'pro' ? 'accent' : u.role === 'vip' ? 'info' : 'gray'}">${u.role.toUpperCase()}</span>`;
         document.getElementById('ul-expiry').textContent = u.expiry_date || '—';
         document.getElementById('ul-status').innerHTML = u.status === 'banned'
-          ? '<span class="badge badge-red">BANNED</span>'
-          : '<span class="badge badge-green">Active</span>';
+          ? '<span class="badge badge-danger">BANNED</span>'
+          : '<span class="badge badge-success">Active</span>';
         document.getElementById('ul-watchlist').textContent = u.watchlist_count + ' symbols';
         document.getElementById('ul-portfolio').textContent = u.portfolio_count + ' stocks';
         document.getElementById('ul-alerts').textContent = u.active_alerts + ' alerts';
