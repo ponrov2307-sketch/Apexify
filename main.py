@@ -621,7 +621,7 @@ def handle_ask(message):
         bot.edit_message_text(friendly, message.chat.id, load_msg.message_id)
 
 
-@bot.message_handler(commands=['account', 'me'])
+@bot.message_handler(commands=['account', 'me', 'payment'])
 def handle_account_command(message):
     """Shortcut → ส่งข้อความ "💎 บัญชี / VIP" ให้ trigger flow เดิม"""
     user_id = str(message.chat.id)
@@ -1656,6 +1656,7 @@ def handle_manual(message):
 
         "**💎 บัญชี & สิทธิ์**\n"
         "`/account` หรือ `/me` — สถานะบัญชี + Streak + โควต้า\n"
+        "`/payment` — สมัคร/ต่ออายุ VIP/PRO + ดู QR ชำระเงิน\n"
         "`/freetrial` — ทดลอง PRO 7 วันฟรี (ใช้ได้ 1 ครั้ง/บัญชี)\n"
         "`/redeem [โค้ด]` — เติมโค้ดโปรโมชั่น (เช่น VIP7-A1B2C3)\n"
         "🤝 *ชวนเพื่อน:* ทั้งคู่ได้รางวัล (คุณ +3 quota, เพื่อน VIP 3 วันฟรี)\n\n"
@@ -1705,7 +1706,7 @@ def handle_manual(message):
         "A: รายงานทั้งหมดจัดทำขึ้นเพื่อประกอบการพิจารณาเท่านั้น มิใช่คำแนะนำการลงทุน การเสนอขาย หรือการชักชวนให้ซื้อขายหลักทรัพย์ใด ๆ การลงทุนมีความเสี่ยง ผู้ลงทุนควรศึกษาข้อมูลและใช้ดุลยพินิจของตนเองก่อนตัดสินใจลงทุน\n\n"
 
         "*Q: ต่ออายุ VIP/PRO ยังไง?*\n"
-        "A: กดปุ่ม 💎 บัญชี / VIP → เลือกแพ็กเกจ → โอน → ส่งสลิป — ระบบ auto upgrade ใน 3 วินาที\n\n"
+        "A: พิมพ์ `/payment` (หรือกดปุ่ม 💎 บัญชี / VIP) → เลือกแพ็กเกจ → โอน → ส่งสลิป — ระบบ auto upgrade ใน 3 วินาที\n\n"
 
         "*Q: ยกเลิกสมาชิกยังไง?*\n"
         "A: ไม่มีการผูกบัตร — ปล่อยหมดอายุได้เลย (ใช้งานต่อได้จนครบวันที่จ่ายไว้)\n\n"
@@ -3835,6 +3836,7 @@ if __name__ == "__main__":
             BotCommand("demo", "ทัวร์ฟีเจอร์ทั้งหมด — ดูบอททำอะไรได้บ้าง"),
             BotCommand("manual", "คู่มือคำสั่งทั้งหมด"),
             BotCommand("account", "ดูสถานะบัญชี + Streak + โควต้า"),
+            BotCommand("payment", "สมัคร/ต่ออายุ VIP/PRO + ดู QR ชำระเงิน"),
             BotCommand("track", "สถิติ AI Plans — hit rate ย้อนหลัง"),
             BotCommand("fund", "ข้อมูลพื้นฐาน (P/E, EPS, Dividend) — VIP/PRO"),
             BotCommand("compare", "เปรียบเทียบ 2-3 หุ้น — PRO"),
