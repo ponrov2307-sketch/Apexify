@@ -125,6 +125,17 @@ tags: [roadmap, planning, strategy]
 
 ## ⏳ Soon — ทำใน 1-3 เดือน (Mid features)
 
+### Monetization
+- [ ] **Discount Code System** 💸 (idea เก็บไว้ — 2026-05-03)
+  - ต่างจาก promo เดิม (`/redeem` ให้ "วันฟรี") — discount = ลด %/บาท จากยอดที่จ่ายจริง
+  - **Schema:** 2 tables ใหม่ — `discount_codes` (code, type, value, applies_to, max_uses, first_purchase_only, valid_until) + `pending_payments` (user_id, expected_amount, code, expires_at 24h)
+  - **Flow:** /payment → input code → validate → AI ตรวจสลิปกับ `expected_amount` (±1฿ tolerance)
+  - **Admin commands:** `/gendiscount BF50 percent 50 vip 100 2026-12-31` · `/listdiscount` · `/disablediscount`
+  - **Gotchas:** atomic increment ตอน validate (กัน race), pending expire 24h, ปัดเศษเป็น integer (79×0.5 = 39 ไม่ 39.5), ถ้า user จ่ายเต็มไม่ใช้โค้ด → upgrade ปกติไม่ mark used
+  - **Effort:** ~6 ชม. (schema 30m + helpers 1h + bot UI 2h + AI integration 1.5h + admin cmd 30m + testing 1h)
+  - **เมื่อไหร่ควรทำ:** มี event/season ใช้จริง (Black Friday, ปีใหม่) **และ** scale > 30 paying — ก่อนนั้นใช้ "วันฟรี" แทนได้
+  - **Why not now:** scale ปัจจุบัน 2-5 paying — ROI ยังไม่คุ้ม dev time
+
 ### Product Depth (PRO value)
 - [ ] **/share — Export รายงานเป็นรูป** 📤
   - สร้าง image สวยๆ มี logo
