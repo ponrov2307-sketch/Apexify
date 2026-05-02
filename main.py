@@ -27,7 +27,7 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       has_used_free_trial, activate_free_trial,
                       add_earnings_alert_db, get_user_earnings_alerts_db, remove_earnings_alert_db,
                       update_last_active, mark_user_inactive, get_active_users, log_command)
-from bot_utils import friendly_error
+from bot_utils import friendly_error, broadcast_maintenance_notice
 from admin_service import (
     build_local_backup_zip,
     get_dashboard_metrics,
@@ -209,7 +209,15 @@ def handle_maintenance(message):
     if str(message.chat.id) != ADMIN_ID: return
     enabled = toggle_maintenance_status()
     status = "🔴 เปิด (ผู้ใช้ทั่วไปใช้งานไม่ได้, แอดมินใช้ได้ปกติ)" if enabled else "🟢 ปิด (ระบบเปิดใช้งานปกติทุกคน)"
-    bot.reply_to(message, f"🛠 **สถานะ Maintenance Mode:** {status}", parse_mode="Markdown")
+    notice_label = "ปิดปรับปรุง" if enabled else "กลับมาใช้งานปกติ"
+    bot.reply_to(
+        message,
+        f"🛠 **สถานะ Maintenance Mode:** {status}\n\n"
+        f"📣 กำลังบรอดแคสต์แจ้ง user ทุกคนว่า '{notice_label}' ในเบื้องหลัง...",
+        parse_mode="Markdown",
+    )
+    # Background broadcast — ไม่ block handler thread
+    broadcast_maintenance_notice(bot, enabled, admin_id=ADMIN_ID)
 
 @bot.message_handler(commands=['force_backup'])
 def handle_force_backup(message):
