@@ -110,8 +110,27 @@ def calculate_indicators(data):
     return data
 
 
+_COMMODITY_ALIASES = {
+    'GOLD': 'GLD', 'GLD': 'GLD', 'ทอง': 'GLD', 'ทองคำ': 'GLD',
+    'SILVER': 'SLV', 'SIV': 'SLV', 'SLV': 'SLV', 'แร่เงิน': 'SLV', 'เงิน': 'SLV',
+    'OIL': 'USO', 'CRUDE': 'USO', 'USO': 'USO', 'น้ำมัน': 'USO',
+    'GAS': 'UNG', 'NATGAS': 'UNG', 'UNG': 'UNG', 'ก๊าซ': 'UNG',
+    'COPPER': 'CPER', 'CPER': 'CPER', 'ทองแดง': 'CPER',
+    'PLATINUM': 'PPLT', 'PPLT': 'PPLT', 'ทองคำขาว': 'PPLT',
+    'PALLADIUM': 'PALL', 'PALL': 'PALL',
+    'BTC': 'BTC-USD', 'BITCOIN': 'BTC-USD', 'บิทคอยน์': 'BTC-USD', 'บิตคอยน์': 'BTC-USD',
+    'ETH': 'ETH-USD', 'ETHEREUM': 'ETH-USD',
+}
+
+
 def _normalize_market_symbol(symbol):
-    clean_symbol = str(symbol or "").strip().upper()
+    raw = str(symbol or "").strip()
+    clean_symbol = raw.upper()
+    # 🥇 Commodity/crypto aliases — เช่น "gold" → GLD, "oil" → USO, "btc" → BTC-USD
+    if clean_symbol in _COMMODITY_ALIASES:
+        return _COMMODITY_ALIASES[clean_symbol]
+    if raw in _COMMODITY_ALIASES:  # ภาษาไทย (upper() ไม่กระทบ)
+        return _COMMODITY_ALIASES[raw]
     if "." in clean_symbol and not clean_symbol.endswith(ALLOWED_MARKET_SUFFIXES):
         clean_symbol = clean_symbol.replace(".", "-")
     return clean_symbol
@@ -302,7 +321,9 @@ def calculate_technical_indicators(symbol, generate_chart=True):
                     f"• 🦘 **ออสเตรเลีย:** เติม `.AX` (เช่น `CBA.AX`)\n"
                     f"• 🇬🇧 **ลอนดอน:** เติม `.L` (เช่น `HSBA.L`)\n"
                     f"• 🇭🇰 **ฮ่องกง:** เติม `.HK` (เช่น `0700.HK`)\n"
-                    f"• 🇯🇵 **ญี่ปุ่น:** เติม `.T` (เช่น `7203.T`)\n\n"
+                    f"• 🇯🇵 **ญี่ปุ่น:** เติม `.T` (เช่น `7203.T`)\n"
+                    f"• 🥇 **โลหะ/น้ำมัน:** พิมพ์ `gold` `silver` `oil` `gas` `copper`\n"
+                    f"• ₿ **คริปโต:** `btc` `eth`\n\n"
                     f"รบกวนตรวจตัวสะกดแล้วลองพิมพ์ใหม่อีกครั้งนะครับ ✨"
                 )
             if len(data) < 20:
