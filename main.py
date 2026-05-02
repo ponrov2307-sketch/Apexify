@@ -3054,28 +3054,49 @@ def handle_earnings(message):
             return
             
         latest_earnings = earnings.iloc[0]
-        eps_estimate = latest_earnings.get('EPS Estimate', 'N/A')
-        eps_actual = latest_earnings.get('Reported EPS', 'N/A')
-        surprise = latest_earnings.get('Surprise(%)', 0)
-        
+        eps_estimate = latest_earnings.get('EPS Estimate')
+        eps_actual = latest_earnings.get('Reported EPS')
+        surprise = latest_earnings.get('Surprise(%)')
+
+        def _is_nan(v):
+            return v is None or (isinstance(v, float) and v != v)
+
+        # ⏳ งบประกาศแล้วแต่ค่าจริงยังไม่ออก (yfinance returns NaN until earnings call ends)
+        if _is_nan(eps_actual):
+            earnings_date = latest_earnings.name
+            date_str = earnings_date.strftime('%d %b %Y') if hasattr(earnings_date, 'strftime') else 'เร็วๆ นี้'
+            est_str = f"{eps_estimate:.2f}" if not _is_nan(eps_estimate) else "ไม่ระบุ"
+            bot.edit_message_text(
+                f"📅 **{symbol}** — Earnings ประกาศ {date_str}\n\n"
+                f"🎯 EPS คาดการณ์: **{est_str}**\n"
+                f"⏳ ผลจริงยังไม่ออก หรือข้อมูล yfinance ยัง sync ไม่ครบ\n\n"
+                f"💡 _ลองอีกครั้งใน 2-4 ชม. หลังประกาศ หรือใช้ `/ealert {symbol}` รับแจ้งเตือนวัน earnings_",
+                message.chat.id, load_msg.message_id, parse_mode="Markdown"
+            )
+            return
+
+        est_str = f"{eps_estimate:.2f}" if not _is_nan(eps_estimate) else "—"
+        act_str = f"{eps_actual:.2f}"
+        sur_str = f"{surprise * 100:.2f}%" if not _is_nan(surprise) else "—"
+
         prompt = f"""
         วิเคราะห์งบการเงินล่าสุดของหุ้น {symbol}
-        คาดการณ์ EPS: {eps_estimate}
-        EPS จริงที่ทำได้: {eps_actual}
-        Surprise: {surprise * 100:.2f}%
-        
+        คาดการณ์ EPS: {est_str}
+        EPS จริงที่ทำได้: {act_str}
+        Surprise: {sur_str}
+
         เขียนสรุปสั้นๆ 3-4 บรรทัดด้วยภาษาเป็นกันเอง ว่างบออกมาดีกว่าหรือแย่กว่าที่คาดการณ์ และส่งผลบวก/ลบกับราคาหุ้นอย่างไร
         """
-        
+
         ai_check = ai_client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         summary = ai_check.text.strip()
-        
+
         msg = (
             f"📊 **สรุปงบการเงินฉบับ AI (Earnings Flash)** 📊\n\n"
             f"📌 **หุ้น:** {symbol}\n"
-            f"🎯 **กำไรต่อหุ้น (EPS) คาดการณ์:** {eps_estimate}\n"
-            f"✅ **กำไรต่อหุ้น (EPS) ทำได้จริง:** {eps_actual}\n"
-            f"😲 **เซอร์ไพรส์ตลาด:** {surprise * 100:.2f}%\n\n"
+            f"🎯 **กำไรต่อหุ้น (EPS) คาดการณ์:** {est_str}\n"
+            f"✅ **กำไรต่อหุ้น (EPS) ทำได้จริง:** {act_str}\n"
+            f"😲 **เซอร์ไพรส์ตลาด:** {sur_str}\n\n"
             f"🤖 **มุมมอง Apexify:**\n{summary}"
         )
         bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
@@ -3233,20 +3254,63 @@ def handle_compare(message):
             parse_mode="Markdown")
         return
 
-    symbols = [s.upper() for s in args[1:]]
+    raw_symbols = [s.upper() for s in args[1:]]
+    # 🛡 Dedup: ถ้า user พิมพ์ซ้ำ (เช่น NVDA NVDA AMD) → ใช้แค่ตัวเดียว
+    seen = set()
+    symbols = [s for s in raw_symbols if not (s in seen or seen.add(s))]
+    if len(symbols) < 2:
+        bot.reply_to(message,
+            f"❌ ต้องใช้หุ้นต่างกันอย่างน้อย 2 ตัว — คุณส่งมา: {', '.join(raw_symbols)}",
+            parse_mode="Markdown")
+        return
     load_msg = bot.reply_to(message, f"🔍 กำลังเปรียบเทียบ {' vs '.join(symbols)}...", parse_mode="Markdown")
 
     try:
-        # ดึง tech_data ของทุกตัว
+        # 🌟 Parallel fetch — ดึง tech + info พร้อมกัน ลดเวลา 3 ตัวจาก ~15s → ~5s
+        from concurrent.futures import ThreadPoolExecutor
+        def _fetch_one(sym):
+            td, _, err = _get_cached_analysis(sym, generate_chart=False)
+            if err or not td:
+                return sym, None, None, err
+            extras = {}
+            try:
+                tk = yf.Ticker(sym)
+                info = tk.info or {}
+                hist = tk.history(period="6mo", interval="1d")
+                last30 = [float(x) for x in hist['Close'].tail(30).tolist()] if not hist.empty else []
+                ytd_pct = None
+                if not hist.empty:
+                    cur_year = hist.index[-1].year
+                    ys = hist[hist.index.year == cur_year]
+                    if not ys.empty and ys['Close'].iloc[0]:
+                        ytd_pct = (hist['Close'].iloc[-1] - ys['Close'].iloc[0]) / ys['Close'].iloc[0] * 100
+                extras = {
+                    'last30': last30,
+                    'w52_high': info.get('fiftyTwoWeekHigh'),
+                    'w52_low': info.get('fiftyTwoWeekLow'),
+                    'ytd_pct': ytd_pct,
+                    'pe': info.get('trailingPE') or info.get('forwardPE'),
+                    'market_cap': info.get('marketCap'),
+                    'beta': info.get('beta'),
+                    'div_yield': info.get('dividendYield'),
+                    'sector': info.get('sector'),
+                }
+            except Exception as ex:
+                print(f"[compare] extras fetch failed for {sym}: {ex}", flush=True)
+            return sym, td, extras, None
+
+        with ThreadPoolExecutor(max_workers=len(symbols)) as ex:
+            results = list(ex.map(_fetch_one, symbols))
+
         all_data = []
-        for sym in symbols:
-            tech_data, _, err = _get_cached_analysis(sym, generate_chart=False)
-            if err or not tech_data:
+        for sym, td, extras, err in results:
+            if err or not td:
                 bot.edit_message_text(f"❌ ไม่พบข้อมูล '{sym}' — ตรวจตัวสะกดอีกครั้ง", message.chat.id, load_msg.message_id)
                 return
-            all_data.append(tech_data)
+            td['_extras'] = extras or {}
+            all_data.append(td)
 
-        # สร้างตารางเปรียบเทียบ
+        # Helpers สำหรับ format
         def status_icon(td):
             rsi = td.get('rsi', 50)
             if rsi > 70:
@@ -3258,11 +3322,34 @@ def handle_compare(message):
         def trend_icon(td):
             price = td.get('price', 0)
             ema20 = td.get('ema20', 0)
-            if price > ema20:
-                pct = (price - ema20) / ema20 * 100 if ema20 else 0
-                return f"🟢 ขาขึ้น ({pct:+.1f}%)"
             pct = (price - ema20) / ema20 * 100 if ema20 else 0
-            return f"🔴 ขาลง ({pct:+.1f}%)"
+            arrow = "🟢 ขาขึ้น" if price > ema20 else "🔴 ขาลง"
+            return f"{arrow} ({pct:+.1f}%)"
+
+        def sparkline(vals):
+            if not vals or len(vals) < 2:
+                return ''
+            blocks = '▁▂▃▄▅▆▇█'
+            lo, hi = min(vals), max(vals)
+            if hi == lo:
+                return blocks[3] * len(vals)
+            return ''.join(blocks[int((v - lo) / (hi - lo) * (len(blocks) - 1))] for v in vals)
+
+        def fmt_cap(cap):
+            if not cap or cap <= 0:
+                return '—'
+            if cap >= 1e12:
+                return f"${cap/1e12:.2f}T"
+            if cap >= 1e9:
+                return f"${cap/1e9:.2f}B"
+            if cap >= 1e6:
+                return f"${cap/1e6:.0f}M"
+            return f"${cap:,.0f}"
+
+        def fmt_pct(v, signed=True):
+            if v is None:
+                return '—'
+            return f"{v:+.1f}%" if signed else f"{v:.1f}%"
 
         comparison_lines = ["⚖️ **Stock Comparison**\n"]
         for td in all_data:
@@ -3271,42 +3358,112 @@ def handle_compare(message):
             rsi = td.get('rsi', 0)
             macd = td.get('macd', 0)
             signal = td.get('macd_signal', 0)
+            atr = td.get('atr')
+            volume = td.get('volume', 0)
+            avg_vol = td.get('avg_volume', 0)
+            vol_ratio = (volume / avg_vol) if avg_vol else None
             macd_direction = "🟢 บวก" if macd > signal else "🔴 ลบ"
+            ex = td.get('_extras', {})
+            spark = sparkline(ex.get('last30', []))
+
+            # 52W position
+            w52_line = ''
+            if ex.get('w52_high') and ex.get('w52_low'):
+                rng = ex['w52_high'] - ex['w52_low']
+                pos_pct = ((price - ex['w52_low']) / rng * 100) if rng else 50
+                w52_line = f"  📐 52W: ${ex['w52_low']:,.2f} ─[{pos_pct:.0f}%]─ ${ex['w52_high']:,.2f}\n"
+
+            vol_line = ''
+            if vol_ratio is not None:
+                vol_emoji = "🔥" if vol_ratio > 1.5 else ("📊" if vol_ratio > 0.8 else "💤")
+                vol_line = f"  {vol_emoji} Volume: {vol_ratio:.2f}x ของค่าเฉลี่ย 20 วัน\n"
+
+            atr_pct = (atr / price * 100) if (atr and price) else None
+            atr_line = f"  📏 ATR: ${atr:.2f} ({atr_pct:.1f}% ความผันผวน/วัน)\n" if atr_pct else ''
+
+            ytd_line = f"  📅 YTD: {fmt_pct(ex.get('ytd_pct'))}\n" if ex.get('ytd_pct') is not None else ''
+            spark_line = f"  📈 30D: `{spark}`\n" if spark else ''
+
+            # Fundamentals row
+            fund_parts = []
+            if ex.get('pe'):
+                fund_parts.append(f"P/E {ex['pe']:.1f}")
+            if ex.get('market_cap'):
+                fund_parts.append(f"Cap {fmt_cap(ex['market_cap'])}")
+            if ex.get('beta'):
+                fund_parts.append(f"β {ex['beta']:.2f}")
+            if ex.get('div_yield'):
+                fund_parts.append(f"Div {ex['div_yield']*100:.1f}%")
+            fund_line = f"  💼 {' · '.join(fund_parts)}\n" if fund_parts else ''
+            sector_line = f"  🏷 Sector: {ex['sector']}\n" if ex.get('sector') else ''
+
             comparison_lines.append(
                 f"📌 **{sym}** @ ${price:,.2f}\n"
                 f"  🌊 {trend_icon(td)}\n"
+                f"{spark_line}"
                 f"  🌡 RSI {rsi:.1f} — {status_icon(td)}\n"
                 f"  ⚡ MACD: {macd_direction} ({macd:.2f}/{signal:.2f})\n"
                 f"  🎯 S/R: ${td.get('support', 0):,.2f} / ${td.get('resistance', 0):,.2f}\n"
+                f"{w52_line}"
+                f"{vol_line}"
+                f"{atr_line}"
+                f"{ytd_line}"
+                f"{fund_line}"
+                f"{sector_line}"
             )
 
-        # AI verdict
+        # AI verdict — ส่ง context ที่ขยายแล้วไปด้วย
         context_lines = []
         for td in all_data:
             sym = td.get('symbol', '?')
+            ex = td.get('_extras', {})
+            atr_pct = (td.get('atr', 0) / td.get('price', 1) * 100) if td.get('atr') and td.get('price') else 0
+            avg_vol = td.get('avg_volume', 0)
+            vol_ratio = (td.get('volume', 0) / avg_vol) if avg_vol else 1.0
+            extras_str = ''
+            if ex.get('w52_high') and ex.get('w52_low'):
+                rng = ex['w52_high'] - ex['w52_low']
+                pos_pct = ((td.get('price', 0) - ex['w52_low']) / rng * 100) if rng else 50
+                extras_str += f" 52W_pos={pos_pct:.0f}%"
+            if ex.get('ytd_pct') is not None:
+                extras_str += f" YTD={ex['ytd_pct']:+.1f}%"
+            if ex.get('pe'):
+                extras_str += f" PE={ex['pe']:.1f}"
+            if ex.get('beta'):
+                extras_str += f" Beta={ex['beta']:.2f}"
+            if ex.get('sector'):
+                extras_str += f" Sector={ex['sector']}"
             context_lines.append(
                 f"{sym}: price={td.get('price', 0):.2f} RSI={td.get('rsi', 0):.1f} "
                 f"EMA20={td.get('ema20', 0):.2f} MACD={td.get('macd', 0):.2f}/{td.get('macd_signal', 0):.2f} "
-                f"S={td.get('support', 0):.2f} R={td.get('resistance', 0):.2f}"
+                f"S={td.get('support', 0):.2f} R={td.get('resistance', 0):.2f} "
+                f"ATR%={atr_pct:.1f} VolRatio={vol_ratio:.2f}{extras_str}"
             )
 
         try:
             from ai_analyzer import client as ai_client
             ai_prompt = f"""
-เปรียบเทียบหุ้น {len(symbols)} ตัว ตอบภาษาไทยสั้นๆ 3-4 บรรทัด
+เปรียบเทียบหุ้น {len(symbols)} ตัว ตอบภาษาไทย 5-6 บรรทัด
 
-ข้อมูลเทคนิค:
+ข้อมูลเทคนิค + พื้นฐาน:
 {chr(10).join(context_lines)}
 
-ตอบตามโครงนี้ห้ามเกิน 300 ตัวอักษร:
-1. ตัวไหน "น่าสะสมที่สุด" ตอนนี้ — บอกเหตุผลสั้น
-2. ตัวไหน "ระวังมากสุด" — บอกเหตุผลสั้น
-3. สรุปภาพรวม
+คำอธิบาย metrics:
+- 52W_pos = ตำแหน่งราคาในช่วง 52 สัปดาห์ (0% = ใกล้ low, 100% = ใกล้ high)
+- VolRatio = volume วันนี้ / avg 20 วัน (>1.5 = มีแรงผิดปกติ)
+- ATR% = ความผันผวนรายวันเทียบกับราคา
+- Beta < 1 = นิ่งกว่าตลาด, > 1 = ผันผวนกว่าตลาด
+
+ตอบตามโครงนี้ ไม่เกิน 500 ตัวอักษร:
+1. ตัวไหน "น่าสะสมที่สุด" ตอนนี้ — อ้างอิง metric ที่เด่น (RSI, 52W pos, P/E ฯลฯ)
+2. ตัวไหน "ระวังมากสุด" — อ้างอิง metric เสี่ยง (RSI overbought, VolRatio สูง, ATR สูง ฯลฯ)
+3. มุมมอง valuation (ใช้ P/E + Sector)
+4. สรุปภาพรวม + คำแนะนำ allocation
 
 ห้ามชี้นำซื้อขาย ห้ามใช้คำ "ซื้อเลย" "ขายเลย" "การันตี"
 """.strip()
             ai_resp = ai_client.models.generate_content(model='gemini-2.5-flash', contents=ai_prompt)
-            ai_verdict = ai_resp.text.strip()[:500]
+            ai_verdict = ai_resp.text.strip()[:800]
             comparison_lines.append(f"\n🤖 **AI Verdict:**\n{ai_verdict}")
         except Exception as e:
             print(f"[compare] AI verdict failed: {e}", flush=True)

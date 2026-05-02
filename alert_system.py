@@ -416,12 +416,9 @@ def send_alert_to_users(symbol, message, alert_type="tech"):
         if not should_send_user_notification(user_id, category=category):
             continue
 
-        try:
-            full_msg = f"🚨 **APEXIFY ALERT: {symbol}** 🚨\n\n{message}"
-            bot.send_message(user_id, full_msg, parse_mode="Markdown", disable_web_page_preview=True)
-            time.sleep(0.5)
-        except Exception as e:
-            print(f"[Alert] ส่งให้ {user_id} ({symbol}) ไม่สำเร็จ: {e}")
+        full_msg = f"🚨 **APEXIFY ALERT: {symbol}** 🚨\n\n{message}"
+        safe_send(bot, user_id, full_msg, parse_mode="Markdown", disable_web_page_preview=True)
+        time.sleep(0.5)
 
 # ==========================================
 # 🌟 ระบบสแกนข่าวหุ้นรายตัว (เฉพาะข่าวด่วนจริงๆ)
@@ -972,12 +969,9 @@ def check_custom_price_alerts():
             
         if triggered:
             msg = (f"🎯 **TARGET REACHED!** 🎯\n\n📌 หุ้น **{symbol}** \nราคาได้ **{cond_text} {target_price:,.2f}** แล้ว!\n*(ปัจจุบัน: {curr_price:,.2f})*\n\n👉 ระบบปิดการแจ้งเตือนนี้แล้ว")
-            try:
-                bot.send_message(user_id, msg, parse_mode="Markdown")
-                deactivate_price_alert(a_id)
-                time.sleep(0.5)
-            except Exception: 
-                deactivate_price_alert(a_id)
+            safe_send(bot, user_id, msg, parse_mode="Markdown")
+            deactivate_price_alert(a_id)
+            time.sleep(0.5)
 # ==========================================
 # 🎙️ ฟีเจอร์ AI Podcast สรุปตลาดตอนเช้า (08:00 น.)
 # ==========================================
