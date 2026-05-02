@@ -6,6 +6,64 @@ tags: [changelog]
 
 > เรียงจากใหม่สุดลงล่าง — เก็บแค่ commits สำคัญ
 
+## 2026-05-02 → 05-03 (Admin UI Overhaul + Reliability Sweep)
+
+### `6616be8` — Maintenance broadcast parity
+- /maintenance ในบอท ส่งข้อความหา user ทุกคนเหมือน admin dashboard
+- ย้าย `broadcast_maintenance_notice()` ไป `bot_utils.py` (single source)
+- ทั้ง 2 จุดใช้ helper เดียวกัน ส่ง "ปิดปรับปรุง" / "กลับมาใช้งานได้แล้ว"
+
+### `aa69683` — Thread locks + Gemini timeout + maintenance broadcast feature ⭐
+**Race conditions fixed**
+- `_sent_news_lock` กัน "Set changed during iteration" บน sent_pro_news
+- `_rss_cache_lock` กัน read-during-write
+- ใช้ snapshot pattern (อ่านนอก lock หลัง copy)
+
+**Gemini timeout** — `_gemini_call_with_timeout()` ใน ai_analyzer.py
+- ThreadPoolExecutor + future.result(timeout=30s) — กัน handler hang
+- Image analysis 45s
+
+**Maintenance broadcast** — admin dashboard ปุ่ม toggle ส่ง broadcast ทุกคนใน background
+
+### `369fa24` — Audit polish #5/#6
+- ai_analyzer retry loop: log retry failure + final exhaustion
+- Digest news 3 silent paths now log reason (`bad JSON / non-list / empty list`)
+- yfinance N+1 batch: get_podcast_market_data + _get_morning_macro_assets_text
+  - Loop 10 ticker.history() → single yf.download(syms, threads=True) ~5-10x faster
+
+### `473e757` — 4 polish fixes ⭐⭐
+- **Earnings dedup**: new table `earnings_notified(user_id, symbol, notify_date)` — กัน 7:59 → 8:00 restart ส่งซ้ำ
+- **Telegram retry**: new `bot_utils.py` `safe_send_with_retry()` — handle 429/timeout/5xx, auto-mark inactive on 403
+- **Friendly Thai errors**: 18 sites in main.py — แทน `f"❌ Error: {e}"` ด้วย `friendly_error("...")` + log raw server-side
+- **Quiet hours earnings**: เช็ค `should_send_user_notification('digest_news')` ก่อนส่ง 8 AM earnings
+
+### `b6e738a` — Persist alert state ⭐ (fix duplicate alerts after restart)
+- Customer PP P. รายงาน RSI/EMA/Breakout/Whale alert ส่งซ้ำหลัง restart
+- Root cause: `last_alert_state` เป็น in-memory dict reset เป็น {} ทุก restart
+- Fix: new table `alert_state(symbol, kind, state)`
+- `_set_alert_state()` save เฉพาะตอน state เปลี่ยน
+- `_hydrate_alert_state()` โหลดจาก DB ตอน startup
+
+### `5d98ab4` — Admin dashboard expand monitoring + Thai + softer palette ⭐⭐⭐
+**4 features ใหม่**
+- Win rate trend chart (rolling 7d + daily overlay จาก alert_logs)
+- Top commands table (`bot_command_log` + listener ใน main.py)
+- Alert delivery rate (`broadcast_log` + auto-log จาก /admin/broadcast)
+- Free quota burn (count free users at 3/3 + top burners list)
+
+**Backend**: 7 new admin_service functions (recent_activity, hourly, funnel, top_commands, alert_delivery, quota_burn, win_rate_trend) — ทั้งหมด parallel ใน thread pool
+
+**Thai translation**: ทั้งหน้า (sidebar, topbar, banners, stats, modals, JS messages)
+
+**Palette softened**: Gruvbox warm beige `#BDAE93` แทน `#D4D4D4` แสบตา · accents desaturated · CRT scanlines เบาลง
+
+### `43fa0dd` — Admin dashboard Claude design + 30 broadcasts (พื้นฐานก่อน redesign เป็น terminal)
+- เริ่มต้น: redesign จาก dark GitHub → Claude warm cream (Source Serif + coral)
+- ภายหลังเปลี่ยนเป็น Terminal UI ตาม customer feedback ("พื้นหลังขาวแสบตา")
+- เพิ่ม 20 Web Dashboard broadcasts (WD11–WD30) ใน [[21 - Broadcast Templates]]
+
+---
+
 ## 2026-05-01 (Trade Plan v2 + News Resilience)
 
 > ดู daily note: [[2026-05-01]]

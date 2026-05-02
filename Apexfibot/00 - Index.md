@@ -43,6 +43,14 @@ tags: [moc, index]
 - [[2026-04-25]]
 - [[2026-04-24]]
 
+### 🔧 Recent (2026-05-02 → 03)
+**Admin UI redesign + reliability sweep — ดู [[14 - Recent Changes]] section ใหม่บนสุด**
+- Admin dashboard: dark GitHub → Claude cream → terminal Gruvbox (พร้อม 4 metric ใหม่ + Thai)
+- Maintenance toggle ส่ง broadcast user (ทั้ง /maintenance และ admin dashboard)
+- Alert state persist (กัน duplicate หลัง restart) — fix issue ลูกค้า PP P. report
+- Earnings dedup + Telegram retry + Friendly Thai errors + Quiet hours
+- Race condition locks + Gemini 30s timeout
+
 ### 💼 Sales & Marketing
 - [[17 - Sales Playbook]] — Pitch + Objections + Personas + Templates
 - [[18 - Feature Cheat Sheet]] — สรุปขายได้ใน 1 หน้า
@@ -58,6 +66,7 @@ tags: [moc, index]
 - [[27 - Comment Reply Templates]] ⭐ — ตอบคอมเม้น FB/TikTok/IG ตามอารมณ์
 - [[28 - User Guide (How to Use)]] ⭐ — คู่มือใช้งานสำหรับลูกค้า (sharable)
 - [[29 - Payment Instructions]] ⭐ — วิธีชำระเงิน + FAQ + ปัญหาที่อาจเจอ
+- [[30 - Sales Chat Quick Replies]] 🆕 — เทมเพลตขาย 15 scenarios + objection + closing + cheat sheet
 
 ---
 
