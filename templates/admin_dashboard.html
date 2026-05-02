@@ -1503,6 +1503,25 @@ renderAsciiBars();
   </div>`;
 })();
 
+// ── Charts palette + shared options (must be declared BEFORE first use to avoid TDZ) ──
+const TC = {
+  green: '#98C379',
+  greenSoft: 'rgba(152,195,121,0.12)',
+  cyan: '#83A598',
+  cyanSoft: 'rgba(131,165,152,0.12)',
+  amber: '#E5C07B',
+  amberSoft: 'rgba(229,192,123,0.12)',
+  magenta: '#C678DD',
+  magentaSoft: 'rgba(198,120,221,0.12)',
+  grid: 'rgba(255,255,255,0.03)',
+  tick: '#928374',
+  font: 'JetBrains Mono',
+};
+const chartOpts = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: TC.tick, font: { family: TC.font, size: 11 }, padding: 12 } } }
+};
+
 // ── Win Rate Trend (rolling 7d) ──
 (function renderWinRateTrend() {
   const daily = {{ win_rate_trend.daily|tojson }};
@@ -1630,25 +1649,6 @@ renderAsciiBars();
     </div>
     ${legend}`;
 })();
-
-// ── Charts (terminal palette — softened) ──
-const TC = {
-  green: '#98C379',
-  greenSoft: 'rgba(152,195,121,0.12)',
-  cyan: '#83A598',
-  cyanSoft: 'rgba(131,165,152,0.12)',
-  amber: '#E5C07B',
-  amberSoft: 'rgba(229,192,123,0.12)',
-  magenta: '#C678DD',
-  magentaSoft: 'rgba(198,120,221,0.12)',
-  grid: 'rgba(255,255,255,0.03)',
-  tick: '#928374',
-  font: 'JetBrains Mono',
-};
-const chartOpts = {
-  responsive: true, maintainAspectRatio: false,
-  plugins: { legend: { labels: { color: TC.tick, font: { family: TC.font, size: 11 }, padding: 12 } } }
-};
 
 // ── Analytics charts (loaded via API) ──
 (async function loadAnalytics() {

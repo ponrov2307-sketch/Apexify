@@ -735,11 +735,12 @@ def get_funnel_snapshot():
         c.execute("SELECT COUNT(*) FROM users WHERE last_active >= NOW() - INTERVAL '7 days'")
         funnel["active_7d"] = int(c.fetchone()[0] or 0)
 
+        # 🐛 expiry_date เป็น TEXT ใน schema → ต้อง cast ก่อนเทียบกับ NOW() ไม่งั้นเทียบเป็น string ผิด
         c.execute(
             """
             SELECT role, COUNT(*) FROM users
             WHERE role IN ('vip','pro')
-              AND (expiry_date IS NULL OR expiry_date > NOW())
+              AND (expiry_date IS NULL OR expiry_date::timestamp > NOW())
             GROUP BY role
             """
         )
@@ -757,8 +758,8 @@ def get_funnel_snapshot():
             SELECT COUNT(*) FROM users
             WHERE role IN ('vip','pro')
               AND expiry_date IS NOT NULL
-              AND expiry_date < NOW()
-              AND expiry_date >= NOW() - INTERVAL '30 days'
+              AND expiry_date::timestamp < NOW()
+              AND expiry_date::timestamp >= NOW() - INTERVAL '30 days'
             """
         )
         funnel["churned_30d"] = int(c.fetchone()[0] or 0)
