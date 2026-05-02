@@ -697,9 +697,12 @@ def _request_member_payload(prompt, defaults, cache_key=None):
                 if cache_key is not None:
                     _ai_cache_set(cache_key, parsed)
                 return parsed
-        except Exception:
+        except Exception as e:
+            # Log retry failure — debug ง่ายขึ้นเวลา Gemini ขัดข้อง
+            print(f"[ai-cache] retry fail (key={cache_key}): {type(e).__name__}: {str(e)[:120]}", flush=True)
             continue
 
+    print(f"[ai-cache] all {len(prompts)} retries exhausted (key={cache_key}) → fallback", flush=True)
     return fallback
 
 

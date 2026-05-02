@@ -357,22 +357,36 @@ def _get_morning_market_movers_text():
 
 
 def _get_morning_macro_assets_text():
+    """Morning macro briefing — batch fetch (1 HTTP) แทน per-asset loop"""
+    syms = list(MORNING_MACRO_ASSETS.keys())
+    if not syms:
+        return ""
+    try:
+        batch = yf.download(
+            syms, period="5d",
+            group_by='ticker', progress=False, threads=True,
+            auto_adjust=False,
+        )
+    except Exception as e:
+        print(f"[MorningMacro] batch download fail: {e}", flush=True)
+        return ""
+
     lines = []
     for symbol, label in MORNING_MACRO_ASSETS.items():
         try:
-            history = yf.Ticker(symbol).history(period="5d")
-            if history is None or history.empty or len(history) < 2:
+            sym_data = batch[symbol] if symbol in batch.columns.get_level_values(0) else batch
+            closes = sym_data["Close"].dropna()
+            if len(closes) < 2:
                 continue
-
-            last_close = float(history["Close"].iloc[-1])
-            prev_close = float(history["Close"].iloc[-2])
+            last_close = float(closes.iloc[-1])
+            prev_close = float(closes.iloc[-2])
             if prev_close <= 0:
                 continue
-
             pct_change = ((last_close - prev_close) / prev_close) * 100
             emoji = "🟢" if pct_change >= 0 else "🔴"
             lines.append(f"{emoji} {label}: {last_close:,.2f} ({pct_change:+.2f}%)")
-        except Exception:
+        except Exception as e:
+            print(f"[MorningMacro] {symbol} parse fail: {e}", flush=True)
             continue
 
     return "\n".join(lines)
@@ -803,10 +817,19 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
     try:
         ai_check = _gemini_generate_with_retry(prompt)
         result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
-        analysis_list = json.loads(result_text)
-        
-        if not isinstance(analysis_list, list) or len(analysis_list) == 0: return
-            
+        try:
+            analysis_list = json.loads(result_text)
+        except json.JSONDecodeError as je:
+            print(f"[DigestNews] AI returned non-JSON → silent drop. preview: {result_text[:150]}", flush=True)
+            return
+
+        if not isinstance(analysis_list, list):
+            print(f"[DigestNews] AI returned {type(analysis_list).__name__} not list → silent drop", flush=True)
+            return
+        if len(analysis_list) == 0:
+            print(f"[DigestNews] AI returned empty list (no headlines worth pushing)", flush=True)
+            return
+
         conn = get_connection()
         cur = conn.cursor()
         # 🌟 VIP ก็ได้รับ Digest ด้วย
@@ -935,19 +958,7 @@ def check_custom_price_alerts():
 # 🎙️ ฟีเจอร์ AI Podcast สรุปตลาดตอนเช้า (08:00 น.)
 # ==========================================
 def get_podcast_market_data():
-    def _fetch_with_change(ticker_sym):
-        try:
-            hist = yf.Ticker(ticker_sym).history(period='5d')['Close']
-            if len(hist) < 2:
-                return None, None
-            prev = hist.iloc[-2]
-            curr = hist.iloc[-1]
-            if math.isnan(curr) or math.isnan(prev) or prev == 0:
-                return None, None
-            return float(curr), float((curr - prev) / prev * 100)
-        except Exception:
-            return None, None
-
+    """ดึงข้อมูลตลาดสำหรับ podcast เช้า — batch fetch (1 HTTP request) แทน loop N requests"""
     tickers = [
         ('^GSPC',     'S&P 500',     'จุด'),
         ('^IXIC',     'Nasdaq',      'จุด'),
@@ -961,10 +972,37 @@ def get_podcast_market_data():
         ('^VIX',      'VIX',         'จุด'),
     ]
 
+    # 🌟 Batch download: 1 HTTP request → 10 tickers (เร็วกว่า loop เดิม ~5-10x)
+    syms = [t[0] for t in tickers]
+    try:
+        batch = yf.download(
+            syms, period='5d',
+            group_by='ticker', progress=False, threads=True,
+            auto_adjust=False,
+        )
+    except Exception as e:
+        print(f"⚠️ [Podcast] batch download fail: {e}", flush=True)
+        return "ข้อมูลตลาดยังไม่พร้อม ตลาดอาจยังไม่เปิดหรือเน็ตมีปัญหา"
+
+    def _extract(sym):
+        try:
+            # MultiIndex columns เมื่อ multi-symbol; flat ถ้า 1 ตัว
+            sym_data = batch[sym] if sym in batch.columns.get_level_values(0) else batch
+            closes = sym_data['Close'].dropna()
+            if len(closes) < 2:
+                return None, None
+            prev, curr = float(closes.iloc[-2]), float(closes.iloc[-1])
+            if math.isnan(curr) or math.isnan(prev) or prev == 0:
+                return None, None
+            return curr, (curr - prev) / prev * 100
+        except Exception as e:
+            print(f"[Podcast] {sym} parse fail: {e}", flush=True)
+            return None, None
+
     date_str = (datetime.utcnow() + timedelta(hours=7)).strftime('%d %b %Y')
     parts = [f"ข้อมูลตลาด ณ วันที่ {date_str}:"]
     for sym, label, unit in tickers:
-        price, chg = _fetch_with_change(sym)
+        price, chg = _extract(sym)
         if price is None:
             continue
         direction = "ขึ้น" if chg >= 0 else "ลง"
