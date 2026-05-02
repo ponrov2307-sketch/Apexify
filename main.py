@@ -26,7 +26,7 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       ALLOWED_TIMEZONES, ALLOWED_LANGUAGES, ALLOWED_DIGEST_FREQUENCIES,
                       has_used_free_trial, activate_free_trial,
                       add_earnings_alert_db, get_user_earnings_alerts_db, remove_earnings_alert_db,
-                      update_last_active, mark_user_inactive, get_active_users)
+                      update_last_active, mark_user_inactive, get_active_users, log_command)
 from admin_service import (
     build_local_backup_zip,
     get_dashboard_metrics,
@@ -47,6 +47,26 @@ from curl_cffi import requests as cffi_requests
 telebot.logger.setLevel(logging.WARNING)
 # 🌟 num_threads=8 — handler รันใน thread pool ใหญ่ → bot ไม่ block ระหว่างผู้ใช้คนเดียววิเคราะห์ 10-20 วิ
 bot = telebot.TeleBot(TELEGRAM_TOKEN, num_threads=8)
+
+
+# 🌟 Command logger — runs alongside (not instead of) message handlers
+# ใช้เก็บ stat สำหรับ admin dashboard "top_commands" — fail-safe ไม่กระทบ bot ถ้า DB ขัดข้อง
+def _command_log_listener(messages):
+    for msg in messages:
+        try:
+            text = getattr(msg, "text", None)
+            if not text or not text.startswith("/"):
+                continue
+            cmd = text.split()[0].lstrip("/").split("@")[0].lower()
+            if not cmd or len(cmd) > 32 or not cmd.replace("_", "").isalnum():
+                continue
+            user_id = str(msg.from_user.id) if getattr(msg, "from_user", None) else "?"
+            log_command(user_id, cmd)
+        except Exception:
+            pass
+
+
+bot.set_update_listener(_command_log_listener)
 
 # ==========================================
 # 🌟 ระบบ Anti-Spam ดักจับคนป่วนรัวข้อความ

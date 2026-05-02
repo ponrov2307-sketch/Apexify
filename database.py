@@ -449,9 +449,69 @@ def init_db():
         )
     """)
 
+    # ตารางเก็บ log การพิมพ์คำสั่งของ user — สำหรับ admin dashboard "top commands"
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS bot_command_log (
+            id BIGSERIAL PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            command TEXT NOT NULL,
+            ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_cmd_log_ts ON bot_command_log (ts DESC)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_cmd_log_command ON bot_command_log (command)")
+
+    # ตารางเก็บ log การส่ง broadcast — success/fail/total
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS broadcast_log (
+            id BIGSERIAL PRIMARY KEY,
+            audience TEXT NOT NULL,
+            total INT NOT NULL,
+            success INT NOT NULL,
+            fail INT NOT NULL,
+            ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_bcast_log_ts ON broadcast_log (ts DESC)")
+
     conn.commit()
     conn.close()
     init_watchlist_db()
+
+
+def log_command(user_id, command):
+    """Log a slash-command invocation. Called from main.py middleware/wrapper.
+    Safe to fail silently — never break bot if logging fails.
+    """
+    try:
+        cmd = str(command or "").strip().lower()[:32]
+        if not cmd:
+            return
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO bot_command_log (user_id, command) VALUES (%s, %s)",
+            (str(user_id), cmd),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[log_command] {e}", flush=True)
+
+
+def log_broadcast(audience, total, success, fail):
+    """Log broadcast batch to broadcast_log table."""
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO broadcast_log (audience, total, success, fail) VALUES (%s, %s, %s, %s)",
+            (str(audience or "")[:32], int(total or 0), int(success or 0), int(fail or 0)),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[log_broadcast] {e}", flush=True)
 
 def init_watchlist_db():
     conn = get_connection()

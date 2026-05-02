@@ -610,6 +610,363 @@ def get_performance_snapshot(limit=15, resolve_pending=True):
     }
 
 
+def get_recent_activity_snapshot(limit=8):
+    """Live activity feed — recent signups + recent payment slips
+    เพื่อให้ admin เห็น 'อะไรเกิดขึ้นล่าสุด' โดยไม่ต้อง refresh page บ่อย
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    signups = []
+    payments = []
+    try:
+        c.execute(
+            """
+            SELECT user_id, username, role, registered_date
+            FROM users
+            WHERE registered_date IS NOT NULL
+            ORDER BY registered_date DESC
+            LIMIT %s
+            """,
+            (int(limit),),
+        )
+        for row in c.fetchall():
+            uid, uname, role, reg_dt = row
+            signups.append({
+                "user_id": str(uid),
+                "username": (uname or "Unknown")[:24],
+                "role": (role or "free").lower(),
+                "ts": reg_dt.strftime("%m-%d %H:%M") if hasattr(reg_dt, "strftime") else str(reg_dt)[:16],
+            })
+
+        c.execute(
+            """
+            SELECT s.ref_no, s.user_id, u.username, u.role, s.date_used
+            FROM used_slips s
+            LEFT JOIN users u ON u.user_id = s.user_id
+            WHERE s.date_used IS NOT NULL
+            ORDER BY s.date_used DESC
+            LIMIT %s
+            """,
+            (int(limit),),
+        )
+        for row in c.fetchall():
+            ref, uid, uname, role, dt = row
+            payments.append({
+                "ref_no": str(ref or "")[:14],
+                "user_id": str(uid or ""),
+                "username": (uname or "Unknown")[:20],
+                "role": (role or "free").lower(),
+                "ts": str(dt)[:16] if dt else "—",
+            })
+    except Exception as exc:
+        print(f"[recent_activity] {exc}", flush=True)
+    finally:
+        conn.close()
+    return {"signups": signups, "payments": payments}
+
+
+def get_hourly_activity_snapshot(days=7):
+    """24-hour heatmap of last_active (Bangkok TZ) over last N days
+    ใช้ดูว่า user ส่วนใหญ่ active กี่โมง — ตัดสินใจเรื่อง broadcast timing
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    counts = [0] * 24
+    total_active = 0
+    try:
+        c.execute(
+            """
+            SELECT EXTRACT(HOUR FROM (last_active AT TIME ZONE 'Asia/Bangkok'))::int AS h,
+                   COUNT(*)
+            FROM users
+            WHERE last_active IS NOT NULL
+              AND last_active >= NOW() - (INTERVAL '1 day' * %s)
+            GROUP BY h
+            ORDER BY h
+            """,
+            (int(days),),
+        )
+        for row in c.fetchall():
+            h, cnt = row
+            if h is not None and 0 <= int(h) < 24:
+                counts[int(h)] = int(cnt or 0)
+                total_active += int(cnt or 0)
+    except Exception as exc:
+        print(f"[hourly_activity] {exc}", flush=True)
+    finally:
+        conn.close()
+    peak_count = max(counts) if any(counts) else 1
+    peak_hour = counts.index(peak_count) if peak_count > 0 else None
+    return {
+        "hours": counts,
+        "max": peak_count,
+        "peak_hour": peak_hour,
+        "total_active": total_active,
+        "window_days": int(days),
+    }
+
+
+def get_funnel_snapshot():
+    """Conversion funnel + churn — top-of-mind metrics สำหรับ SaaS owner
+    total → active 30d → paying → (churn 30d)
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    funnel = {
+        "total_users": 0,
+        "active_30d": 0,
+        "active_7d": 0,
+        "paying_now": 0,
+        "vip_now": 0,
+        "pro_now": 0,
+        "churned_30d": 0,
+        "new_30d": 0,
+        "new_7d": 0,
+        "conversion_pct": 0.0,
+        "active_rate_pct": 0.0,
+    }
+    try:
+        c.execute("SELECT COUNT(*) FROM users")
+        funnel["total_users"] = int(c.fetchone()[0] or 0)
+
+        c.execute("SELECT COUNT(*) FROM users WHERE last_active >= NOW() - INTERVAL '30 days'")
+        funnel["active_30d"] = int(c.fetchone()[0] or 0)
+
+        c.execute("SELECT COUNT(*) FROM users WHERE last_active >= NOW() - INTERVAL '7 days'")
+        funnel["active_7d"] = int(c.fetchone()[0] or 0)
+
+        c.execute(
+            """
+            SELECT role, COUNT(*) FROM users
+            WHERE role IN ('vip','pro')
+              AND (expiry_date IS NULL OR expiry_date > NOW())
+            GROUP BY role
+            """
+        )
+        for row in c.fetchall():
+            r, cnt = row
+            if r == "vip":
+                funnel["vip_now"] = int(cnt or 0)
+            elif r == "pro":
+                funnel["pro_now"] = int(cnt or 0)
+        funnel["paying_now"] = funnel["vip_now"] + funnel["pro_now"]
+
+        # Churned — paid users whose subscription expired in last 30 days
+        c.execute(
+            """
+            SELECT COUNT(*) FROM users
+            WHERE role IN ('vip','pro')
+              AND expiry_date IS NOT NULL
+              AND expiry_date < NOW()
+              AND expiry_date >= NOW() - INTERVAL '30 days'
+            """
+        )
+        funnel["churned_30d"] = int(c.fetchone()[0] or 0)
+
+        c.execute("SELECT COUNT(*) FROM users WHERE registered_date >= NOW() - INTERVAL '30 days'")
+        funnel["new_30d"] = int(c.fetchone()[0] or 0)
+
+        c.execute("SELECT COUNT(*) FROM users WHERE registered_date >= NOW() - INTERVAL '7 days'")
+        funnel["new_7d"] = int(c.fetchone()[0] or 0)
+
+        if funnel["total_users"]:
+            funnel["conversion_pct"] = round(funnel["paying_now"] / funnel["total_users"] * 100, 2)
+            funnel["active_rate_pct"] = round(funnel["active_30d"] / funnel["total_users"] * 100, 2)
+    except Exception as exc:
+        print(f"[funnel] {exc}", flush=True)
+    finally:
+        conn.close()
+    return funnel
+
+
+def get_top_commands_snapshot(days=7, limit=12):
+    """Top N commands พิมพ์มากสุดใน last N days
+    ต้อง wire log_command() ใน main.py message dispatcher ก่อน table จะมี data
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    items = []
+    total = 0
+    try:
+        c.execute(
+            """
+            SELECT command, COUNT(*) AS n
+            FROM bot_command_log
+            WHERE ts >= NOW() - (INTERVAL '1 day' * %s)
+            GROUP BY command
+            ORDER BY n DESC
+            LIMIT %s
+            """,
+            (int(days), int(limit)),
+        )
+        for row in c.fetchall():
+            items.append({"command": str(row[0] or "")[:24], "count": int(row[1] or 0)})
+        total = sum(it["count"] for it in items)
+    except Exception as exc:
+        print(f"[top_commands] {exc}", flush=True)
+    finally:
+        conn.close()
+    return {"items": items, "total": total, "window_days": int(days)}
+
+
+def get_alert_delivery_snapshot(days=7):
+    """Broadcast/alert delivery rate — total/success/fail per batch over last N days"""
+    conn = get_connection()
+    c = conn.cursor()
+    batches = []
+    totals = {"total": 0, "success": 0, "fail": 0, "batches": 0}
+    daily = []
+    try:
+        c.execute(
+            """
+            SELECT id, audience, total, success, fail, ts
+            FROM broadcast_log
+            WHERE ts >= NOW() - (INTERVAL '1 day' * %s)
+            ORDER BY ts DESC
+            LIMIT 30
+            """,
+            (int(days),),
+        )
+        for row in c.fetchall():
+            bid, aud, tot, succ, fl, ts = row
+            t = int(tot or 0)
+            s = int(succ or 0)
+            f = int(fl or 0)
+            batches.append({
+                "id": int(bid or 0),
+                "audience": str(aud or "")[:24],
+                "total": t,
+                "success": s,
+                "fail": f,
+                "success_rate": round((s / t * 100), 1) if t else 0.0,
+                "ts": ts.strftime("%m-%d %H:%M") if hasattr(ts, "strftime") else str(ts)[:16],
+            })
+            totals["total"] += t
+            totals["success"] += s
+            totals["fail"] += f
+        totals["batches"] = len(batches)
+        totals["success_rate"] = round((totals["success"] / totals["total"] * 100), 1) if totals["total"] else 0.0
+
+        # Daily aggregation for trend chart
+        c.execute(
+            """
+            SELECT date_trunc('day', ts)::date AS d, SUM(total) AS t, SUM(success) AS s, SUM(fail) AS f
+            FROM broadcast_log
+            WHERE ts >= NOW() - (INTERVAL '1 day' * %s)
+            GROUP BY d
+            ORDER BY d
+            """,
+            (int(days),),
+        )
+        for row in c.fetchall():
+            d, t, s, f = row
+            t = int(t or 0); s = int(s or 0); f = int(f or 0)
+            daily.append({
+                "date": str(d),
+                "total": t,
+                "success": s,
+                "fail": f,
+                "success_rate": round((s / t * 100), 1) if t else 0.0,
+            })
+    except Exception as exc:
+        print(f"[alert_delivery] {exc}", flush=True)
+    finally:
+        conn.close()
+    return {"batches": batches, "totals": totals, "daily": daily, "window_days": int(days)}
+
+
+def get_quota_burn_snapshot(quota=3):
+    """Free users that hit daily quota today — sign of conversion-ready users
+    quota = FREE_DAILY_QUOTA (3) จาก main.py
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    snapshot = {"hit_quota": 0, "near_quota": 0, "total_free_active": 0, "burn_rate_pct": 0.0, "top_burners": [], "quota": int(quota)}
+    try:
+        c.execute("SELECT COUNT(*) FROM users WHERE role = 'free'")
+        snapshot["total_free_active"] = int(c.fetchone()[0] or 0)
+
+        c.execute(
+            "SELECT COUNT(*) FROM users WHERE role = 'free' AND COALESCE(usage_count, 0) >= %s",
+            (int(quota),),
+        )
+        snapshot["hit_quota"] = int(c.fetchone()[0] or 0)
+
+        c.execute(
+            "SELECT COUNT(*) FROM users WHERE role = 'free' AND COALESCE(usage_count, 0) >= %s AND COALESCE(usage_count, 0) < %s",
+            (max(int(quota) - 1, 1), int(quota)),
+        )
+        snapshot["near_quota"] = int(c.fetchone()[0] or 0)
+
+        if snapshot["total_free_active"]:
+            snapshot["burn_rate_pct"] = round(snapshot["hit_quota"] / snapshot["total_free_active"] * 100, 2)
+
+        # Top free users approaching/hitting quota — best conversion targets
+        c.execute(
+            """
+            SELECT user_id, username, usage_count, last_active
+            FROM users
+            WHERE role = 'free' AND COALESCE(usage_count, 0) >= 1
+            ORDER BY usage_count DESC, last_active DESC NULLS LAST
+            LIMIT 10
+            """
+        )
+        for row in c.fetchall():
+            uid, uname, used, la = row
+            snapshot["top_burners"].append({
+                "user_id": str(uid),
+                "username": (uname or "Unknown")[:24],
+                "used": int(used or 0),
+                "last_active": la.strftime("%m-%d %H:%M") if hasattr(la, "strftime") else (str(la)[:16] if la else "—"),
+            })
+    except Exception as exc:
+        print(f"[quota_burn] {exc}", flush=True)
+    finally:
+        conn.close()
+    return snapshot
+
+
+def get_win_rate_trend_snapshot(days=14):
+    """Daily win/loss counts → frontend computes 7d rolling win rate
+    ใช้ alert_logs.resolved_at + status เพื่อ group by date
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    daily = []
+    try:
+        c.execute(
+            """
+            SELECT
+                date_trunc('day', resolved_at)::date AS d,
+                SUM(CASE WHEN status = 'win' THEN 1 ELSE 0 END) AS wins,
+                SUM(CASE WHEN status = 'loss' THEN 1 ELSE 0 END) AS losses
+            FROM alert_logs
+            WHERE resolved_at IS NOT NULL
+              AND resolved_at >= NOW() - (INTERVAL '1 day' * %s)
+              AND status IN ('win', 'loss')
+            GROUP BY d
+            ORDER BY d
+            """,
+            (int(days),),
+        )
+        for row in c.fetchall():
+            d, w, l = row
+            w = int(w or 0); l = int(l or 0)
+            total = w + l
+            daily.append({
+                "date": str(d),
+                "wins": w,
+                "losses": l,
+                "total": total,
+                "win_rate": round((w / total * 100), 1) if total else None,
+            })
+    except Exception as exc:
+        print(f"[win_rate_trend] {exc}", flush=True)
+    finally:
+        conn.close()
+    return {"daily": daily, "window_days": int(days)}
+
+
 def build_local_backup_zip():
     db_filename = os.path.join(BASE_DIR, "apexify.db")
     if not os.path.exists(db_filename):
@@ -683,7 +1040,7 @@ def get_admin_dashboard_snapshot(limit=15):
     _dashboard_metrics["snapshot_cache_misses"] += 1
     t0 = time.time()
 
-    # รัน 9 sections พร้อมกันบน thread pool — รวมเวลาเท่ากับ section ที่ช้าที่สุด ไม่ใช่ผลรวม
+    # รัน sections พร้อมกันบน thread pool — รวมเวลาเท่ากับ section ที่ช้าที่สุด ไม่ใช่ผลรวม
     futures = {
         "maintenance": _dashboard_executor.submit(get_maintenance_snapshot),
         "system_health": _dashboard_executor.submit(get_system_health_snapshot),
@@ -695,6 +1052,13 @@ def get_admin_dashboard_snapshot(limit=15):
         "expiring_members": _dashboard_executor.submit(get_expiring_members_snapshot),
         "price_alerts": _dashboard_executor.submit(get_active_price_alerts_snapshot),
         "notification_settings": _dashboard_executor.submit(get_notification_settings_snapshot),
+        "recent_activity": _dashboard_executor.submit(get_recent_activity_snapshot),
+        "hourly_activity": _dashboard_executor.submit(get_hourly_activity_snapshot),
+        "funnel": _dashboard_executor.submit(get_funnel_snapshot),
+        "top_commands": _dashboard_executor.submit(get_top_commands_snapshot),
+        "alert_delivery": _dashboard_executor.submit(get_alert_delivery_snapshot),
+        "quota_burn": _dashboard_executor.submit(get_quota_burn_snapshot),
+        "win_rate_trend": _dashboard_executor.submit(get_win_rate_trend_snapshot),
     }
 
     snapshot = {}

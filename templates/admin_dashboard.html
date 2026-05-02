@@ -3,163 +3,203 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Apexify — Admin Control Center</title>
+  <title>APEXIFY :: ADMIN</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     /* ───────────────────────────────────────────
-       Apexify Admin — Claude Design System
-       Warm cream palette · Source Serif headlines ·
-       Coral accent · Generous whitespace · Soft paper cards
+       APEXIFY ADMIN :: TERMINAL UI
+       phosphor green · pure black · monospace
        ─────────────────────────────────────────── */
     :root {
-      /* Surfaces — warm cream */
-      --cream: #FAF9F5;
-      --paper: #FFFFFF;
-      --paper2: #F0EEE6;
-      --border: #E5E1D8;
-      --border-strong: #D9D4C7;
+      /* Surfaces — warm-tinted black (less clinical than pure #0A0A0A) */
+      --bg: #0E0D0B;
+      --bg-2: #131210;
+      --panel: #181715;
+      --panel-2: #1E1D1A;
+      --border: #252320;
+      --border-strong: #322F2B;
 
-      /* Brand — Claude coral */
-      --primary: #CC785C;
-      --primary-hover: #B8694F;
-      --primary-soft: #F5E6DE;
+      /* Text — Gruvbox warm beige (สบายตามากๆ vs ขาวจัด) */
+      --text: #BDAE93;
+      --text-dim: #928374;
+      --text-faint: #5A554E;
 
-      /* Status — warm tints, not neon */
-      --success: #5C8559;
-      --success-soft: #E8EFE6;
-      --danger: #B84B3D;
-      --danger-soft: #F5E0DD;
-      --warning: #D4923A;
-      --warning-soft: #F5E8D5;
-      --info: #5B7B9A;
-      --info-soft: #E1E8EF;
-      --accent: #8B6FA8;
-      --accent-soft: #ECE3F0;
+      /* Accents — desaturated, ไม่แสบตา แต่ยัง terminal vibe */
+      --green: #98C379;
+      --green-dim: rgba(152, 195, 121, 0.10);
+      --green-edge: rgba(152, 195, 121, 0.35);
 
-      /* Text — warm grayscale */
-      --text: #2C2828;
-      --text-body: #3D3929;
-      --text-muted: #7C7568;
-      --text-faint: #A39E91;
+      --cyan: #83A598;
+      --cyan-dim: rgba(131, 165, 152, 0.10);
 
-      /* Geometry */
-      --radius: 8px;
-      --radius-lg: 12px;
-      --sidebar-w: 240px;
+      --amber: #E5C07B;
+      --amber-dim: rgba(229, 192, 123, 0.10);
 
-      /* Soft paper shadows */
-      --shadow-sm: 0 1px 2px rgba(60,50,40,0.04);
-      --shadow-md: 0 2px 8px rgba(60,50,40,0.06), 0 1px 2px rgba(60,50,40,0.04);
-      --shadow-lg: 0 4px 16px rgba(60,50,40,0.08);
+      --red: #E06C75;
+      --red-dim: rgba(224, 108, 117, 0.10);
 
-      /* Type stack */
-      --serif: 'Source Serif 4', 'Source Serif Pro', 'Tiempos Headline', Georgia, serif;
-      --sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', sans-serif;
-      --mono: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --magenta: #C678DD;
+      --magenta-dim: rgba(198, 120, 221, 0.10);
+
+      --mono: 'JetBrains Mono', 'IBM Plex Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
     }
-    * { box-sizing: border-box; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
     html { scroll-behavior: smooth; }
-    body { background: var(--cream); color: var(--text-body); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.5;
+      font-feature-settings: 'liga' 0;
+    }
+
+    /* subtle CRT scanlines — toned down ลง */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 9999;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0) 0,
+        rgba(0,0,0,0) 2px,
+        rgba(255,255,255,0.008) 3px,
+        rgba(255,255,255,0.008) 3px
+      );
+    }
 
     /* ── Shell ── */
-    .shell { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+    .shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
 
     /* ── Sidebar ── */
     .sidebar {
-      background: var(--paper);
+      background: var(--bg-2);
       border-right: 1px solid var(--border);
-      padding: 28px 18px;
-      display: flex; flex-direction: column;
+      padding: 18px 14px;
       position: sticky; top: 0; height: 100vh;
       overflow-y: auto;
+      display: flex; flex-direction: column;
     }
     .brand {
-      display: flex; align-items: center; gap: 10px;
-      margin-bottom: 32px; text-decoration: none;
-      color: var(--text);
-      font-family: var(--serif);
-      font-weight: 600; font-size: 22px;
-      letter-spacing: -0.01em;
+      font-weight: 700; font-size: 15px;
+      color: var(--green);
+      padding: 4px 6px;
+      letter-spacing: 0.05em;
     }
-    .brand-icon {
-      width: 30px; height: 30px;
-      background: var(--primary); border-radius: 7px;
-      display: grid; place-items: center;
-      color: var(--paper); font-size: 14px; font-weight: 700;
-      flex-shrink: 0;
+    .brand::before { content: '> '; opacity: 0.6; }
+    .brand-meta {
+      font-size: 10px; color: var(--text-faint);
+      padding: 0 6px; margin-bottom: 22px;
+      letter-spacing: 0.05em;
     }
     .nav-label {
-      font-size: 11px; font-weight: 600;
-      color: var(--text-faint);
-      text-transform: uppercase; letter-spacing: 0.1em;
-      padding: 0 8px; margin: 24px 0 8px;
+      font-size: 10px; color: var(--text-faint);
+      text-transform: uppercase; letter-spacing: 0.12em;
+      padding: 0 6px; margin: 16px 0 4px;
     }
+    .nav-label::before { content: '── '; opacity: 0.6; }
     .nav a {
-      display: flex; align-items: center; gap: 11px;
-      padding: 8px 11px; border-radius: 6px;
-      color: var(--text-muted); text-decoration: none;
-      font-size: 13px; font-weight: 500;
-      transition: background 0.15s, color 0.15s;
+      display: block;
+      padding: 4px 6px;
+      color: var(--text-dim); text-decoration: none;
+      font-size: 12px; font-weight: 500;
+      letter-spacing: 0.02em;
+      transition: color 0.1s, background 0.1s;
     }
-    .nav a:hover { background: var(--paper2); color: var(--text); }
-    .nav a .ico { font-size: 14px; width: 18px; text-align: center; opacity: 0.75; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
-    .sidebar-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
-    .sidebar-footer span { font-size: 11px; color: var(--text-faint); }
+    .nav a:hover { color: var(--green); background: var(--panel); }
+    .nav a::before { content: '$ '; opacity: 0.4; }
+
+    .sidebar-footer {
+      margin-top: auto; padding-top: 12px;
+      border-top: 1px solid var(--border);
+      font-size: 10px; color: var(--text-faint);
+      letter-spacing: 0.05em;
+    }
+    .status-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: var(--green);
+    }
+    .status-tag::before {
+      content: ''; width: 6px; height: 6px;
+      background: var(--green); border-radius: 50%;
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
     {% if maintenance.enabled %}
-    .status-dot { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+    .status-tag { color: var(--red); }
+    .status-tag::before { background: var(--red); box-shadow: 0 0 8px var(--red); }
     {% endif %}
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
 
     /* ── Main ── */
-    .main { padding: 36px 44px; max-width: 1440px; margin: 0 auto; width: 100%; }
+    .main { padding: 20px 28px 60px; max-width: 1600px; margin: 0 auto; width: 100%; }
 
-    /* ── Header ── */
-    .page-header {
-      display: flex; align-items: flex-end; justify-content: space-between;
-      margin-bottom: 32px; padding-bottom: 22px;
-      border-bottom: 1px solid var(--border);
+    /* ── Topbar ── */
+    .topbar {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
     }
-    .page-title {
-      font-family: var(--serif);
-      font-size: 32px; font-weight: 600;
-      color: var(--text);
-      letter-spacing: -0.02em; line-height: 1.1;
+    .topbar-prompt {
+      color: var(--green);
+      font-weight: 500; font-size: 13px;
+      letter-spacing: 0.02em;
     }
-    .page-meta { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
-    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .topbar-prompt::before { content: '$ '; opacity: 0.6; }
+    .topbar-meta {
+      color: var(--text-dim);
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      display: flex; gap: 16px; flex-wrap: wrap;
+    }
+    .topbar-meta b { color: var(--green); font-weight: 600; }
+    .topbar-actions { display: flex; gap: 6px; }
 
     /* ── Buttons ── */
     .btn {
       display: inline-flex; align-items: center; gap: 6px;
-      padding: 8px 14px; border-radius: 6px;
-      border: 1px solid transparent;
-      cursor: pointer; background: transparent;
-      font-family: var(--sans); font-size: 13px; font-weight: 500;
-      transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+      padding: 6px 12px;
+      border: 1px solid var(--border-strong);
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 11px; font-weight: 500;
+      letter-spacing: 0.05em;
+      transition: all 0.1s;
     }
-    .btn:active { transform: scale(0.98); }
-    .btn-ghost { background: var(--paper); color: var(--text-body); border-color: var(--border); }
-    .btn-ghost:hover { border-color: var(--border-strong); background: var(--paper2); }
-    .btn-primary { background: var(--primary); color: var(--paper); border-color: var(--primary); }
-    .btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
-    .btn-success { background: var(--success-soft); color: var(--success); border-color: var(--success); }
-    .btn-success:hover { background: var(--success); color: var(--paper); }
-    .btn-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
-    .btn-danger:hover { background: var(--danger); color: var(--paper); }
-    .btn-info { background: var(--info-soft); color: var(--info); border-color: var(--info); }
-    .btn-info:hover { background: var(--info); color: var(--paper); }
-    .btn-accent { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
-    .btn-accent:hover { background: var(--accent); color: var(--paper); }
-    .btn-warning { background: var(--warning-soft); color: var(--warning); border-color: var(--warning); }
-    .btn-warning:hover { background: var(--warning); color: var(--paper); }
-    .btn-sm { padding: 5px 10px; font-size: 12px; }
-    .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+    .btn::before { content: '['; color: var(--text-faint); margin-right: 1px; }
+    .btn::after { content: ']'; color: var(--text-faint); margin-left: 1px; }
+    .btn:hover { border-color: var(--green); color: var(--green); }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { color: var(--green); border-color: var(--green-edge); background: var(--green-dim); }
+    .btn-primary:hover { background: var(--green); color: var(--bg); }
+    .btn-success { color: var(--green); border-color: var(--green-edge); }
+    .btn-success:hover { background: var(--green); color: var(--bg); }
+    .btn-danger { color: var(--red); border-color: var(--red); }
+    .btn-danger:hover { background: var(--red); color: var(--bg); }
+    .btn-warning { color: var(--amber); border-color: var(--amber); }
+    .btn-warning:hover { background: var(--amber); color: var(--bg); }
+    .btn-info { color: var(--cyan); border-color: var(--cyan); }
+    .btn-info:hover { background: var(--cyan); color: var(--bg); }
+    .btn-accent { color: var(--magenta); border-color: var(--magenta); }
+    .btn-accent:hover { background: var(--magenta); color: var(--bg); }
+    .btn-ghost::before, .btn-ghost::after { display: none; }
+    .btn-sm { padding: 3px 8px; font-size: 10px; }
+    .btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+
     .spinner {
-      display: none; width: 14px; height: 14px;
-      border: 2px solid rgba(60,50,40,0.18);
+      display: none; width: 11px; height: 11px;
+      border: 1.5px solid var(--text-faint);
       border-top-color: currentColor;
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
@@ -167,288 +207,376 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── Flash ── */
-    .flashes { margin-bottom: 20px; }
-    .flash { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 8px; border: 1px solid; }
-    .flash-success { background: var(--success-soft); border-color: var(--success); color: var(--success); }
-    .flash-error { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
+    .flashes { margin-bottom: 14px; }
+    .flash {
+      padding: 9px 14px;
+      border: 1px solid;
+      font-size: 12px;
+      margin-bottom: 6px;
+      letter-spacing: 0.02em;
+    }
+    .flash-success { border-color: var(--green); background: var(--green-dim); color: var(--green); }
+    .flash-success::before { content: '[OK] '; font-weight: 600; }
+    .flash-error { border-color: var(--red); background: var(--red-dim); color: var(--red); }
+    .flash-error::before { content: '[ERR] '; font-weight: 600; }
+
+    /* ── Banners ── */
+    .banner-warn {
+      padding: 9px 14px;
+      border: 1px solid var(--amber);
+      background: var(--amber-dim);
+      color: var(--amber);
+      font-size: 12px; margin-bottom: 12px;
+      letter-spacing: 0.02em;
+    }
+    .banner-warn::before { content: '[WARN] '; font-weight: 600; }
+    .banner-danger {
+      padding: 9px 14px;
+      border: 1px solid var(--red);
+      background: var(--red-dim);
+      color: var(--red);
+      font-size: 12px; margin-bottom: 12px;
+      letter-spacing: 0.02em;
+    }
+    .banner-danger::before { content: '[!] '; font-weight: 700; }
 
     /* ── Quick Actions ── */
     .quick-actions {
-      display: flex; flex-wrap: wrap; gap: 10px;
-      margin-bottom: 32px; padding: 18px 22px;
-      background: var(--paper);
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-bottom: 16px;
+      padding: 10px 14px;
+      background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-sm);
     }
     .quick-actions-label {
-      font-size: 11px; font-weight: 600;
-      color: var(--text-faint);
-      text-transform: uppercase; letter-spacing: 0.1em;
-      align-self: center; margin-right: 4px;
-      flex-basis: 100%; margin-bottom: 4px;
+      font-size: 10px; color: var(--text-faint);
+      letter-spacing: 0.12em; text-transform: uppercase;
+      flex-basis: 100%;
+      margin-bottom: 4px;
     }
+    .quick-actions-label::before { content: '── '; }
 
     /* ── Stats Grid ── */
-    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-    .stat-card {
-      background: var(--paper);
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .stat {
+      background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 22px 24px;
-      position: relative; overflow: hidden;
-      box-shadow: var(--shadow-sm);
-      transition: box-shadow 0.18s, border-color 0.18s;
+      padding: 13px 15px;
+      position: relative;
+      overflow: hidden;
     }
-    .stat-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
-    .stat-card::before {
+    .stat::before {
       content: ''; position: absolute;
-      top: 0; left: 0; bottom: 0; width: 3px;
+      left: 0; top: 0; bottom: 0; width: 2px;
     }
-    .stat-card.success::before { background: var(--success); }
-    .stat-card.info::before { background: var(--info); }
-    .stat-card.accent::before { background: var(--accent); }
-    .stat-card.warning::before { background: var(--warning); }
-    .stat-card.danger::before { background: var(--danger); }
-    .stat-card.primary::before { background: var(--primary); }
-    .stat-label { font-size: 12px; color: var(--text-muted); font-weight: 500; margin-bottom: 12px; }
+    .stat.green::before { background: var(--green); }
+    .stat.cyan::before { background: var(--cyan); }
+    .stat.amber::before { background: var(--amber); }
+    .stat.red::before { background: var(--red); }
+    .stat.magenta::before { background: var(--magenta); }
+    .stat-label {
+      font-size: 10px; color: var(--text-faint);
+      text-transform: uppercase; letter-spacing: 0.1em;
+      margin-bottom: 8px;
+    }
     .stat-value {
-      font-family: var(--serif);
-      font-size: 30px; font-weight: 600;
+      font-size: 22px; font-weight: 700;
       color: var(--text);
-      line-height: 1; letter-spacing: -0.02em;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
     }
-    .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+    .stat.green .stat-value { color: var(--green); }
+    .stat.cyan .stat-value { color: var(--cyan); }
+    .stat.amber .stat-value { color: var(--amber); }
+    .stat.red .stat-value { color: var(--red); }
+    .stat.magenta .stat-value { color: var(--magenta); }
+    .stat-sub {
+      font-size: 10px; color: var(--text-dim);
+      margin-top: 6px;
+      letter-spacing: 0.02em;
+    }
 
     /* ── Multi-col grids ── */
-    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
-    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+    .col-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; margin-bottom: 14px; }
 
-    /* ── Card ── */
-    .card {
-      background: var(--paper);
+    /* ── Panel ── */
+    .panel {
+      background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 24px;
-      box-shadow: var(--shadow-sm);
+      padding: 14px 16px;
     }
-    .card-title {
-      font-size: 11px; font-weight: 600;
-      color: var(--text-faint);
-      text-transform: uppercase; letter-spacing: 0.1em;
-      margin-bottom: 20px;
-      display: flex; align-items: center; gap: 8px;
+    .panel.flush { padding: 0; }
+    .panel-title {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 11px; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 0.12em;
+      margin-bottom: 12px;
+      padding-bottom: 9px;
+      border-bottom: 1px dashed var(--border-strong);
     }
-    .card-title .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-    .dot-success { background: var(--success); }
-    .dot-info { background: var(--info); }
-    .dot-accent { background: var(--accent); }
-    .dot-warning { background: var(--warning); }
-    .dot-primary { background: var(--primary); }
+    .panel.flush .panel-title { padding: 12px 14px 10px; margin-bottom: 0; }
+    .panel-title-l { display: flex; align-items: center; gap: 8px; color: var(--green); }
+    .panel-title-l::before { content: '┌─'; color: var(--text-faint); }
+    .panel-title-r { color: var(--text-faint); font-size: 10px; text-transform: none; letter-spacing: 0.04em; }
 
-    /* ── Chart containers ── */
-    .chart-wrap { position: relative; height: 200px; }
+    /* ── Charts ── */
+    .chart-wrap { position: relative; height: 180px; }
 
-    /* ── Progress bar ── */
-    .progress-row { margin-bottom: 16px; }
+    /* ── ASCII bars ── */
+    .ascii-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 6px 0;
+      font-size: 12px;
+      border-bottom: 1px dashed var(--border);
+    }
+    .ascii-row:last-child { border-bottom: none; }
+    .ascii-label {
+      min-width: 75px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .ascii-bar {
+      flex: 1;
+      letter-spacing: -0.04em;
+      color: var(--green);
+      white-space: nowrap;
+      overflow: hidden;
+      font-size: 11px;
+    }
+    .ascii-meta {
+      color: var(--text-dim);
+      min-width: 90px;
+      text-align: right;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Progress (terminal) ── */
+    .progress-row { margin-bottom: 12px; font-size: 12px; }
     .progress-row:last-child { margin-bottom: 0; }
-    .progress-meta { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; color: var(--text-body); }
-    .progress-bg { height: 5px; background: var(--paper2); border-radius: 99px; overflow: hidden; }
-    .progress-fill { height: 100%; border-radius: 99px; transition: width 1s ease; }
+    .progress-meta {
+      display: flex; justify-content: space-between;
+      margin-bottom: 4px;
+      color: var(--text-dim);
+      font-size: 11px;
+      letter-spacing: 0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    .progress-meta b { color: var(--text); font-weight: 600; }
+    .progress-bar {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: -0.04em;
+      color: var(--green);
+    }
+    .progress-bar.warn { color: var(--amber); }
+    .progress-bar.crit { color: var(--red); }
 
     /* ── Table ── */
-    .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th {
-      text-align: left; padding: 10px 14px;
-      color: var(--text-faint); font-weight: 600;
-      font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
-      border-bottom: 1px solid var(--border);
+      text-align: left; padding: 9px 14px;
+      color: var(--text-faint);
+      font-weight: 600; font-size: 10px;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      border-bottom: 1px solid var(--border-strong);
+      background: var(--bg-2);
     }
     td {
-      padding: 14px;
+      padding: 9px 14px;
       border-bottom: 1px solid var(--border);
-      color: var(--text-body);
+      color: var(--text);
       vertical-align: middle;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
     }
     tr:last-child td { border-bottom: none; }
-    tr:hover td { background: var(--paper2); }
+    tr:hover td { background: var(--panel-2); }
 
-    .badge {
-      display: inline-flex; align-items: center;
-      padding: 3px 10px; border-radius: 99px;
-      font-size: 11px; font-weight: 600;
+    .tag {
+      display: inline-block;
+      padding: 1px 8px;
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 0.05em;
+      border: 1px solid;
+      font-family: var(--mono);
     }
-    .badge-success { background: var(--success-soft); color: var(--success); }
-    .badge-danger { background: var(--danger-soft); color: var(--danger); }
-    .badge-gray { background: var(--paper2); color: var(--text-muted); }
-    .badge-info { background: var(--info-soft); color: var(--info); }
-    .badge-accent { background: var(--accent-soft); color: var(--accent); }
-    .badge-warning { background: var(--warning-soft); color: var(--warning); }
-    .badge-primary { background: var(--primary-soft); color: var(--primary); }
-    .mono { font-family: var(--mono); font-size: 12px; }
+    .tag-green { color: var(--green); border-color: var(--green-edge); background: var(--green-dim); }
+    .tag-red { color: var(--red); border-color: var(--red); background: var(--red-dim); }
+    .tag-cyan { color: var(--cyan); border-color: var(--cyan); background: var(--cyan-dim); }
+    .tag-amber { color: var(--amber); border-color: var(--amber); background: var(--amber-dim); }
+    .tag-magenta { color: var(--magenta); border-color: var(--magenta); background: var(--magenta-dim); }
+    .tag-gray { color: var(--text-dim); border-color: var(--border-strong); background: var(--bg-2); }
 
-    /* ── Symbol row ── */
-    .sym-row {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 0; border-bottom: 1px solid var(--border);
-    }
-    .sym-row:last-child { border-bottom: none; }
-    .sym-name { font-weight: 600; font-size: 13px; color: var(--text); }
-    .sym-count { font-size: 12px; color: var(--text-muted); }
-    .sym-bar {
-      flex: 1; height: 4px;
-      background: var(--paper2); border-radius: 99px;
-      margin: 0 14px; overflow: hidden;
-    }
-    .sym-bar-fill { height: 100%; background: var(--primary); border-radius: 99px; }
+    .num { font-variant-numeric: tabular-nums; }
+    .num-pos { color: var(--green); }
+    .num-neg { color: var(--red); }
+    .num-zero { color: var(--text-dim); }
 
     /* ── Modal ── */
     .modal-overlay {
       position: fixed; inset: 0;
-      background: rgba(60,50,40,0.4);
-      backdrop-filter: blur(6px);
+      background: rgba(0,0,0,0.85);
       display: none; align-items: center; justify-content: center;
       z-index: 1000; padding: 20px;
+      backdrop-filter: blur(2px);
     }
     .modal-overlay.open { display: flex; }
     .modal {
-      background: var(--paper);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 28px;
-      width: 100%; max-width: 480px; position: relative;
-      box-shadow: var(--shadow-lg);
-      animation: modal-in 0.22s cubic-bezier(.2,.8,.2,1);
+      background: var(--panel);
+      border: 1px solid var(--border-strong);
+      padding: 22px;
+      width: 100%; max-width: 480px;
+      position: relative;
+      animation: modal-in 0.15s ease;
     }
     @keyframes modal-in {
-      from { opacity: 0; transform: translateY(8px) scale(0.98); }
+      from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: none; }
     }
     .modal-title {
-      font-family: var(--serif);
-      font-size: 20px; font-weight: 600;
-      color: var(--text);
-      margin-bottom: 22px; letter-spacing: -0.01em;
+      font-size: 12px; font-weight: 600;
+      color: var(--green);
+      margin-bottom: 18px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
+    .modal-title::before { content: '┌─ '; color: var(--text-faint); }
+    .modal-title::after { content: ' ─┐'; color: var(--text-faint); }
     .modal-close {
-      position: absolute; top: 16px; right: 16px;
+      position: absolute; top: 10px; right: 10px;
       background: none; border: none;
-      color: var(--text-muted);
-      font-size: 18px; cursor: pointer; line-height: 1;
-      padding: 4px 8px; border-radius: 6px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 14px; cursor: pointer;
+      padding: 4px 8px;
     }
-    .modal-close:hover { background: var(--paper2); color: var(--text); }
-    .form-group { margin-bottom: 18px; }
+    .modal-close:hover { color: var(--red); }
+
+    .form-group { margin-bottom: 14px; }
     .form-label {
-      display: block; font-size: 12px; font-weight: 600;
-      color: var(--text-body); margin-bottom: 6px;
+      display: block;
+      font-size: 11px; color: var(--text-dim);
+      margin-bottom: 4px;
+      letter-spacing: 0.05em;
     }
+    .form-label::before { content: '> '; opacity: 0.5; color: var(--green); }
     .form-input, .form-select, .form-textarea {
       width: 100%;
-      background: var(--paper);
-      border: 1px solid var(--border);
-      border-radius: 7px;
-      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border-strong);
+      padding: 8px 11px;
       color: var(--text);
-      font-family: var(--sans); font-size: 13px;
+      font-family: var(--mono);
+      font-size: 12px;
       outline: none;
-      transition: border-color 0.15s, box-shadow 0.15s;
+      transition: border-color 0.1s;
     }
     .form-input:focus, .form-select:focus, .form-textarea:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px var(--primary-soft);
+      border-color: var(--green);
     }
     .form-textarea { min-height: 100px; resize: vertical; }
-    .form-select option { background: var(--paper); }
+    .form-select option { background: var(--panel); }
+
     .modal-result {
-      margin-top: 16px; padding: 12px 14px;
-      border-radius: 8px; font-size: 13px;
-      display: none; border: 1px solid;
-    }
-    .modal-result.ok { background: var(--success-soft); border-color: var(--success); color: var(--success); display: block; }
-    .modal-result.err { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); display: block; }
-    .user-info-card {
-      background: var(--paper2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px; margin-top: 12px;
+      margin-top: 14px;
+      padding: 9px 12px;
+      font-size: 12px;
       display: none;
+      border: 1px solid;
+    }
+    .modal-result.ok { background: var(--green-dim); border-color: var(--green); color: var(--green); display: block; }
+    .modal-result.ok::before { content: '[OK] '; font-weight: 600; }
+    .modal-result.err { background: var(--red-dim); border-color: var(--red); color: var(--red); display: block; }
+    .modal-result.err::before { content: '[ERR] '; font-weight: 600; }
+
+    .user-info-card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      padding: 14px;
+      margin-top: 12px;
+      display: none;
+      font-size: 12px;
     }
     .user-info-card.open { display: block; }
     .user-info-row {
       display: flex; justify-content: space-between;
-      padding: 7px 0; border-bottom: 1px solid var(--border);
-      font-size: 13px;
+      padding: 5px 0;
+      border-bottom: 1px dashed var(--border);
     }
     .user-info-row:last-child { border-bottom: none; }
-    .user-info-label { color: var(--text-muted); }
+    .user-info-label { color: var(--text-faint); }
 
     /* ── Toast ── */
-    #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
+    #toast-container {
+      position: fixed; bottom: 16px; right: 16px;
+      z-index: 2000;
+      display: flex; flex-direction: column; gap: 6px;
+    }
     .toast {
-      padding: 12px 18px; border-radius: 8px;
-      font-size: 13px; font-weight: 500;
-      background: var(--paper); color: var(--text);
+      padding: 10px 14px;
+      border: 1px solid;
+      background: var(--panel);
+      color: var(--text);
+      font-size: 12px;
       max-width: 320px;
-      box-shadow: var(--shadow-lg);
-      animation: toast-in 0.3s ease;
-      border: 1px solid var(--border);
-      border-left-width: 3px;
+      animation: toast-in 0.2s ease;
     }
-    @keyframes toast-in { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
-    .toast-success { border-left-color: var(--success); }
-    .toast-error { border-left-color: var(--danger); }
-    .toast-info { border-left-color: var(--info); }
-
-    /* ── Banners ── */
-    .maintenance-banner {
-      background: var(--danger-soft);
-      border: 1px solid var(--danger);
-      border-radius: 10px;
-      padding: 14px 18px; margin-bottom: 20px;
-      font-size: 13px; color: var(--danger);
-      display: flex; align-items: center; gap: 8px;
-    }
-    .expiry-warning {
-      background: var(--warning-soft);
-      border: 1px solid var(--warning);
-      border-radius: 10px;
-      padding: 14px 18px; margin-bottom: 20px;
-      font-size: 13px; color: var(--warning);
-    }
+    @keyframes toast-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+    .toast-success { border-color: var(--green); }
+    .toast-success::before { content: '[OK] '; color: var(--green); font-weight: 600; }
+    .toast-error { border-color: var(--red); }
+    .toast-error::before { content: '[ERR] '; color: var(--red); font-weight: 600; }
+    .toast-info { border-color: var(--cyan); }
+    .toast-info::before { content: '[INFO] '; color: var(--cyan); font-weight: 600; }
 
     /* ── Section title ── */
     .section-title {
-      font-family: var(--serif);
-      font-size: 22px; font-weight: 600;
-      margin: 32px 0 18px;
-      color: var(--text);
-      letter-spacing: -0.01em;
+      font-size: 11px; color: var(--green);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      margin: 22px 0 10px;
     }
+    .section-title::before { content: '> '; opacity: 0.6; }
+
+    /* ── Mono utility ── */
+    .mono { font-family: var(--mono); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 
     /* ── Responsive ── */
     @media (max-width: 1024px) {
       .shell { grid-template-columns: 1fr; }
       .sidebar { display: none; }
       .stats-grid { grid-template-columns: repeat(2, 1fr); }
-      .two-col, .three-col { grid-template-columns: 1fr; }
-      .main { padding: 24px 20px; }
-      .page-title { font-size: 26px; }
+      .two-col, .three-col, .col-2-1 { grid-template-columns: 1fr; }
+      .main { padding: 14px; }
     }
   </style>
 </head>
 <body>
 
-<!-- Toast container -->
+<!-- toasts -->
 <div id="toast-container"></div>
 
 <!-- Modals -->
-<!-- 1. Broadcast -->
 <div class="modal-overlay" id="modal-broadcast">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal('modal-broadcast')">✕</button>
-    <div class="modal-title">📣 ส่ง Broadcast</div>
+    <button class="modal-close" onclick="closeModal('modal-broadcast')">×</button>
+    <div class="modal-title">ส่งประกาศ</div>
     <div class="form-group">
       <label class="form-label">ข้อความ</label>
       <textarea class="form-textarea" id="bc-message" placeholder="พิมพ์ประกาศที่นี่..."></textarea>
@@ -457,114 +585,110 @@
       <label class="form-label">ส่งถึง</label>
       <select class="form-select" id="bc-audience">
         <option value="all">ทุกคน</option>
-        <option value="vip_pro">VIP + PRO เท่านั้น</option>
-        <option value="pro">PRO เท่านั้น</option>
+        <option value="vip_pro">vip + pro</option>
+        <option value="pro">pro เท่านั้น</option>
       </select>
     </div>
-    <button class="btn btn-primary" id="bc-send-btn" onclick="doBroadcast()" style="width:100%">
+    <button class="btn btn-primary" id="bc-send-btn" onclick="doBroadcast()" style="width:100%;justify-content:center">
       <span class="spinner" id="bc-spinner"></span> ส่งเดี๋ยวนี้
     </button>
     <div class="modal-result" id="bc-result"></div>
   </div>
 </div>
 
-<!-- 2. Add Role -->
 <div class="modal-overlay" id="modal-add-role">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal('modal-add-role')">✕</button>
-    <div class="modal-title">👑 เพิ่ม/ต่อสมาชิก</div>
+    <button class="modal-close" onclick="closeModal('modal-add-role')">×</button>
+    <div class="modal-title">เพิ่มสิทธิ์สมาชิก</div>
     <div class="form-group">
-      <label class="form-label">Telegram User ID</label>
+      <label class="form-label">รหัส Telegram</label>
       <input class="form-input" id="ar-uid" placeholder="1234567890">
     </div>
     <div class="form-group">
       <label class="form-label">ระดับ</label>
       <select class="form-select" id="ar-role">
-        <option value="vip">VIP (฿79/เดือน)</option>
-        <option value="pro">PRO (฿109/เดือน)</option>
+        <option value="vip">vip (฿79/เดือน)</option>
+        <option value="pro">pro (฿109/เดือน)</option>
       </select>
     </div>
     <div class="form-group">
       <label class="form-label">จำนวนวัน</label>
       <input class="form-input" id="ar-days" type="number" value="30" min="1" max="3650">
     </div>
-    <button class="btn btn-primary" id="ar-btn" onclick="doAddRole()" style="width:100%">
-      <span class="spinner" id="ar-spinner"></span> อัปเกรด
+    <button class="btn btn-primary" id="ar-btn" onclick="doAddRole()" style="width:100%;justify-content:center">
+      <span class="spinner" id="ar-spinner"></span> เพิ่มสิทธิ์
     </button>
     <div class="modal-result" id="ar-result"></div>
   </div>
 </div>
 
-<!-- 3. User Lookup -->
 <div class="modal-overlay" id="modal-user-lookup">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal('modal-user-lookup')">✕</button>
-    <div class="modal-title">🔍 ค้นหาผู้ใช้</div>
+    <button class="modal-close" onclick="closeModal('modal-user-lookup')">×</button>
+    <div class="modal-title">ค้นหาผู้ใช้</div>
     <div class="form-group" style="display:flex;gap:8px;margin-bottom:0">
-      <input class="form-input" id="ul-uid" placeholder="Telegram User ID" style="flex:1">
-      <button class="btn btn-ghost" id="ul-btn" onclick="doUserLookup()">
+      <input class="form-input" id="ul-uid" placeholder="รหัส Telegram" style="flex:1">
+      <button class="btn" id="ul-btn" onclick="doUserLookup()">
         <span class="spinner" id="ul-spinner"></span> ค้นหา
       </button>
     </div>
     <div class="user-info-card" id="ul-card">
       <div class="user-info-row"><span class="user-info-label">ชื่อ</span><span id="ul-name">—</span></div>
-      <div class="user-info-row"><span class="user-info-label">User ID</span><span id="ul-id" class="mono">—</span></div>
+      <div class="user-info-row"><span class="user-info-label">รหัสผู้ใช้</span><span id="ul-id" class="mono">—</span></div>
       <div class="user-info-row"><span class="user-info-label">ระดับ</span><span id="ul-role">—</span></div>
       <div class="user-info-row"><span class="user-info-label">หมดอายุ</span><span id="ul-expiry">—</span></div>
       <div class="user-info-row"><span class="user-info-label">สถานะ</span><span id="ul-status">—</span></div>
       <div class="user-info-row"><span class="user-info-label">Watchlist</span><span id="ul-watchlist">—</span></div>
-      <div class="user-info-row"><span class="user-info-label">Portfolio</span><span id="ul-portfolio">—</span></div>
-      <div class="user-info-row"><span class="user-info-label">Price Alerts</span><span id="ul-alerts">—</span></div>
+      <div class="user-info-row"><span class="user-info-label">พอร์ต</span><span id="ul-portfolio">—</span></div>
+      <div class="user-info-row"><span class="user-info-label">การแจ้งเตือนราคา</span><span id="ul-alerts">—</span></div>
       <div class="user-info-row"><span class="user-info-label">สมัครเมื่อ</span><span id="ul-reg">—</span></div>
       <div class="user-info-row"><span class="user-info-label">ใช้งานล่าสุด</span><span id="ul-last-active">—</span></div>
-      <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn btn-danger btn-sm" id="ul-ban-btn" onclick="doBanFromLookup(true)" style="flex:1">🚫 Ban</button>
-        <button class="btn btn-success btn-sm" id="ul-unban-btn" onclick="doBanFromLookup(false)" style="flex:1">✅ Unban</button>
+      <div style="display:flex;gap:6px;margin-top:12px">
+        <button class="btn btn-danger btn-sm" id="ul-ban-btn" onclick="doBanFromLookup(true)" style="flex:1;justify-content:center">แบน</button>
+        <button class="btn btn-success btn-sm" id="ul-unban-btn" onclick="doBanFromLookup(false)" style="flex:1;justify-content:center">ปลดแบน</button>
       </div>
     </div>
     <div class="modal-result" id="ul-result"></div>
   </div>
 </div>
 
-<!-- 4. Force Send -->
 <div class="modal-overlay" id="modal-force-send">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal('modal-force-send')">✕</button>
-    <div class="modal-title">🚀 Force Send</div>
+    <button class="modal-close" onclick="closeModal('modal-force-send')">×</button>
+    <div class="modal-title">บังคับส่ง</div>
     <div class="form-group">
-      <label class="form-label">เลือกสิ่งที่จะส่ง</label>
+      <label class="form-label">เลือกเนื้อหา</label>
       <select class="form-select" id="fs-type">
-        <option value="briefing">🌅 Morning Briefing (VIP+PRO)</option>
-        <option value="podcast">🎙️ Podcast (VIP+PRO)</option>
-        <option value="flash_news">⚡ Flash News (PRO)</option>
-        <option value="digest_news">📰 Digest News (VIP+PRO)</option>
+        <option value="briefing">บรีฟตอนเช้า (vip+pro)</option>
+        <option value="podcast">พ็อดแคสต์ (vip+pro)</option>
+        <option value="flash_news">ข่าวด่วน (pro)</option>
+        <option value="digest_news">สรุปข่าว (vip+pro)</option>
       </select>
     </div>
-    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">⚠️ Briefing/Podcast จะส่งทันทีแม้ส่งไปแล้วในวันนี้</p>
-    <button class="btn btn-warning" id="fs-btn" onclick="doForceSend()" style="width:100%">
-      <span class="spinner" id="fs-spinner"></span> ส่งเดี๋ยวนี้
+    <p style="font-size:11px;color:var(--text-dim);margin-bottom:14px;letter-spacing:0.02em">// บรีฟ/พ็อดแคสต์จะส่งทันที แม้วันนี้เคยส่งแล้ว</p>
+    <button class="btn btn-warning" id="fs-btn" onclick="doForceSend()" style="width:100%;justify-content:center">
+      <span class="spinner" id="fs-spinner"></span> ส่งเลย
     </button>
     <div class="modal-result" id="fs-result"></div>
   </div>
 </div>
 
-<!-- 5. Ban/Unban -->
 <div class="modal-overlay" id="modal-ban">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal('modal-ban')">✕</button>
-    <div class="modal-title">🚫 Ban / Unban</div>
+    <button class="modal-close" onclick="closeModal('modal-ban')">×</button>
+    <div class="modal-title">แบน / ปลดแบน</div>
     <div class="form-group">
-      <label class="form-label">Telegram User ID</label>
+      <label class="form-label">รหัส Telegram</label>
       <input class="form-input" id="ban-uid" placeholder="1234567890">
     </div>
     <div class="form-group">
-      <label class="form-label">การดำเนินการ</label>
+      <label class="form-label">การกระทำ</label>
       <select class="form-select" id="ban-action">
-        <option value="ban">🚫 Ban (ระงับบัญชี)</option>
-        <option value="unban">✅ Unban (ปลดระงับ)</option>
+        <option value="ban">แบน (ระงับบัญชี)</option>
+        <option value="unban">ปลดแบน (คืนสิทธิ์)</option>
       </select>
     </div>
-    <button class="btn btn-danger" id="ban-btn" onclick="doBanAction()" style="width:100%">
+    <button class="btn btn-danger" id="ban-btn" onclick="doBanAction()" style="width:100%;justify-content:center">
       <span class="spinner" id="ban-spinner"></span> ดำเนินการ
     </button>
     <div class="modal-result" id="ban-result"></div>
@@ -574,38 +698,58 @@
 <div class="shell">
   <!-- Sidebar -->
   <aside class="sidebar">
-    <a href="#" class="brand">
-      <div class="brand-icon">⚡</div>
-      Apexify
-    </a>
-    <div class="nav-label">Overview</div>
+    <div class="brand">apexify.adm</div>
+    <div class="brand-meta">v1 · admin@{{ admin_id[:6] }}</div>
+
+    <div class="nav-label">ภาพรวม</div>
     <nav class="nav">
-      <a href="#stats"><span class="ico">📊</span> Dashboard</a>
-      <a href="#analytics"><span class="ico">📈</span> Analytics</a>
-      <a href="#performance"><span class="ico">🎯</span> Performance</a>
-      <a href="#members"><span class="ico">👑</span> Members</a>
-      <a href="#system"><span class="ico">💻</span> System</a>
+      <a href="#stats">แดชบอร์ด</a>
+      <a href="#system">ระบบ</a>
+      <a href="#analytics">สถิติ</a>
+      <a href="#performance">ผลงาน</a>
+      <a href="#members">สมาชิก</a>
+      <a href="#expiring">ใกล้หมดอายุ</a>
     </nav>
-    <div class="nav-label">Actions</div>
+    <div class="nav-label">คำสั่ง</div>
     <nav class="nav">
-      <a href="#" onclick="openModal('modal-broadcast');return false"><span class="ico">📣</span> Broadcast</a>
-      <a href="#" onclick="openModal('modal-add-role');return false"><span class="ico">👤</span> Add Role</a>
-      <a href="#" onclick="openModal('modal-user-lookup');return false"><span class="ico">🔍</span> User Lookup</a>
-      <a href="#" onclick="openModal('modal-force-send');return false"><span class="ico">🚀</span> Force Send</a>
-      <a href="#" onclick="openModal('modal-ban');return false"><span class="ico">🚫</span> Ban / Unban</a>
+      <a href="#" onclick="openModal('modal-broadcast');return false">ส่งประกาศ</a>
+      <a href="#" onclick="openModal('modal-add-role');return false">เพิ่มสิทธิ์</a>
+      <a href="#" onclick="openModal('modal-user-lookup');return false">ค้นหาผู้ใช้</a>
+      <a href="#" onclick="openModal('modal-force-send');return false">บังคับส่ง</a>
+      <a href="#" onclick="openModal('modal-ban');return false">แบน/ปลดแบน</a>
     </nav>
+
     <div class="sidebar-footer">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <div class="status-dot"></div>
-        <span>{% if maintenance.enabled %}Maintenance{% else %}Bot Online{% endif %}</span>
-      </div>
-      <span>Admin: {{ admin_id[:6] }}…</span>
+      <div class="status-tag">{% if maintenance.enabled %}ปิดปรับปรุง{% else %}บอททำงาน{% endif %}</div>
+      <div style="margin-top:6px">build: 2026.05.02</div>
+      <div style="margin-top:2px">เขตเวลา: UTC+7</div>
     </div>
   </aside>
 
-  <!-- Main Content -->
+  <!-- Main -->
   <main class="main">
-    <!-- Flash messages -->
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="topbar-prompt">apexify status --verbose --live</div>
+      <div class="topbar-meta">
+        <span>เวลาทำงาน:&nbsp;<b id="uptime-live">{{ system_health.uptime_hours or 0 }}h</b></span>
+        <span>ตอนนี้:&nbsp;<b id="clock-live">--:--:--</b></span>
+        {% if generated_at %}<span>อัปเดต:&nbsp;<b>{{ generated_at.strftime('%H:%M:%S') }}</b></span>{% endif %}
+      </div>
+      <div class="topbar-actions">
+        <button class="btn" onclick="location.reload()">รีเฟรช</button>
+        <form method="post" action="/admin/actions/maintenance" style="margin:0">
+          <button class="btn {% if maintenance.enabled %}btn-success{% else %}btn-danger{% endif %}" type="submit">
+            {% if maintenance.enabled %}ปิดโหมดปรับปรุง{% else %}เปิดโหมดปรับปรุง{% endif %}
+          </button>
+        </form>
+        <form method="post" action="/admin/actions/backup" style="margin:0">
+          <button class="btn" type="submit">สำรองข้อมูล</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Flashes -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="flashes">
@@ -616,241 +760,565 @@
       {% endif %}
     {% endwith %}
 
-    <!-- Maintenance banner -->
+    <!-- Banners -->
     {% if maintenance.enabled %}
-    <div class="maintenance-banner">⚠️ <strong>Maintenance Mode เปิดอยู่</strong> — ผู้ใช้ทั่วไปเข้าใช้งานบอทไม่ได้</div>
+    <div class="banner-danger">โหมดปรับปรุงระบบเปิดอยู่ · ผู้ใช้ทั่วไปใช้บอทไม่ได้ · มีแค่แอดมินที่ใช้ได้</div>
     {% endif %}
-
-    <!-- Expiring members warning -->
     {% if expiring_members.expiring_3_days and expiring_members.expiring_3_days > 0 %}
-    <div class="expiry-warning">
-      ⏰ <strong>{{ expiring_members.expiring_3_days }} คน</strong> จะหมดสมาชิกใน 3 วัน
-    </div>
+    <div class="banner-warn">{{ expiring_members.expiring_3_days }} สมาชิกใกล้หมดอายุภายใน 3 วัน · รายได้ที่อาจหายไป ฿{{ "{:,}".format(expiring_members.revenue_at_risk_7_days or 0) }} (7 วัน)</div>
     {% endif %}
-
-    <!-- Page header -->
-    <div class="page-header">
-      <div>
-        <div class="page-title">Control Center</div>
-        <div class="page-meta">
-          {% if generated_at %}อัปเดตล่าสุด: {{ generated_at.strftime('%d %b %Y %H:%M') }}{% endif %}
-        </div>
-      </div>
-      <div class="header-actions">
-        <button class="btn btn-ghost" onclick="location.reload()">↻ Refresh</button>
-        <form method="post" action="/admin/actions/maintenance" style="margin:0">
-          <button class="btn {% if maintenance.enabled %}btn-success{% else %}btn-danger{% endif %}" type="submit">
-            {% if maintenance.enabled %}✅ ปิด Maintenance{% else %}⚠️ เปิด Maintenance{% endif %}
-          </button>
-        </form>
-        <form method="post" action="/admin/actions/backup" style="margin:0">
-          <button class="btn btn-ghost" type="submit">💾 Backup DB</button>
-        </form>
-      </div>
-    </div>
 
     <!-- Quick Actions -->
     <div class="quick-actions">
-      <div class="quick-actions-label">Quick Actions</div>
-      <button class="btn btn-primary" onclick="openModal('modal-broadcast')">📣 Broadcast</button>
-      <button class="btn btn-info" onclick="openModal('modal-add-role')">👑 Add Role</button>
-      <button class="btn btn-ghost" onclick="openModal('modal-user-lookup')">🔍 User Lookup</button>
-      <button class="btn btn-warning" onclick="openModal('modal-force-send')">🚀 Force Send</button>
-      <button class="btn btn-danger" onclick="openModal('modal-ban')">🚫 Ban / Unban</button>
+      <div class="quick-actions-label">คำสั่งด่วน</div>
+      <button class="btn btn-primary" onclick="openModal('modal-broadcast')">ส่งประกาศ</button>
+      <button class="btn btn-info" onclick="openModal('modal-add-role')">เพิ่มสิทธิ์</button>
+      <button class="btn" onclick="openModal('modal-user-lookup')">ค้นหาผู้ใช้</button>
+      <button class="btn btn-warning" onclick="openModal('modal-force-send')">บังคับส่ง</button>
+      <button class="btn btn-danger" onclick="openModal('modal-ban')">แบน/ปลดแบน</button>
     </div>
 
-    <!-- Stats Grid -->
+    <!-- Stats Grid 1 -->
     <div id="stats" class="stats-grid">
-      <div class="stat-card success">
-        <div class="stat-label">รายได้ต่อเดือน (ประมาณ)</div>
+      <div class="stat green">
+        <div class="stat-label">รายได้รายเดือน</div>
         <div class="stat-value">฿{{ "{:,}".format(user_stats.estimated_monthly_revenue or 0) }}</div>
-        <div class="stat-sub">{{ user_stats.vip_users or 0 }} VIP · {{ user_stats.pro_users or 0 }} PRO</div>
+        <div class="stat-sub">vip:{{ user_stats.vip_users or 0 }} · pro:{{ user_stats.pro_users or 0 }}</div>
       </div>
-      <div class="stat-card info">
+      <div class="stat cyan">
         <div class="stat-label">ผู้ใช้ทั้งหมด</div>
         <div class="stat-value">{{ user_stats.total_users or 0 }}</div>
-        <div class="stat-sub">Free: {{ user_stats.free_users or 0 }} · Paid: {{ (user_stats.vip_users or 0) + (user_stats.pro_users or 0) }}</div>
+        <div class="stat-sub">ฟรี:{{ user_stats.free_users or 0 }} · จ่ายเงิน:{{ (user_stats.vip_users or 0) + (user_stats.pro_users or 0) }}</div>
       </div>
-      <div class="stat-card accent">
-        <div class="stat-label">Price Alerts ที่ใช้งาน</div>
+      <div class="stat magenta">
+        <div class="stat-label">การแจ้งเตือนราคา</div>
         <div class="stat-value">{{ price_alerts.total_alerts or 0 }}</div>
-        <div class="stat-sub">{{ price_alerts.unique_users or 0 }} ผู้ใช้ตั้ง alert อยู่</div>
+        <div class="stat-sub">{{ price_alerts.unique_users or 0 }} ผู้ใช้ · {{ top_watched.unique_symbols or 0 }} หุ้นที่ติดตาม</div>
       </div>
-      <div class="stat-card {% if expiring_members.expiring_7_days and expiring_members.expiring_7_days > 0 %}warning{% else %}success{% endif %}">
-        <div class="stat-label">Risk (7 วัน)</div>
+      <div class="stat {% if expiring_members.expiring_7_days and expiring_members.expiring_7_days > 0 %}amber{% else %}green{% endif %}">
+        <div class="stat-label">ความเสี่ยง 7 วัน</div>
         <div class="stat-value">฿{{ "{:,}".format(expiring_members.revenue_at_risk_7_days or 0) }}</div>
-        <div class="stat-sub">{{ expiring_members.expiring_7_days or 0 }} คน หมดอายุใน 7 วัน</div>
+        <div class="stat-sub">{{ expiring_members.expiring_7_days or 0 }} หมดอายุ · {{ expiring_members.expiring_3_days or 0 }} วิกฤต</div>
       </div>
     </div>
 
-    <!-- Second row stats -->
-    <div class="stats-grid" style="margin-bottom:24px">
-      <div class="stat-card success">
-        <div class="stat-label">Win Rate (Resolved)</div>
+    <!-- Stats Grid 2 — performance -->
+    <div class="stats-grid">
+      <div class="stat green">
+        <div class="stat-label">อัตราถูก</div>
         <div class="stat-value">{{ "%.1f"|format(performance.win_rate or 0) }}%</div>
-        <div class="stat-sub">Avg Edge: {{ "%.2f"|format(performance.average_edge_pct or 0) }}%</div>
+        <div class="stat-sub">เฉลี่ย edge: {{ "%.2f"|format(performance.average_edge_pct or 0) }}%</div>
       </div>
-      <div class="stat-card info">
-        <div class="stat-label">Signals Resolved</div>
+      <div class="stat cyan">
+        <div class="stat-label">เคลียร์แล้ว</div>
         <div class="stat-value">{{ (performance.win_count or 0) + (performance.loss_count or 0) }}</div>
-        <div class="stat-sub">{{ performance.pending_count or 0 }} pending</div>
+        <div class="stat-sub">รอประเมิน:{{ performance.pending_count or 0 }} · ตัวอย่าง:{{ performance.sample_size or 0 }}</div>
       </div>
-      <div class="stat-card accent">
-        <div class="stat-label">Win / Loss</div>
-        <div class="stat-value">{{ performance.win_count or 0 }} / {{ performance.loss_count or 0 }}</div>
-        <div class="stat-sub">resolved signals</div>
+      <div class="stat magenta">
+        <div class="stat-label">ชนะ/แพ้</div>
+        <div class="stat-value">{{ performance.win_count or 0 }}/{{ performance.loss_count or 0 }}</div>
+        <div class="stat-sub">เฉพาะที่ปิดเคสแล้ว</div>
       </div>
-      <div class="stat-card info">
-        <div class="stat-label">ARR (ประมาณ)</div>
+      <div class="stat amber">
+        <div class="stat-label">คาดการณ์ทั้งปี</div>
         <div class="stat-value">฿{{ "{:,}".format((user_stats.estimated_monthly_revenue or 0) * 12) }}</div>
-        <div class="stat-sub">annual run rate</div>
+        <div class="stat-sub">ARR (รายได้ทั้งปี)</div>
       </div>
+    </div>
+
+    <!-- Stats Grid 3 — engagement -->
+    <div class="stats-grid">
+      <div class="stat green">
+        <div class="stat-label">DAU 24 ชม.</div>
+        <div class="stat-value" id="stat-dau">—</div>
+        <div class="stat-sub">ผู้ใช้ active 24 ชม. ล่าสุด</div>
+      </div>
+      <div class="stat cyan">
+        <div class="stat-label">WAU 7 วัน</div>
+        <div class="stat-value" id="stat-wau">—</div>
+        <div class="stat-sub">ผู้ใช้ active 7 วันล่าสุด</div>
+      </div>
+      <div class="stat magenta">
+        <div class="stat-label">MAU 30 วัน</div>
+        <div class="stat-value" id="stat-mau">—</div>
+        <div class="stat-sub">ผู้ใช้ active 30 วันล่าสุด</div>
+      </div>
+      <div class="stat amber">
+        <div class="stat-label">ตั้งแจ้งเตือน</div>
+        <div class="stat-value">{{ notification_settings.total_settings or 0 }}</div>
+        <div class="stat-sub">ปิด:{{ notification_settings.notifications_off or 0 }} · กำหนดเอง:{{ notification_settings.custom_windows or 0 }}</div>
+      </div>
+    </div>
+
+    <!-- Stats Grid 4 — funnel / saas health -->
+    <div class="stats-grid">
+      <div class="stat {% if (funnel.conversion_pct or 0) >= 5 %}green{% elif (funnel.conversion_pct or 0) >= 2 %}amber{% else %}red{% endif %}">
+        <div class="stat-label">อัตราแปลงเป็นลูกค้า</div>
+        <div class="stat-value">{{ "%.2f"|format(funnel.conversion_pct or 0) }}%</div>
+        <div class="stat-sub">{{ funnel.paying_now or 0 }} จ่ายเงิน / {{ funnel.total_users or 0 }} ทั้งหมด</div>
+      </div>
+      <div class="stat cyan">
+        <div class="stat-label">อัตราใช้งาน</div>
+        <div class="stat-value">{{ "%.1f"|format(funnel.active_rate_pct or 0) }}%</div>
+        <div class="stat-sub">{{ funnel.active_30d or 0 }} active 30d / {{ funnel.total_users or 0 }} ทั้งหมด</div>
+      </div>
+      <div class="stat green">
+        <div class="stat-label">สมัครใหม่</div>
+        <div class="stat-value">+{{ funnel.new_30d or 0 }}</div>
+        <div class="stat-sub">30 วันล่าสุด · 7 วันล่าสุด {{ funnel.new_7d or 0 }} คน</div>
+      </div>
+      <div class="stat {% if (funnel.churned_30d or 0) > 0 %}red{% else %}green{% endif %}">
+        <div class="stat-label">หายไป 30 วัน</div>
+        <div class="stat-value">{{ funnel.churned_30d or 0 }}</div>
+        <div class="stat-sub">หมดอายุไม่ต่อ (30 วัน)</div>
+      </div>
+    </div>
+
+    <!-- System + User Distribution -->
+    <div id="system" class="col-2-1">
+      <div class="panel">
+        <div class="panel-title">
+          <div class="panel-title-l">สถานะระบบ</div>
+          <div class="panel-title-r">psutil snapshot</div>
+        </div>
+        {% if system_health %}
+        <div class="progress-row">
+          <div class="progress-meta"><b>CPU</b><span>{{ system_health.cpu_usage or 0 }}%</span></div>
+          <div class="progress-bar {% if (system_health.cpu_usage or 0) > 80 %}crit{% elif (system_health.cpu_usage or 0) > 60 %}warn{% endif %}" data-pct="{{ system_health.cpu_usage or 0 }}" data-len="42" data-show-pct="1"></div>
+        </div>
+        <div class="progress-row">
+          <div class="progress-meta"><b>RAM</b><span>{{ "%.2f"|format(system_health.ram_used_gb or 0) }} / {{ "%.2f"|format(system_health.ram_total_gb or 0) }} GB ({{ system_health.ram_percent or 0 }}%)</span></div>
+          <div class="progress-bar {% if (system_health.ram_percent or 0) > 80 %}crit{% elif (system_health.ram_percent or 0) > 60 %}warn{% endif %}" data-pct="{{ system_health.ram_percent or 0 }}" data-len="42" data-show-pct="1"></div>
+        </div>
+        <div class="progress-row">
+          <div class="progress-meta"><b>DSK</b><span>{{ system_health.disk_percent or 0 }}%</span></div>
+          <div class="progress-bar {% if (system_health.disk_percent or 0) > 80 %}crit{% elif (system_health.disk_percent or 0) > 60 %}warn{% endif %}" data-pct="{{ system_health.disk_percent or 0 }}" data-len="42" data-show-pct="1"></div>
+        </div>
+        <div style="margin-top:14px;padding-top:11px;border-top:1px dashed var(--border-strong);font-size:11px;color:var(--text-dim);display:flex;gap:18px;flex-wrap:wrap">
+          <span>เวลาทำงาน: <b style="color:var(--green)" id="sys-uptime-text">{{ system_health.uptime_hours or 0 }}h</b></span>
+          <span>สถานะ: <b style="color:var(--green)">รันอยู่</b></span>
+          <span>เครือข่าย: <b style="color:var(--green)">ปกติ</b></span>
+        </div>
+        {% else %}
+        <div style="color:var(--text-faint);font-size:11px">[ไม่มีข้อมูลระบบ]</div>
+        {% endif %}
+      </div>
+      <div class="panel">
+        <div class="panel-title">
+          <div class="panel-title-l">การกระจายผู้ใช้</div>
+          <div class="panel-title-r">รวม: {{ user_stats.total_users or 0 }}</div>
+        </div>
+        <div id="ascii-dist"></div>
+      </div>
+    </div>
+
+    <!-- Conversion funnel -->
+    <div class="section-title">ช่องทางแปลงเป็นลูกค้า</div>
+    <div class="col-2-1">
+      <div class="panel">
+        <div class="panel-title">
+          <div class="panel-title-l">ขั้นตอนแปลงผู้ใช้</div>
+          <div class="panel-title-r">จ่ายเงิน: {{ funnel.paying_now or 0 }} · หายไป 30 วัน: {{ funnel.churned_30d or 0 }}</div>
+        </div>
+        <div id="ascii-funnel"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title"><div class="panel-title-l">สัดส่วนระดับสมาชิก</div></div>
+        <div id="ascii-tier-mix"></div>
+        <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--border-strong);font-size:11px;color:var(--text-dim);line-height:1.7">
+          <div>VIP active: <b style="color:var(--cyan)">{{ funnel.vip_now or 0 }}</b></div>
+          <div>PRO active: <b style="color:var(--magenta)">{{ funnel.pro_now or 0 }}</b></div>
+          <div>MRR (รายเดือน): <b style="color:var(--green)">฿{{ "{:,}".format(((funnel.vip_now or 0) * 79) + ((funnel.pro_now or 0) * 109)) }}</b></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hourly Activity Heatmap -->
+    <div class="section-title">แผนที่ความ active รายชั่วโมง (UTC+7 · {{ hourly_activity.window_days or 7 }} วันล่าสุด)</div>
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-title">
+        <div class="panel-title-l">ผู้ใช้ active แต่ละชั่วโมง</div>
+        <div class="panel-title-r">ชั่วโมง peak: {% if hourly_activity.peak_hour is not none %}{{ '%02d:00'|format(hourly_activity.peak_hour) }} ({{ hourly_activity.max or 0 }} คน){% else %}—{% endif %} · รวม active: {{ hourly_activity.total_active or 0 }}</div>
+      </div>
+      <div id="hour-heatmap" style="font-family:var(--mono);font-size:11px;line-height:1.4"></div>
+    </div>
+
+    <!-- Win Rate Trend -->
+    <div class="section-title">แนวโน้มอัตราถูกของ AI (rolling 7 วัน)</div>
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-title">
+        <div class="panel-title-l">win_rate_trend</div>
+        <div class="panel-title-r">window: {{ win_rate_trend.window_days or 14 }} วัน · จาก alert_logs</div>
+      </div>
+      <div class="chart-wrap" style="height:220px"><canvas id="winRateChart"></canvas></div>
     </div>
 
     <!-- Charts -->
+    <div id="analytics" class="section-title">สถิติ 30 วันล่าสุด</div>
     <div class="two-col">
-      <div class="card">
-        <div class="card-title"><span class="dot dot-success"></span>User Distribution</div>
-        <div class="chart-wrap"><canvas id="userChart"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="card-title"><span class="dot dot-info"></span>Digest Frequency</div>
-        <div class="chart-wrap"><canvas id="digestChart"></canvas></div>
-      </div>
-    </div>
-
-    <!-- Analytics Charts (loaded via API) -->
-    <div class="section-title" id="analytics">📈 Analytics</div>
-    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
-      <div class="stat-card success">
-        <div class="stat-label">DAU (24h)</div>
-        <div class="stat-value" id="stat-dau">—</div>
-      </div>
-      <div class="stat-card info">
-        <div class="stat-label">WAU (7d)</div>
-        <div class="stat-value" id="stat-wau">—</div>
-      </div>
-      <div class="stat-card accent">
-        <div class="stat-label">MAU (30d)</div>
-        <div class="stat-value" id="stat-mau">—</div>
-      </div>
-    </div>
-    <div class="two-col" style="margin-bottom:24px">
-      <div class="card">
-        <div class="card-title"><span class="dot dot-success"></span>User Growth (30 วัน)</div>
+      <div class="panel">
+        <div class="panel-title"><div class="panel-title-l">ผู้ใช้ใหม่</div></div>
         <div class="chart-wrap"><canvas id="growthChart"></canvas></div>
       </div>
-      <div class="card">
-        <div class="card-title"><span class="dot dot-info"></span>Payments (30 วัน)</div>
+      <div class="panel">
+        <div class="panel-title"><div class="panel-title-l">การชำระเงิน</div></div>
         <div class="chart-wrap"><canvas id="paymentChart"></canvas></div>
       </div>
     </div>
 
-    <!-- Hot Symbols + System Health -->
-    <div class="two-col" id="system">
-      <div class="card">
-        <div class="card-title"><span class="dot dot-warning"></span>Hot Symbols — Watchlist Focus</div>
-        {% set syms = top_watched['items'] if top_watched else [] %}
-        {% set max_count = syms[0]['watchers'] if syms else 1 %}
-        {% for item in syms %}
-        <div class="sym-row">
-          <span class="sym-name">{{ item['symbol'] }}</span>
-          <div class="sym-bar"><div class="sym-bar-fill" style="width:{{ (item['watchers'] / max_count * 100)|round }}%"></div></div>
-          <span class="sym-count">{{ item['watchers'] }} watchers</span>
+    <!-- Live Activity Feed -->
+    <div class="section-title">กิจกรรมล่าสุด</div>
+    <div class="two-col">
+      <div class="panel flush">
+        <div class="panel-title" style="padding:12px 14px 10px;border-bottom:1px dashed var(--border-strong);margin-bottom:0">
+          <div class="panel-title-l">สมัครใหม่ล่าสุด</div>
+          <div class="panel-title-r">{{ recent_activity.signups|length }} รายการ</div>
         </div>
-        {% else %}
-        <p style="color:var(--text-muted);font-size:13px">ไม่มีข้อมูล</p>
-        {% endfor %}
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr><th>เมื่อไร</th><th>รหัสผู้ใช้</th><th>ชื่อ</th><th>ระดับ</th></tr>
+            </thead>
+            <tbody>
+              {% for s in recent_activity.signups %}
+              <tr>
+                <td style="font-size:11px;color:var(--text-dim)">{{ s.ts }}</td>
+                <td><span class="mono" style="color:var(--cyan);font-size:11px">{{ s.user_id }}</span></td>
+                <td style="font-size:11px">{{ s.username }}</td>
+                <td>
+                  {% if s.role == 'pro' %}<span class="tag tag-magenta">PRO</span>
+                  {% elif s.role == 'vip' %}<span class="tag tag-cyan">VIP</span>
+                  {% elif s.role == 'admin' %}<span class="tag tag-amber">ADM</span>
+                  {% else %}<span class="tag tag-gray">FREE</span>{% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" style="text-align:center;color:var(--text-faint);padding:18px">[ยังไม่มีคนสมัครใหม่]</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div class="card">
-        <div class="card-title"><span class="dot dot-info"></span>System Health</div>
-        {% if system_health %}
-        <div class="progress-row">
-          <div class="progress-meta"><span>CPU</span><span>{{ system_health.cpu_usage or 0 }}%</span></div>
-          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.cpu_usage or 0 }}%;background:{% if (system_health.cpu_usage or 0) > 80 %}var(--danger){% elif (system_health.cpu_usage or 0) > 60 %}var(--warning){% else %}var(--success){% endif %}"></div></div>
+      <div class="panel flush">
+        <div class="panel-title" style="padding:12px 14px 10px;border-bottom:1px dashed var(--border-strong);margin-bottom:0">
+          <div class="panel-title-l">ชำระเงินล่าสุด</div>
+          <div class="panel-title-r">{{ recent_activity.payments|length }} รายการ</div>
         </div>
-        <div class="progress-row">
-          <div class="progress-meta"><span>RAM</span><span>{{ "%.1f"|format(system_health.ram_used_gb or 0) }} / {{ "%.1f"|format(system_health.ram_total_gb or 0) }} GB ({{ system_health.ram_percent or 0 }}%)</span></div>
-          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.ram_percent or 0 }}%;background:{% if (system_health.ram_percent or 0) > 80 %}var(--danger){% elif (system_health.ram_percent or 0) > 60 %}var(--warning){% else %}var(--info){% endif %}"></div></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr><th>เมื่อไร</th><th>รหัสผู้ใช้</th><th>เลขสลิป</th><th>ระดับ</th></tr>
+            </thead>
+            <tbody>
+              {% for p in recent_activity.payments %}
+              <tr>
+                <td style="font-size:11px;color:var(--text-dim)">{{ p.ts }}</td>
+                <td><span class="mono" style="color:var(--cyan);font-size:11px">{{ p.user_id }}</span></td>
+                <td><span class="mono" style="font-size:10px;color:var(--text-dim)">{{ p.ref_no }}</span></td>
+                <td>
+                  {% if p.role == 'pro' %}<span class="tag tag-magenta">PRO</span>
+                  {% elif p.role == 'vip' %}<span class="tag tag-cyan">VIP</span>
+                  {% else %}<span class="tag tag-gray">{{ p.role|upper }}</span>{% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" style="text-align:center;color:var(--text-faint);padding:18px">[ยังไม่มีการชำระเงิน]</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
-        <div class="progress-row">
-          <div class="progress-meta"><span>Disk</span><span>{{ system_health.disk_percent or 0 }}%</span></div>
-          <div class="progress-bg"><div class="progress-fill" style="width:{{ system_health.disk_percent or 0 }}%;background:{% if (system_health.disk_percent or 0) > 80 %}var(--danger){% elif (system_health.disk_percent or 0) > 60 %}var(--warning){% else %}var(--accent){% endif %}"></div></div>
+      </div>
+    </div>
+
+    <!-- Engagement metrics: top_commands + alert_delivery -->
+    <div class="section-title">ตัวชี้วัดความผูกพัน</div>
+    <div class="two-col">
+      <!-- Top Commands -->
+      <div class="panel flush">
+        <div class="panel-title" style="padding:12px 14px 10px;border-bottom:1px dashed var(--border-strong);margin-bottom:0">
+          <div class="panel-title-l">คำสั่งที่ใช้บ่อย ({{ top_commands.window_days or 7 }} วัน)</div>
+          <div class="panel-title-r">รวม: {{ top_commands.total or 0 }}</div>
         </div>
-        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted)">
-          ⏱ Uptime: <strong style="color:var(--text)">{{ system_health.uptime_hours or 0 }} ชั่วโมง</strong>
+        {% if top_commands['items'] %}
+        <div style="padding:8px 14px 14px">
+          {% set max_cmd = (top_commands['items'][0].count if top_commands['items'] else 1) or 1 %}
+          {% for it in top_commands['items'] %}
+          <div class="ascii-row">
+            <span class="ascii-label" style="color:var(--green);font-family:var(--mono)">/{{ it.command }}</span>
+            <span class="ascii-bar" data-pct="{{ (it.count / max_cmd * 100)|round }}" data-len="22" data-color="green"></span>
+            <span class="ascii-meta">{{ it.count }}</span>
+          </div>
+          {% endfor %}
         </div>
         {% else %}
-        <p style="color:var(--text-muted);font-size:13px">ไม่มีข้อมูล system</p>
+        <div style="padding:18px;text-align:center;color:var(--text-faint);font-size:11px">
+          [ยังไม่มีข้อมูล — รอ user พิมพ์คำสั่ง<br>หลัง deploy แล้ว command_log จะเริ่มเก็บ]
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Alert Delivery -->
+      <div class="panel flush">
+        <div class="panel-title" style="padding:12px 14px 10px;border-bottom:1px dashed var(--border-strong);margin-bottom:0">
+          <div class="panel-title-l">อัตราส่ง broadcast สำเร็จ ({{ alert_delivery.window_days or 7 }} วัน)</div>
+          <div class="panel-title-r">
+            {% if alert_delivery.totals.total %}
+              {{ alert_delivery.totals.success_rate }}% · {{ alert_delivery.totals.batches }} batches
+            {% else %}—{% endif %}
+          </div>
+        </div>
+        {% if alert_delivery.batches %}
+        <div style="padding:10px 14px 8px;font-size:11px;color:var(--text-dim);display:flex;gap:14px;flex-wrap:wrap;border-bottom:1px dashed var(--border-strong)">
+          <span>ส่งทั้งหมด: <b style="color:var(--text)">{{ alert_delivery.totals.total }}</b></span>
+          <span>สำเร็จ: <b style="color:var(--green)">{{ alert_delivery.totals.success }}</b></span>
+          <span>ล้มเหลว: <b style="color:var(--red)">{{ alert_delivery.totals.fail }}</b></span>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr><th>เมื่อไร</th><th>ส่งถึง</th><th>สำเร็จ/รวม</th><th>%</th></tr>
+            </thead>
+            <tbody>
+              {% for b in alert_delivery.batches %}
+              <tr>
+                <td style="font-size:11px;color:var(--text-dim)">{{ b.ts }}</td>
+                <td style="font-size:11px">{{ b.audience }}</td>
+                <td class="num" style="font-size:11px">
+                  <span class="num-pos">{{ b.success }}</span>/<span style="color:var(--text)">{{ b.total }}</span>
+                  {% if b.fail > 0 %}<span class="num-neg" style="margin-left:4px">(-{{ b.fail }})</span>{% endif %}
+                </td>
+                <td>
+                  <span class="num" style="color:{% if b.success_rate >= 95 %}var(--green){% elif b.success_rate >= 80 %}var(--amber){% else %}var(--red){% endif %};font-weight:600">{{ b.success_rate }}%</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div style="padding:18px;text-align:center;color:var(--text-faint);font-size:11px">
+          [ยังไม่มี broadcast ใน {{ alert_delivery.window_days }} วัน]
+        </div>
         {% endif %}
       </div>
     </div>
 
-    <!-- Performance Table -->
-    <div id="performance" class="card" style="margin-bottom:24px">
-      <div class="card-title"><span class="dot dot-success"></span>Signal Performance Stream</div>
-      <div class="table-wrap">
+    <!-- Free Quota Burn -->
+    <div class="section-title">การใช้โควต้าของ Free user (วันนี้)</div>
+    <div class="two-col">
+      <div class="panel">
+        <div class="panel-title">
+          <div class="panel-title-l">สรุปการใช้โควต้า</div>
+          <div class="panel-title-r">โควต้า: {{ quota_burn.quota or 3 }}/วัน</div>
+        </div>
+        <div class="ascii-row">
+          <span class="ascii-label" style="color:var(--red)">เต็ม {{ quota_burn.quota or 3 }}/{{ quota_burn.quota or 3 }}</span>
+          <span class="ascii-bar" data-pct="{{ ((quota_burn.hit_quota or 0) / (quota_burn.total_free_active or 1) * 100)|round }}" data-len="22" data-color="red"></span>
+          <span class="ascii-meta">{{ quota_burn.hit_quota or 0 }} คน</span>
+        </div>
+        <div class="ascii-row">
+          <span class="ascii-label" style="color:var(--amber)">ใกล้เต็ม</span>
+          <span class="ascii-bar" data-pct="{{ ((quota_burn.near_quota or 0) / (quota_burn.total_free_active or 1) * 100)|round }}" data-len="22" data-color="amber"></span>
+          <span class="ascii-meta">{{ quota_burn.near_quota or 0 }} คน</span>
+        </div>
+        <div style="margin-top:14px;padding-top:11px;border-top:1px dashed var(--border-strong);font-size:11px;color:var(--text-dim);line-height:1.7">
+          <div>Free user ทั้งหมด: <b style="color:var(--text)">{{ quota_burn.total_free_active or 0 }}</b></div>
+          <div>อัตราใช้เต็ม: <b style="color:{% if (quota_burn.burn_rate_pct or 0) >= 10 %}var(--green){% elif (quota_burn.burn_rate_pct or 0) >= 3 %}var(--amber){% else %}var(--text-dim){% endif %}">{{ "%.2f"|format(quota_burn.burn_rate_pct or 0) }}%</b> = ตัวเลือกที่จะ upgrade เป็น VIP/PRO</div>
+        </div>
+      </div>
+      <div class="panel flush">
+        <div class="panel-title" style="padding:12px 14px 10px;border-bottom:1px dashed var(--border-strong);margin-bottom:0">
+          <div class="panel-title-l">เป้าหมาย upsell — ผู้ใช้ที่ใกล้/เต็มโควต้า</div>
+          <div class="panel-title-r">{{ quota_burn.top_burners|length }} คน</div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr><th>รหัสผู้ใช้</th><th>ชื่อ</th><th>ใช้แล้ว</th><th>ใช้งานล่าสุด</th></tr>
+            </thead>
+            <tbody>
+              {% for b in quota_burn.top_burners %}
+              <tr>
+                <td><span class="mono" style="color:var(--cyan);font-size:11px">{{ b.user_id }}</span></td>
+                <td style="font-size:11px">{{ b.username }}</td>
+                <td>
+                  <span class="tag {% if b.used >= (quota_burn.quota or 3) %}tag-red{% elif b.used >= (quota_burn.quota or 3) - 1 %}tag-amber{% else %}tag-gray{% endif %}">
+                    {{ b.used }}/{{ quota_burn.quota or 3 }}
+                  </span>
+                </td>
+                <td style="font-size:11px;color:var(--text-dim)">{{ b.last_active }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" style="text-align:center;color:var(--text-faint);padding:18px">[ยังไม่มี free user ใช้โควต้าวันนี้]</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notifications + Top Watched + Active Alerts -->
+    <div class="three-col">
+      <div class="panel">
+        <div class="panel-title"><div class="panel-title-l">ความถี่ digest ที่เลือก</div></div>
+        {% set dist = notification_settings.distribution or [] %}
+        {% set max_dist = (dist|map(attribute='count')|max) or 1 %}
+        {% for d in dist %}
+        <div class="ascii-row">
+          <span class="ascii-label">{{ d.label }}</span>
+          <span class="ascii-bar" data-pct="{{ ((d.count or 0) / max_dist * 100)|round }}" data-len="20"></span>
+          <span class="ascii-meta">{{ d.count or 0 }} คน</span>
+        </div>
+        {% else %}
+        <div style="color:var(--text-faint);font-size:11px">[ไม่มีข้อมูล digest]</div>
+        {% endfor %}
+      </div>
+      <div class="panel">
+        <div class="panel-title">
+          <div class="panel-title-l">หุ้นที่ถูกติดตาม</div>
+          <div class="panel-title-r">{{ top_watched.unique_symbols or 0 }} ตัว</div>
+        </div>
+        {% set syms = top_watched['items'] if top_watched else [] %}
+        {% set max_count = (syms[0]['watchers'] if syms else 1) or 1 %}
+        {% for item in syms[:8] %}
+        <div class="ascii-row">
+          <span class="ascii-label" style="color:var(--cyan)">{{ item['symbol'] }}</span>
+          <span class="ascii-bar" data-pct="{{ (item['watchers'] / max_count * 100)|round }}" data-len="18" data-color="cyan"></span>
+          <span class="ascii-meta">{{ item['watchers'] }}</span>
+        </div>
+        {% else %}
+        <div style="color:var(--text-faint);font-size:11px">[ไม่มีข้อมูล watchlist]</div>
+        {% endfor %}
+      </div>
+      <div class="panel">
+        <div class="panel-title">
+          <div class="panel-title-l">หุ้นที่ตั้งแจ้งเตือน</div>
+          <div class="panel-title-r">{{ price_alerts.total_alerts or 0 }} alerts</div>
+        </div>
+        {% set alerts = price_alerts['items'] if price_alerts else [] %}
+        {% set max_alerts = (alerts[0]['alerts'] if alerts else 1) or 1 %}
+        {% for item in alerts[:8] %}
+        <div class="ascii-row">
+          <span class="ascii-label" style="color:var(--magenta)">{{ item['symbol'] }}</span>
+          <span class="ascii-bar" data-pct="{{ (item['alerts'] / max_alerts * 100)|round }}" data-len="18" data-color="magenta"></span>
+          <span class="ascii-meta">{{ item['alerts'] }}</span>
+        </div>
+        {% else %}
+        <div style="color:var(--text-faint);font-size:11px">[ไม่มี alert ที่ active]</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Expiring Members -->
+    {% if expiring_members['items'] %}
+    <div id="expiring" class="section-title">สมาชิกใกล้หมดอายุ ({{ expiring_members['items']|length }} คน)</div>
+    <div class="panel flush" style="margin-bottom:14px">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>รหัสผู้ใช้</th><th>ระดับ</th><th>หมดอายุ</th><th>เหลือ</th><th>ความเร่งด่วน</th></tr>
+          </thead>
+          <tbody>
+            {% for m in expiring_members['items'] %}
+            <tr>
+              <td><span class="mono" style="color:var(--cyan)">{{ m.user_id }}</span></td>
+              <td>
+                {% if m.role == 'pro' %}<span class="tag tag-magenta">PRO</span>
+                {% else %}<span class="tag tag-cyan">VIP</span>{% endif %}
+              </td>
+              <td style="font-size:11px">{{ m.expiry_date or '—' }}</td>
+              <td>
+                <span class="tag {% if m.days_left <= 1 %}tag-red{% elif m.days_left <= 3 %}tag-amber{% else %}tag-gray{% endif %}">{{ m.days_left }} วัน</span>
+              </td>
+              <td>
+                {% if m.days_left <= 1 %}<span style="color:var(--red);font-size:11px">วิกฤต</span>
+                {% elif m.days_left <= 3 %}<span style="color:var(--amber);font-size:11px">เตือน</span>
+                {% else %}<span style="color:var(--text-dim);font-size:11px">เฝ้าดู</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Performance stream -->
+    <div class="section-title">สตรีมผลงาน Signal</div>
+    <div id="performance" class="panel flush" style="margin-bottom:10px">
+      <div class="tbl-wrap">
         <table>
           <thead>
             <tr>
-              <th>Symbol</th>
-              <th>Type</th>
-              <th>Edge %</th>
-              <th>Max Gain / Max Draw</th>
-              <th>Result</th>
-              <th>Due</th>
+              <th>หุ้น</th>
+              <th>ประเภท</th>
+              <th>edge</th>
+              <th>กำไรสูงสุด / ขาดทุนสูงสุด</th>
+              <th>ทิศทาง</th>
+              <th>ผล</th>
+              <th>ครบกำหนด</th>
             </tr>
           </thead>
           <tbody>
             {% for entry in performance.entries or [] %}
             <tr>
-              <td><strong>{{ entry.symbol }}</strong></td>
-              <td><span style="font-size:12px;color:var(--text-muted)">{{ entry.alert_type or '—' }}</span></td>
+              <td><strong style="color:var(--cyan)">{{ entry.symbol }}</strong></td>
+              <td><span style="color:var(--text-dim);font-size:11px">{{ entry.alert_type or '—' }}</span></td>
               <td>
                 {% if entry.diff_pct is not none %}
-                  <span style="color:{% if entry.diff_pct > 0 %}var(--success){% elif entry.diff_pct < 0 %}var(--danger){% else %}var(--text-muted){% endif %};font-weight:600">
+                  <span class="num {% if entry.diff_pct > 0 %}num-pos{% elif entry.diff_pct < 0 %}num-neg{% else %}num-zero{% endif %}" style="font-weight:600">
                     {% if entry.diff_pct > 0 %}+{% endif %}{{ "%.2f"|format(entry.diff_pct) }}%
                   </span>
+                {% else %}<span class="num-zero">—</span>{% endif %}
+              </td>
+              <td class="num" style="font-size:11px;color:var(--text-dim)">
+                {% if entry.max_favorable_pct is not none %}
+                  <span class="num-pos">+{{ "%.2f"|format(entry.max_favorable_pct) }}%</span>
+                  <span style="color:var(--text-faint)"> / </span>
+                  <span class="num-neg">{{ "%.2f"|format(entry.max_adverse_pct) }}%</span>
                 {% else %}—{% endif %}
               </td>
-              <td style="font-size:12px;color:var(--text-muted)">
-                {% if entry.max_favorable_pct is not none %}+{{ "%.2f"|format(entry.max_favorable_pct) }}% / {{ "%.2f"|format(entry.max_adverse_pct) }}%{% else %}—{% endif %}
+              <td>
+                {% if entry.direction_label == 'Bullish' %}<span style="color:var(--green);font-size:11px">▲ ขาขึ้น</span>
+                {% elif entry.direction_label == 'Bearish' %}<span style="color:var(--red);font-size:11px">▼ ขาลง</span>
+                {% else %}<span style="color:var(--text-dim);font-size:11px">—</span>{% endif %}
               </td>
               <td>
-                {% if entry.status == 'win' %}<span class="badge badge-success">WIN</span>
-                {% elif entry.status == 'loss' %}<span class="badge badge-danger">LOSS</span>
-                {% else %}<span class="badge badge-gray">PENDING</span>{% endif %}
+                {% if entry.status == 'win' %}<span class="tag tag-green">ถูก</span>
+                {% elif entry.status == 'loss' %}<span class="tag tag-red">ผิด</span>
+                {% else %}<span class="tag tag-gray">รอ</span>{% endif %}
               </td>
-              <td style="font-size:12px;color:var(--text-muted)">{{ entry.evaluation_due_at or '—' }}</td>
+              <td style="font-size:11px;color:var(--text-dim)">{{ entry.evaluation_due_at or '—' }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="6" style="text-align:center;color:var(--text-muted)">ยังไม่มีข้อมูล signal</td></tr>
+            <tr><td colspan="7" style="text-align:center;color:var(--text-faint)">[ยังไม่มีข้อมูล signal]</td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Signal Breakdown -->
+    <!-- Performance breakdown -->
     {% if performance.breakdown %}
-    <div class="card" style="margin-bottom:24px">
-      <div class="card-title"><span class="dot dot-accent"></span>Signal Quality Breakdown</div>
-      <div class="table-wrap">
+    <div class="section-title">คุณภาพ Signal แยกตามประเภท</div>
+    <div class="panel flush" style="margin-bottom:14px">
+      <div class="tbl-wrap">
         <table>
           <thead>
-            <tr><th>Signal Type</th><th>Win Rate</th><th>Resolved</th><th>Avg Edge</th></tr>
+            <tr><th>ประเภท</th><th>horizon</th><th>อัตราถูก</th><th>เคลียร์แล้ว</th><th>เฉลี่ย edge</th></tr>
           </thead>
           <tbody>
             {% for data in performance.breakdown or [] %}
             <tr>
-              <td>{{ data.alert_type }}</td>
+              <td><strong>{{ data.alert_type }}</strong></td>
+              <td style="color:var(--text-dim);font-size:11px">{{ data.horizon_label or '—' }}</td>
               <td>
-                <span style="color:{% if data.win_rate >= 60 %}var(--success){% elif data.win_rate >= 40 %}var(--warning){% else %}var(--danger){% endif %};font-weight:600">
+                <span class="num" style="color:{% if data.win_rate >= 60 %}var(--green){% elif data.win_rate >= 40 %}var(--amber){% else %}var(--red){% endif %};font-weight:600">
                   {{ "%.1f"|format(data.win_rate) }}%
                 </span>
               </td>
-              <td>{{ data.resolved_count }}</td>
-              <td style="color:{% if data.average_edge_pct > 0 %}var(--success){% elif data.average_edge_pct < 0 %}var(--danger){% else %}var(--text-muted){% endif %}">
+              <td class="num">{{ data.resolved_count }}</td>
+              <td class="num {% if data.average_edge_pct > 0 %}num-pos{% elif data.average_edge_pct < 0 %}num-neg{% else %}num-zero{% endif %}">
                 {% if data.average_edge_pct > 0 %}+{% endif %}{{ "%.2f"|format(data.average_edge_pct) }}%
               </td>
             </tr>
@@ -861,32 +1329,33 @@
     </div>
     {% endif %}
 
-    <!-- Premium Members -->
-    <div id="members" class="card" style="margin-bottom:24px">
-      <div class="card-title"><span class="dot dot-accent"></span>Premium Member Matrix</div>
-      <div class="table-wrap">
+    <!-- Premium members -->
+    <div id="members" class="section-title">สมาชิกระดับ Premium ({{ paid_users|length }} คน)</div>
+    <div class="panel flush" style="margin-bottom:14px">
+      <div class="tbl-wrap">
         <table>
           <thead>
-            <tr><th>User</th><th>Clearance</th><th>Expiration</th><th>Last Active</th><th>Status</th></tr>
+            <tr><th>รหัสผู้ใช้</th><th>ชื่อ</th><th>ระดับ</th><th>หมดอายุ</th><th>ใช้งานล่าสุด</th><th>สถานะ</th></tr>
           </thead>
           <tbody>
             {% for u in paid_users %}
             <tr>
-              <td><span class="mono" style="font-size:11px">{{ u.user_id }}</span><br><span style="font-size:11px;color:var(--text-muted)">{{ u.username or '' }}</span></td>
+              <td><span class="mono" style="color:var(--cyan);font-size:11px">{{ u.user_id }}</span></td>
+              <td style="color:var(--text);font-size:11px">{{ u.username or '—' }}</td>
               <td>
-                {% if u.role == 'pro' %}<span class="badge badge-accent">PRO</span>
-                {% else %}<span class="badge badge-info">VIP</span>{% endif %}
+                {% if u.role == 'pro' %}<span class="tag tag-magenta">PRO</span>
+                {% else %}<span class="tag tag-cyan">VIP</span>{% endif %}
               </td>
-              <td style="font-size:12px">{{ u.expiry_date or '—' }}</td>
-              <td style="font-size:12px">{{ u.last_active or '—' }}</td>
+              <td style="font-size:11px">{{ u.expiry_date or '—' }}</td>
+              <td style="font-size:11px;color:var(--text-dim)">{{ u.last_active or '—' }}</td>
               <td>
-                {% if u.bot_status == 'inactive' %}<span class="badge badge-danger">Blocked</span>
-                {% elif u.is_active %}<span class="badge badge-success">Active</span>
-                {% else %}<span class="badge badge-danger">Expired</span>{% endif %}
+                {% if u.bot_status == 'inactive' %}<span class="tag tag-red">บล็อกบอท</span>
+                {% elif u.is_active %}<span class="tag tag-green">ใช้งานได้</span>
+                {% else %}<span class="tag tag-red">หมดอายุ</span>{% endif %}
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" style="text-align:center;color:var(--text-muted)">ไม่มี Premium members</td></tr>
+            <tr><td colspan="6" style="text-align:center;color:var(--text-faint)">[ยังไม่มีสมาชิก Premium]</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -897,297 +1366,518 @@
 </div>
 
 <script>
-  // ── Charts (Claude design palette) ──
-  const CL = {
-    primary: '#CC785C',
-    primarySoft: 'rgba(204,120,92,0.18)',
-    success: '#5C8559',
-    successSoft: 'rgba(92,133,89,0.16)',
-    info: '#5B7B9A',
-    infoSoft: 'rgba(91,123,154,0.18)',
-    accent: '#8B6FA8',
-    accentSoft: 'rgba(139,111,168,0.18)',
-    warning: '#D4923A',
-    warningSoft: 'rgba(212,146,58,0.18)',
-    neutral: '#D9D4C7',
-    grid: 'rgba(60,50,40,0.08)',
-    tick: '#7C7568',
-  };
-  const chartOpts = {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { labels: { color: CL.tick, font: { family: 'Inter', size: 12 }, padding: 14 } } }
-  };
+// ── Live clock ──
+function pad(n) { return String(n).padStart(2, '0'); }
+function tickClock() {
+  const d = new Date();
+  const el = document.getElementById('clock-live');
+  if (el) el.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+tickClock();
+setInterval(tickClock, 1000);
 
-  new Chart(document.getElementById('userChart'), {
-    type: 'doughnut',
-    data: {
-      labels: ['Free', 'VIP', 'PRO'],
-      datasets: [{
-        data: [{{ user_stats.free_users or 0 }}, {{ user_stats.vip_users or 0 }}, {{ user_stats.pro_users or 0 }}],
-        backgroundColor: [CL.neutral, CL.info, CL.accent],
-        borderColor: ['#FFFFFF', '#FFFFFF', '#FFFFFF'],
-        borderWidth: 2, hoverOffset: 6
-      }]
-    },
-    options: { ...chartOpts, cutout: '68%' }
+// ── Format uptime ──
+(function() {
+  const hours = parseInt({{ system_health.uptime_hours or 0 }}, 10);
+  if (hours <= 0) return;
+  const days = Math.floor(hours / 24);
+  const h = hours % 24;
+  const formatted = days > 0 ? `${days}d ${pad(h)}h` : `${pad(h)}h 00m`;
+  const upEl = document.getElementById('uptime-live');
+  if (upEl) upEl.textContent = formatted;
+  const sysEl = document.getElementById('sys-uptime-text');
+  if (sysEl) sysEl.textContent = formatted;
+})();
+
+// ── ASCII bar renderer ──
+const COLOR_MAP = {
+  cyan: 'var(--cyan)',
+  magenta: 'var(--magenta)',
+  amber: 'var(--amber)',
+  red: 'var(--red)',
+  green: 'var(--green)',
+};
+function renderAsciiBars() {
+  document.querySelectorAll('[data-pct][data-len]').forEach(el => {
+    if (el.dataset.rendered) return;
+    const pct = Math.max(0, Math.min(100, parseFloat(el.dataset.pct) || 0));
+    const len = parseInt(el.dataset.len) || 30;
+    const filled = Math.round((pct / 100) * len);
+    const empty = len - filled;
+    const showPct = el.dataset.showPct === '1';
+    el.textContent = '█'.repeat(filled) + '░'.repeat(empty) + (showPct ? `  ${pct.toFixed(1)}%` : '');
+    if (el.dataset.color && COLOR_MAP[el.dataset.color]) {
+      el.style.color = COLOR_MAP[el.dataset.color];
+    }
+    el.dataset.rendered = '1';
   });
+}
+renderAsciiBars();
 
-  const digestData = {{ notification_settings | tojson }};
-  const digestDist = digestData.distribution || [];
-  new Chart(document.getElementById('digestChart'), {
-    type: 'bar',
+// ── User Distribution ASCII ──
+(function renderDistribution() {
+  const free = {{ user_stats.free_users or 0 }};
+  const vip = {{ user_stats.vip_users or 0 }};
+  const pro = {{ user_stats.pro_users or 0 }};
+  const total = free + vip + pro;
+  const target = document.getElementById('ascii-dist');
+  if (!target) return;
+  if (total === 0) {
+    target.innerHTML = '<div style="color:var(--text-faint);font-size:11px">[no users]</div>';
+    return;
+  }
+  const tiers = [
+    { label: 'free', count: free, color: 'var(--text-dim)' },
+    { label: 'vip',  count: vip,  color: 'var(--cyan)' },
+    { label: 'pro',  count: pro,  color: 'var(--magenta)' },
+  ];
+  const len = 24;
+  const html = tiers.map(t => {
+    const pct = (t.count / total) * 100;
+    const filled = Math.round((pct / 100) * len);
+    const bar = '█'.repeat(filled) + '░'.repeat(len - filled);
+    return `<div class="ascii-row">
+      <span class="ascii-label" style="color:${t.color}">${t.label}</span>
+      <span class="ascii-bar" style="color:${t.color}">${bar}</span>
+      <span class="ascii-meta">${t.count} (${pct.toFixed(1)}%)</span>
+    </div>`;
+  }).join('');
+  target.innerHTML = html;
+})();
+
+// ── Conversion Funnel ASCII ──
+(function renderFunnel() {
+  const total   = {{ funnel.total_users or 0 }};
+  const a30     = {{ funnel.active_30d or 0 }};
+  const a7      = {{ funnel.active_7d or 0 }};
+  const paying  = {{ funnel.paying_now or 0 }};
+  const target = document.getElementById('ascii-funnel');
+  if (!target) return;
+  if (total === 0) {
+    target.innerHTML = '<div style="color:var(--text-faint);font-size:11px">[no funnel data]</div>';
+    return;
+  }
+  const stages = [
+    { label: 'total',     count: total,  color: 'var(--text)' },
+    { label: 'active_30d', count: a30,   color: 'var(--cyan)' },
+    { label: 'active_7d',  count: a7,    color: 'var(--green)' },
+    { label: 'paying',     count: paying, color: 'var(--magenta)' },
+  ];
+  const len = 30;
+  const html = stages.map(s => {
+    const pct = (s.count / total) * 100;
+    const filled = Math.round((pct / 100) * len);
+    const bar = '█'.repeat(filled) + '░'.repeat(len - filled);
+    return `<div class="ascii-row">
+      <span class="ascii-label" style="color:${s.color}">${s.label}</span>
+      <span class="ascii-bar" style="color:${s.color}">${bar}</span>
+      <span class="ascii-meta">${s.count} (${pct.toFixed(1)}%)</span>
+    </div>`;
+  }).join('');
+  target.innerHTML = html;
+})();
+
+// ── Tier Mix (paying users only) ──
+(function renderTierMix() {
+  const vip = {{ funnel.vip_now or 0 }};
+  const pro = {{ funnel.pro_now or 0 }};
+  const total = vip + pro;
+  const target = document.getElementById('ascii-tier-mix');
+  if (!target) return;
+  if (total === 0) {
+    target.innerHTML = '<div style="color:var(--text-faint);font-size:11px">[no paying users yet]</div>';
+    return;
+  }
+  const len = 18;
+  const vipFilled = Math.round((vip / total) * len);
+  const proFilled = len - vipFilled;
+  target.innerHTML = `<div class="ascii-row">
+    <span class="ascii-label" style="color:var(--cyan)">vip</span>
+    <span class="ascii-bar" style="color:var(--cyan)">${'█'.repeat(vipFilled)}${'░'.repeat(len - vipFilled)}</span>
+    <span class="ascii-meta">${vip} (${(vip / total * 100).toFixed(1)}%)</span>
+  </div>
+  <div class="ascii-row">
+    <span class="ascii-label" style="color:var(--magenta)">pro</span>
+    <span class="ascii-bar" style="color:var(--magenta)">${'█'.repeat(proFilled)}${'░'.repeat(len - proFilled)}</span>
+    <span class="ascii-meta">${pro} (${(pro / total * 100).toFixed(1)}%)</span>
+  </div>`;
+})();
+
+// ── Win Rate Trend (rolling 7d) ──
+(function renderWinRateTrend() {
+  const daily = {{ win_rate_trend.daily|tojson }};
+  const ctx = document.getElementById('winRateChart');
+  if (!ctx) return;
+  if (!daily || !daily.length) {
+    ctx.parentElement.innerHTML = '<div style="color:var(--text-faint);font-size:11px;text-align:center;padding:60px 20px">[ยังไม่มี signal ที่เคลียร์ใน window นี้]</div>';
+    return;
+  }
+  // Compute rolling 7d win rate
+  const labels = [];
+  const rolling = [];
+  const dailyRate = [];
+  const window = 7;
+  for (let i = 0; i < daily.length; i++) {
+    labels.push(daily[i].date.slice(5));
+    dailyRate.push(daily[i].win_rate);
+    let wins = 0, losses = 0;
+    for (let j = Math.max(0, i - window + 1); j <= i; j++) {
+      wins += daily[j].wins || 0;
+      losses += daily[j].losses || 0;
+    }
+    const total = wins + losses;
+    rolling.push(total ? Math.round((wins / total * 1000)) / 10 : null);
+  }
+  new Chart(ctx, {
+    type: 'line',
     data: {
-      labels: digestDist.map(d => d.label),
-      datasets: [{
-        label: 'users',
-        data: digestDist.map(d => d.count || 0),
-        backgroundColor: [CL.primarySoft, CL.infoSoft, CL.accentSoft, CL.warningSoft],
-        borderColor: [CL.primary, CL.info, CL.accent, CL.warning],
-        borderWidth: 1.5, borderRadius: 6
-      }]
+      labels: labels,
+      datasets: [
+        {
+          label: 'rolling_7d',
+          data: rolling,
+          borderColor: TC.green,
+          backgroundColor: TC.greenSoft,
+          fill: true, tension: 0.3, borderWidth: 2, pointRadius: 3,
+          pointBackgroundColor: TC.green, pointBorderColor: TC.green
+        },
+        {
+          label: 'daily',
+          data: dailyRate,
+          borderColor: TC.cyan,
+          backgroundColor: 'transparent',
+          fill: false, tension: 0.0, borderWidth: 1, pointRadius: 2,
+          borderDash: [4, 4],
+          pointBackgroundColor: TC.cyan, pointBorderColor: TC.cyan,
+          spanGaps: true
+        }
+      ]
     },
     options: {
       ...chartOpts,
-      plugins: { ...chartOpts.plugins, legend: { display: false } },
+      plugins: {
+        ...chartOpts.plugins,
+        legend: { display: true, labels: { color: TC.tick, font: { family: TC.font, size: 11 }, padding: 12 } }
+      },
       scales: {
-        x: { grid: { color: CL.grid }, ticks: { color: CL.tick } },
-        y: { grid: { color: CL.grid }, ticks: { color: CL.tick } }
+        x: { grid: { color: TC.grid }, ticks: { color: TC.tick, maxTicksLimit: 14, font: { family: TC.font, size: 10 } } },
+        y: {
+          grid: { color: TC.grid },
+          ticks: { color: TC.tick, font: { family: TC.font, size: 10 }, callback: (v) => v + '%' },
+          beginAtZero: true, max: 100,
+          title: { display: true, text: 'อัตราถูก (%)', color: TC.tick, font: { family: TC.font, size: 10 } }
+        }
       }
     }
   });
+})();
 
-  // ── Analytics Charts (loaded via API) ──
-  (async function loadAnalytics() {
-    try {
-      const res = await fetch('/admin/api/stats');
-      const d = await res.json();
-      if (!d.ok) return;
+// ── Hourly Activity Heatmap ──
+(function renderHeatmap() {
+  const hours = {{ hourly_activity.hours|tojson }};
+  const peakHour = {{ hourly_activity.peak_hour if hourly_activity.peak_hour is not none else 'null' }};
+  const target = document.getElementById('hour-heatmap');
+  if (!target) return;
+  const max = Math.max(...hours, 1);
+  // density blocks: ░ (low) → ▒ → ▓ → █ (high)
+  const blocks = ['·', '░', '▒', '▓', '█'];
+  function intensityChar(v) {
+    if (v <= 0) return blocks[0];
+    const ratio = v / max;
+    if (ratio < 0.25) return blocks[1];
+    if (ratio < 0.5) return blocks[2];
+    if (ratio < 0.75) return blocks[3];
+    return blocks[4];
+  }
+  function intensityColor(v) {
+    if (v <= 0) return 'var(--text-faint)';
+    const ratio = v / max;
+    if (ratio < 0.25) return 'var(--cyan)';
+    if (ratio < 0.5) return 'var(--green)';
+    if (ratio < 0.75) return 'var(--amber)';
+    return 'var(--red)';
+  }
+  // Header row 00..23
+  const labelRow = hours.map((_, h) => {
+    const isPeak = (h === peakHour);
+    return `<span style="display:inline-block;width:24px;text-align:center;color:${isPeak ? 'var(--green)' : 'var(--text-faint)'};font-weight:${isPeak ? '700' : '400'}">${String(h).padStart(2,'0')}</span>`;
+  }).join('');
+  // Heatmap row (3 lines tall for impact)
+  const heatRow = hours.map(v => {
+    const ch = intensityChar(v);
+    const col = intensityColor(v);
+    return `<span style="display:inline-block;width:24px;text-align:center;color:${col};font-size:18px;line-height:1">${ch}${ch}${ch}</span>`;
+  }).join('');
+  // Count row
+  const countRow = hours.map(v => {
+    const col = v > 0 ? 'var(--text)' : 'var(--text-faint)';
+    return `<span style="display:inline-block;width:24px;text-align:center;color:${col};font-size:10px">${v || '·'}</span>`;
+  }).join('');
+  // Legend
+  const legend = `<div style="margin-top:12px;font-size:10px;color:var(--text-dim);display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+    <span>ความหนาแน่น:</span>
+    <span style="color:var(--text-faint)">·</span><span>ไม่มี</span>
+    <span style="color:var(--cyan)">░</span><span>&lt;25%</span>
+    <span style="color:var(--green)">▒</span><span>25-50%</span>
+    <span style="color:var(--amber)">▓</span><span>50-75%</span>
+    <span style="color:var(--red)">█</span><span>&gt;75% (peak)</span>
+  </div>`;
+  target.innerHTML = `
+    <div style="overflow-x:auto;white-space:nowrap;padding:6px 0">
+      <div style="margin-bottom:4px">${labelRow}</div>
+      <div style="margin-bottom:6px">${heatRow}</div>
+      <div>${countRow}</div>
+    </div>
+    ${legend}`;
+})();
 
-      // DAU/WAU/MAU
-      const au = d.active_users || {};
-      document.getElementById('stat-dau').textContent = (au.dau || 0).toLocaleString();
-      document.getElementById('stat-wau').textContent = (au.wau || 0).toLocaleString();
-      document.getElementById('stat-mau').textContent = (au.mau || 0).toLocaleString();
+// ── Charts (terminal palette — softened) ──
+const TC = {
+  green: '#98C379',
+  greenSoft: 'rgba(152,195,121,0.12)',
+  cyan: '#83A598',
+  cyanSoft: 'rgba(131,165,152,0.12)',
+  amber: '#E5C07B',
+  amberSoft: 'rgba(229,192,123,0.12)',
+  magenta: '#C678DD',
+  magentaSoft: 'rgba(198,120,221,0.12)',
+  grid: 'rgba(255,255,255,0.03)',
+  tick: '#928374',
+  font: 'JetBrains Mono',
+};
+const chartOpts = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: TC.tick, font: { family: TC.font, size: 11 }, padding: 12 } } }
+};
 
-      // User Growth line chart
-      const growth = d.user_growth || [];
-      new Chart(document.getElementById('growthChart'), {
-        type: 'line',
-        data: {
-          labels: growth.map(g => g.date.slice(5)),
-          datasets: [{
-            label: 'New Users',
-            data: growth.map(g => g.count),
-            borderColor: CL.success,
-            backgroundColor: CL.successSoft,
-            fill: true, tension: 0.3, borderWidth: 2, pointRadius: 3,
-            pointBackgroundColor: CL.success, pointBorderColor: '#FFFFFF', pointBorderWidth: 1.5
-          }]
-        },
-        options: {
-          ...chartOpts,
-          plugins: { ...chartOpts.plugins, legend: { display: false } },
-          scales: {
-            x: { grid: { color: CL.grid }, ticks: { color: CL.tick, maxTicksLimit: 10 } },
-            y: { grid: { color: CL.grid }, ticks: { color: CL.tick }, beginAtZero: true }
-          }
+// ── Analytics charts (loaded via API) ──
+(async function loadAnalytics() {
+  try {
+    const res = await fetch('/admin/api/stats');
+    const d = await res.json();
+    if (!d.ok) return;
+
+    const au = d.active_users || {};
+    document.getElementById('stat-dau').textContent = (au.dau || 0).toLocaleString();
+    document.getElementById('stat-wau').textContent = (au.wau || 0).toLocaleString();
+    document.getElementById('stat-mau').textContent = (au.mau || 0).toLocaleString();
+
+    const growth = d.user_growth || [];
+    new Chart(document.getElementById('growthChart'), {
+      type: 'line',
+      data: {
+        labels: growth.map(g => g.date.slice(5)),
+        datasets: [{
+          label: 'new_users',
+          data: growth.map(g => g.count),
+          borderColor: TC.green,
+          backgroundColor: TC.greenSoft,
+          fill: true, tension: 0.3, borderWidth: 1.5, pointRadius: 2,
+          pointBackgroundColor: TC.green, pointBorderColor: TC.green
+        }]
+      },
+      options: {
+        ...chartOpts,
+        plugins: { ...chartOpts.plugins, legend: { display: false } },
+        scales: {
+          x: { grid: { color: TC.grid }, ticks: { color: TC.tick, maxTicksLimit: 10, font: { family: TC.font, size: 10 } } },
+          y: { grid: { color: TC.grid }, ticks: { color: TC.tick, font: { family: TC.font, size: 10 } }, beginAtZero: true }
         }
-      });
-
-      // Payment bar chart
-      const pay = d.payment_history || [];
-      new Chart(document.getElementById('paymentChart'), {
-        type: 'bar',
-        data: {
-          labels: pay.map(p => p.date.slice(5)),
-          datasets: [{
-            label: 'Payments',
-            data: pay.map(p => p.count),
-            backgroundColor: CL.primarySoft,
-            borderColor: CL.primary,
-            borderWidth: 1.5, borderRadius: 6
-          }]
-        },
-        options: {
-          ...chartOpts,
-          plugins: { ...chartOpts.plugins, legend: { display: false } },
-          scales: {
-            x: { grid: { color: CL.grid }, ticks: { color: CL.tick, maxTicksLimit: 10 } },
-            y: { grid: { color: CL.grid }, ticks: { color: CL.tick }, beginAtZero: true }
-          }
-        }
-      });
-    } catch (e) { console.warn('Analytics load failed:', e); }
-  })();
-
-  // ── Toast ──
-  function showToast(msg, type = 'success') {
-    const c = document.getElementById('toast-container');
-    const t = document.createElement('div');
-    t.className = `toast toast-${type}`;
-    t.textContent = msg;
-    c.appendChild(t);
-    setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.4s'; setTimeout(() => t.remove(), 400); }, 3500);
-  }
-
-  // ── Modal helpers ──
-  function openModal(id) { document.getElementById(id).classList.add('open'); }
-  function closeModal(id) {
-    document.getElementById(id).classList.remove('open');
-    // clear results
-    const r = document.querySelector(`#${id} .modal-result`);
-    if (r) { r.className = 'modal-result'; r.textContent = ''; }
-  }
-  document.querySelectorAll('.modal-overlay').forEach(m => {
-    m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); });
-  });
-
-  function setLoading(btnId, spinnerId, loading) {
-    const btn = document.getElementById(btnId);
-    const sp = document.getElementById(spinnerId);
-    btn.disabled = loading;
-    sp.style.display = loading ? 'block' : 'none';
-  }
-
-  function showResult(elId, ok, msg) {
-    const el = document.getElementById(elId);
-    el.className = `modal-result ${ok ? 'ok' : 'err'}`;
-    el.textContent = msg;
-  }
-
-  async function apiFetch(url, body) {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      }
     });
-    return r.json();
-  }
 
-  // ── Broadcast ──
-  async function doBroadcast() {
-    const msg = document.getElementById('bc-message').value.trim();
-    const audience = document.getElementById('bc-audience').value;
-    if (!msg) { showResult('bc-result', false, 'กรุณาใส่ข้อความ'); return; }
-    setLoading('bc-send-btn', 'bc-spinner', true);
-    try {
-      const d = await apiFetch('/admin/actions/broadcast', { message: msg, audience });
-      if (d.ok) {
-        showResult('bc-result', true, `✅ ส่งสำเร็จ ${d.sent} คน · ล้มเหลว ${d.fail} คน`);
-        showToast(`Broadcast ส่งถึง ${d.sent} คนแล้ว`);
-      } else {
-        showResult('bc-result', false, d.error || 'เกิดข้อผิดพลาด');
+    const pay = d.payment_history || [];
+    new Chart(document.getElementById('paymentChart'), {
+      type: 'bar',
+      data: {
+        labels: pay.map(p => p.date.slice(5)),
+        datasets: [{
+          label: 'payments',
+          data: pay.map(p => p.count),
+          backgroundColor: TC.magentaSoft,
+          borderColor: TC.magenta,
+          borderWidth: 1.5, borderRadius: 0
+        }]
+      },
+      options: {
+        ...chartOpts,
+        plugins: { ...chartOpts.plugins, legend: { display: false } },
+        scales: {
+          x: { grid: { color: TC.grid }, ticks: { color: TC.tick, maxTicksLimit: 10, font: { family: TC.font, size: 10 } } },
+          y: { grid: { color: TC.grid }, ticks: { color: TC.tick, font: { family: TC.font, size: 10 } }, beginAtZero: true }
+        }
       }
-    } catch(e) { showResult('bc-result', false, 'Network error'); }
-    setLoading('bc-send-btn', 'bc-spinner', false);
-  }
+    });
+  } catch (e) { console.warn('Analytics load failed:', e); }
+})();
 
-  // ── Add Role ──
-  async function doAddRole() {
-    const user_id = document.getElementById('ar-uid').value.trim();
-    const role = document.getElementById('ar-role').value;
-    const days = parseInt(document.getElementById('ar-days').value) || 30;
-    if (!user_id) { showResult('ar-result', false, 'กรุณาใส่ User ID'); return; }
-    setLoading('ar-btn', 'ar-spinner', true);
-    try {
-      const d = await apiFetch('/admin/actions/add_role', { user_id, role, days });
-      if (d.ok) {
-        showResult('ar-result', true, `✅ อัปเกรดสำเร็จ — หมดอายุ: ${d.expiry}`);
-        showToast(`${user_id} → ${role.toUpperCase()} (${days} วัน)`);
-      } else {
-        showResult('ar-result', false, d.error || 'เกิดข้อผิดพลาด');
-      }
-    } catch(e) { showResult('ar-result', false, 'Network error'); }
-    setLoading('ar-btn', 'ar-spinner', false);
-  }
+// ── Toast ──
+function showToast(msg, type = 'success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 3500);
+}
 
-  // ── User Lookup ──
-  let _lookupUID = '';
-  async function doUserLookup() {
-    const uid = document.getElementById('ul-uid').value.trim();
-    if (!uid) return;
-    _lookupUID = uid;
-    setLoading('ul-btn', 'ul-spinner', true);
-    document.getElementById('ul-card').classList.remove('open');
-    try {
-      const d = await fetch(`/admin/api/user/${uid}`).then(r => r.json());
-      if (d.ok) {
-        const u = d.user;
-        document.getElementById('ul-name').textContent = u.username || '—';
-        document.getElementById('ul-id').textContent = u.user_id;
-        document.getElementById('ul-role').innerHTML = `<span class="badge badge-${u.role === 'pro' ? 'accent' : u.role === 'vip' ? 'info' : 'gray'}">${u.role.toUpperCase()}</span>`;
-        document.getElementById('ul-expiry').textContent = u.expiry_date || '—';
-        document.getElementById('ul-status').innerHTML = u.status === 'banned'
-          ? '<span class="badge badge-danger">BANNED</span>'
-          : '<span class="badge badge-success">Active</span>';
-        document.getElementById('ul-watchlist').textContent = u.watchlist_count + ' symbols';
-        document.getElementById('ul-portfolio').textContent = u.portfolio_count + ' stocks';
-        document.getElementById('ul-alerts').textContent = u.active_alerts + ' alerts';
-        document.getElementById('ul-reg').textContent = u.registered_date || '—';
-        document.getElementById('ul-last-active').textContent = u.last_active || 'ยังไม่เคยใช้งาน';
-        document.getElementById('ul-card').classList.add('open');
-      } else {
-        showResult('ul-result', false, d.error || 'ไม่พบผู้ใช้');
-      }
-    } catch(e) { showResult('ul-result', false, 'Network error'); }
-    setLoading('ul-btn', 'ul-spinner', false);
-  }
+// ── Modal helpers ──
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  const r = document.querySelector(`#${id} .modal-result`);
+  if (r) { r.className = 'modal-result'; r.textContent = ''; }
+}
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); });
+});
 
-  async function doBanFromLookup(ban) {
-    if (!_lookupUID) return;
-    const url = ban ? '/admin/actions/ban_user' : '/admin/actions/unban_user';
-    const d = await apiFetch(url, { user_id: _lookupUID });
+function setLoading(btnId, spinnerId, loading) {
+  const btn = document.getElementById(btnId);
+  const sp = document.getElementById(spinnerId);
+  btn.disabled = loading;
+  sp.style.display = loading ? 'inline-block' : 'none';
+}
+
+function showResult(elId, ok, msg) {
+  const el = document.getElementById(elId);
+  el.className = `modal-result ${ok ? 'ok' : 'err'}`;
+  el.textContent = msg;
+}
+
+async function apiFetch(url, body) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+// ── Broadcast ──
+async function doBroadcast() {
+  const msg = document.getElementById('bc-message').value.trim();
+  const audience = document.getElementById('bc-audience').value;
+  if (!msg) { showResult('bc-result', false, 'กรุณาใส่ข้อความ'); return; }
+  setLoading('bc-send-btn', 'bc-spinner', true);
+  try {
+    const d = await apiFetch('/admin/actions/broadcast', { message: msg, audience });
     if (d.ok) {
-      showToast(ban ? `🚫 แบน ${_lookupUID} แล้ว` : `✅ ปลดแบน ${_lookupUID} แล้ว`);
-      doUserLookup();
+      showResult('bc-result', true, `ส่งสำเร็จ ${d.sent} คน · ล้มเหลว ${d.fail} · รวม ${d.total}`);
+      showToast(`ส่งประกาศแล้ว — ${d.sent} คน`);
     } else {
-      showToast(d.error || 'เกิดข้อผิดพลาด', 'error');
+      showResult('bc-result', false, d.error || 'เกิดข้อผิดพลาด');
     }
-  }
+  } catch(e) { showResult('bc-result', false, 'เครือข่ายขัดข้อง'); }
+  setLoading('bc-send-btn', 'bc-spinner', false);
+}
 
-  // ── Force Send ──
-  async function doForceSend() {
-    const type = document.getElementById('fs-type').value;
-    const urlMap = {
-      briefing: '/admin/actions/force_briefing',
-      podcast: '/admin/actions/force_podcast',
-      flash_news: '/admin/actions/force_flash_news',
-      digest_news: '/admin/actions/force_digest_news',
-    };
-    setLoading('fs-btn', 'fs-spinner', true);
-    try {
-      const d = await apiFetch(urlMap[type], {});
-      if (d.ok) {
-        showResult('fs-result', true, `✅ ${d.message}`);
-        showToast(d.message, 'info');
-      } else {
-        showResult('fs-result', false, d.error || 'เกิดข้อผิดพลาด');
-      }
-    } catch(e) { showResult('fs-result', false, 'Network error: ' + e.message); }
-    setLoading('fs-btn', 'fs-spinner', false);
-  }
+// ── Add Role ──
+async function doAddRole() {
+  const user_id = document.getElementById('ar-uid').value.trim();
+  const role = document.getElementById('ar-role').value;
+  const days = parseInt(document.getElementById('ar-days').value) || 30;
+  if (!user_id) { showResult('ar-result', false, 'กรุณาใส่รหัสผู้ใช้'); return; }
+  setLoading('ar-btn', 'ar-spinner', true);
+  try {
+    const d = await apiFetch('/admin/actions/add_role', { user_id, role, days });
+    if (d.ok) {
+      showResult('ar-result', true, `เพิ่มสิทธิ์สำเร็จ — หมดอายุ: ${d.expiry}`);
+      showToast(`${user_id} → ${role.toUpperCase()} (${days} วัน)`);
+    } else {
+      showResult('ar-result', false, d.error || 'เกิดข้อผิดพลาด');
+    }
+  } catch(e) { showResult('ar-result', false, 'เครือข่ายขัดข้อง'); }
+  setLoading('ar-btn', 'ar-spinner', false);
+}
 
-  // ── Ban / Unban ──
-  async function doBanAction() {
-    const uid = document.getElementById('ban-uid').value.trim();
-    const action = document.getElementById('ban-action').value;
-    if (!uid) { showResult('ban-result', false, 'กรุณาใส่ User ID'); return; }
-    setLoading('ban-btn', 'ban-spinner', true);
-    try {
-      const url = action === 'ban' ? '/admin/actions/ban_user' : '/admin/actions/unban_user';
-      const d = await apiFetch(url, { user_id: uid });
-      if (d.ok) {
-        showResult('ban-result', true, `✅ ${action === 'ban' ? 'แบน' : 'ปลดแบน'} ${uid} สำเร็จ`);
-        showToast(`${action === 'ban' ? '🚫 แบน' : '✅ ปลดแบน'} ${uid} แล้ว`);
-      } else {
-        showResult('ban-result', false, d.error || 'เกิดข้อผิดพลาด');
-      }
-    } catch(e) { showResult('ban-result', false, 'Network error'); }
-    setLoading('ban-btn', 'ban-spinner', false);
-  }
+// ── User Lookup ──
+let _lookupUID = '';
+async function doUserLookup() {
+  const uid = document.getElementById('ul-uid').value.trim();
+  if (!uid) return;
+  _lookupUID = uid;
+  setLoading('ul-btn', 'ul-spinner', true);
+  document.getElementById('ul-card').classList.remove('open');
+  try {
+    const d = await fetch(`/admin/api/user/${uid}`).then(r => r.json());
+    if (d.ok) {
+      const u = d.user;
+      document.getElementById('ul-name').textContent = u.username || '—';
+      document.getElementById('ul-id').textContent = u.user_id;
+      document.getElementById('ul-role').innerHTML = `<span class="tag tag-${u.role === 'pro' ? 'magenta' : u.role === 'vip' ? 'cyan' : 'gray'}">${u.role.toUpperCase()}</span>`;
+      document.getElementById('ul-expiry').textContent = u.expiry_date || '—';
+      document.getElementById('ul-status').innerHTML = u.status === 'banned'
+        ? '<span class="tag tag-red">ถูกแบน</span>'
+        : '<span class="tag tag-green">ใช้งานได้</span>';
+      document.getElementById('ul-watchlist').textContent = u.watchlist_count + ' หุ้น';
+      document.getElementById('ul-portfolio').textContent = u.portfolio_count + ' หุ้น';
+      document.getElementById('ul-alerts').textContent = u.active_alerts + ' alerts';
+      document.getElementById('ul-reg').textContent = u.registered_date || '—';
+      document.getElementById('ul-last-active').textContent = u.last_active || 'ยังไม่เคยใช้งาน';
+      document.getElementById('ul-card').classList.add('open');
+    } else {
+      showResult('ul-result', false, d.error || 'ไม่พบผู้ใช้');
+    }
+  } catch(e) { showResult('ul-result', false, 'เครือข่ายขัดข้อง'); }
+  setLoading('ul-btn', 'ul-spinner', false);
+}
 
-  // Enter key for user lookup
-  document.getElementById('ul-uid').addEventListener('keydown', e => { if (e.key === 'Enter') doUserLookup(); });
+async function doBanFromLookup(ban) {
+  if (!_lookupUID) return;
+  const url = ban ? '/admin/actions/ban_user' : '/admin/actions/unban_user';
+  const d = await apiFetch(url, { user_id: _lookupUID });
+  if (d.ok) {
+    showToast(ban ? `แบน ${_lookupUID} แล้ว` : `ปลดแบน ${_lookupUID} แล้ว`);
+    doUserLookup();
+  } else {
+    showToast(d.error || 'เกิดข้อผิดพลาด', 'error');
+  }
+}
+
+// ── Force Send ──
+async function doForceSend() {
+  const type = document.getElementById('fs-type').value;
+  const urlMap = {
+    briefing: '/admin/actions/force_briefing',
+    podcast: '/admin/actions/force_podcast',
+    flash_news: '/admin/actions/force_flash_news',
+    digest_news: '/admin/actions/force_digest_news',
+  };
+  setLoading('fs-btn', 'fs-spinner', true);
+  try {
+    const d = await apiFetch(urlMap[type], {});
+    if (d.ok) {
+      showResult('fs-result', true, d.message || 'ส่งแล้ว');
+      showToast(d.message || 'ส่งแล้ว', 'info');
+    } else {
+      showResult('fs-result', false, d.error || 'เกิดข้อผิดพลาด');
+    }
+  } catch(e) { showResult('fs-result', false, 'เครือข่ายขัดข้อง: ' + e.message); }
+  setLoading('fs-btn', 'fs-spinner', false);
+}
+
+// ── Ban / Unban ──
+async function doBanAction() {
+  const uid = document.getElementById('ban-uid').value.trim();
+  const action = document.getElementById('ban-action').value;
+  if (!uid) { showResult('ban-result', false, 'กรุณาใส่รหัสผู้ใช้'); return; }
+  setLoading('ban-btn', 'ban-spinner', true);
+  try {
+    const url = action === 'ban' ? '/admin/actions/ban_user' : '/admin/actions/unban_user';
+    const d = await apiFetch(url, { user_id: uid });
+    if (d.ok) {
+      const verb = action === 'ban' ? 'แบน' : 'ปลดแบน';
+      showResult('ban-result', true, `${verb}สำเร็จ → ${uid}`);
+      showToast(`${verb} ${uid}`);
+    } else {
+      showResult('ban-result', false, d.error || 'เกิดข้อผิดพลาด');
+    }
+  } catch(e) { showResult('ban-result', false, 'เครือข่ายขัดข้อง'); }
+  setLoading('ban-btn', 'ban-spinner', false);
+}
+
+document.getElementById('ul-uid').addEventListener('keydown', e => { if (e.key === 'Enter') doUserLookup(); });
 </script>
 </body>
 </html>

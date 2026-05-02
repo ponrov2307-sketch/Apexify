@@ -8,7 +8,7 @@ from flask import Flask, abort, flash, jsonify, redirect, render_template, reque
 from admin_service import build_local_backup_zip, get_admin_dashboard_snapshot, get_user_info_snapshot, toggle_maintenance_status
 from config import ADMIN_DASHBOARD_LOGIN_SECRET, ADMIN_ID, BOT_WEB_BASE_URL, FLASK_SECRET_KEY, TELEGRAM_TOKEN
 from dashboard_login import verify_admin_dashboard_token
-from database import add_subscription, ban_user, get_all_users, get_active_users, get_dashboard_stats, mark_user_inactive, unban_user
+from database import add_subscription, ban_user, get_all_users, get_active_users, get_dashboard_stats, log_broadcast, mark_user_inactive, unban_user
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = FLASK_SECRET_KEY or ADMIN_DASHBOARD_LOGIN_SECRET or os.urandom(32)
@@ -142,6 +142,13 @@ def admin_dashboard():
             "expiring_members": {},
             "price_alerts": {},
             "notification_settings": {},
+            "recent_activity": {"signups": [], "payments": []},
+            "hourly_activity": {"hours": [0] * 24, "max": 1, "peak_hour": None, "total_active": 0, "window_days": 7},
+            "funnel": {},
+            "top_commands": {"items": [], "total": 0, "window_days": 7},
+            "alert_delivery": {"batches": [], "totals": {"total": 0, "success": 0, "fail": 0, "batches": 0, "success_rate": 0.0}, "daily": [], "window_days": 7},
+            "quota_burn": {"hit_quota": 0, "near_quota": 0, "total_free_active": 0, "burn_rate_pct": 0.0, "top_burners": [], "quota": 3},
+            "win_rate_trend": {"daily": [], "window_days": 14},
             "generated_at": None,
         }
 
@@ -157,6 +164,13 @@ def admin_dashboard():
         expiring_members=snapshot["expiring_members"],
         price_alerts=snapshot["price_alerts"],
         notification_settings=snapshot["notification_settings"],
+        recent_activity=snapshot.get("recent_activity") or {"signups": [], "payments": []},
+        hourly_activity=snapshot.get("hourly_activity") or {"hours": [0] * 24, "max": 1, "peak_hour": None, "total_active": 0, "window_days": 7},
+        funnel=snapshot.get("funnel") or {},
+        top_commands=snapshot.get("top_commands") or {"items": [], "total": 0, "window_days": 7},
+        alert_delivery=snapshot.get("alert_delivery") or {"batches": [], "totals": {"total": 0, "success": 0, "fail": 0, "batches": 0, "success_rate": 0.0}, "daily": [], "window_days": 7},
+        quota_burn=snapshot.get("quota_burn") or {"hit_quota": 0, "near_quota": 0, "total_free_active": 0, "burn_rate_pct": 0.0, "top_burners": [], "quota": 3},
+        win_rate_trend=snapshot.get("win_rate_trend") or {"daily": [], "window_days": 14},
         generated_at=snapshot["generated_at"],
     )
 
@@ -222,6 +236,10 @@ def admin_broadcast():
         s, f = _do_web_broadcast(msg_text, user_ids)
         result["sent"] = s
         result["fail"] = f
+        try:
+            log_broadcast(audience, len(user_ids), s, f)
+        except Exception:
+            pass
 
     t = Thread(target=_run, daemon=True)
     t.start()
