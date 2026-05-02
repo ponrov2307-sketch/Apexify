@@ -487,6 +487,18 @@ def init_db():
         )
     """)
 
+    # ตาราง dedup earnings alert — กัน user ได้ "Earnings วันนี้" ซ้ำตอน bot restart 7:59 → 8:00
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS earnings_notified (
+            user_id TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            notify_date DATE NOT NULL,
+            ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, symbol, notify_date)
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_earnings_notified_date ON earnings_notified (notify_date DESC)")
+
     conn.commit()
     conn.close()
     init_watchlist_db()
@@ -564,6 +576,44 @@ def save_alert_state(symbol, kind, state):
         conn.close()
     except Exception as e:
         print(f"[save_alert_state] {e}", flush=True)
+
+
+def is_earnings_notified(user_id, symbol, notify_date):
+    """เช็คว่า user_id ได้รับ earnings alert ของ symbol ใน notify_date แล้วหรือยัง
+    notify_date: date object หรือ ISO string 'YYYY-MM-DD'
+    """
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            "SELECT 1 FROM earnings_notified WHERE user_id=%s AND symbol=%s AND notify_date=%s LIMIT 1",
+            (str(user_id), str(symbol), notify_date),
+        )
+        found = c.fetchone() is not None
+        conn.close()
+        return found
+    except Exception as e:
+        print(f"[is_earnings_notified] {e}", flush=True)
+        return False  # ถ้า DB ขัดข้อง — ส่ง alert ไปดีกว่าหายไป
+
+
+def mark_earnings_notified(user_id, symbol, notify_date):
+    """บันทึกว่า user_id ได้รับ earnings alert ของ symbol ใน notify_date แล้ว"""
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            """
+            INSERT INTO earnings_notified (user_id, symbol, notify_date)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id, symbol, notify_date) DO NOTHING
+            """,
+            (str(user_id), str(symbol), notify_date),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[mark_earnings_notified] {e}", flush=True)
 
 def init_watchlist_db():
     conn = get_connection()

@@ -27,6 +27,7 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       has_used_free_trial, activate_free_trial,
                       add_earnings_alert_db, get_user_earnings_alerts_db, remove_earnings_alert_db,
                       update_last_active, mark_user_inactive, get_active_users, log_command)
+from bot_utils import friendly_error
 from admin_service import (
     build_local_backup_zip,
     get_dashboard_metrics,
@@ -233,7 +234,8 @@ def handle_force_backup(message):
         bot.delete_message(message.chat.id, load_msg.message_id)
         
     except Exception as e:
-        bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการ Backup: {e}", message.chat.id, load_msg.message_id)
+        print(f"[force_backup] {e}", flush=True)
+        bot.edit_message_text(friendly_error("Backup ล้มเหลว"), message.chat.id, load_msg.message_id)
 
 @bot.message_handler(commands=['system_health'])
 def handle_system_health(message):
@@ -252,7 +254,8 @@ def handle_system_health(message):
         )
         bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
     except Exception as e:
-        bot.edit_message_text(f"❌ ไม่สามารถดึงข้อมูลระบบได้: {e}", message.chat.id, load_msg.message_id)
+        print(f"[system_health] {e}", flush=True)
+        bot.edit_message_text(friendly_error("ดึงข้อมูลระบบไม่สำเร็จ"), message.chat.id, load_msg.message_id)
 
 
 @bot.message_handler(commands=['perf_stats'])
@@ -280,7 +283,8 @@ def handle_perf_stats(message):
         )
         bot.reply_to(message, msg, parse_mode="Markdown")
     except Exception as e:
-        bot.reply_to(message, f"❌ ดึงข้อมูลไม่สำเร็จ: {e}")
+        print(f"[perf_stats] {e}", flush=True)
+        bot.reply_to(message, friendly_error("ดึงข้อมูลไม่สำเร็จ"))
 
 @bot.message_handler(commands=['users_pro'])
 def handle_users_pro(message):
@@ -331,7 +335,8 @@ def handle_force_news(message):
         else:
             bot.edit_message_text("❌ ประเภทข่าวไม่ถูกต้อง พิมพ์ `/force_news flash` หรือ `/force_news digest`", message.chat.id, load_msg.message_id)
     except Exception as e:
-        bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข่าว: {e}", message.chat.id, load_msg.message_id)
+        print(f"[force_news] {e}", flush=True)
+        bot.edit_message_text(friendly_error("ดึงข่าวไม่สำเร็จ"), message.chat.id, load_msg.message_id)
 
 @bot.message_handler(commands=['streak_debug'])
 def handle_streak_debug(message):
@@ -383,7 +388,8 @@ def handle_force_weekly(message):
         send_weekly_performance_digest(bot)
         bot.edit_message_text("✅ บรอดแคสต์ Weekly Digest สำเร็จ!", message.chat.id, load_msg.message_id)
     except Exception as e:
-        bot.edit_message_text(f"❌ Error: {e}", message.chat.id, load_msg.message_id)
+        print(f"[force_weekly] {e}", flush=True)
+        bot.edit_message_text(friendly_error("ส่ง Weekly Digest ล้มเหลว"), message.chat.id, load_msg.message_id)
 
 
 @bot.message_handler(commands=['user_history'])
@@ -992,7 +998,8 @@ def handle_portfolio(message):
         bot.edit_message_text(msg, chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='HTML')
         
     except Exception as e:
-        bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูล: {e}", chat_id=message.chat.id, message_id=processing_msg.message_id)
+        print(f"[user_history] {e}", flush=True)
+        bot.edit_message_text(friendly_error("ดึงข้อมูลผู้ใช้ไม่สำเร็จ"), chat_id=message.chat.id, message_id=processing_msg.message_id)
 
 
 @bot.message_handler(commands=['pnl'])
@@ -1433,7 +1440,8 @@ def handle_award_ref(message):
             parse_mode="Markdown",
         )
     except Exception as e:
-        bot.reply_to(message, f"❌ Error: {e}")
+        print(f"[award_ref] {e}", flush=True)
+        bot.reply_to(message, friendly_error("เพิ่มรางวัล referral ไม่สำเร็จ"))
 
 
 # Day-trade coach state — in-memory dict {(user_id, ticker, date_str): count}
@@ -1534,7 +1542,8 @@ def handle_breaking_test(message):
             f"🌙 Quiet hour: `{stats['skipped_quiet']}`",
             parse_mode="Markdown")
     except Exception as e:
-        bot.send_message(user_id, f"❌ Error: {e}")
+        print(f"[breaking_test] {e}", flush=True)
+        bot.send_message(user_id, friendly_error("ทดสอบ Breaking News ล้มเหลว"))
 
 
 @bot.message_handler(commands=['ealert'])
@@ -1864,7 +1873,8 @@ def handle_performance(message):
                 )
         bot.edit_message_text(report_text, message.chat.id, status_msg.message_id, parse_mode="Markdown")
     except Exception as e:
-        bot.edit_message_text(f"❌ Error: {e}", message.chat.id, status_msg.message_id)
+        print(f"[track_record] {e}", flush=True)
+        bot.edit_message_text(friendly_error("คำนวณ Track Record ไม่สำเร็จ"), message.chat.id, status_msg.message_id)
 
 @bot.message_handler(content_types=['photo'])
 def handle_payment_slip_check(message):
@@ -2253,7 +2263,8 @@ def inline_callbacks(call):
             )
             bot.send_message(user_id, pay_text, parse_mode="Markdown", reply_markup=qr_markup)
         except Exception as e:
-            bot.send_message(user_id, f"❌ เกิดข้อผิดพลาดในการโหลดเมนู VIP: {e}")
+            print(f"[hub_vip_menu] {e}", flush=True)
+            bot.send_message(user_id, friendly_error("โหลดเมนู VIP ไม่สำเร็จ"))
 
     elif call.data.startswith('qr_pay_'):
         try:
@@ -2287,7 +2298,8 @@ def inline_callbacks(call):
                     f"*(โอน {amount:,} บาท แล้วส่งสลิปในแชทนี้)*",
                     parse_mode="Markdown")
         except Exception as e:
-            bot.send_message(user_id, f"❌ ไม่สามารถสร้าง QR ได้: {e}")
+            print(f"[generate_qr] {e}", flush=True)
+            bot.send_message(user_id, friendly_error("สร้าง QR Code ไม่สำเร็จ"))
 
     elif call.data == 'menu_code':
         bot.send_message(user_id, "🎟 **พิมพ์คำสั่ง:** `/redeem [โค้ดของคุณ]`", parse_mode="Markdown")
@@ -2464,7 +2476,8 @@ def inline_callbacks(call):
             )
             bot.edit_message_text(msg, user_id, load_msg.message_id, parse_mode="Markdown")
         except Exception as e:
-            bot.edit_message_text(f"❌ ดึงข้อมูลล้มเหลว: {e}", user_id, load_msg.message_id)
+            print(f"[hub_analyze] {e}", flush=True)
+            bot.edit_message_text(friendly_error("ดึงข้อมูลไม่สำเร็จ"), user_id, load_msg.message_id)
 
     elif call.data == 'hub_market':
         try:
@@ -2551,7 +2564,8 @@ def inline_callbacks(call):
             )
             bot.send_message(user_id, watch_info, parse_mode="Markdown", reply_markup=markup)
         except Exception as e:
-            bot.send_message(user_id, f"❌ Error: {e}")
+            print(f"[hub_watchlist] {e}", flush=True)
+            bot.send_message(user_id, friendly_error("ดึง Watchlist ไม่สำเร็จ"))
 
     elif call.data == 'hub_home':
         markup = InlineKeyboardMarkup(row_width=2)
@@ -2661,7 +2675,8 @@ def inline_callbacks(call):
                     print(f"[Screener] {sym} ล้มเหลว: {e}")
             bot.edit_message_text(scan_result, user_id, scan_msg.message_id, parse_mode="Markdown")
         except Exception as e:
-            bot.send_message(user_id, f"❌ Error: {e}")
+            print(f"[hub_screener] {e}", flush=True)
+            bot.send_message(user_id, friendly_error("Screener ทำงานไม่สำเร็จ"))
 
     elif call.data == 'hub_screener':
         try:
@@ -2777,7 +2792,8 @@ def inline_callbacks(call):
                 
             bot.edit_message_text(result_msg, user_id, scan_msg.message_id, parse_mode="Markdown")
         except Exception as e:
-            bot.edit_message_text(f"❌ ระบบสแกนขัดข้อง: {e}", user_id, scan_msg.message_id)
+            print(f"[hub_screener_scan] {e}", flush=True)
+            bot.edit_message_text(friendly_error("ระบบสแกนขัดข้อง"), user_id, scan_msg.message_id)
 
     elif call.data == 'menu_manual':
         class FakeMsg:
@@ -2790,7 +2806,8 @@ def inline_callbacks(call):
         try:
             handle_manual(FakeMsg(int(user_id), call.message.message_id))
         except Exception as e:
-            bot.send_message(user_id, f"❌ Error: {e}")
+            print(f"[hub_manual] {e}", flush=True)
+            bot.send_message(user_id, friendly_error("เปิดคู่มือไม่สำเร็จ"))
 
     elif call.data == 'hub_track':
         # Reuse handler ของ /track
@@ -2804,7 +2821,8 @@ def inline_callbacks(call):
         try:
             handle_track_record(FakeMsg(int(user_id), call.message.message_id))
         except Exception as e:
-            bot.send_message(user_id, f"❌ Error: {e}")
+            print(f"[hub_track] {e}", flush=True)
+            bot.send_message(user_id, friendly_error("โหลด Track Record ไม่สำเร็จ"))
 
     elif call.data == 'hub_earnings':
         if role not in ('vip', 'pro') and user_id != ADMIN_ID:
@@ -2914,7 +2932,8 @@ def inline_callbacks(call):
             footer = "➕ เพิ่มเตือนใหม่: `/setalert [หุ้น] [ราคา]`\nเช่น `/setalert PTT.BK 35`"
             bot.send_message(user_id, header + footer, parse_mode="Markdown", reply_markup=markup)
         except Exception as e:
-            bot.send_message(user_id, f"❌ ระบบตั้งเตือนราคาขัดข้อง: {e}")
+            print(f"[hub_alerts] {e}", flush=True)
+            bot.send_message(user_id, friendly_error("ระบบตั้งเตือนราคาขัดข้อง"))
 
     elif call.data.startswith('addwatch_'):
         symbol = call.data.split('_')[1]
@@ -3052,7 +3071,8 @@ def handle_earnings(message):
         )
         bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
     except Exception as e:
-        bot.edit_message_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูลงบการเงิน: {e}", message.chat.id, load_msg.message_id) 
+        print(f"[earnings_cmd] {e}", flush=True)
+        bot.edit_message_text(friendly_error("ดึงข้อมูลงบการเงินไม่สำเร็จ"), message.chat.id, load_msg.message_id)
 
 @bot.message_handler(commands=['fund', 'fundamentals'])
 def handle_fundamentals(message):
@@ -3178,7 +3198,7 @@ def handle_fundamentals(message):
         bot.edit_message_text("\n".join(msg_parts), message.chat.id, load_msg.message_id, parse_mode="Markdown")
     except Exception as e:
         print(f"[fund] error {symbol}: {e}", flush=True)
-        bot.edit_message_text(f"❌ ดึงข้อมูลไม่สำเร็จ: {str(e)[:100]}", message.chat.id, load_msg.message_id)
+        bot.edit_message_text(friendly_error(f"ดึงข้อมูล {symbol} ไม่สำเร็จ"), message.chat.id, load_msg.message_id)
 
 
 @bot.message_handler(commands=['compare'])
@@ -3291,7 +3311,7 @@ def handle_compare(message):
         bot.edit_message_text("\n".join(comparison_lines), message.chat.id, load_msg.message_id, parse_mode="Markdown")
     except Exception as e:
         print(f"[compare] error: {e}", flush=True)
-        bot.edit_message_text(f"❌ เปรียบเทียบไม่สำเร็จ: {str(e)[:100]}", message.chat.id, load_msg.message_id)
+        bot.edit_message_text(friendly_error("เปรียบเทียบไม่สำเร็จ"), message.chat.id, load_msg.message_id)
 
 
 _analysis_cache = {}  # {symbol: (timestamp, tech_data, chart_bytes, err)}
