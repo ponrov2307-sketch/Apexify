@@ -3,6 +3,7 @@ import json
 import math
 import re
 import time as _time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FutureTimeout
 from threading import RLock
 
 import PIL.Image
@@ -12,6 +13,23 @@ from config import GEMINI_API_KEY, gemini_client
 from technical_tools import build_multitimeframe_trade_context
 
 client = gemini_client
+
+# 🛡 Gemini timeout pool — กัน handler thread hang ถ้า Gemini stall
+# google-genai ไม่ expose timeout ตรงๆ ใช้ pool + future.result(timeout=) แทน
+_gemini_timeout_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="gemini-to")
+GEMINI_DEFAULT_TIMEOUT_S = 30
+GEMINI_IMAGE_TIMEOUT_S = 45  # image analysis ช้ากว่าปกติ
+
+
+def _gemini_call_with_timeout(timeout_s=GEMINI_DEFAULT_TIMEOUT_S, **kwargs):
+    """Wrap client.models.generate_content() ด้วย hard timeout
+    Background call ยังทำงานต่อใน pool (ไม่ cancel ได้) แต่ caller หลุด
+    """
+    fut = _gemini_timeout_pool.submit(client.models.generate_content, **kwargs)
+    try:
+        return fut.result(timeout=timeout_s)
+    except _FutureTimeout:
+        raise TimeoutError(f"Gemini API timed out after {timeout_s}s") from None
 
 # 🌟 Cache Gemini responses — key by (symbol, bias, rounded price 1%) เพื่อ hit เมื่อ user ขอหุ้นเดียวซ้ำใน 5 นาที
 # ลด Gemini API call 50%+ + ลดเวลา 3-8 วิ → 0 วิ บน cache hit
@@ -685,7 +703,7 @@ def _request_member_payload(prompt, defaults, cache_key=None):
             kwargs = {"model": "gemini-2.5-flash", "contents": candidate_prompt}
             if config is not None:
                 kwargs["config"] = config
-            response = client.models.generate_content(**kwargs)
+            response = _gemini_call_with_timeout(timeout_s=GEMINI_DEFAULT_TIMEOUT_S, **kwargs)
             raw_text = getattr(response, "text", "") or ""
             payload_block = _extract_json_block(raw_text)
             if not payload_block:
@@ -1159,7 +1177,11 @@ def analyze_payment_slip(file_path_or_bytes):
         else:
             image = PIL.Image.open(file_path_or_bytes)
 
-        response = client.models.generate_content(model="gemini-2.5-flash", contents=[image, prompt])
+        response = _gemini_call_with_timeout(
+            timeout_s=GEMINI_IMAGE_TIMEOUT_S,
+            model="gemini-2.5-flash",
+            contents=[image, prompt],
+        )
         return response.text
     except Exception:
         return '{"is_slip": false, "amount": 0, "ref_no": ""}'

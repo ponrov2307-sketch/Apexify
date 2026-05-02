@@ -175,6 +175,49 @@ def admin_dashboard():
     )
 
 
+_MAINT_NOTICE_ON = (
+    "🔧 *Apexify ปิดปรับปรุงระบบชั่วคราว*\n\n"
+    "ระบบกำลังอัปเกรดเพื่อบริการคุณดีขึ้น "
+    "ขออภัยในความไม่สะดวกครับ — เราจะแจ้งทันทีเมื่อกลับมาใช้งานได้ 🙏"
+)
+_MAINT_NOTICE_OFF = (
+    "✅ *Apexify กลับมาใช้งานได้แล้ว!*\n\n"
+    "ขอบคุณที่รอครับ ทุกฟีเจอร์พร้อมใช้แล้ว — "
+    "พิมพ์ชื่อหุ้นเพื่อเริ่มวิเคราะห์ได้เลย 📊"
+)
+
+
+def _broadcast_maintenance_notice(enabled):
+    """Background broadcast: แจ้ง user ทุกคนว่าบอทเข้า/ออกจาก maintenance mode
+    ใช้ active users (ไม่ส่งหา user ที่ inactive/blocked) + safe_send_with_retry
+    """
+    msg = _MAINT_NOTICE_ON if enabled else _MAINT_NOTICE_OFF
+    audience_label = "maint_on" if enabled else "maint_off"
+    try:
+        from bot_utils import safe_send_with_retry
+        bot = _get_bot()
+        active = list(get_active_users() or [])
+        # บรรจุ admin ใน list เสมอ — บ่อยมากที่ admin เป็นคน toggle และอยากเห็น confirm
+        if str(ADMIN_ID) and str(ADMIN_ID) not in [str(u) for u in active]:
+            active.insert(0, ADMIN_ID)
+        success = 0
+        fail = 0
+        for uid in active:
+            ok = safe_send_with_retry(bot, uid, msg, retries=2, parse_mode="Markdown")
+            if ok:
+                success += 1
+            else:
+                fail += 1
+            time.sleep(0.05)  # ~20 msg/s — ปลอดภัยจาก Telegram rate limit
+        try:
+            log_broadcast(audience_label, len(active), success, fail)
+        except Exception:
+            pass
+        print(f"[MaintenanceBroadcast] {audience_label}: sent {success}, failed {fail}, total {len(active)}", flush=True)
+    except Exception as e:
+        print(f"[MaintenanceBroadcast] error: {e}", flush=True)
+
+
 @app.route("/admin/actions/maintenance", methods=["POST"])
 def admin_toggle_maintenance():
     if not _has_valid_admin_session():
@@ -182,7 +225,15 @@ def admin_toggle_maintenance():
 
     enabled = toggle_maintenance_status()
     status_label = "เปิด" if enabled else "ปิด"
-    flash(f"อัปเดต Maintenance Mode เรียบร้อยแล้ว: {status_label}", "success")
+
+    # 🌟 Broadcast ใน background thread — ไม่ block redirect
+    Thread(target=_broadcast_maintenance_notice, args=(enabled,), daemon=True).start()
+
+    notice_label = "ปิดปรับปรุง" if enabled else "กลับมาใช้งานปกติ"
+    flash(
+        f"อัปเดต Maintenance Mode: {status_label} · กำลังบรอดแคสต์แจ้ง user ทุกคนว่า '{notice_label}' ในเบื้องหลัง",
+        "success",
+    )
     return redirect(url_for("admin_dashboard"))
 
 

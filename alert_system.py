@@ -32,8 +32,15 @@ from email.utils import parsedate_to_datetime
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = gemini_client
 
+import threading as _threading
+
 last_alert_state = {}  # populated from DB ตอน run_alert_loop เริ่ม — ดู _hydrate_alert_state()
+
+# 🛡 sent_pro_news + _rss_cache อ่าน/เขียนจากหลาย thread (Flash + Digest + alert loop)
+# กัน race "Set changed during iteration" + cache อ่านขณะเขียน
 sent_pro_news = set()
+_sent_news_lock = _threading.Lock()
+_rss_cache_lock = _threading.Lock()
 
 
 def _set_alert_state(symbol, kind, new_state):
@@ -261,11 +268,14 @@ def _init_sent_pro_news():
             "SELECT raw_key FROM dispatch_log WHERE category = 'news' "
             "AND created_at > NOW() - INTERVAL '24 hours'"
         )
-        for (raw_key,) in cur.fetchall():
-            if raw_key:
-                sent_pro_news.add(raw_key)
+        rows = cur.fetchall()
         conn.close()
-        print(f"[init] โหลดประวัติ sent_pro_news จาก DB: {len(sent_pro_news)} รายการ")
+        with _sent_news_lock:
+            for (raw_key,) in rows:
+                if raw_key:
+                    sent_pro_news.add(raw_key)
+            count = len(sent_pro_news)
+        print(f"[init] โหลดประวัติ sent_pro_news จาก DB: {count} รายการ")
     except Exception as e:
         print(f"[init] _init_sent_pro_news error: {e}")
 
@@ -599,11 +609,17 @@ def check_market_conditions():
 # 🌟 ฟังก์ชันดึงข่าวรวมจากทุกสำนัก
 # ==========================================
 def get_fresh_global_news():
-    """ดึงข่าวรวม — มี Cache 30 นาที ป้องกัน Flash & Digest ดึงซ้ำกัน"""
+    """ดึงข่าวรวม — มี Cache 30 นาที ป้องกัน Flash & Digest ดึงซ้ำกัน
+    🛡 Locked: rss_cache + sent_pro_news ทั้งคู่ access จากหลาย thread
+    """
     now = time.time()
-    if now - _rss_cache["ts"] < _RSS_CACHE_TTL and _rss_cache["data"]:
-        # ยังใหม่อยู่ กรอง sent_pro_news ออกแล้วคืนผล
-        return [n for n in _rss_cache["data"] if n["title"] not in sent_pro_news]
+    with _rss_cache_lock:
+        cache_ts = _rss_cache["ts"]
+        cache_data = list(_rss_cache["data"])  # snapshot สำหรับใช้นอก lock
+    if now - cache_ts < _RSS_CACHE_TTL and cache_data:
+        with _sent_news_lock:
+            sent_snapshot = set(sent_pro_news)
+        return [n for n in cache_data if n["title"] not in sent_snapshot]
 
     urls = [
         # 🇹🇭 ข่าวไทย
@@ -659,10 +675,13 @@ def get_fresh_global_news():
         depth += 1
 
     # 🌟 อัปเดต cache (เก็บทั้งหมด ยังไม่กรอง sent_pro_news)
-    _rss_cache["data"] = balanced_news
-    _rss_cache["ts"] = time.time()
+    with _rss_cache_lock:
+        _rss_cache["data"] = balanced_news
+        _rss_cache["ts"] = time.time()
 
-    return [n for n in balanced_news if n["title"] not in sent_pro_news]
+    with _sent_news_lock:
+        sent_snapshot = set(sent_pro_news)
+    return [n for n in balanced_news if n["title"] not in sent_snapshot]
 
 # ==========================================
 # 🌟 ระบบส่งข่าวด่วนรายชั่วโมง (Flash News) - [อัปเกรดระบบดักจับ Error]
@@ -719,7 +738,8 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
 
         # 🌟 2. สร้าง sections สำหรับแต่ละข่าว
         sections = []
-        seen_titles = list(sent_pro_news)
+        with _sent_news_lock:
+            seen_titles = list(sent_pro_news)
         for item in analysis_list[:2]:
             original_title = _normalize_news_title(
                 item.get('original_title') or item.get('title') or item.get('headline') or ''
@@ -740,15 +760,17 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
             summary = _compact_news_text(summary, max_chars=200, max_lines=2)
             sections.append(f"{emoji} *{headline_th}*\n{summary}")
             if not force:
-                sent_pro_news.add(original_title)
+                with _sent_news_lock:
+                    sent_pro_news.add(original_title)
                 seen_titles.append(original_title)
 
         if not sections:
             return
 
         # ป้องกันหน่วยความจำเต็ม
-        if len(sent_pro_news) > 500:
-            sent_pro_news.clear()
+        with _sent_news_lock:
+            if len(sent_pro_news) > 500:
+                sent_pro_news.clear()
 
         msg = "⚡️ *Flash News*\n\n" + "\n\n".join(sections)
 
@@ -847,7 +869,8 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             return
         sent_to_users = set()
         digest_sections = []
-        seen_titles = list(sent_pro_news)
+        with _sent_news_lock:
+            seen_titles = list(sent_pro_news)
 
         for item in analysis_list[:MAX_DIGEST_ITEMS]:
             original_title = _normalize_news_title(item.get('original_title', ''))
@@ -865,7 +888,8 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
                 summary = _compact_news_text(summary, max_chars=200, max_lines=2)
                 digest_sections.append(f"{emoji} *{headline_th}*\n{summary}")
                 if not force:
-                    sent_pro_news.add(original_title)
+                    with _sent_news_lock:
+                        sent_pro_news.add(original_title)
                     seen_titles.append(original_title)
         if not digest_sections:
             conn.close()
