@@ -37,6 +37,21 @@ _ai_response_cache = TTLCache(maxsize=200, ttl=300)
 _ai_cache_lock = RLock()
 
 
+# 🥇 Commodity/crypto descriptions — แสดงใต้ชื่อ symbol ใน header รายงาน
+# กัน user งงว่า GLD/USO/SLV คืออะไร (เป็น ETF อ้างอิงราคา commodity จริง)
+_COMMODITY_REPORT_DESC = {
+    'GLD':     '🥇 ETF ทองคำ (SPDR Gold Trust) — เคลื่อนไหวตามราคาทองโลก',
+    'SLV':     '⚪ ETF แร่เงิน (iShares Silver Trust) — เคลื่อนไหวตามราคาเงิน',
+    'USO':     '🛢 ETF น้ำมัน WTI (US Oil Fund) — อ้างอิง crude futures',
+    'UNG':     '💨 ETF ก๊าซธรรมชาติ (US Natural Gas Fund)',
+    'CPER':    '🟫 ETF ทองแดง (US Copper Index Fund)',
+    'PPLT':    '🥈 ETF ทองคำขาว (Aberdeen Platinum)',
+    'PALL':    '⚪ ETF พาลาเดียม (Aberdeen Palladium)',
+    'BTC-USD': '₿ Bitcoin — สกุลเงินดิจิทัลอันดับ 1',
+    'ETH-USD': 'Ξ Ethereum — สกุลเงินดิจิทัลอันดับ 2',
+}
+
+
 def _ai_cache_key(symbol, dominant_bias, current_price):
     # round price ลงเหลือ % เพื่อให้ cache hit แม้ราคาขยับเล็กน้อย
     bucket = round(current_price / 100, 0) if current_price else 0
@@ -928,6 +943,14 @@ def _build_member_snapshot(context, trends, tier):
         f"{'━' * 17}",
         f"{tier_badge}",
         f"*🤖 Apexify AI — {symbol}*",
+    ]
+
+    # 🥇 Commodity/crypto description — บอกชัดเจนว่า ETF/coin ตัวนี้คืออะไร
+    commodity_desc = _COMMODITY_REPORT_DESC.get(symbol)
+    if commodity_desc:
+        lines.append(f"_{commodity_desc}_")
+
+    lines.extend([
         f"{'━' * 17}",
         f"💵 *ราคา:* {_format_price(price)}",
         f"📡 *Trend:* {_build_trend_badges(trends)}",
@@ -942,7 +965,7 @@ def _build_member_snapshot(context, trends, tier):
         "*🗺 โซนราคาสำคัญ*",
         f"• 🟢 *แนวรับ:* {_format_price(support)}",
         f"• 🔴 *แนวต้าน:* {_format_price(resistance)}",
-    ]
+    ])
 
     if poc is not None:
         lines.append(f"• 🟡 *POC (โซนคนกระจุก):* {_format_price(poc)}")

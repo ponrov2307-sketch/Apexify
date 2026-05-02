@@ -186,7 +186,7 @@ _CLASSIFY_PROMPT = """คุณเป็นนักวิเคราะห์�
 หากเป็นข่าวมหภาค/ตลาด/นโยบาย (CPI, FOMC, war, OPEC) ที่กระทบทั้งตลาด → "tickers": [] (แสดงว่ากระทบวงกว้าง)
 
 ตอบ JSON:
-{{"importance": "HIGH|MEDIUM|LOW", "summary_th": "สรุปไทย 80 ตัวอักษรกระชับ", "reasoning": "เหตุผลภาษาไทย 1 ประโยค", "tickers": []}}"""
+{{"importance": "HIGH|MEDIUM|LOW", "summary_th": "สรุปไทย 80 ตัวอักษรกระชับ (สำหรับข้อความ Telegram)", "reasoning": "เหตุผลภาษาไทย 1 ประโยค", "audio_script_th": "บท narration ภาษาไทย 4-6 ประโยค (~250-400 ตัวอักษร) สำหรับเสียง อธิบายข่าว+เหตุผล+ผลกระทบที่อาจเกิด+คำแนะนำเตรียมตัวสำหรับนักลงทุน เขียนเป็นประโยคต่อเนื่อง อ่านลื่น ห้ามใช้ bullet", "tickers": []}}"""
 
 
 _GEMINI_FALLBACK_CHAIN = ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro")
@@ -252,6 +252,7 @@ def gemini_classify_breaking(item: dict) -> dict | None:
             "importance": importance,
             "summary_th": str(data.get("summary_th", item["title"]))[:200],
             "reasoning": str(data.get("reasoning", ""))[:300],
+            "audio_script_th": str(data.get("audio_script_th", ""))[:600],
             "tickers": tickers,
         }
     except Exception as e:
@@ -274,9 +275,13 @@ _TTS_VOICE = "th-TH-PremwadeeNeural"  # Same voice as morning podcast
 def _build_audio_script(record: dict) -> str:
     """Build a natural-sounding Thai script from the news record.
 
-    Edge TTS reads English brand names readably; we just stitch summary +
-    reasoning into a flowing sentence for narration.
+    Prefer audio_script_th (narration 4-6 sentences from Gemini) — fallback to
+    summary_th + reasoning if missing (older records / Gemini fallback path).
     """
+    narration = (record.get("audio_script_th") or "").strip()
+    if narration:
+        return f"ข่าวด่วนตลาดสหรัฐ. {narration}"
+    # Fallback for legacy records without audio_script_th
     summary = (record.get("summary_th") or record.get("title") or "").strip()
     reasoning = (record.get("reasoning") or "").strip()
     parts = ["ข่าวด่วนตลาดสหรัฐ", summary]

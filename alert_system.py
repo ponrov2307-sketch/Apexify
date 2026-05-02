@@ -619,9 +619,7 @@ def get_fresh_global_news():
         return [n for n in cache_data if n["title"] not in sent_snapshot]
 
     urls = [
-        # 🇹🇭 ข่าวไทย
-        "https://news.google.com/rss/search?q=เศรษฐกิจ+OR+หุ้น+OR+ทองคำ+OR+คริปโต+OR+น้ำมัน+when:1d&hl=th&gl=TH&ceid=TH:th",
-        # 🌍 ข่าวโลก (Google News)
+        # 🇺🇸 ข่าวเมกา / ตลาดโลก (Google News) — ลบ Thai news ออก ตามที่ user ขอ
         "https://news.google.com/rss/search?q=economy+OR+stock+market+OR+gold+OR+crypto+OR+oil+when:1d&hl=en-US&gl=US&ceid=US:en",
         # 📊 Macro / Fed / Rates
         "https://news.google.com/rss/search?q=Federal+Reserve+OR+interest+rates+OR+inflation+OR+GDP+when:1d&hl=en-US&gl=US&ceid=US:en",
@@ -629,6 +627,8 @@ def get_fresh_global_news():
         "https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC&region=US&lang=en-US",
         # 📺 CNBC markets
         "https://www.cnbc.com/id/100003114/device/rss/rss.html",
+        # 📰 MarketWatch top stories
+        "https://feeds.content.dowjones.io/public/rss/mw_topstories",
     ]
     raw_news = []
     seen_titles = set()
