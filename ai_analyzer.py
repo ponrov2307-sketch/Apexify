@@ -38,15 +38,25 @@ _ai_cache_lock = RLock()
 
 
 # 🥇 Commodity/crypto descriptions — แสดงใต้ชื่อ symbol ใน header รายงาน
-# กัน user งงว่า GLD/USO/SLV คืออะไร (เป็น ETF อ้างอิงราคา commodity จริง)
+# กัน user งงว่า GC=F/CL=F/HG=F คืออะไร (เป็น futures = ราคาจริงของสินค้า ไม่ใช่ ETF)
 _COMMODITY_REPORT_DESC = {
-    'GLD':     '🥇 ETF ทองคำ (SPDR Gold Trust) — เคลื่อนไหวตามราคาทองโลก',
-    'SLV':     '⚪ ETF แร่เงิน (iShares Silver Trust) — เคลื่อนไหวตามราคาเงิน',
-    'USO':     '🛢 ETF น้ำมัน WTI (US Oil Fund) — อ้างอิง crude futures',
+    # 🥇 Futures — ราคา spot จริง (front-month continuous)
+    'GC=F':    '🥇 ทองคำ (Gold Futures) — ราคา spot ดอลลาร์/ออนซ์',
+    'SI=F':    '⚪ แร่เงิน (Silver Futures) — ราคา spot ดอลลาร์/ออนซ์',
+    'CL=F':    '🛢 น้ำมันดิบ WTI (Crude Oil Futures) — ดอลลาร์/บาร์เรล',
+    'NG=F':    '💨 ก๊าซธรรมชาติ (Natural Gas Futures) — ดอลลาร์/MMBtu',
+    'HG=F':    '🟫 ทองแดง (Copper Futures) — ดอลลาร์/ปอนด์',
+    'PL=F':    '🥈 ทองคำขาว (Platinum Futures) — ดอลลาร์/ออนซ์',
+    'PA=F':    '⚪ พาลาเดียม (Palladium Futures) — ดอลลาร์/ออนซ์',
+    # ETF — เผื่อ user พิมพ์ ticker ตรงๆ (ราคา ETF ไม่ใช่ spot)
+    'GLD':     '🥇 ETF ทองคำ (SPDR Gold Trust) — ราคาต่อหุ้น ETF (≠ ราคาทอง spot ใช้ `gold` แทนถ้าอยากเห็นราคาจริง)',
+    'SLV':     '⚪ ETF แร่เงิน (iShares Silver Trust) — ราคาต่อหุ้น ETF',
+    'USO':     '🛢 ETF น้ำมัน (US Oil Fund) — ราคาต่อหุ้น ETF (≠ ราคา oil spot ใช้ `oil` แทนถ้าอยากเห็นราคาจริง)',
     'UNG':     '💨 ETF ก๊าซธรรมชาติ (US Natural Gas Fund)',
     'CPER':    '🟫 ETF ทองแดง (US Copper Index Fund)',
     'PPLT':    '🥈 ETF ทองคำขาว (Aberdeen Platinum)',
     'PALL':    '⚪ ETF พาลาเดียม (Aberdeen Palladium)',
+    # Crypto
     'BTC-USD': '₿ Bitcoin — สกุลเงินดิจิทัลอันดับ 1',
     'ETH-USD': 'Ξ Ethereum — สกุลเงินดิจิทัลอันดับ 2',
 }

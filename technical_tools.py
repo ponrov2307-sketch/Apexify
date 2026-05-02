@@ -111,13 +111,18 @@ def calculate_indicators(data):
 
 
 _COMMODITY_ALIASES = {
-    'GOLD': 'GLD', 'GLD': 'GLD', 'ทอง': 'GLD', 'ทองคำ': 'GLD',
-    'SILVER': 'SLV', 'SIV': 'SLV', 'SLV': 'SLV', 'แร่เงิน': 'SLV', 'เงิน': 'SLV',
-    'OIL': 'USO', 'CRUDE': 'USO', 'USO': 'USO', 'น้ำมัน': 'USO',
-    'GAS': 'UNG', 'NATGAS': 'UNG', 'UNG': 'UNG', 'ก๊าซ': 'UNG',
-    'COPPER': 'CPER', 'CPER': 'CPER', 'ทองแดง': 'CPER',
-    'PLATINUM': 'PPLT', 'PPLT': 'PPLT', 'ทองคำขาว': 'PPLT',
-    'PALLADIUM': 'PALL', 'PALL': 'PALL',
+    # 🥇 ราคา spot จริง — ใช้ futures (=F suffix) ไม่ใช่ ETF เพราะราคา ETF ต่างจาก spot
+    'GOLD': 'GC=F', 'ทอง': 'GC=F', 'ทองคำ': 'GC=F',
+    'SILVER': 'SI=F', 'SIV': 'SI=F', 'แร่เงิน': 'SI=F', 'เงิน': 'SI=F',
+    'OIL': 'CL=F', 'CRUDE': 'CL=F', 'น้ำมัน': 'CL=F', 'น้ำมันดิบ': 'CL=F',
+    'GAS': 'NG=F', 'NATGAS': 'NG=F', 'ก๊าซ': 'NG=F', 'ก๊าซธรรมชาติ': 'NG=F',
+    'COPPER': 'HG=F', 'ทองแดง': 'HG=F',
+    'PLATINUM': 'PL=F', 'ทองคำขาว': 'PL=F',
+    'PALLADIUM': 'PA=F', 'พาลาเดียม': 'PA=F',
+    # ETF aliases — ถ้า user พิมพ์ตรงๆ ก็ส่งไปตามนั้น (ราคา ETF ไม่ใช่ spot)
+    'GLD': 'GLD', 'SLV': 'SLV', 'USO': 'USO', 'UNG': 'UNG',
+    'CPER': 'CPER', 'PPLT': 'PPLT', 'PALL': 'PALL',
+    # Crypto — BTC-USD/ETH-USD เป็น spot price อยู่แล้ว
     'BTC': 'BTC-USD', 'BITCOIN': 'BTC-USD', 'บิทคอยน์': 'BTC-USD', 'บิตคอยน์': 'BTC-USD',
     'ETH': 'ETH-USD', 'ETHEREUM': 'ETH-USD',
 }
