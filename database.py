@@ -474,6 +474,19 @@ def init_db():
     """)
     c.execute("CREATE INDEX IF NOT EXISTS idx_bcast_log_ts ON broadcast_log (ts DESC)")
 
+    # ตาราง persist alert state — fix bug duplicate alerts หลัง restart
+    # เก็บ state ของแต่ละ (symbol, kind) เช่น (NVDA, rsi) → 'overbought'
+    # โหลดตอน startup เพื่อให้รู้ว่าเคยส่ง alert ใดไปแล้ว
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS alert_state (
+            symbol TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            state TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (symbol, kind)
+        )
+    """)
+
     conn.commit()
     conn.close()
     init_watchlist_db()
@@ -512,6 +525,45 @@ def log_broadcast(audience, total, success, fail):
         conn.close()
     except Exception as e:
         print(f"[log_broadcast] {e}", flush=True)
+
+
+def load_all_alert_states():
+    """โหลด alert state ทั้งหมดจาก DB → คืน {symbol: {kind: state}}
+    ใช้ใน alert_system ตอน startup เพื่อให้รู้ว่าเคยส่ง alert ตัวไหนไปแล้ว
+    ป้องกัน duplicate alert หลัง systemctl restart
+    """
+    result = {}
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT symbol, kind, state FROM alert_state")
+        for row in c.fetchall():
+            sym, kind, state = row
+            result.setdefault(str(sym), {})[str(kind)] = str(state)
+        conn.close()
+    except Exception as e:
+        print(f"[load_all_alert_states] {e}", flush=True)
+    return result
+
+
+def save_alert_state(symbol, kind, state):
+    """UPSERT alert state (symbol, kind) → state. Fail-safe — ไม่ break alert loop ถ้า DB ขัดข้อง"""
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            """
+            INSERT INTO alert_state (symbol, kind, state, updated_at)
+            VALUES (%s, %s, %s, NOW())
+            ON CONFLICT (symbol, kind) DO UPDATE
+                SET state = EXCLUDED.state, updated_at = NOW()
+            """,
+            (str(symbol), str(kind), str(state)),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[save_alert_state] {e}", flush=True)
 
 def init_watchlist_db():
     conn = get_connection()

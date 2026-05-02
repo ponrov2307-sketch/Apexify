@@ -16,7 +16,8 @@ from database import (get_all_active_symbols, get_users_watching, init_db, check
                       reset_daily_free_usage, get_expiring_subscriptions,
                       get_top_watched_symbols, get_all_earnings_subscriptions,
                       mark_user_inactive, get_active_users,
-                      get_pending_plans, update_plan_outcome, expire_stale_plans)
+                      get_pending_plans, update_plan_outcome, expire_stale_plans,
+                      load_all_alert_states, save_alert_state)
 import json
 import xml.etree.ElementTree as ET 
 import yfinance as yf
@@ -29,8 +30,28 @@ from email.utils import parsedate_to_datetime
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 client = gemini_client
 
-last_alert_state = {}
+last_alert_state = {}  # populated from DB ตอน run_alert_loop เริ่ม — ดู _hydrate_alert_state()
 sent_pro_news = set()
+
+
+def _set_alert_state(symbol, kind, new_state):
+    """Update in-memory + persist DB. Save เฉพาะตอน state เปลี่ยน — ไม่ flood DB"""
+    bucket = last_alert_state.setdefault(symbol, {})
+    if bucket.get(kind) != new_state:
+        bucket[kind] = new_state
+        save_alert_state(symbol, kind, new_state)
+
+
+def _hydrate_alert_state():
+    """โหลด alert state จาก DB → fix bug duplicate alert หลัง restart"""
+    try:
+        loaded = load_all_alert_states()
+        last_alert_state.clear()
+        last_alert_state.update(loaded)
+        total = sum(len(v) for v in loaded.values())
+        print(f"[AlertState] โหลด {total} state จาก DB ({len(loaded)} symbols) — กัน duplicate alert", flush=True)
+    except Exception as e:
+        print(f"[AlertState] hydrate ล้มเหลว — เริ่มต้นด้วย empty state: {e}", flush=True)
 
 
 def safe_send(bot_instance, user_id, text, **kwargs):
@@ -514,10 +535,10 @@ def check_market_conditions():
 
             if rsi_condition != 'normal' and rsi_condition != last_alert_state[symbol]['rsi']:
                 send_alert_to_users(symbol, msg, alert_type="tech")
-                log_alert(symbol, f"RSI_{rsi_condition.upper()}", price) 
-                last_alert_state[symbol]['rsi'] = rsi_condition
+                log_alert(symbol, f"RSI_{rsi_condition.upper()}", price)
+                _set_alert_state(symbol, 'rsi', rsi_condition)
             elif rsi_condition == 'normal':
-                last_alert_state[symbol]['rsi'] = 'normal'
+                _set_alert_state(symbol, 'rsi', 'normal')
 
             cross_condition = 'normal'
             if ema50 > ema200 and (ema50 / ema200) < 1.01:
@@ -529,8 +550,8 @@ def check_market_conditions():
 
             if cross_condition != 'normal' and cross_condition != last_alert_state[symbol]['cross']:
                 send_alert_to_users(symbol, msg, alert_type="tech")
-                log_alert(symbol, f"EMA_{cross_condition.upper()}", price) 
-                last_alert_state[symbol]['cross'] = cross_condition
+                log_alert(symbol, f"EMA_{cross_condition.upper()}", price)
+                _set_alert_state(symbol, 'cross', cross_condition)
 
             breakout_condition = 'normal'
             if price > resistance:
@@ -542,10 +563,10 @@ def check_market_conditions():
 
             if breakout_condition != 'normal' and breakout_condition != last_alert_state[symbol]['breakout']:
                 send_alert_to_users(symbol, msg, alert_type="tech")
-                log_alert(symbol, f"BREAKOUT_{breakout_condition.upper()}", price) 
-                last_alert_state[symbol]['breakout'] = breakout_condition
+                log_alert(symbol, f"BREAKOUT_{breakout_condition.upper()}", price)
+                _set_alert_state(symbol, 'breakout', breakout_condition)
             elif breakout_condition == 'normal':
-                last_alert_state[symbol]['breakout'] = 'normal'
+                _set_alert_state(symbol, 'breakout', 'normal')
 
             # 🌟 [เพิ่มใหม่] เงื่อนไข Whale Alert (วอลุ่มพุ่ง 3 เท่า)
             whale_condition = 'normal'
@@ -558,10 +579,10 @@ def check_market_conditions():
 
             if whale_condition != 'normal' and whale_condition != last_alert_state[symbol].get('whale', 'normal'):
                 send_alert_to_users(symbol, msg, alert_type="whale")
-                log_alert(symbol, f"WHALE_{whale_condition.upper()}", price) 
-                last_alert_state[symbol]['whale'] = whale_condition
+                log_alert(symbol, f"WHALE_{whale_condition.upper()}", price)
+                _set_alert_state(symbol, 'whale', whale_condition)
             elif whale_condition == 'normal':
-                last_alert_state[symbol]['whale'] = 'normal'
+                _set_alert_state(symbol, 'whale', 'normal')
 
             time.sleep(2)
         except Exception as e:
@@ -1852,6 +1873,7 @@ def run_alert_loop(bot_instance=None):
         bot_instance = bot
 
     _init_sent_pro_news()
+    _hydrate_alert_state()
     print("🚀 Apexify Alert System (PRO + VIP selected features) is Running...")
 
     last_hourly_news_time = time.time() - FLASH_NEWS_INTERVAL_SECONDS
