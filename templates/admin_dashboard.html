@@ -933,6 +933,58 @@
       </div>
     </div>
 
+    <!-- Webmaster (ApexifyWebmaster) shared-DB metrics -->
+    {% if webmaster_metrics and webmaster_metrics.available %}
+    <div class="section-title">Webmaster (เว็บแดชบอร์ดผู้ใช้) — DB เดียวกัน</div>
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+      <div class="stat green">
+        <div class="stat-label">Total transactions</div>
+        <div class="stat-value">{{ "{:,}".format(webmaster_metrics.tx_total or 0) }}</div>
+        <div class="stat-sub">{{ webmaster_metrics.tx_active_users or 0 }} ผู้ใช้บันทึก · เดือนนี้ {{ webmaster_metrics.tx_this_month or 0 }} ทรานแซค</div>
+      </div>
+      <div class="stat cyan">
+        <div class="stat-label">Active webmaster (7d)</div>
+        <div class="stat-value">{{ webmaster_metrics.active_users_7d or 0 }}</div>
+        <div class="stat-sub">มีบันทึก/แก้ไข tx ใน 7 วันล่าสุด</div>
+      </div>
+      <div class="stat {% if (webmaster_metrics.tx_with_proof_pct or 0) >= 50 %}green{% elif (webmaster_metrics.tx_with_proof_pct or 0) >= 20 %}amber{% else %}red{% endif %}">
+        <div class="stat-label">Proof attachment rate</div>
+        <div class="stat-value">{{ "%.0f"|format(webmaster_metrics.tx_with_proof_pct or 0) }}%</div>
+        <div class="stat-sub">{{ webmaster_metrics.tx_with_proof or 0 }} ไฟล์ · pending purge {{ webmaster_metrics.tx_proofs_pending_purge or 0 }}</div>
+      </div>
+      <div class="stat amber">
+        <div class="stat-label">Dividends recorded</div>
+        <div class="stat-value">{{ webmaster_metrics.div_total_count or 0 }}</div>
+        <div class="stat-sub">รวม ฿{{ "{:,.0f}".format(webmaster_metrics.div_total_amount or 0) }} · ค่าคอมรวม ฿{{ "{:,.0f}".format(webmaster_metrics.fees_total_thb or 0) }}</div>
+      </div>
+    </div>
+    {% if webmaster_metrics.tx_top_tickers and webmaster_metrics.tx_top_tickers|length > 0 %}
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-title">
+        <div class="panel-title-l">หุ้นที่ user เทรดบ่อยสุดในเว็บ (top 5)</div>
+        <div class="panel-title-r">cross-user · webmaster</div>
+      </div>
+      <div style="font-family:var(--mono);font-size:12px;line-height:1.9;padding:6px 0">
+        {% for ticker, cnt in webmaster_metrics.tx_top_tickers %}
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="color:var(--text-faint);width:26px;text-align:right">#{{ loop.index }}</span>
+          <span style="color:var(--green);font-weight:700;width:80px">{{ ticker }}</span>
+          <span style="flex:1;background:var(--border-strong);height:8px;border-radius:4px;overflow:hidden">
+            <span style="display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--cyan));width:{{ (cnt / webmaster_metrics.tx_top_tickers[0][1] * 100)|int }}%"></span>
+          </span>
+          <span style="color:var(--text-dim);font-size:11px;width:80px;text-align:right">{{ cnt }} txn</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% elif webmaster_metrics %}
+    <div class="section-title">Webmaster metrics</div>
+    <div class="banner-warn" style="margin-bottom:14px">
+      ApexifyWebmaster tables ยังไม่มีใน DB นี้ — รัน migration 002 (proof) + ตั้งค่า env เพื่อให้ webmaster เริ่ม insert ข้อมูล
+    </div>
+    {% endif %}
+
     <!-- Hourly Activity Heatmap -->
     <div class="section-title">แผนที่ความ active รายชั่วโมง (UTC+7 · {{ hourly_activity.window_days or 7 }} วันล่าสุด)</div>
     <div class="panel" style="margin-bottom:14px">

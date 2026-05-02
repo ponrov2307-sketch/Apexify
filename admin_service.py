@@ -1023,6 +1023,130 @@ def get_user_info_snapshot(user_id):
     }
 
 
+def get_webmaster_metrics_snapshot():
+    """ApexifyWebmaster metrics — read from same Supabase project as bot.
+
+    Fail-soft: if any of the webmaster tables doesn't exist (e.g. fresh install
+    where migrations haven't been applied), returns zeros instead of crashing.
+    """
+    metrics = {
+        "tx_total": 0,
+        "tx_active_users": 0,
+        "tx_this_month": 0,
+        "tx_with_proof": 0,
+        "tx_with_proof_pct": 0.0,
+        "tx_proofs_pending_purge": 0,  # soft-deleted in 30-day grace
+        "tx_top_tickers": [],          # [(ticker, count), ...]
+        "fees_total_thb": 0.0,
+        "div_total_count": 0,
+        "div_total_amount": 0.0,
+        "active_users_7d": 0,          # users with tx updated in last 7d
+        "available": False,
+    }
+    conn = get_connection()
+    if not conn:
+        return metrics
+    try:
+        c = conn.cursor()
+
+        # Transactions table — overall
+        try:
+            c.execute("SELECT COUNT(*) FROM transactions WHERE deleted_at IS NULL")
+            metrics["tx_total"] = int(c.fetchone()[0] or 0)
+        except Exception:
+            conn.rollback()
+            return metrics  # transactions table missing → entire metrics off
+
+        metrics["available"] = True
+
+        # Distinct users with at least 1 tx
+        c.execute("SELECT COUNT(DISTINCT user_id) FROM transactions WHERE deleted_at IS NULL")
+        metrics["tx_active_users"] = int(c.fetchone()[0] or 0)
+
+        # This-month transactions
+        c.execute(
+            """
+            SELECT COUNT(*) FROM transactions
+             WHERE deleted_at IS NULL
+               AND transaction_date >= date_trunc('month', NOW())
+            """
+        )
+        metrics["tx_this_month"] = int(c.fetchone()[0] or 0)
+
+        # Top tickers
+        c.execute(
+            """
+            SELECT ticker, COUNT(*) AS cnt FROM transactions
+             WHERE deleted_at IS NULL
+             GROUP BY ticker ORDER BY cnt DESC LIMIT 5
+            """
+        )
+        metrics["tx_top_tickers"] = [(r[0], int(r[1])) for r in c.fetchall()]
+
+        # Active webmaster users — at least 1 tx update in last 7d
+        c.execute(
+            """
+            SELECT COUNT(DISTINCT user_id) FROM transactions
+             WHERE deleted_at IS NULL
+               AND updated_at >= NOW() - INTERVAL '7 days'
+            """
+        )
+        metrics["active_users_7d"] = int(c.fetchone()[0] or 0)
+
+        # Total fees (sum) — informational
+        c.execute(
+            """
+            SELECT COALESCE(SUM(fee * COALESCE(fx_rate, 35.5)), 0)
+              FROM transactions WHERE deleted_at IS NULL
+            """
+        )
+        metrics["fees_total_thb"] = float(c.fetchone()[0] or 0)
+
+        # Photo proof adoption (only if migration 002 applied)
+        try:
+            c.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN proof_path IS NOT NULL AND proof_deleted_at IS NULL THEN 1 ELSE 0 END) AS active,
+                    SUM(CASE WHEN proof_deleted_at IS NOT NULL THEN 1 ELSE 0 END) AS pending_purge
+                  FROM transactions WHERE deleted_at IS NULL
+                """
+            )
+            row = c.fetchone()
+            metrics["tx_with_proof"] = int(row[0] or 0)
+            metrics["tx_proofs_pending_purge"] = int(row[1] or 0)
+            if metrics["tx_total"]:
+                metrics["tx_with_proof_pct"] = round(
+                    metrics["tx_with_proof"] / metrics["tx_total"] * 100, 1
+                )
+        except Exception:
+            conn.rollback()  # migration 002 not applied — skip proof metrics
+
+        # Dividends table (optional — may not exist on legacy installs)
+        try:
+            c.execute(
+                """
+                SELECT COUNT(*),
+                       COALESCE(SUM(amount * COALESCE(fx_rate, 35.5)), 0)
+                  FROM dividends WHERE deleted_at IS NULL
+                """
+            )
+            row = c.fetchone()
+            metrics["div_total_count"] = int(row[0] or 0)
+            metrics["div_total_amount"] = float(row[1] or 0)
+        except Exception:
+            conn.rollback()
+
+    except Exception as exc:
+        print(f"[webmaster_metrics] {exc}", flush=True)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return metrics
+
+
 def get_admin_dashboard_snapshot(limit=15):
     """🌟 Cache 45s + parallelize 9 sections + skip yfinance ใน hot path
 
@@ -1060,6 +1184,7 @@ def get_admin_dashboard_snapshot(limit=15):
         "alert_delivery": _dashboard_executor.submit(get_alert_delivery_snapshot),
         "quota_burn": _dashboard_executor.submit(get_quota_burn_snapshot),
         "win_rate_trend": _dashboard_executor.submit(get_win_rate_trend_snapshot),
+        "webmaster_metrics": _dashboard_executor.submit(get_webmaster_metrics_snapshot),
     }
 
     snapshot = {}
