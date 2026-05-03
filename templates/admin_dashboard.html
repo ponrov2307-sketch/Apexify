@@ -1083,12 +1083,6 @@
       ApexifyWebmaster tables ยังไม่มีใน DB นี้ — รัน migration 002 (proof) + ตั้งค่า env เพื่อให้ webmaster เริ่ม insert ข้อมูล
     </div>
     {% endif %}
-    {% elif webmaster_metrics %}
-    <div class="section-title">Webmaster metrics</div>
-    <div class="banner-warn" style="margin-bottom:14px">
-      ApexifyWebmaster tables ยังไม่มีใน DB นี้ — รัน migration 002 (proof) + ตั้งค่า env เพื่อให้ webmaster เริ่ม insert ข้อมูล
-    </div>
-    {% endif %}
 
     <!-- Hourly Activity Heatmap -->
     <div class="section-title">แผนที่ความ active รายชั่วโมง (UTC+7 · {{ hourly_activity.window_days or 7 }} วันล่าสุด)</div>
