@@ -9,7 +9,7 @@ import string
 import time
 import threading
 import xml.etree.ElementTree as ET 
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from keep_alive import keep_alive, set_webhook_bot
 from config import TELEGRAM_TOKEN, ADMIN_ID, DASHBOARD_LOGIN_TOKEN_TTL, APEXIFY_PASSWORD, gemini_client, BOT_WEB_BASE_URL
 from dashboard_login import issue_admin_dashboard_url, issue_dashboard_login_url
@@ -466,16 +466,26 @@ def send_dashboard_login_link(user_id):
     apexify_password = APEXIFY_PASSWORD or "(ยังไม่ได้ตั้งค่า APEXIFY_PASSWORD/AUTH_SHARED_PASSCODE)"
 
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("เปิดแดชบอร์ด (ล็อกอินอัตโนมัติ)", url=login_url))
+    # WebApp button: opens dashboard inline inside Telegram (no app switch).
+    # Requires HTTPS + the URL host registered in BotFather (/newapp).
+    # Falls back gracefully on Telegram clients that don't support WebApps —
+    # the URL button below works on every client.
+    try:
+        markup.add(InlineKeyboardButton("📱 เปิดในแชท (WebApp)", web_app=WebAppInfo(url=login_url)))
+    except Exception:
+        pass  # WebAppInfo unsupported — keep URL fallback only
+    markup.add(InlineKeyboardButton("🌐 เปิดในเบราว์เซอร์", url=login_url))
     msg = (
-        "กดปุ่มด้านล่างเพื่อเปิด Dashboard แบบล็อกอินอัตโนมัติ\n"
-        f"ลิงก์นี้มีอายุประมาณ {ttl_minutes} นาที\n\n"
-        "ข้อมูลสำหรับล็อกอินผ่านหน้าเว็บ (กรณีเข้าอัตโนมัติไม่สำเร็จ)\n"
+        "เลือกวิธีเปิด Dashboard:\n"
+        "📱 *เปิดในแชท* — เปิดได้ใน Telegram เลย ไม่ต้องสลับแอป\n"
+        "🌐 *เปิดในเบราว์เซอร์* — เปิดใน Chrome/Safari\n\n"
+        f"ลิงก์มีอายุประมาณ {ttl_minutes} นาที\n\n"
+        "ข้อมูลล็อกอินสำรอง (เผื่อเข้าอัตโนมัติไม่สำเร็จ)\n"
         f"- Telegram ID: {user_id}\n"
         f"- รหัส Apexify: {apexify_password}\n\n"
         "หากลิงก์หมดอายุ ให้กด /dashboard เพื่อสร้างลิงก์ใหม่"
     )
-    bot.send_message(user_id, msg, reply_markup=markup)
+    bot.send_message(user_id, msg, reply_markup=markup, parse_mode="Markdown")
 
 
 def send_admin_dashboard_link(user_id):
