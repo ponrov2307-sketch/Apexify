@@ -150,6 +150,7 @@ def admin_dashboard():
             "quota_burn": {"hit_quota": 0, "near_quota": 0, "total_free_active": 0, "burn_rate_pct": 0.0, "top_burners": [], "quota": 3},
             "win_rate_trend": {"daily": [], "window_days": 14},
             "webmaster_metrics": {"available": False},
+            "cohort_retention": {"rows": [], "weeks": 8},
             "generated_at": None,
         }
 
@@ -173,6 +174,7 @@ def admin_dashboard():
         quota_burn=snapshot.get("quota_burn") or {"hit_quota": 0, "near_quota": 0, "total_free_active": 0, "burn_rate_pct": 0.0, "top_burners": [], "quota": 3},
         win_rate_trend=snapshot.get("win_rate_trend") or {"daily": [], "window_days": 14},
         webmaster_metrics=snapshot.get("webmaster_metrics") or {"available": False},
+        cohort_retention=snapshot.get("cohort_retention") or {"rows": [], "weeks": 8},
         generated_at=snapshot["generated_at"],
     )
 

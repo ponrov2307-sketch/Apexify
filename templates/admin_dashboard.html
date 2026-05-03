@@ -933,6 +933,55 @@
       </div>
     </div>
 
+    <!-- Cohort retention — weekly signups vs. +1w/+2w/+4w activity + paid conversion -->
+    {% if cohort_retention and cohort_retention.rows and cohort_retention.rows|length > 0 %}
+    <div class="section-title">Cohort Retention ({{ cohort_retention.weeks or 8 }} สัปดาห์ล่าสุด)</div>
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-title">
+        <div class="panel-title-l">สมัครใหม่ → ใช้ต่อ +1w / +2w / +4w → จ่ายจริง</div>
+        <div class="panel-title-r">drop ที่ +1w = onboarding · drop ที่ +2w = product fit</div>
+      </div>
+      <div style="overflow-x:auto;font-family:var(--mono);font-size:12px;line-height:1.7">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="color:var(--text-dim);text-align:left">
+              <th style="padding:6px 10px;border-bottom:1px dashed var(--border-strong)">สัปดาห์เริ่ม</th>
+              <th style="padding:6px 10px;border-bottom:1px dashed var(--border-strong);text-align:right">Signups</th>
+              <th style="padding:6px 10px;border-bottom:1px dashed var(--border-strong);text-align:right">+1w</th>
+              <th style="padding:6px 10px;border-bottom:1px dashed var(--border-strong);text-align:right">+2w</th>
+              <th style="padding:6px 10px;border-bottom:1px dashed var(--border-strong);text-align:right">+4w</th>
+              <th style="padding:6px 10px;border-bottom:1px dashed var(--border-strong);text-align:right">Paid</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in cohort_retention.rows %}
+            <tr>
+              <td style="padding:6px 10px;color:var(--text)">{{ row.cohort_week }}</td>
+              <td style="padding:6px 10px;text-align:right;color:var(--text);font-weight:700">{{ row.signups }}</td>
+              <td style="padding:6px 10px;text-align:right;color:{% if row.w1_pct is none %}var(--text-faint){% elif row.w1_pct >= 50 %}var(--green){% elif row.w1_pct >= 30 %}var(--amber){% else %}var(--red){% endif %}">
+                {% if row.w1 is none %}—{% else %}{{ row.w1 }} <span style="color:var(--text-faint);font-size:10px">({{ "%.0f"|format(row.w1_pct) }}%)</span>{% endif %}
+              </td>
+              <td style="padding:6px 10px;text-align:right;color:{% if row.w2_pct is none %}var(--text-faint){% elif row.w2_pct >= 35 %}var(--green){% elif row.w2_pct >= 20 %}var(--amber){% else %}var(--red){% endif %}">
+                {% if row.w2 is none %}—{% else %}{{ row.w2 }} <span style="color:var(--text-faint);font-size:10px">({{ "%.0f"|format(row.w2_pct) }}%)</span>{% endif %}
+              </td>
+              <td style="padding:6px 10px;text-align:right;color:{% if row.w4_pct is none %}var(--text-faint){% elif row.w4_pct >= 25 %}var(--green){% elif row.w4_pct >= 12 %}var(--amber){% else %}var(--red){% endif %}">
+                {% if row.w4 is none %}—{% else %}{{ row.w4 }} <span style="color:var(--text-faint);font-size:10px">({{ "%.0f"|format(row.w4_pct) }}%)</span>{% endif %}
+              </td>
+              <td style="padding:6px 10px;text-align:right;color:{% if row.paid_pct >= 5 %}var(--magenta){% elif row.paid_pct >= 2 %}var(--cyan){% else %}var(--text-dim){% endif %};font-weight:700">
+                {{ row.paid }} <span style="color:var(--text-faint);font-size:10px;font-weight:400">({{ "%.1f"|format(row.paid_pct) }}%)</span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:10px;font-size:10px;color:var(--text-faint);font-family:var(--mono);line-height:1.6">
+        🟢 ดี · 🟡 พอใช้ · 🔴 ต่ำ — เกณฑ์: w1 ≥50% · w2 ≥35% · w4 ≥25% · paid ≥2%
+        <br>"—" = สัปดาห์ยังไม่ครบช่วงเวลานั้น
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Webmaster (ApexifyWebmaster) shared-DB metrics -->
     {% if webmaster_metrics and webmaster_metrics.available %}
     <div class="section-title">Webmaster (เว็บแดชบอร์ดผู้ใช้) — DB เดียวกัน</div>

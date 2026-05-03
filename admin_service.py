@@ -1337,6 +1337,87 @@ def get_webmaster_metrics_snapshot():
     return metrics
 
 
+def get_cohort_retention_snapshot(weeks=8):
+    """Weekly signup cohorts + their +1w / +2w / +4w retention + paid conversion.
+
+    Helps spot where the funnel breaks:
+      - Drop at +1w → onboarding / first-week problem
+      - Drop at +2w → product fit
+      - Low paid → trial flow / pricing
+    """
+    rows: list[dict] = []
+    conn = None
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            f"""
+            WITH cohorts AS (
+                SELECT
+                    user_id,
+                    role,
+                    expiry_date,
+                    last_active,
+                    NULLIF(TRIM(registered_date), '')::timestamp AS reg_ts
+                FROM users
+                WHERE registered_date IS NOT NULL
+                  AND TRIM(registered_date) <> ''
+            )
+            SELECT
+                DATE_TRUNC('week', reg_ts) AS cohort_week,
+                COUNT(*) AS signups,
+                SUM(CASE WHEN last_active IS NOT NULL
+                          AND last_active >= reg_ts + INTERVAL '7 days'
+                         THEN 1 ELSE 0 END) AS active_w1,
+                SUM(CASE WHEN last_active IS NOT NULL
+                          AND last_active >= reg_ts + INTERVAL '14 days'
+                         THEN 1 ELSE 0 END) AS active_w2,
+                SUM(CASE WHEN last_active IS NOT NULL
+                          AND last_active >= reg_ts + INTERVAL '28 days'
+                         THEN 1 ELSE 0 END) AS active_w4,
+                SUM(CASE WHEN role IN ('vip', 'pro')
+                          AND expiry_date IS NOT NULL
+                          AND expiry_date::timestamp > NOW()
+                         THEN 1 ELSE 0 END) AS paid_now
+              FROM cohorts
+             WHERE reg_ts >= DATE_TRUNC('week', NOW() - INTERVAL '{int(weeks)} weeks')
+             GROUP BY cohort_week
+             ORDER BY cohort_week DESC
+             LIMIT %s
+            """,
+            (int(weeks),),
+        )
+        from datetime import datetime as _dt, timezone as _tz
+        now = _dt.now(_tz.utc)
+        for cohort_week, signups, w1, w2, w4, paid in c.fetchall():
+            signups = int(signups or 0)
+            if signups == 0:
+                continue
+            week_start = cohort_week
+            # Mark cells as "—" if not enough time has passed yet
+            age_days = (now - week_start.replace(tzinfo=_tz.utc) if week_start.tzinfo is None else now - week_start).days
+            row = {
+                "cohort_week": week_start.strftime("%Y-%m-%d"),
+                "signups": signups,
+                "w1": int(w1 or 0) if age_days >= 7 else None,
+                "w2": int(w2 or 0) if age_days >= 14 else None,
+                "w4": int(w4 or 0) if age_days >= 28 else None,
+                "paid": int(paid or 0),
+                "w1_pct": round((int(w1 or 0) / signups) * 100, 1) if age_days >= 7 else None,
+                "w2_pct": round((int(w2 or 0) / signups) * 100, 1) if age_days >= 14 else None,
+                "w4_pct": round((int(w4 or 0) / signups) * 100, 1) if age_days >= 28 else None,
+                "paid_pct": round((int(paid or 0) / signups) * 100, 1),
+            }
+            rows.append(row)
+    except Exception as exc:
+        print(f"[cohort_retention] {exc}", flush=True)
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
+    return {"rows": rows, "weeks": weeks}
+
+
 def get_admin_dashboard_snapshot(limit=15):
     """🌟 Cache 45s + parallelize 9 sections + skip yfinance ใน hot path
 
@@ -1375,6 +1456,7 @@ def get_admin_dashboard_snapshot(limit=15):
         "quota_burn": _dashboard_executor.submit(get_quota_burn_snapshot),
         "win_rate_trend": _dashboard_executor.submit(get_win_rate_trend_snapshot),
         "webmaster_metrics": _dashboard_executor.submit(get_webmaster_metrics_snapshot),
+        "cohort_retention": _dashboard_executor.submit(get_cohort_retention_snapshot),
     }
 
     snapshot = {}
