@@ -64,6 +64,22 @@ Dashboard URLs:
 - `/admin/stats` — usage statistics
 - `/admin/codes` — promo codes management
 
+### Sections (terminal UI · Gruvbox `#BDAE93`)
+- Stats × 4 rows (basic metrics + funnel + tier mix)
+- System health + user distribution
+- Hourly heatmap (active by hour-of-day)
+- Win rate trend (rolling 7d + daily)
+- 30-day charts (new users + payments)
+- Activity feed
+- Engagement: top commands + alert delivery rate
+- Free quota burn (3/3 + top burners)
+- Digest/watched/alerts
+- Expiring members + Signal performance/breakdown + Premium members
+- **Webmaster section ⭐ (2026-05-03)** — cross-user metrics จาก ApexifyWebmaster (Supabase shared)
+  - 8 stats: total txn / WoW growth / active 7d-30d / buy-sell / proof% / storage / realized P&L / dividends
+  - Top 8 traded tickers + Top 8 cross-user holdings
+  - Top 5 brokers + Currency split USD/THB
+
 ## Admin Master Control (ปุ่ม inline)
 
 ส่งคำว่า "👑 แผงควบคุมแอดมิน" ในแชท → เปิด menu:

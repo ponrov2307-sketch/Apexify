@@ -39,13 +39,23 @@ tags: [moc, index]
 - [[25 - Performance and Accuracy Roadmap]] 🆕 — Speed audit + AI accuracy improvements + GitHub libs research
 
 ### 🗒️ Daily Logs
-- [[2026-05-01]] ⭐ — **Trade Plan v2 + News Resilience** (Phase 1 + 2 done)
+- [[2026-05-03]] ⭐ — **Webmaster Section + Commodity Spot + Quality Sweep**
+- [[2026-05-01]] — **Trade Plan v2 + News Resilience** (Phase 1 + 2 done)
 - [[2026-04-25]]
 - [[2026-04-24]]
 
-### 🔧 Recent (2026-05-02 → 03)
-**Admin UI redesign + reliability sweep — ดู [[14 - Recent Changes]] section ใหม่บนสุด**
-- Admin dashboard: dark GitHub → Claude cream → terminal Gruvbox (พร้อม 4 metric ใหม่ + Thai)
+### 🔧 Recent (2026-05-03)
+**ApexifyWebmaster cross-user metrics + commodity spot prices — ดู [[14 - Recent Changes]] section บนสุด**
+- Admin dashboard: section "Webmaster" ใหม่ — 8 stats + 4 panels (top tickers/holdings/brokers/currency)
+- ทั้ง Bot และ ApexifyWebmaster ใช้ Supabase project เดียวกัน → ดึง cross-user data ตรง psycopg2
+- Commodities ใช้ futures (=F) แทน ETF — gold→GC=F, oil→CL=F (ราคา spot จริง $4,629/oz, $101.94/bbl)
+- Flash News เป็น US-only (drop Thai RSS, เพิ่ม MarketWatch)
+- Audio narration ยาวขึ้น (`audio_script_th` 4-6 ประโยค)
+- Critical fix: JS TDZ + SQL TEXT cast — admin dashboard sections เปล่ามาทั้งสัปดาห์
+
+### 🔧 Recent (2026-05-02)
+**Admin UI redesign + reliability sweep — ดู [[14 - Recent Changes]]**
+- Admin dashboard: dark GitHub → Claude cream → terminal Gruvbox (4 metric + Thai)
 - Maintenance toggle ส่ง broadcast user (ทั้ง /maintenance และ admin dashboard)
 - Alert state persist (กัน duplicate หลัง restart) — fix issue ลูกค้า PP P. report
 - Earnings dedup + Telegram retry + Friendly Thai errors + Quiet hours

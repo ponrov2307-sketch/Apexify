@@ -6,6 +6,73 @@ tags: [changelog]
 
 > เรียงจากใหม่สุดลงล่าง — เก็บแค่ commits สำคัญ
 
+## 2026-05-03 (Webmaster Dashboard Section + Commodity Spot + Quality Fixes)
+
+> Daily note: [[2026-05-03]]
+
+### `f26b8c9` — Webmaster section ขยายเต็มสูบ ⭐⭐⭐
+**User บอก iteration แรกดึงข้อมูลน้อย → ขยายเป็น 8 stats + 4 cross-user panels**
+
+**8 stat cards (2 rows):**
+- Row 1: Total txn · Growth WoW % · Active 7d/30d · Buy/Sell ratio
+- Row 2: Proof% · Storage bytes · Realized P&L · Dividends
+
+**4 panels:**
+- Top 8 traded tickers (lime/cyan)
+- Top 8 cross-user holdings จาก `portfolios` (magenta/amber)
+- Top 5 brokers (NULL/empty → "Manual")
+- Currency split USD/THB bar (amber)
+
+ทุก query try/except → fail-soft, missing table = 0 ไม่ break section
+
+### `a064685` — Webmaster section iteration 1 ⭐⭐
+**Bot และ ApexifyWebmaster ใช้ Supabase project เดียว** → admin dashboard ดึง cross-user data ตรงผ่าน psycopg2 (ไม่ต้องผ่าน API)
+
+- Panel ใหม่ระหว่าง "สัดส่วนระดับสมาชิก" และ "heatmap รายชั่วโมง"
+- 4 stat cards: Total txn / Active 7d / Proof% / Dividends
+- Top-5 most-traded tickers (gradient bar)
+- `get_webmaster_metrics_snapshot()` ใน admin_service.py — single connection, fail-soft (returns `available=false` ถ้า migrations ยังไม่ run)
+- Added to parallel ThreadPool ใน `get_admin_dashboard_snapshot()` ไม่กระทบ cold-load
+
+### `e4fecd1` — Critical bugfixes admin dashboard ⭐⭐
+**2 บั๊กไม่เกี่ยวกันทำหน้าเปล่า**
+
+**JS Temporal Dead Zone**
+- `const TC` + `chartOpts` ประกาศที่ line 1635 แต่ใช้ที่ 1539 (`renderWinRateTrend`)
+- Hoisting ไม่ช่วย const → `ReferenceError: Cannot access TC before initialization`
+- Throw ที่ไหน script จุดนั้นหยุด → heatmap, 30-day charts, win rate trend ทั้งหมดเปล่า
+- Fix: ย้าย TC + chartOpts ขึ้นไปก่อน renderWinRateTrend
+
+**SQL string vs timestamp**
+- `users.expiry_date` schema เป็น TEXT
+- Funnel query เขียน `expiry_date > NOW()` → string compare → paying_now/vip_now/pro_now = 0
+- Fix: cast `expiry_date::timestamp > NOW()` ทั้ง active paying + churned-30d
+
+### `20d92d1` — Commodities ใช้ futures (=F) ⭐
+**User บอก "GLD $420 ไม่ใช่ราคาทองจริง"** — ETF tracking ≠ spot
+
+- gold/ทอง → **GC=F** ($/oz, ~$4,629)
+- silver → SI=F ($/oz)
+- oil/น้ำมัน → **CL=F** ($/barrel, ~$101.94)
+- gas → NG=F ($/MMBtu)
+- copper, platinum, palladium → HG=F / PL=F / PA=F
+- ETF ticker ที่ user พิมพ์เอง resolve เป็น ETF + warning ใน description ว่า "ใช้ `gold`/`oil` ถ้าอยากเห็นราคาจริง"
+
+### `6134730` — 3 quality fixes
+1. **Commodity/crypto description line** — GLD/SLV/USO/BTC-USD ฯลฯ แสดง "🥇 ETF ทองคำ — เคลื่อนไหวตามราคาทองโลก" ใต้ ticker
+2. **Flash News drop Thai source** — เน้น US markets, เพิ่ม MarketWatch
+3. **Audio narration ยาวขึ้น** — Gemini produce field `audio_script_th` (4-6 ประโยค, 250-400 chars) แยกจาก `summary_th` (Telegram 80 ตัว) → clip เสียงอธิบายเต็ม
+
+### `cb86261` — 3 quality fixes (earnings/compare/alert)
+- earnings nan handling
+- /compare deeper metrics
+- alert retry hardening
+
+### `03d234d` — Commodity friendly aliases (rolled into 20d92d1)
+- กฤษ/เงิน/น้ำมัน/btc → mapping (later changed to futures)
+
+---
+
 ## 2026-05-02 → 05-03 (Admin UI Overhaul + Reliability Sweep)
 
 ### `6616be8` — Maintenance broadcast parity
