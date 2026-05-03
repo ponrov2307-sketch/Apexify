@@ -1329,6 +1329,8 @@ def _capture_referrer_input(message):
             print(f"[ReferralCapture] admin notify failed: {e}", flush=True)
     except Exception as e:
         print(f"[ReferralCapture] save failed: {e}", flush=True)
+        from bot_utils import alert_admin_error
+        alert_admin_error(bot, "ReferralCapture", e, user_id=user_id)
         bot.send_message(int(user_id), friendly_error("บันทึกไม่สำเร็จ — ลองใหม่ผ่าน /start"))
 
 
@@ -2921,6 +2923,8 @@ def inline_callbacks(call):
             )
         except Exception as e:
             print(f"[breaking_toggle] {e}", flush=True)
+            from bot_utils import alert_admin_error
+            alert_admin_error(bot, "breaking_toggle", e, user_id=user_id)
             bot.answer_callback_query(call.id, "❌ บันทึกไม่สำเร็จ ลองใหม่อีกครั้งนะครับ", show_alert=True)
 
     elif call.data == 'hub_price_alert':
@@ -3797,6 +3801,9 @@ def handle_main(message):
             friendly = "📋 ระบบความปลอดภัยของ AI ขอปฏิเสธหุ้นตัวนี้ชั่วคราว\nลองวิเคราะห์หุ้นตัวอื่นดูก่อนนะครับ"
         else:
             friendly = "📡 ขณะนี้ข้อมูลยังไม่พร้อมให้บริการ\nรบกวนลองอีกครั้งในอีกสักครู่ครับ"
+            # Sentry-lite: ping admin only on the unknown-error branch (503 + safety filter is expected noise)
+            from bot_utils import alert_admin_error
+            alert_admin_error(bot, f"Analyze:{symbol}", e, user_id=user_id)
         bot.edit_message_text(friendly, message.chat.id, load_msg.message_id)
         return
 

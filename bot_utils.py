@@ -5,8 +5,10 @@
 - friendly_error(): แปลง raw exception เป็น Thai user-facing message
   (ไม่ leak stack trace ไปหา user)
 - broadcast_maintenance_notice(): ส่งข้อความเปิด/ปิด maintenance หา active users
+- alert_admin_error(): ping ADMIN_ID เมื่อ user เจอ error — Sentry-lite
 """
 import time
+import traceback
 from threading import Thread
 
 from database import mark_user_inactive
@@ -122,3 +124,76 @@ def safe_send_with_retry(bot_instance, user_id, text, retries=3, base_backoff=1.
     if last_err:
         print(f"[safe_send_with_retry] {user_id} fail after {retries} tries: {last_err}", flush=True)
     return False
+
+
+# ─── Sentry-lite — error ping ไปยัง ADMIN_ID ใน Telegram ─────────────────
+# Throttle: ส่ง error เดียวกันสูงสุด 1 ครั้ง/30 นาที กัน admin chat ถูก spam
+_ERROR_NOTIFY_LAST: dict[str, float] = {}
+_ERROR_NOTIFY_COOLDOWN = 1800  # 30 minutes per (handler+error_type)
+
+
+def alert_admin_error(bot_instance, context: str, exc: Exception, user_id=None):
+    """แจ้ง admin ทันทีเมื่อ user เจอ error ที่ critical
+    เรียกจาก except block:
+
+        except Exception as e:
+            print(f"[my_handler] {e}", flush=True)
+            alert_admin_error(bot, "my_handler", e, user_id=user_id)
+            bot.reply_to(message, friendly_error("..."))
+
+    - ส่งไปยัง ADMIN_ID ผ่าน Telegram (ไม่ต้องจ่าย Sentry)
+    - Throttle: error เดียวกันส่งสูงสุด 1 ครั้ง/30 นาที
+    - Best-effort — ถ้าส่งไม่สำเร็จก็ silent fail (ไม่กระทบ user flow)
+    """
+    try:
+        from config import ADMIN_ID
+        if not ADMIN_ID:
+            return
+
+        err_type = type(exc).__name__
+        key = f"{context}:{err_type}"
+        now = time.time()
+        last = _ERROR_NOTIFY_LAST.get(key, 0)
+        if now - last < _ERROR_NOTIFY_COOLDOWN:
+            return  # throttled
+        _ERROR_NOTIFY_LAST[key] = now
+
+        # Trim stack trace to last 6 frames so the message stays readable
+        tb_lines = traceback.format_exception(type(exc), exc, exc.__traceback__)
+        tb_short = "".join(tb_lines)[-700:]
+
+        from datetime import datetime
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        msg = (
+            f"🚨 *Apexify Error*\n"
+            f"`{ts}`\n\n"
+            f"*Where:* `{context}`\n"
+            f"*User:* `{user_id or 'unknown'}`\n"
+            f"*Error:* `{err_type}`\n"
+            f"_{str(exc)[:150]}_\n\n"
+            f"```\n{tb_short}\n```\n"
+            f"_(throttled 30min — same error won't ping again)_"
+        )
+
+        # Send in background thread — never block the caller's response
+        def _ping():
+            try:
+                bot_instance.send_message(int(ADMIN_ID), msg, parse_mode="Markdown",
+                                           disable_web_page_preview=True)
+            except Exception as send_err:
+                # Markdown parse failure → fallback plain text
+                try:
+                    plain = (
+                        f"🚨 Apexify Error · {ts}\n"
+                        f"Where: {context}\nUser: {user_id or 'unknown'}\n"
+                        f"{err_type}: {str(exc)[:200]}"
+                    )
+                    bot_instance.send_message(int(ADMIN_ID), plain)
+                except Exception:
+                    print(f"[alert_admin_error] failed to ping admin: {send_err}", flush=True)
+
+        Thread(target=_ping, daemon=True).start()
+    except Exception as outer:
+        # Never let the error-reporter itself raise
+        print(f"[alert_admin_error] internal: {outer}", flush=True)
