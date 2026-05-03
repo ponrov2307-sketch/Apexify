@@ -76,7 +76,8 @@ tags: [moc, index]
 - [[27 - Comment Reply Templates]] ⭐ — ตอบคอมเม้น FB/TikTok/IG ตามอารมณ์
 - [[28 - User Guide (How to Use)]] ⭐ — คู่มือใช้งานสำหรับลูกค้า (sharable)
 - [[29 - Payment Instructions]] ⭐ — วิธีชำระเงิน + FAQ + ปัญหาที่อาจเจอ
-- [[30 - Sales Chat Quick Replies]] 🆕 — เทมเพลตขาย 15 scenarios + objection + closing + cheat sheet
+- [[30 - Sales Chat Quick Replies]] — เทมเพลตขาย 15 scenarios + objection + closing + cheat sheet
+- [[31 - Dashboard Drive Campaigns]] 🆕 — ดัน user มาใช้ Dashboard: 12 Telegram broadcasts (DD1-DD12) + FB/IG/X/LINE posts + DM scripts + 12-week calendar
 
 ---
 
