@@ -1903,6 +1903,9 @@ def check_earnings_calendar(bot_instance):
                         label = "วันนี้" if ed_date == today else "พรุ่งนี้"
                         line = f"📅 **{symbol}** — Earnings {label} ({ed_date.strftime('%d %b')})"
                         for uid in user_ids:
+                            # Tier gate: VIP+/PRO only — skip downgraded users
+                            if str(uid) != str(ADMIN_ID) and check_subscription(uid) not in ('vip', 'pro'):
+                                continue
                             # Dedup: skip ถ้า user ได้ alert symbol นี้ ใน target_date เดียวกันไปแล้ว
                             if is_earnings_notified(uid, symbol, ed_date):
                                 continue
