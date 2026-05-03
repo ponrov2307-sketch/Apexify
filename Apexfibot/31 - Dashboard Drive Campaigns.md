@@ -12,6 +12,36 @@ tags: [campaign, broadcast, marketing, dashboard, social-media]
 
 ---
 
+## ⚠️ Tier Map (verified ตามโค้ดจริง 2026-05-03)
+
+> **อ่านก่อนใช้ template** — ก่อนหน้านี้เขียนผิดเรื่องสิทธิ์ Free, แก้แล้วในเวอร์ชันนี้
+
+### หน้าที่ Free เข้าได้
+- `/` (home dashboard) — มี basic widgets, Health Score = VIP+, Daily Pulse popup = PRO/admin
+- `/watchlist` — limit **3 ตัว**
+- `/portfolio` (stocks) — limit **3 ตัว**
+- `/feed` — อ่านได้ แต่โพส/comment ต้อง VIP+
+- `/payment` — สำหรับ upgrade
+
+### หน้าที่ต้อง VIP+ (locked สำหรับ Free)
+14 หน้า: `/heatmap` `/dividend` `/earnings` `/economic-calendar` `/macro` `/benchmark` `/matchmaker` `/sp500` `/alerts` `/pnl` (+ พวก wrapped ProGate ทั้งหมด)
+
+### หน้าที่ต้อง PRO เท่านั้น
+- `/news` (backend block VIP)
+- `/analytics` (advanced)
+- `/transactions` write/edit (backend `PRO_ROLES = {"pro", "admin"}` — VIP เห็นหน้าแต่ API block)
+- `/export` Tax Export (backend block VIP เหมือนกัน)
+- Copilot AI (`/api/ai/copilot`)
+
+### Watchlist + Portfolio limits
+- Free: 3 / Vip: 10 / Pro: 999 (≈ ∞) / Admin: 999
+
+### ⚠️ Frontend/backend mismatch (issue ในโค้ด — ไม่ใช่ marketing claim)
+- `/transactions` + `/export`: ProGate default ปล่อย VIP ผ่านหน้า, backend block VIP → VIP user เห็นแต่กดอะไรไม่ได้
+- ถ้าจะให้ตรง: frontend ต้องใช้ `<ProGate allowedRoles={["pro", "admin"]}>` หรือ backend อนุญาต VIP
+
+---
+
 ## 📋 ทำไมต้องดัน Dashboard
 
 | ปัญหา | สาเหตุ | แก้ด้วย |
@@ -47,23 +77,24 @@ tags: [campaign, broadcast, marketing, dashboard, social-media]
 
 > Hook: **ลด barrier เหลือ 0** — ปลด objection "ขี้เกียจ" / "ไม่อยากสมัคร"
 
-## DD2 — "ปิด market แล้วไปไหน" (PRO/VIP — habit hook)
+## DD2 — "ปิด market แล้วไปไหน" (VIP+/PRO — habit hook)
 
 ```
 🌙 ตลาด US ปิดแล้ว — เอาเวลาไปทำอะไร?
 
 แทนที่จะรอเปิดพรุ่งนี้ ลองเข้า dashboard
-→ ดูผลพอร์ตวันนี้กับ benchmark
-→ Heatmap หุ้นที่กำไรเยอะที่สุด
-→ AI Daily Pulse สรุปสั้นๆ ก่อนนอน
+→ ดูผลพอร์ตวันนี้กับ benchmark (VIP+)
+→ Heatmap หุ้นที่กำไรเยอะที่สุด (VIP+)
+→ AI Daily Pulse สรุปสั้นๆ ก่อนนอน (PRO)
 
 apexifyy.up.railway.app
 หรือพิมพ์ /dashboard
 ```
 
 > Hook: **timing** — ส่ง 4-5 ทุ่ม Thai time = หลัง US close
+> Tier: VIP+ (Heatmap/Benchmark) · PRO (Daily Pulse)
 
-## DD3 — "เห็น 3 หุ้น พร้อมกัน" (objection: บอทดู 1 ตัวเสียเวลา)
+## DD3 — "เห็น 3 หุ้น พร้อมกัน" (VIP+ — บอทดู 1 ตัวเสียเวลา)
 
 ```
 💡 แทนที่จะพิมพ์ทีละตัวในบอท
@@ -73,27 +104,33 @@ apexifyy.up.railway.app
 ✅ Health Score — สถานะพอร์ตโดยรวม
 ✅ Auto-update — ไม่ต้องพิมพ์อะไร แค่เปิดดู
 
+(VIP/PRO เท่านั้น — Free upgrade เพื่อปลดล็อก)
 → apexifyy.up.railway.app
 ```
 
 > Hook: **time-saver framing** — บอท = single ticker, web = bird's eye
+> Tier: **VIP+ เท่านั้น** (Heatmap + Health Score ติด ProGate)
 
-## DD4 — "อันนี้บอททำไม่ได้" (PRO upsell)
+## DD4 — "อันนี้บอททำไม่ได้" (VIP+ / PRO upsell)
 
 ```
 🔓 5 อย่างที่บอทไม่มี — แต่เว็บ Dashboard มี
 
+VIP+ ปลดล็อก:
 1. 📊 Heatmap พอร์ตเป็นภาพ (เห็นกำไร/ขาดทุนเป็นสี)
 2. 🎯 Matchmaker หาหุ้นเข้ากับ style ของคุณ
 3. 📈 Benchmark เทียบกับ S&P 500 / SET
-4. 💰 Tax Export ยื่นภาษี (.xlsx)
-5. 📅 Economic Calendar ตามสีตลาด
+4. 📅 Economic Calendar ตามสีตลาด
 
-ใช้สิทธิ์เดียวกับบอท — ไม่มีค่าใช้จ่ายเพิ่ม
+PRO เท่านั้น:
+5. 💰 Tax Export ยื่นภาษี (.xlsx) + Auto-log Transactions
+
+ใช้สิทธิ์เดียวกับบอท — สมัคร tier เดียว ใช้ทั้งบอท + เว็บ
 → /dashboard
 ```
 
-> Hook: **5 features เด็ดที่ web-exclusive** — ดึง PRO user ที่ใช้เฉพาะบอท
+> Hook: **5 features เด็ดที่ web-exclusive** — ดึง user ที่ใช้เฉพาะบอท
+> Tier: ต้อง VIP+ ขึ้นไป (4 ตัวแรก), Tax Export = PRO only
 
 ## DD5 — "ลูกค้าจริง 3 คน" (social proof — เปลี่ยนชื่อตามจริง)
 
@@ -111,15 +148,15 @@ apexifyy.up.railway.app
 
 > Hook: **testimonial** — แทน feature claim. ⚠️ ใช้ quote ลูกค้าจริงเท่านั้น
 
-## DD6 — "วันนี้คุณพลาด" (PROBlem-Aware — for inactive)
+## DD6 — "วันนี้คุณพลาด" (Loss aversion — VIP+/PRO inactive)
 
 ```
 ⏰ วันนี้คุณพลาดอะไรไปบ้าง?
 
 ถ้าไม่ได้เข้า Dashboard:
 ❌ ไม่เห็น 1 หุ้นในพอร์ตที่กำไร +12% เพิ่มขึ้น (vs เมื่อวาน)
-❌ ไม่เห็น Earnings ของ AAPL ที่ประกาศพรุ่งนี้
-❌ ไม่เห็น Breaking News ที่อาจกระทบ
+❌ ไม่เห็น Earnings ของ AAPL ที่ประกาศพรุ่งนี้ (VIP+)
+❌ ไม่เห็น Breaking News ที่อาจกระทบ (PRO)
 
 ทุกวันที่ไม่เปิด — ก็ปล่อย info สำคัญไป
 
@@ -127,46 +164,55 @@ apexifyy.up.railway.app
 ```
 
 > Hook: **loss aversion** — กระตุ้นความรู้สึกว่ากำลังเสียโอกาส
+> Tier: VIP+ (Earnings) · PRO (News) — segment broadcast filter ที่ tier ขั้นต่ำ VIP
 
-## DD7 — "ลูกค้าใช้เว็บก่อน" (PRO segmented push)
+## DD7 — "ลูกค้าใช้เว็บก่อน" (VIP+/PRO segmented push)
 
 ```
-👑 PRO member ปกติทำอะไรกับ Dashboard?
+👑 VIP/PRO member ปกติทำอะไรกับ Dashboard?
 
-📅 เช้า 8:00 — เปิดดู AI Daily Pulse + Morning Briefing
-📊 9:30 (ตลาด US เปิด) — เช็ค Heatmap พอร์ตหลัก
-🎯 ระหว่างวัน — ดู Earnings + Breaking News บน feed
-🌙 ก่อนนอน — Benchmark vs S&P + วางแผน Watchlist
+📅 เช้า 8:00 — Daily Pulse popup (PRO) + Morning Briefing
+📊 9:30 (ตลาด US เปิด) — เช็ค Heatmap พอร์ตหลัก (VIP+)
+🎯 ระหว่างวัน — ดู Earnings + Macro (VIP+) · News (PRO)
+🌙 ก่อนนอน — Benchmark vs S&P (VIP+) + วางแผน Watchlist
 
 ลอง routine นี้ดู — เริ่มที่ /dashboard
 ```
 
 > Hook: **prescriptive routine** — บอกวิธีใช้เป็นกิจวัตร ลด decision fatigue
+> Tier: routine นี้ออกแบบสำหรับ VIP/PRO — Free จะถูก ProGate ที่ Heatmap/Earnings/etc.
 
 ## DD8 — "Free ก็เข้าได้" (Free hook — ลด barrier)
 
 ```
-🆓 Web Dashboard ฟรี — Free user ก็เข้าได้
+🆓 Web Dashboard — Free user เข้าทดลองได้
 
-ไม่ต้องเป็น VIP/PRO
-ไม่มีค่าใช้จ่ายแยก
-สิทธิ์ที่มีในบอท = สิทธิ์เดียวกันในเว็บ
+ไม่ต้องเสียเงินก่อนเพื่อดูหน้าตา:
+✅ หน้า Home — สรุปพอร์ตเบื้องต้น
+✅ Watchlist 3 ตัว
+✅ Portfolio บันทึก 3 ตัว
+✅ Feed อ่านได้ (โพสต้อง VIP+)
+
+ส่วนฟีเจอร์เด็ด (Heatmap, Earnings, Macro, Tax Export ฯลฯ)
+ปลดล็อกด้วย VIP/PRO — ใช้สิทธิ์เดียวกับบอท
 
 แค่กด /dashboard → ลิงก์ → login auto
-→ ลองเลย ไม่เสียอะไร
+→ ลอง Free ก่อน ตัดสินใจค่อยอัปเกรด
 ```
 
-> Hook: **lower price objection** — clear ว่า web ≠ paid product แยก
+> Hook: **honest Free hook** — ลดความคาดหวังเกินจริง ป้องกัน churn ตอนเจอ paywall
+> Tier: ทุก tier (เน้น Free)
 
-## DD9 — "สิ่งที่ต้องตั้งให้ถูก 1 ครั้ง" (PRO conversion path)
+## DD9 — "สิ่งที่ต้องตั้งให้ถูก 1 ครั้ง" (VIP+ conversion path)
 
 ```
 📌 ตั้งครั้งเดียว — ใช้ทุกวัน
 
 ใน Dashboard ทำได้ใน 2 นาที:
 ✅ Watchlist — เพิ่มหุ้นที่ติดตาม (ไม่ต้องพิมพ์ทุกครั้ง)
-✅ Health Score — เช็คพอร์ตอัตโนมัติ
-✅ Notification — เตือน earnings + price + macro
+   Free 3 / VIP 10 / PRO ∞
+✅ Health Score (VIP+) — เช็คพอร์ตอัตโนมัติ
+✅ Alerts (VIP+) — เตือน earnings + price
 
 ทำในบอทก็ได้ แต่เว็บเร็วกว่า + เห็นทั้งหน้า
 
@@ -174,6 +220,7 @@ apexifyy.up.railway.app
 ```
 
 > Hook: **setup efficiency** — บอกว่าเว็บ = setup hub
+> Tier: Watchlist ทุก tier (limit ต่างกัน), Health Score + Alerts = VIP+
 
 ## DD10 — "ดู screenshot ก่อนตัดสิน" (visual hook)
 
@@ -191,14 +238,14 @@ apexifyy.up.railway.app
 
 > Hook: **try-before-commit** — ปลด objection "กลัวลำบาก"
 
-## DD11 — "อาทิตย์นี้พอร์ตเป็นยังไง" (weekly recap habit)
+## DD11 — "อาทิตย์นี้พอร์ตเป็นยังไง" (weekly recap habit — VIP+)
 
 ```
 📊 อาทิตย์นี้พอร์ตคุณเป็นยังไง?
 
-เปิด Dashboard 1 ครั้ง — เห็นทุกตัวเลข:
+เปิด Dashboard 1 ครั้ง — เห็นทุกตัวเลข (VIP+):
 ✅ P&L 7 วันย้อนหลัง
-✅ หุ้นที่ทำกำไรสูงสุด/ขาดทุนสูงสุด
+✅ หุ้นที่ทำกำไรสูงสุด/ขาดทุนสูงสุด (Heatmap)
 ✅ Benchmark vs S&P 500 / SET
 ✅ Health Score พอร์ตโดยรวม
 
@@ -207,6 +254,7 @@ apexifyy.up.railway.app
 ```
 
 > Hook: **weekly ritual** — ส่งวันศุกร์เย็น = ลูกค้ามีเวลาเช็ค
+> Tier: VIP+ (P&L/Heatmap/Benchmark/Health = ProGate)
 
 ## DD12 — "ขอเวลา 60 วินาที" (commitment device)
 
@@ -294,16 +342,22 @@ apexifyy.up.railway.app
 ## FB-DD4 — Free Hook (catch lurkers)
 
 ```
-🎁 Apexify Web Dashboard — Free user ก็ใช้ได้!
+🎁 Apexify Web Dashboard — Free user ทดลองได้
 
-✅ ดูพอร์ตในรูปแบบ visual
-✅ Watchlist 5 ตัว (Free) / 50 ตัว (VIP+)
-✅ AI Daily Pulse ทุกเช้า
-✅ News feed personalized
+Free tier เข้าได้:
+✅ หน้า Home + พอร์ตสรุป
+✅ Watchlist 3 ตัว
+✅ Portfolio บันทึก 3 ตัว
 ✅ ภาษาไทย + dark/light theme
 
+ปลดล็อกเพิ่มกับ VIP / PRO:
+🔓 Heatmap พอร์ต · Health Score · Daily Pulse
+🔓 Earnings · Economic Calendar · Benchmark
+🔓 Tax Export · Matchmaker (PRO only)
+🔓 Watchlist 10 ตัว (VIP) / ∞ (PRO)
+
 login ครั้งเดียว ใช้ได้ทุกเครื่อง (มือถือ + PC)
-ไม่มีค่าใช้จ่ายแยก — ใช้สิทธิ์เดียวกับบอท
+ไม่มีค่าใช้จ่ายเว็บแยก — ใช้สิทธิ์เดียวกับบอท
 
 ทดลอง: apexifyy.up.railway.app
 ```
@@ -629,16 +683,25 @@ PWA = install เป็น app ได้ (ไม่ต้องโหลดจ�
 apexifyy.up.railway.app
 ```
 
-## DM-DD3 — Reply: "PRO มันต่างจากบอทยังไง"
+## DM-DD3 — Reply: "VIP / PRO ต่างจากบอทยังไงในเว็บ"
 
 ```
-PRO ในเว็บ Dashboard ปลดล็อก:
+ในเว็บ Dashboard:
 
-✅ Tax Export — Excel ยื่นภาษีได้เลย
+VIP (79฿) ปลดล็อก:
 ✅ Heatmap พอร์ต — เห็นกำไร/ขาดทุนเป็นสี
-✅ Matchmaker — AI หาหุ้นที่เข้ากับสไตล์
-✅ Benchmark — เทียบกับ S&P, SET
 ✅ Health Score — ตรวจสุขภาพพอร์ต
+✅ Matchmaker — AI หาหุ้นเข้ากับสไตล์
+✅ Benchmark — เทียบกับ S&P, SET
+✅ Dividend / Earnings / Macro / Economic Calendar
+✅ Watchlist เพิ่มเป็น 10 ตัว
+
+PRO (109฿) เพิ่มอีก:
+✅ Tax Export — Excel ยื่นภาษีได้เลย
+✅ News Feed — ข่าวเรียลไทม์ในเว็บ
+✅ Analytics ขั้นสูง
+✅ Auto-log Transactions + Copilot AI
+✅ Watchlist ∞ ตัว
 
 ในบอทมีบางส่วน แต่เห็นเป็นภาพ + ครบในเว็บ
 ลองเปิดดูก่อน → /dashboard ในบอท
