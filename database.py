@@ -426,7 +426,13 @@ def init_db():
                   username TEXT DEFAULT 'Unknown',
                   free_trial_used BOOLEAN DEFAULT FALSE,
                   free_trial_vip_given BOOLEAN DEFAULT FALSE,
+                  first_audit_done BOOLEAN DEFAULT FALSE,
                   last_active TIMESTAMP)''')
+    # idempotent migration for existing deployments — column may not exist yet
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS first_audit_done BOOLEAN DEFAULT FALSE")
+    except Exception as _e:
+        print(f"[init_db] users.first_audit_done migration: {_e}", flush=True)
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes
                  (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '', role_type TEXT DEFAULT 'vip')''')
@@ -2040,6 +2046,45 @@ def deactivate_price_alert(alert_id):
 # ==========================================
 # 🌟 ระบบ Auto-Downgrade (ลดขั้นคนหมดอายุอัตโนมัติ)
 # ==========================================
+def is_first_audit_done(user_id) -> bool:
+    """True if the one-shot Free portfolio audit has already been delivered."""
+    conn = None
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT first_audit_done FROM users WHERE user_id = %s", (str(user_id),))
+        row = c.fetchone()
+        return bool(row and row[0])
+    except Exception as e:
+        print(f"[is_first_audit_done] {e}", flush=True)
+        return True  # fail-safe: don't re-fire audit on DB error
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
+
+
+def mark_first_audit_done(user_id) -> None:
+    conn = None
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            "UPDATE users SET first_audit_done = TRUE WHERE user_id = %s",
+            (str(user_id),),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[mark_first_audit_done] {e}", flush=True)
+        if conn:
+            try: conn.rollback()
+            except Exception: pass
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
+
+
 def auto_downgrade_expired_users():
     """ปรับสถานะคนที่หมดอายุให้กลับเป็น free อัตโนมัติ"""
     conn = get_connection()

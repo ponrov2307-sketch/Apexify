@@ -941,9 +941,29 @@ def handle_add_stock(message):
         
         # บันทึกหุ้นลงฐานข้อมูล
         add_portfolio_stock(user_id, ticker, shares, cost)
-        
+
         bot.reply_to(message, f"✅ เพิ่มหุ้น **{ticker}** จำนวน {shares} หุ้น (ต้นทุน ${cost}) ลงในพอร์ตเรียบร้อยแล้ว!\nพิมพ์ `/portfolio` หรือเปิดเมนูเพื่อดูพอร์ตในหน้า Web Dashboard ได้เลยครับ", parse_mode='Markdown')
-        
+
+        # 🎁 One-shot Free portfolio audit — fires once per user when they hit
+        # 3+ stocks. Runs in a background thread so /add reply isn't delayed.
+        try:
+            from database import is_first_audit_done, mark_first_audit_done
+            if not is_first_audit_done(user_id):
+                portfolio_count = len(get_user_portfolio(user_id))
+                if portfolio_count >= 3:
+                    def _audit_thread():
+                        try:
+                            from portfolio_audit import run_free_audit
+                            audit_msg = run_free_audit(user_id)
+                            if audit_msg:
+                                bot.send_message(int(user_id), audit_msg, parse_mode="Markdown")
+                                mark_first_audit_done(user_id)
+                        except Exception as audit_err:
+                            print(f"[FreeAudit] {audit_err}", flush=True)
+                    threading.Thread(target=_audit_thread, daemon=True).start()
+        except Exception as audit_err:
+            print(f"[FreeAudit-trigger] {audit_err}", flush=True)
+
     except ValueError:
         bot.reply_to(message, "❌ จำนวนหุ้นและราคาต้องเป็นตัวเลขเท่านั้นครับ!")
     except Exception as e:
@@ -1064,21 +1084,39 @@ def handle_pnl_card(message):
         # วาดรูปการ์ด
         from pnl_generator import generate_pnl_card
         image_bytes = generate_pnl_card(username, ticker, entry_price, current_price)
-        
-       # สร้างแคปชั่นพร้อมแนบลิงก์ Referral ของคนกด
+
+        # คำนวณ % สำหรับ share URL — Personalized OG image
+        pnl_pct = ((current_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
+        from urllib.parse import quote
+        share_user = quote((username or "Trader")[:24])
+        # DASHBOARD_BASE_URL might not have trailing slash — strip & rebuild
+        from config import DASHBOARD_BASE_URL
+        base = (DASHBOARD_BASE_URL or "https://apexifyy.up.railway.app").rstrip("/")
+        share_url = (
+            f"{base}/pnl-share?t={ticker}&p={pnl_pct:.2f}&u={share_user}&bot=REF_{user_id}"
+        )
+
+        # สร้างแคปชั่นพร้อมแนบลิงก์ Referral ของคนกด
         pnl_caption = (
             f"ตลาดจะผันผวนแค่ไหนก็ไม่หวั่น ถ้ามีผู้ช่วยส่วนตัวดีๆ 🤖✨ "
             f"ผลประกอบการ <b>{ticker}</b> รอบนี้บวกมาสวยๆ ขอบคุณ <b>Apexify Trading AI</b> "
             f"ที่ช่วยสแกนหาจุดเข้าและคอยเตือนตลอด 24 ชม. ใครอยากเทรดสบายขึ้นแบบนี้ มากดลองใช้ฟรีได้เลย! 👇\n\n"
-            f"🔗 ลิงก์บอท: https://t.me/Apexify_Trading_bot?start=REF_{user_id}"
+            f"🔗 ลิงก์บอท: https://t.me/Apexify_Trading_Bot?start=REF_{user_id}"
+        )
+
+        # Inline button: "share link with auto-rendered OG card preview"
+        share_markup = InlineKeyboardMarkup()
+        share_markup.add(
+            InlineKeyboardButton("📤 แชร์ลิงก์ (preview สวย)", url=share_url),
         )
 
         # ส่งรูปลงแชท
         bot.send_photo(
-            message.chat.id, 
-            photo=image_bytes, 
+            message.chat.id,
+            photo=image_bytes,
             caption=pnl_caption,
-            parse_mode='HTML'
+            parse_mode='HTML',
+            reply_markup=share_markup,
         )
         bot.delete_message(message.chat.id, wait_msg.message_id)
         
