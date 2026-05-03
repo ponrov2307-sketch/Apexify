@@ -508,10 +508,11 @@ def log_command(user_id, command):
     """Log a slash-command invocation. Called from main.py middleware/wrapper.
     Safe to fail silently — never break bot if logging fails.
     """
+    cmd = str(command or "").strip().lower()[:32]
+    if not cmd:
+        return
+    conn = None
     try:
-        cmd = str(command or "").strip().lower()[:32]
-        if not cmd:
-            return
         conn = get_connection()
         c = conn.cursor()
         c.execute(
@@ -519,13 +520,20 @@ def log_command(user_id, command):
             (str(user_id), cmd),
         )
         conn.commit()
-        conn.close()
     except Exception as e:
         print(f"[log_command] {e}", flush=True)
+        if conn:
+            try: conn.rollback()
+            except Exception: pass
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
 
 
 def log_broadcast(audience, total, success, fail):
     """Log broadcast batch to broadcast_log table."""
+    conn = None
     try:
         conn = get_connection()
         c = conn.cursor()
@@ -534,9 +542,15 @@ def log_broadcast(audience, total, success, fail):
             (str(audience or "")[:32], int(total or 0), int(success or 0), int(fail or 0)),
         )
         conn.commit()
-        conn.close()
     except Exception as e:
         print(f"[log_broadcast] {e}", flush=True)
+        if conn:
+            try: conn.rollback()
+            except Exception: pass
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
 
 
 def load_all_alert_states():
@@ -545,6 +559,7 @@ def load_all_alert_states():
     ป้องกัน duplicate alert หลัง systemctl restart
     """
     result = {}
+    conn = None
     try:
         conn = get_connection()
         c = conn.cursor()
@@ -552,14 +567,18 @@ def load_all_alert_states():
         for row in c.fetchall():
             sym, kind, state = row
             result.setdefault(str(sym), {})[str(kind)] = str(state)
-        conn.close()
     except Exception as e:
         print(f"[load_all_alert_states] {e}", flush=True)
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
     return result
 
 
 def save_alert_state(symbol, kind, state):
     """UPSERT alert state (symbol, kind) → state. Fail-safe — ไม่ break alert loop ถ้า DB ขัดข้อง"""
+    conn = None
     try:
         conn = get_connection()
         c = conn.cursor()
@@ -573,15 +592,22 @@ def save_alert_state(symbol, kind, state):
             (str(symbol), str(kind), str(state)),
         )
         conn.commit()
-        conn.close()
     except Exception as e:
         print(f"[save_alert_state] {e}", flush=True)
+        if conn:
+            try: conn.rollback()
+            except Exception: pass
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
 
 
 def is_earnings_notified(user_id, symbol, notify_date):
     """เช็คว่า user_id ได้รับ earnings alert ของ symbol ใน notify_date แล้วหรือยัง
     notify_date: date object หรือ ISO string 'YYYY-MM-DD'
     """
+    conn = None
     try:
         conn = get_connection()
         c = conn.cursor()
@@ -589,16 +615,19 @@ def is_earnings_notified(user_id, symbol, notify_date):
             "SELECT 1 FROM earnings_notified WHERE user_id=%s AND symbol=%s AND notify_date=%s LIMIT 1",
             (str(user_id), str(symbol), notify_date),
         )
-        found = c.fetchone() is not None
-        conn.close()
-        return found
+        return c.fetchone() is not None
     except Exception as e:
         print(f"[is_earnings_notified] {e}", flush=True)
         return False  # ถ้า DB ขัดข้อง — ส่ง alert ไปดีกว่าหายไป
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
 
 
 def mark_earnings_notified(user_id, symbol, notify_date):
     """บันทึกว่า user_id ได้รับ earnings alert ของ symbol ใน notify_date แล้ว"""
+    conn = None
     try:
         conn = get_connection()
         c = conn.cursor()
@@ -611,9 +640,15 @@ def mark_earnings_notified(user_id, symbol, notify_date):
             (str(user_id), str(symbol), notify_date),
         )
         conn.commit()
-        conn.close()
     except Exception as e:
         print(f"[mark_earnings_notified] {e}", flush=True)
+        if conn:
+            try: conn.rollback()
+            except Exception: pass
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
 
 def init_watchlist_db():
     conn = get_connection()

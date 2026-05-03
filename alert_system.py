@@ -1059,19 +1059,33 @@ def get_stock_spotlight_news(target_count: int = 5):
     # top-watched มาก่อน เติม default ถ้ายังไม่ครบ
     candidates = top_syms + [s for s in default_pool if s not in top_syms]
 
-    results = []
-    for sym in candidates:
-        if len(results) >= target_count:
-            break
+    # 🌟 yf.Ticker(sym).news ไม่มี built-in timeout — wrap 8s ผ่าน ThreadPoolExecutor
+    # กันค้างเป็นนาทีถ้า Yahoo network stall (เคยเจอใน news page เดียวกัน)
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+
+    def _fetch_one_news(sym):
         try:
-            news_items = yf.Ticker(sym).news
-            if not news_items:
-                continue
-            headline = news_items[0].get('title', '').strip()
-            if headline:
-                results.append(f"{sym}: {headline}")
-        except Exception as e:
-            print(f"[Podcast] ดึงข่าว {sym} ไม่สำเร็จ: {e}")
+            return yf.Ticker(sym).news or []
+        except Exception:
+            return []
+
+    results = []
+    with ThreadPoolExecutor(max_workers=1) as ex:
+        for sym in candidates:
+            if len(results) >= target_count:
+                break
+            try:
+                future = ex.submit(_fetch_one_news, sym)
+                news_items = future.result(timeout=8)
+                if not news_items:
+                    continue
+                headline = news_items[0].get('title', '').strip()
+                if headline:
+                    results.append(f"{sym}: {headline}")
+            except FutureTimeout:
+                print(f"[Podcast] ข่าว {sym} timeout 8s — ข้าม", flush=True)
+            except Exception as e:
+                print(f"[Podcast] ดึงข่าว {sym} ไม่สำเร็จ: {e}")
     return results
 
 

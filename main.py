@@ -1328,7 +1328,8 @@ def _capture_referrer_input(message):
         except Exception as e:
             print(f"[ReferralCapture] admin notify failed: {e}", flush=True)
     except Exception as e:
-        bot.send_message(int(user_id), f"❌ บันทึกไม่สำเร็จ ({e}) — ลองใหม่ผ่าน /start")
+        print(f"[ReferralCapture] save failed: {e}", flush=True)
+        bot.send_message(int(user_id), friendly_error("บันทึกไม่สำเร็จ — ลองใหม่ผ่าน /start"))
 
 
 @bot.message_handler(commands=['badges', 'achievements'])

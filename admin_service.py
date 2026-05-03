@@ -36,23 +36,99 @@ _dashboard_metrics = {
     "last_build_seconds": 0.0,
 }
 
+# 🌟 Maintenance mode — persisted in `system_state` table so toggle survives restart
 _MAINTENANCE_MODE = False
+_MAINTENANCE_LOADED = False
+
+
+def _ensure_system_state_table():
+    conn = None
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS system_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[system_state init] {e}", flush=True)
+        if conn:
+            try: conn.rollback()
+            except Exception: pass
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
+
+
+def _load_maintenance_from_db():
+    global _MAINTENANCE_MODE, _MAINTENANCE_LOADED
+    _ensure_system_state_table()
+    conn = None
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT value FROM system_state WHERE key = 'maintenance_mode'")
+        row = c.fetchone()
+        if row:
+            _MAINTENANCE_MODE = (str(row[0]).lower() == 'true')
+    except Exception as e:
+        print(f"[load maintenance] {e}", flush=True)
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
+    _MAINTENANCE_LOADED = True
+
+
+def _persist_maintenance(enabled):
+    conn = None
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            """
+            INSERT INTO system_state (key, value, updated_at)
+            VALUES ('maintenance_mode', %s, NOW())
+            ON CONFLICT (key) DO UPDATE
+                SET value = EXCLUDED.value, updated_at = NOW()
+            """,
+            ('true' if enabled else 'false',),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[persist maintenance] {e}", flush=True)
+        if conn:
+            try: conn.rollback()
+            except Exception: pass
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
 
 
 def get_maintenance_status():
+    if not _MAINTENANCE_LOADED:
+        _load_maintenance_from_db()
     return _MAINTENANCE_MODE
 
 
 def set_maintenance_status(enabled):
-    global _MAINTENANCE_MODE
+    global _MAINTENANCE_MODE, _MAINTENANCE_LOADED
     _MAINTENANCE_MODE = bool(enabled)
+    _MAINTENANCE_LOADED = True
+    _persist_maintenance(_MAINTENANCE_MODE)
     return _MAINTENANCE_MODE
 
 
 def toggle_maintenance_status():
-    global _MAINTENANCE_MODE
-    _MAINTENANCE_MODE = not _MAINTENANCE_MODE
-    return _MAINTENANCE_MODE
+    return set_maintenance_status(not get_maintenance_status())
 
 
 def get_maintenance_snapshot():
