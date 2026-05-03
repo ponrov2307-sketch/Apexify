@@ -296,7 +296,7 @@ PRO เท่านั้น:
 ลูกค้า Free / VIP / PRO — เข้าได้ทุกคน
 
 → apexifyy.up.railway.app
-🤖 บอท: t.me/apexify_bot
+🤖 บอท: t.me/Apexify_Trading_Bot
 
 #Apexify #พอร์ตหุ้น #หุ้นไทย #หุ้นเมกา #AI
 ```
@@ -335,7 +335,7 @@ PRO เท่านั้น:
 - Earnings calendar ในตัว
 - Auto-track ทุกการเทรด
 
-🤖 ถ้ายังไม่มีบอท → t.me/apexify_bot
+🤖 ถ้ายังไม่มีบอท → t.me/Apexify_Trading_Bot
 🌐 มีอยู่แล้ว → /dashboard ในแชท
 ```
 
@@ -413,7 +413,7 @@ PRO members:
 
 ทั้งคู่ใช้สิทธิ์เดียวกัน — ลูกค้าซื้อ tier เดียวได้ทั้งคู่
 
-🤖 t.me/apexify_bot
+🤖 t.me/Apexify_Trading_Bot
 🌐 apexifyy.up.railway.app
 ```
 
@@ -465,7 +465,7 @@ GOOGL +25% · NVDA +15% · VOO +6.88%
 👑 VIP 79฿/เดือน — กราฟ + Trend Radar + ข่าว + Watchlist 10 ตัว
 💎 PRO 109฿/เดือน — Entry/TP/SL + Smart Alerts + Tax Export
 
-→ เริ่มที่บอท Telegram: t.me/apexify_bot
+→ เริ่มที่บอท Telegram: t.me/Apexify_Trading_Bot
 → พิมพ์ /dashboard ในบอท เพื่อเปิดเว็บ
 
 #Apexify #หุ้น #พอร์ตหุ้น #หุ้นไทย #หุ้นเมกา #AI
@@ -889,7 +889,7 @@ Free / VIP (79฿) / PRO (109฿)
 > **โพสสั้นๆ ฟีเจอร์ละ 1 ตัว — บอทเป็นทางเข้าหลัก**
 > ใช้สลับกับโพสตัวยาว เป็น filler content ระหว่างสัปดาห์
 > Format: hook 1 บรรทัด → benefit 2-4 บรรทัด → CTA → ลิงก์บอท
-> ทุกตัวจบด้วย `t.me/apexify_bot` — Funnel: เห็นโพส → แอดบอท → ใช้ → upgrade
+> ทุกตัวจบด้วย `t.me/Apexify_Trading_Bot` — Funnel: เห็นโพส → แอดบอท → ใช้ → upgrade
 
 ## 🆓 Free hook (FT01–FT05) — ดึงคนใหม่
 
@@ -902,7 +902,7 @@ Apexify บอทมี Daily Streak system
 แค่เปิดใช้งาน /track วันละ 1 ครั้ง
 สะสม 7 วัน → ระบบให้ VIP ฟรี 1 วันอัตโนมัติ
 
-→ t.me/apexify_bot
+→ t.me/Apexify_Trading_Bot
 ```
 
 ### FT02 — Free Trial 7 วัน
@@ -914,7 +914,7 @@ Apexify บอทมี Daily Streak system
 ปลดล็อก: กราฟ + AI Trend Radar + Watchlist 10 ตัว + Flash News
 ไม่ต้องกรอกบัตร · ไม่ต้องผูกบัญชี
 
-→ t.me/apexify_bot
+→ t.me/Apexify_Trading_Bot
 ```
 
 ### FT03 — /track AI วิเคราะห์
@@ -926,7 +926,7 @@ Apexify บอทมี Daily Streak system
 รายงาน: เทรนด์ + แนวรับ-ต้าน + AI verdict + sentiment
 ฟรี 3 ครั้ง/วัน — ลองได้ทุกหุ้น TH/US
 
-→ t.me/apexify_bot
+→ t.me/Apexify_Trading_Bot
 ```
 
 ### FT04 — /portfolio เริ่มต้น
@@ -938,7 +938,7 @@ Apexify บอทมี Daily Streak system
 /portfolio → สรุป P&L ทั้งหมด
 ฟรี 3 ตัว · VIP 10 · PRO ∞
 
-→ t.me/apexify_bot
+→ t.me/Apexify_Trading_Bot
 ```
 
 ### FT05 — /pnl การ์ดแชร์ได้
@@ -951,7 +951,7 @@ AI สร้างการ์ดสวย dark theme
 ตัวอักษร + emoji + watermark Apexify
 
 ฟรีทุก tier — โพสอวดเพื่อนได้
-→ t.me/apexify_bot
+→ t.me/Apexify_Trading_Bot
 ```
 
 ## 👑 VIP value (FT06–FT10) — push ให้สมัคร 79฿
@@ -966,7 +966,7 @@ AI สร้างการ์ดสวย dark theme
 ไม่ต้องเปิด yfinance หรือ Yahoo เอง
 
 → /freetrial ฟรี 7 วัน
-t.me/apexify_bot
+t.me/Apexify_Trading_Bot
 ```
 
 ### FT07 — /earnings AI
@@ -979,7 +979,7 @@ Apexify ดู expectation, history, sentiment
 บอกว่า "miss/beat/in-line" likely + EPS expected
 
 → /freetrial 7 วัน ฟรี
-t.me/apexify_bot
+t.me/Apexify_Trading_Bot
 ```
 
 ### FT08 — Flash News รายชั่วโมง
@@ -991,7 +991,7 @@ VIP/PRO รับ Flash News ในแชท Apexify อัตโนมัติ
 1 ข่าว/ชั่วโมง · เน้น US markets · มีสรุปไทย + audio
 
 → /freetrial ทดลอง 7 วัน
-t.me/apexify_bot
+t.me/Apexify_Trading_Bot
 ```
 
 ### FT09 — Morning Briefing + Podcast
@@ -1005,7 +1005,7 @@ VIP/PRO รับทุกเช้า 8:00 AM:
 - Macro update + earnings เด่น
 
 → /freetrial ฟรี 7 วัน
-t.me/apexify_bot
+t.me/Apexify_Trading_Bot
 ```
 
 ### FT10 — Weekly Digest ศุกร์
@@ -1019,7 +1019,7 @@ VIP/PRO รับ Weekly Digest ในแชท:
 - Economic preview สัปดาห์หน้า
 
 → /freetrial ฟรี 7 วัน
-t.me/apexify_bot
+t.me/Apexify_Trading_Bot
 ```
 
 ## 💎 PRO value (FT11–FT15) — push ให้สมัคร 109฿
@@ -1034,7 +1034,7 @@ Side-by-side: เทคนิค + งบ + แนวโน้ม + AI verdict
 ตอบคำถาม "ซื้อตัวไหนดี" ใน 30 วินาที
 
 → /freetrial ลอง PRO 7 วัน ฟรี
-t.me/apexify_bot
+t.me/Apexify_Trading_Bot
 ```
 
 ### FT12 — /ask ถาม AI ตรง
@@ -1047,7 +1047,7 @@ Apexify Gemini ตอบทันที (PRO)
 ไม่ต้อง prompt engineering · ไม่ต้องเปิด ChatGPT
 
 → /freetrial 7 วัน ฟรี
-t.me/apexify_bot
+t.me/Apexify_Trading_Bot
 ```
 
 ### FT13 — /setalert ราคาเป้า
@@ -1060,7 +1060,7 @@ t.me/apexify_bot
 ตั้ง RSI / Breakout / Whale ก็ได้
 
 → /freetrial 7 วัน
-t.me/apexify_bot
+t.me/Apexify_Trading_Bot
 ```
 
 ### FT14 — Smart Alerts auto
@@ -1075,7 +1075,7 @@ PRO รับ alerts ในแชท Apexify อัตโนมัติ:
 
 ไม่ต้องตั้งเอง — บอทเลือกให้
 → /freetrial 7 วัน
-t.me/apexify_bot
+t.me/Apexify_Trading_Bot
 ```
 
 ### FT15 — Entry/TP/SL ตัวเลข
@@ -1090,7 +1090,7 @@ PRO ในบอท Apexify รายงาน:
 + Position sizing tip
 
 → /freetrial PRO 7 วัน ฟรี
-t.me/apexify_bot
+t.me/Apexify_Trading_Bot
 ```
 
 ## 🌐 Web Dashboard tease (FT16–FT20) — เน้น value-add หลังอัปเกรด
@@ -1106,7 +1106,7 @@ Apexify Copilot popup เด้งให้:
 1-2 บรรทัดอ่านจบก่อนเริ่มงาน
 
 → มีบอท: /dashboard
-ยังไม่มี: t.me/apexify_bot
+ยังไม่มี: t.me/Apexify_Trading_Bot
 ```
 
 ### FT17 — Heatmap พอร์ตเป็นภาพ
@@ -1120,7 +1120,7 @@ Apexify Copilot popup เด้งให้:
 รู้สถานะใน 1 วินาที
 
 → /dashboard ในบอท
-t.me/apexify_bot
+t.me/Apexify_Trading_Bot
 ```
 
 ### FT18 — Benchmark vs S&P
@@ -1133,7 +1133,7 @@ Apexify Dashboard มี Benchmark page
 ตอบคำถามนี้ใน 5 วิ
 
 → /dashboard ในบอท
-t.me/apexify_bot
+t.me/Apexify_Trading_Bot
 ```
 
 ### FT19 — Tax Export ยื่นภาษี
@@ -1147,7 +1147,7 @@ t.me/apexify_bot
 จัดรูปแบบให้ใส่ ภงด.90 ได้ตรง
 
 → /dashboard ในบอท
-t.me/apexify_bot
+t.me/Apexify_Trading_Bot
 ```
 
 ### FT20 — Slip OCR auto-upgrade
@@ -1159,7 +1159,7 @@ t.me/apexify_bot
 แค่โอนเงิน → ส่งรูปสลิปในแชท Apexify
 AI อ่าน → ตรวจกับธนาคาร → upgrade VIP/PRO ใน 30 วิ
 
-→ t.me/apexify_bot
+→ t.me/Apexify_Trading_Bot
 ```
 
 ---
