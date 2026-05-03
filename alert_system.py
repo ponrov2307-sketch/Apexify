@@ -773,9 +773,9 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
 
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
+        cur.execute("SELECT user_id FROM users WHERE role IN ('pro', 'vip')")
         recipients = [str(pro[0]) for pro in cur.fetchall()
-                      if check_subscription(pro[0]) == 'pro'
+                      if check_subscription(pro[0]) in ('pro', 'vip')
                       and should_send_user_notification(pro[0], category="flash_news")]
         conn.close()
         if str(ADMIN_ID) not in recipients:
