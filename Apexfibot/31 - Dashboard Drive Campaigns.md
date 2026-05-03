@@ -433,6 +433,48 @@ PRO members:
 วันถัดมาจะส่ง broadcast ในบอทเตือน
 ```
 
+## FB-DD9 — Time-saver + Bot pitch ⭐ (บอทเป็นทางเข้าหลัก)
+
+> เน้นขายบอทก่อน Dashboard เป็น value-add — ใช้รูป Daily Summary popup ประกอบ
+> แนวที่ถูก funnel: บอท Telegram = entry point → /dashboard = web
+
+```
+⏱ 10 นาที/วัน · เวลาที่คุณเสียให้กับการเช็คพอร์ต
+
+วันละ 10 นาที × 30 วัน = 5 ชั่วโมง/เดือน
+หายไปกับการเปิดแอปธนาคาร, screenshot, copy เลขมาคำนวณ
+
+🤖 Apexify บอท Telegram ตัดงานพวกนี้ให้
+
+ในแชทเดียว:
+✅ /track AAPL → AI วิเคราะห์หุ้นใน 10 วิ (Free 3 ครั้ง/วัน)
+✅ /portfolio → บันทึกพอร์ต ดู P&L
+✅ /setalert → เตือนราคา (PRO)
+✅ /earnings → เตือนงบ + AI วิเคราะห์ (VIP+)
+✅ Smart Alerts ส่งให้ทุกวัน — ไม่ต้องนั่งเฝ้าจอ
+
+🌐 พ่วงเว็บ Dashboard ฟรี (ใช้สิทธิ์เดียวกับบอท)
+
+เปิด dashboard → popup เด้งสรุปพอร์ต 5 วินาที
+[📸 screenshot daily summary popup]
+GOOGL +25% · NVDA +15% · VOO +6.88%
+รวม +9.31% / ฿56,142
+
+🎁 ลองฟรีก่อน — Free 3 การวิเคราะห์/วัน
+ถูกใจค่อยอัปเกรด:
+👑 VIP 79฿/เดือน — กราฟ + Trend Radar + ข่าว + Watchlist 10 ตัว
+💎 PRO 109฿/เดือน — Entry/TP/SL + Smart Alerts + Tax Export
+
+→ เริ่มที่บอท Telegram: t.me/apexify_bot
+→ พิมพ์ /dashboard ในบอท เพื่อเปิดเว็บ
+
+#Apexify #หุ้น #พอร์ตหุ้น #หุ้นไทย #หุ้นเมกา #AI
+```
+
+> Hook: **time-saver framing + bot-first funnel**
+> ความต่างจาก FB-DD2 (before/after): ที่นั่นเทียบ flow, ที่นี่นำด้วย "เวลาที่เสียไป" + ปิดด้วย pricing tier
+> Tier: Free hook → upsell VIP/PRO
+
 ---
 
 # C. 📸 Instagram (IG-DD1 — IG-DD5)
@@ -840,4 +882,295 @@ Free / VIP (79฿) / PRO (109฿)
 - [[26 - DM Quick Replies]] — สำหรับตอบลูกค้า direct
 - [[30 - Sales Chat Quick Replies]] — sales scenarios
 
-#campaign #broadcast #dashboard #marketing
+---
+
+# J. 🎯 Feature Tease × Bot Pitch (FT01–FT20)
+
+> **โพสสั้นๆ ฟีเจอร์ละ 1 ตัว — บอทเป็นทางเข้าหลัก**
+> ใช้สลับกับโพสตัวยาว เป็น filler content ระหว่างสัปดาห์
+> Format: hook 1 บรรทัด → benefit 2-4 บรรทัด → CTA → ลิงก์บอท
+> ทุกตัวจบด้วย `t.me/apexify_bot` — Funnel: เห็นโพส → แอดบอท → ใช้ → upgrade
+
+## 🆓 Free hook (FT01–FT05) — ดึงคนใหม่
+
+### FT01 — Daily Streak
+
+```
+🔥 ครบ 7 วัน = ได้ VIP ฟรี 1 วัน
+
+Apexify บอทมี Daily Streak system
+แค่เปิดใช้งาน /track วันละ 1 ครั้ง
+สะสม 7 วัน → ระบบให้ VIP ฟรี 1 วันอัตโนมัติ
+
+→ t.me/apexify_bot
+```
+
+### FT02 — Free Trial 7 วัน
+
+```
+🎁 ใหม่? ลอง VIP ฟรี 7 วัน
+
+พิมพ์ /freetrial ในบอท Apexify
+ปลดล็อก: กราฟ + AI Trend Radar + Watchlist 10 ตัว + Flash News
+ไม่ต้องกรอกบัตร · ไม่ต้องผูกบัญชี
+
+→ t.me/apexify_bot
+```
+
+### FT03 — /track AI วิเคราะห์
+
+```
+🤖 พิมพ์ชื่อหุ้น → AI ตอบใน 10 วิ
+
+/track AAPL ในบอท Apexify
+รายงาน: เทรนด์ + แนวรับ-ต้าน + AI verdict + sentiment
+ฟรี 3 ครั้ง/วัน — ลองได้ทุกหุ้น TH/US
+
+→ t.me/apexify_bot
+```
+
+### FT04 — /portfolio เริ่มต้น
+
+```
+💼 พอร์ตในกระเป๋า — บันทึกในบอทเลย
+
+/add AAPL 10 180.50 → เพิ่มหุ้น
+/portfolio → สรุป P&L ทั้งหมด
+ฟรี 3 ตัว · VIP 10 · PRO ∞
+
+→ t.me/apexify_bot
+```
+
+### FT05 — /pnl การ์ดแชร์ได้
+
+```
+📸 การ์ดกำไร/ขาดทุน — แชร์ลง IG Story ได้
+
+/pnl ในบอท Apexify
+AI สร้างการ์ดสวย dark theme
+ตัวอักษร + emoji + watermark Apexify
+
+ฟรีทุก tier — โพสอวดเพื่อนได้
+→ t.me/apexify_bot
+```
+
+## 👑 VIP value (FT06–FT10) — push ให้สมัคร 79฿
+
+### FT06 — /fund Fundamentals
+
+```
+📊 P/E, EPS, Dividend ใน 1 บรรทัด
+
+/fund AAPL ในบอท (VIP+)
+รายงาน: P/E · EPS · Dividend · 52W high/low · market cap
+ไม่ต้องเปิด yfinance หรือ Yahoo เอง
+
+→ /freetrial ฟรี 7 วัน
+t.me/apexify_bot
+```
+
+### FT07 — /earnings AI
+
+```
+📅 ก่อนงบประกาศ — AI วิเคราะห์ให้
+
+/earnings AAPL ในบอท (VIP+)
+Apexify ดู expectation, history, sentiment
+บอกว่า "miss/beat/in-line" likely + EPS expected
+
+→ /freetrial 7 วัน ฟรี
+t.me/apexify_bot
+```
+
+### FT08 — Flash News รายชั่วโมง
+
+```
+⚡ ข่าวเด่นรายชั่วโมง — auto-deliver ไม่ต้องเปิดเว็บข่าวเอง
+
+VIP/PRO รับ Flash News ในแชท Apexify อัตโนมัติ
+1 ข่าว/ชั่วโมง · เน้น US markets · มีสรุปไทย + audio
+
+→ /freetrial ทดลอง 7 วัน
+t.me/apexify_bot
+```
+
+### FT09 — Morning Briefing + Podcast
+
+```
+☕ Morning Brief — ฟังก่อนเปิดตลาด
+
+VIP/PRO รับทุกเช้า 8:00 AM:
+- สรุปข่าวคืนที่ผ่านมา (Asia/EU/US close)
+- Podcast เสียงไทย 2 นาที
+- Macro update + earnings เด่น
+
+→ /freetrial ฟรี 7 วัน
+t.me/apexify_bot
+```
+
+### FT10 — Weekly Digest ศุกร์
+
+```
+📅 ทุกศุกร์ 18:00 — สรุปอาทิตย์ที่ผ่านมา
+
+VIP/PRO รับ Weekly Digest ในแชท:
+- พอร์ต WoW
+- Track Record AI 30 วัน
+- Economic preview สัปดาห์หน้า
+
+→ /freetrial ฟรี 7 วัน
+t.me/apexify_bot
+```
+
+## 💎 PRO value (FT11–FT15) — push ให้สมัคร 109฿
+
+### FT11 — /compare AI ตัดสิน
+
+```
+⚖️ AAPL vs MSFT — AI ตัดสินให้
+
+/compare AAPL MSFT ในบอท (PRO)
+Side-by-side: เทคนิค + งบ + แนวโน้ม + AI verdict
+ตอบคำถาม "ซื้อตัวไหนดี" ใน 30 วินาที
+
+→ /freetrial ลอง PRO 7 วัน ฟรี
+t.me/apexify_bot
+```
+
+### FT12 — /ask ถาม AI ตรง
+
+```
+🤔 ถาม AI หุ้นตรงๆ ในแชทเลย
+
+/ask "หุ้น dividend ปลอดภัยช่วงดอกเบี้ยลง 3 ตัว"
+Apexify Gemini ตอบทันที (PRO)
+ไม่ต้อง prompt engineering · ไม่ต้องเปิด ChatGPT
+
+→ /freetrial 7 วัน ฟรี
+t.me/apexify_bot
+```
+
+### FT13 — /setalert ราคาเป้า
+
+```
+🔔 ราคาแตะเป้า → บอทเตือนทันที
+
+/setalert AAPL above 200 ในบอท (PRO)
+ระบบตรวจทุก 5 นาที
+ตั้ง RSI / Breakout / Whale ก็ได้
+
+→ /freetrial 7 วัน
+t.me/apexify_bot
+```
+
+### FT14 — Smart Alerts auto
+
+```
+🎯 Smart Alerts — RSI/whale/news ส่งให้ทุกวัน
+
+PRO รับ alerts ในแชท Apexify อัตโนมัติ:
+- RSI > 70 / < 30
+- Volume spike (whale buying)
+- ข่าวด่วนกระทบหุ้นในพอร์ต
+
+ไม่ต้องตั้งเอง — บอทเลือกให้
+→ /freetrial 7 วัน
+t.me/apexify_bot
+```
+
+### FT15 — Entry/TP/SL ตัวเลข
+
+```
+🎯 ไม่ต้องเดา Entry/TP/SL — บอทบอกตัวเลข
+
+PRO ในบอท Apexify รายงาน:
+📍 Entry $9.99–$10.20
+🎯 TP1 $11.61 (+11.9%)
+🛑 SL $9.20 (-7.8%)
++ Position sizing tip
+
+→ /freetrial PRO 7 วัน ฟรี
+t.me/apexify_bot
+```
+
+## 🌐 Web Dashboard tease (FT16–FT20) — เน้น value-add หลังอัปเกรด
+
+### FT16 — Daily Pulse popup
+
+```
+☕ เปิดเว็บปุ๊บ → AI สรุปพอร์ตให้ (PRO)
+
+Apexify Copilot popup เด้งให้:
+"พอร์ต 6 หุ้น ทำกำไรรวม +9.88%
+หุ้นที่มีกำไรสูงสุดคือ GOOGL ที่ +25.1%"
+1-2 บรรทัดอ่านจบก่อนเริ่มงาน
+
+→ มีบอท: /dashboard
+ยังไม่มี: t.me/apexify_bot
+```
+
+### FT17 — Heatmap พอร์ตเป็นภาพ
+
+```
+🎨 พอร์ตเป็นภาพ Heatmap (VIP+)
+
+ใน Dashboard เว็บ — ทุกหุ้นแสดงเป็น tile
+ขนาด = % allocation
+สี = กำไร (เขียว) / ขาดทุน (แดง)
+รู้สถานะใน 1 วินาที
+
+→ /dashboard ในบอท
+t.me/apexify_bot
+```
+
+### FT18 — Benchmark vs S&P
+
+```
+📈 พอร์ตคุณชนะ S&P 500 มั้ย? (VIP+)
+
+Apexify Dashboard มี Benchmark page
+เทียบ % return พอร์ตกับ S&P/SET ตามช่วง 7d/30d/90d/1y
+ตอบคำถามนี้ใน 5 วิ
+
+→ /dashboard ในบอท
+t.me/apexify_bot
+```
+
+### FT19 — Tax Export ยื่นภาษี
+
+```
+📋 ยื่นภาษีปลายปี — Excel ออกให้เลย (PRO)
+
+ใน Apexify Dashboard:
+/export → ดาวน์โหลด .xlsx
+รวม transactions, fees, FX rate, P&L per trade
+จัดรูปแบบให้ใส่ ภงด.90 ได้ตรง
+
+→ /dashboard ในบอท
+t.me/apexify_bot
+```
+
+### FT20 — Slip OCR auto-upgrade
+
+```
+📸 ส่งสลิปธนาคาร → บอทอัปเกรดให้อัตโนมัติ
+
+ไม่ต้อง screenshot crop · copy เลข · ส่ง admin
+แค่โอนเงิน → ส่งรูปสลิปในแชท Apexify
+AI อ่าน → ตรวจกับธนาคาร → upgrade VIP/PRO ใน 30 วิ
+
+→ t.me/apexify_bot
+```
+
+---
+
+## 💡 วิธีใช้ FT series
+
+- **โพส 2-3 ตัว/อาทิตย์** สลับกับ DD/FB ตัวยาว
+- **เลือกตาม persona** ของ audience ในวันนั้น (Free hook ตอนใหม่/lapsed, VIP/PRO ตอนต้องการ upgrade)
+- **เลือกตามเวลา**: เช้า → FT09 (Morning Brief), กลางวัน → FT08 (Flash News), เย็น → FT10 (Weekly Digest)
+- **โพสซ้ำได้** — ห่าง 3-4 อาทิตย์ก็รู้สึกใหม่
+- **A/B test** — ลอง 2 FT คล้ายกันเปรียบ engagement (เช่น FT06 vs FT07)
+- **ใส่รูปประกอบเสมอ** — screenshot บอทตอบ /track หรือ Daily Summary popup
+
+#campaign #broadcast #dashboard #marketing #feature-tease
