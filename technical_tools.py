@@ -378,34 +378,57 @@ def calculate_technical_indicators(symbol, generate_chart=True):
             if generate_chart:
                 mpf = _load_chart_modules()
                 buf = io.BytesIO()
-                
-                mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit', volume='in')
-                s = mpf.make_mpf_style(marketcolors=mc, base_mpf_style='nightclouds', gridstyle=':', rc={'font.size': 10})
-                
-                add_plots = [
-                    mpf.make_addplot(data['EMA20'].tail(60), color='#2962ff', width=1.5),
-                    mpf.make_addplot(data['EMA50'].tail(60), color='#ff6d00', width=1.5),
-                    mpf.make_addplot(data['EMA200'].tail(60), color='#d500f9', width=1.5),
-                ]
 
-                # 🌟 ใช้ \n จริง ไม่ใช่ \\n (literal backslash-n)
-                chart_title = (
-                    f"\nApexify Pro Chart: {clean_symbol}\n"
-                    f"EMA: 20(Blue) 50(Orange) 200(Purple) | Res(Red) Sup(Green) | POC(Yellow)"
+                # 🌟 Light theme — match PRO chart palette so the brand feels consistent.
+                # Teal/coral candle colors + white background + same EMA + level palette
+                # as generate_pro_annotated_chart. PRO still differs by adding the Entry
+                # zone shading + TP/SL annotations on top.
+                mc = mpf.make_marketcolors(
+                    up='#26a69a',        # teal — up bars
+                    down='#ef5350',      # coral — down bars
+                    edge='inherit',
+                    wick={'up': '#26a69a', 'down': '#ef5350'},
+                    volume={'up': '#26a69a', 'down': '#ef5350'},
+                )
+                s = mpf.make_mpf_style(
+                    marketcolors=mc,
+                    base_mpf_style='yahoo',
+                    gridstyle='-',
+                    gridcolor='#e0e0e0',
+                    facecolor='white',
+                    edgecolor='#333333',
+                    figcolor='white',
+                    rc={'font.size': 10, 'axes.labelcolor': '#333333', 'axes.edgecolor': '#cccccc'},
                 )
 
-                # 🌟 เพิ่มคำสั่งตีเส้น hlines สำหรับโซนคนติดดอย (สีเหลือง #ffff00)
+                add_plots = [
+                    mpf.make_addplot(data['EMA20'].tail(60), color='#1e88e5', width=1.5),   # blue — same as PRO
+                    mpf.make_addplot(data['EMA50'].tail(60), color='#fb8c00', width=1.5),   # orange — same as PRO
+                    mpf.make_addplot(data['EMA200'].tail(60), color='#8e24aa', width=1.5),  # purple — same as PRO
+                ]
+
+                chart_title = (
+                    f"\nApexify Chart: {clean_symbol}\n"
+                    f"EMA: 20(Blue) 50(Orange) 200(Purple) | Res(Red) Sup(Green) | POC(Orange)"
+                )
+
+                # Same level colors as PRO chart — darker on white bg for contrast.
                 mpf.plot(
                     data.tail(60),
                     type='candle',
                     style=s,
                     title=chart_title,
                     volume=True,
-                    panel_ratios=(4, 1), 
+                    panel_ratios=(4, 1),
                     addplot=add_plots,
-                    hlines=dict(hlines=[resistance, support, float(poc_price)], colors=['#ff0000', '#00ff00', '#ffff00'], linestyle='-.', linewidths=1.5),
+                    hlines=dict(
+                        hlines=[resistance, support, float(poc_price)],
+                        colors=['#d32f2f', '#388e3c', '#ff9800'],  # red / green / orange (matches PRO)
+                        linestyle=':',
+                        linewidths=1.3,
+                    ),
                     savefig=dict(fname=buf, dpi=100, bbox_inches='tight', pad_inches=0.1),
-                    figratio=(16, 9), 
+                    figratio=(16, 9),
                     figscale=1.2,
                     tight_layout=True
                 )

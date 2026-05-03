@@ -1040,14 +1040,155 @@ def handle_portfolio(message):
         bot.edit_message_text(friendly_error("ดึงข้อมูลผู้ใช้ไม่สำเร็จ"), chat_id=message.chat.id, message_id=processing_msg.message_id)
 
 
+def _handle_pnl_all(message):
+    """Portfolio-wide PnL card — sums all holdings into one shareable image."""
+    user_id = str(message.chat.id)
+    username = message.from_user.username or message.from_user.first_name or f"User_{user_id[-4:]}"
+
+    portfolio = get_user_portfolio(user_id)
+    if not portfolio:
+        bot.reply_to(
+            message,
+            "📊 พอร์ตของคุณยังว่างเปล่า\n"
+            "พิมพ์ <code>/add [หุ้น] [จำนวน] [ราคา]</code> เพื่อเริ่มบันทึกพอร์ตก่อนครับ",
+            parse_mode='HTML',
+        )
+        return
+
+    if len(portfolio) > 30:
+        bot.reply_to(message, "⚠️ พอร์ตคุณมีหุ้นมากเกินไป (>30) — ลด lottos เกินจำเป็นก่อนครับ")
+        return
+
+    wait_msg = bot.reply_to(message, "🎨 กำลังสร้างการ์ดสรุปพอร์ตทั้งหมด...")
+
+    try:
+        import yfinance as yf
+        allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+
+        # Fetch live prices for every ticker via fast_info — sub-second per stock
+        holdings = []
+        for p in portfolio:
+            ticker = p['ticker']
+            clean = ticker.replace(".", "-") if "." in ticker and not ticker.endswith(allowed_suffixes) else ticker
+            try:
+                fi = yf.Ticker(clean).fast_info
+                price = float(fi.get('lastPrice') if hasattr(fi, 'get') else getattr(fi, 'last_price', 0) or 0)
+            except Exception:
+                price = 0.0
+            if price <= 0:
+                continue
+            cost = p['shares'] * p['avg_cost']
+            value = p['shares'] * price
+            pnl = value - cost
+            pnl_pct = (pnl / cost * 100) if cost > 0 else 0
+            holdings.append({
+                'ticker': ticker,
+                'shares': p['shares'],
+                'avg_cost': p['avg_cost'],
+                'price': price,
+                'value': value,
+                'pnl': pnl,
+                'pnl_pct': pnl_pct,
+            })
+
+        if not holdings:
+            bot.edit_message_text(
+                "📡 ดึงราคาหุ้นในพอร์ตไม่สำเร็จ — ลองอีกครั้งใน 1 นาทีนะครับ",
+                message.chat.id, wait_msg.message_id,
+            )
+            return
+
+        total_value = sum(h['value'] for h in holdings)
+        total_cost = sum(h['cost'] if 'cost' in h else h['shares'] * h['avg_cost'] for h in holdings)
+
+        # THB rate (best-effort)
+        thb_value = None
+        try:
+            fx = yf.Ticker("THB=X").fast_info
+            rate = float(fx.get('lastPrice') if hasattr(fx, 'get') else getattr(fx, 'last_price', 0) or 0)
+            if rate > 0:
+                thb_value = total_value * rate
+        except Exception:
+            pass
+
+        from pnl_generator import generate_portfolio_pnl_card
+        image_bytes = generate_portfolio_pnl_card(
+            username=username,
+            holdings=holdings,
+            total_value=total_value,
+            total_cost=total_cost,
+            thb_value=thb_value,
+        )
+
+        total_pnl_pct = ((total_value - total_cost) / total_cost * 100) if total_cost > 0 else 0
+        emoji = "🟢" if total_pnl_pct >= 0 else "🔴"
+        sign = "+" if total_pnl_pct >= 0 else ""
+
+        # Personalized share URL — same flow as single-ticker /pnl
+        from urllib.parse import quote
+        from config import DASHBOARD_BASE_URL
+        base = (DASHBOARD_BASE_URL or "https://apexifyy.up.railway.app").rstrip("/")
+        share_user = quote(username[:24])
+        share_url = (
+            f"{base}/pnl-share?t=PORTFOLIO&p={total_pnl_pct:.2f}&u={share_user}&bot=REF_{user_id}"
+        )
+
+        caption = (
+            f"📊 <b>พอร์ตของผม</b> · {len(holdings)} หุ้น · ${total_value:,.0f}\n"
+            f"{emoji} P&L รวม: <b>{sign}{total_pnl_pct:.2f}%</b>\n\n"
+            f"ตามไปดูใครก็ทำได้แบบนี้ — ใช้ <b>Apexify Trading AI</b> ช่วยสแกน + เตือน 24 ชม. 🤖✨\n\n"
+            f"🔗 https://t.me/Apexify_Trading_Bot?start=REF_{user_id}"
+        )
+
+        share_markup = InlineKeyboardMarkup()
+        share_markup.add(
+            InlineKeyboardButton("📤 แชร์ลิงก์ (preview สวย)", url=share_url),
+        )
+
+        bot.send_photo(
+            message.chat.id,
+            photo=image_bytes,
+            caption=caption,
+            parse_mode='HTML',
+            reply_markup=share_markup,
+        )
+        try:
+            bot.delete_message(message.chat.id, wait_msg.message_id)
+        except Exception:
+            pass
+
+    except Exception as e:
+        print(f"[/pnl all] {e}", flush=True)
+        from bot_utils import alert_admin_error
+        alert_admin_error(bot, "/pnl all", e, user_id=user_id)
+        try:
+            bot.edit_message_text(
+                friendly_error("สร้างการ์ดพอร์ตไม่สำเร็จ"),
+                message.chat.id, wait_msg.message_id,
+            )
+        except Exception:
+            pass
+
+
 @bot.message_handler(commands=['pnl'])
 def handle_pnl_card(message):
-    """คำสั่ง /pnl [ชื่อหุ้น] เพื่อสร้างการ์ดอวดกำไร"""
+    """คำสั่ง /pnl [ชื่อหุ้น] หรือ /pnl all เพื่อสร้างการ์ดอวดกำไร"""
     parts = message.text.split()
     if len(parts) < 2:
-        bot.reply_to(message, "❌ กรุณาพิมพ์ชื่อหุ้นด้วยครับ เช่น <code>/pnl NVDA</code>", parse_mode='HTML')
+        bot.reply_to(
+            message,
+            "❌ กรุณาพิมพ์ชื่อหุ้นด้วยครับ\n"
+            "<code>/pnl NVDA</code> — การ์ดของหุ้นเดียว\n"
+            "<code>/pnl all</code> — การ์ดสรุปทั้งพอร์ต ⭐",
+            parse_mode='HTML',
+        )
         return
-        
+
+    # /pnl all → portfolio-wide card
+    if parts[1].lower() == "all":
+        _handle_pnl_all(message)
+        return
+
     ticker = parts[1].upper()
     user_id = str(message.chat.id)
     username = message.from_user.username or message.from_user.first_name
