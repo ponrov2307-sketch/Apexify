@@ -1147,9 +1147,9 @@ async def create_and_send_podcast(bot_instance, force=False):
 
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT user_id FROM users WHERE role IN ('pro', 'vip')")
+        cur.execute("SELECT user_id FROM users WHERE role = 'pro'")
         podcast_recipients = [str(row[0]) for row in cur.fetchall()
-                              if check_subscription(row[0]) in ('pro', 'vip')
+                              if check_subscription(row[0]) == 'pro'
                               and should_send_user_notification(row[0], category="morning_briefing")]
         cur.close()
         conn.close()
@@ -1622,7 +1622,7 @@ def send_expiry_warnings(bot_instance):
     print(f"[expiry_warnings] ส่งแจ้งเตือนหมดอายุเรียบร้อย (7/3/1 วัน)")
 
 def send_watchlist_daily_summary(bot_instance):
-    """ส่งสรุป Watchlist รายวันให้ทุก user ที่มี watchlist (23:00 Thai time)"""
+    """ส่งสรุป Watchlist รายวันให้ VIP+/PRO ที่มี watchlist (05:00 Thai time, หลังตลาด US ปิด)"""
     from database import get_user_watch
     conn = get_connection()
     cur = conn.cursor()
@@ -1633,6 +1633,9 @@ def send_watchlist_daily_summary(bot_instance):
 
     count = 0
     for user_id in users:
+        # Tier gate: VIP+/PRO only
+        if str(user_id) != str(ADMIN_ID) and check_subscription(user_id) not in ('vip', 'pro'):
+            continue
         if not should_send_user_notification(user_id, category="general"):
             continue
         tickers = get_user_watch(user_id)

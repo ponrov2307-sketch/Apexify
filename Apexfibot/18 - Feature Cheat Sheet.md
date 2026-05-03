@@ -35,12 +35,13 @@ tags: [cheatsheet, reference]
 | Smart Alerts (RSI/MACD/Whale)         |   ❌   |    ❌    |        ✅        |
 | Custom Price Alerts                   |   ❌   |    ❌    |        ✅        |
 | Earnings Alerts                       |   ❌   |    ✅    |        ✅        |
-| Morning Briefing + Podcast            |   ❌   |    ✅    |        ✅        |
+| Morning Briefing (text 8:30)          |   ❌   |    ✅    |        ✅        |
+| Morning Podcast (เสียง 8:00)          |   ❌   |    ❌    |        ✅        |
 | Flash News + Digest News              |   ❌   |    ✅    |        ✅        |
 | Weekly Digest (ศุกร์)                 |   ❌   |    ✅    |        ✅        |
 | Watchlist                             |   3   |   10    |        ∞        |
 | Portfolio                             |   3   |   10    |        ∞        |
-| Daily Watchlist Summary               |   ✅   |    ✅    |        ✅        |
+| Daily Watchlist Summary (5:00)        |   ❌   |    ✅    |        ✅        |
 | **/track** Track Record               |   ✅   |    ✅    |        ✅        |
 | **🔥 Daily Streak** (+1 วัน VIP/7วัน) |   ✅   |    ✅    |        ✅        |
 | 🤝 Referral (ใหม่ได้ VIP 3 วัน)       |   ✅   |    ✅    |        ✅        |

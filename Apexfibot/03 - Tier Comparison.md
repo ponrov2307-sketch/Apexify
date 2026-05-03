@@ -22,7 +22,8 @@ tags: [tier, pricing]
 | **Watchlist** | 3 | 10 | ∞ |
 | **Portfolio basic** | ✅ (3) | ✅ (10) | ✅ (∞) |
 | **Flash News + Digest News** | ❌ | ✅ | ✅ |
-| **Morning Briefing + Podcast** | ❌ | ✅ | ✅ |
+| **Morning Briefing (text 8:30)** | ❌ | ✅ | ✅ |
+| **Morning Podcast (เสียง 8:00)** | ❌ | ❌ | ✅ |
 | **Weekly Digest (ศุกร์ 18:00)** | ❌ | ✅ | ✅ |
 | **Smart Alerts (RSI/news/whale)** | ❌ | ❌ | ✅ |
 | **Custom Price Alerts (`/setalert`)** | ❌ | ❌ | ✅ |
@@ -30,7 +31,7 @@ tags: [tier, pricing]
 | **Earnings Analysis AI (`/earnings`)** | ❌ | ✅ | ✅ |
 | **Track Record (`/track`)** | ✅ | ✅ | ✅ |
 | **Daily Portfolio Summary** | ❌ | ✅ | ✅ |
-| **Daily Watchlist Summary (5:00)** | ✅ | ✅ | ✅ |
+| **Daily Watchlist Summary (5:00)** | ❌ | ✅ | ✅ |
 
 > Admin = ได้ทุกอย่างของ PRO + Admin Dashboard + commands พิเศษ
 
