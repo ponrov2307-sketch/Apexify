@@ -2920,7 +2920,8 @@ def inline_callbacks(call):
                 "✅ เปิดแจ้งเตือนแล้ว" if new_state else "🔕 ปิดแจ้งเตือนแล้ว",
             )
         except Exception as e:
-            bot.answer_callback_query(call.id, f"❌ {e}", show_alert=True)
+            print(f"[breaking_toggle] {e}", flush=True)
+            bot.answer_callback_query(call.id, "❌ บันทึกไม่สำเร็จ ลองใหม่อีกครั้งนะครับ", show_alert=True)
 
     elif call.data == 'hub_price_alert':
         try:
