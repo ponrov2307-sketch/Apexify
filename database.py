@@ -505,6 +505,20 @@ def init_db():
     """)
     c.execute("CREATE INDEX IF NOT EXISTS idx_earnings_notified_date ON earnings_notified (notify_date DESC)")
 
+    # ตาราง analytics สำหรับ dashboard funnel — link_issued → login_redeemed → home_viewed
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS dashboard_events (
+            id          BIGSERIAL PRIMARY KEY,
+            user_id     TEXT NOT NULL,
+            role        TEXT,
+            event_name  TEXT NOT NULL,
+            source      TEXT,
+            feature     TEXT,
+            created_at  TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_dash_events ON dashboard_events (user_id, event_name, created_at DESC)")
+
     conn.commit()
     conn.close()
     init_watchlist_db()
@@ -528,6 +542,29 @@ def log_command(user_id, command):
         conn.commit()
     except Exception as e:
         print(f"[log_command] {e}", flush=True)
+        if conn:
+            try: conn.rollback()
+            except Exception: pass
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
+
+
+def log_dashboard_event(user_id: str, role: str | None, event_name: str,
+                        source: str | None = None, feature: str | None = None):
+    """Log a dashboard funnel event. Safe to fail silently."""
+    conn = None
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO dashboard_events (user_id, role, event_name, source, feature) VALUES (%s, %s, %s, %s, %s)",
+            (str(user_id), role, str(event_name)[:64], source, feature),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[log_dashboard_event] {e}", flush=True)
         if conn:
             try: conn.rollback()
             except Exception: pass

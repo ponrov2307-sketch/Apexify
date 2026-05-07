@@ -12,7 +12,10 @@ import xml.etree.ElementTree as ET
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from keep_alive import keep_alive, set_webhook_bot
 from config import TELEGRAM_TOKEN, ADMIN_ID, DASHBOARD_LOGIN_TOKEN_TTL, APEXIFY_PASSWORD, gemini_client, BOT_WEB_BASE_URL
-from dashboard_login import issue_admin_dashboard_url, issue_dashboard_login_url
+from dashboard_login import (
+    issue_admin_dashboard_url, issue_dashboard_login_url,
+    build_dashboard_login_url, is_dashboard_login_ready,
+)
 # 🌟 Import ฟังก์ชันฐานข้อมูลทั้งหมด รวมถึงระบบจัดการพอร์ต
 from database import (get_all_users, init_db, register_user, check_subscription, add_subscription,
                       get_usage, increment_usage, add_watch, get_user_watch, get_user_profile,
@@ -28,7 +31,8 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       has_used_free_trial, activate_free_trial,
                       add_earnings_alert_db, get_user_earnings_alerts_db, remove_earnings_alert_db,
                       update_last_active, mark_user_inactive, get_active_users, log_command,
-                      delete_pending_referral, reset_free_trial, cleanup_old_logs)
+                      delete_pending_referral, reset_free_trial, cleanup_old_logs,
+                      log_dashboard_event)
 from bot_utils import friendly_error, broadcast_maintenance_notice
 from admin_service import (
     build_local_backup_zip,
@@ -454,8 +458,26 @@ def generate_random_code(length=6):
 # ==========================================
 # Dashboard Magic Login (Telegram -> Web)
 # ==========================================
-def send_dashboard_login_link(user_id):
-    success, login_url, reason = issue_dashboard_login_url(user_id)
+
+def _log_dashboard_event(user_id, role, event_name, source=None, feature=None):
+    threading.Thread(
+        target=log_dashboard_event,
+        args=(user_id, role, event_name, source, feature),
+        daemon=True,
+    ).start()
+
+
+def _dashboard_cta_button(user_id: str, label: str, src: str, next_path: str = "/"):
+    """Returns an InlineKeyboardButton with a magic-login URL, or None if dashboard is unavailable."""
+    ready, _ = is_dashboard_login_ready()
+    if not ready:
+        return None
+    url = build_dashboard_login_url(user_id, src=src, next_path=next_path)
+    return InlineKeyboardButton(label, url=url)
+
+
+def send_dashboard_login_link(user_id, src="command"):
+    success, login_url, reason = issue_dashboard_login_url(user_id, src=src)
     if not success:
         if reason in {'disabled', 'url_missing', 'secret_missing'}:
             bot.send_message(user_id, "ระบบลิงก์ Dashboard ยังไม่พร้อมใช้งาน กรุณาติดต่อแอดมิน")
@@ -463,31 +485,17 @@ def send_dashboard_login_link(user_id):
             bot.send_message(user_id, "ไม่สามารถสร้างลิงก์เข้า Dashboard ได้ กรุณาลองใหม่อีกครั้ง")
         return
 
-    ttl_seconds = max(1, int(DASHBOARD_LOGIN_TOKEN_TTL))
-    ttl_minutes = max(1, (ttl_seconds + 59) // 60)
-    apexify_password = APEXIFY_PASSWORD or "(ยังไม่ได้ตั้งค่า APEXIFY_PASSWORD/AUTH_SHARED_PASSCODE)"
-
+    ttl_minutes = max(1, (max(1, int(DASHBOARD_LOGIN_TOKEN_TTL)) + 59) // 60)
     markup = InlineKeyboardMarkup()
-    # WebApp button: opens dashboard inline inside Telegram (no app switch).
-    # Requires HTTPS + the URL host registered in BotFather (/newapp).
-    # Falls back gracefully on Telegram clients that don't support WebApps —
-    # the URL button below works on every client.
-    try:
-        markup.add(InlineKeyboardButton("📱 เปิดในแชท (WebApp)", web_app=WebAppInfo(url=login_url)))
-    except Exception:
-        pass  # WebAppInfo unsupported — keep URL fallback only
-    markup.add(InlineKeyboardButton("🌐 เปิดในเบราว์เซอร์", url=login_url))
+    markup.add(InlineKeyboardButton("🌐 เปิด Dashboard", url=login_url))
     msg = (
-        "เลือกวิธีเปิด Dashboard:\n"
-        "📱 *เปิดในแชท* — เปิดได้ใน Telegram เลย ไม่ต้องสลับแอป\n"
-        "🌐 *เปิดในเบราว์เซอร์* — เปิดใน Chrome/Safari\n\n"
-        f"ลิงก์มีอายุประมาณ {ttl_minutes} นาที\n\n"
-        "ข้อมูลล็อกอินสำรอง (เผื่อเข้าอัตโนมัติไม่สำเร็จ)\n"
-        f"- Telegram ID: {user_id}\n"
-        f"- รหัส Apexify: {apexify_password}\n\n"
-        "หากลิงก์หมดอายุ ให้กด /dashboard เพื่อสร้างลิงก์ใหม่"
+        "🌐 *Dashboard ของคุณพร้อมใช้งาน*\n\n"
+        "กดปุ่มด้านล่างเพื่อเปิด Portfolio Cockpit — ดูพอร์ต, Watchlist และฟีเจอร์ทั้งหมดของคุณ\n\n"
+        f"_ลิงก์ใช้ได้ {ttl_minutes} นาที — หมดอายุแล้วพิมพ์ /dashboard ใหม่_"
     )
     bot.send_message(user_id, msg, reply_markup=markup, parse_mode="Markdown")
+    role = check_subscription(user_id)
+    _log_dashboard_event(user_id, role, "dashboard_link_issued", source=src)
 
 
 def send_admin_dashboard_link(user_id):
@@ -678,6 +686,9 @@ def handle_my_alerts(message):
                     callback_data=f"delalert_{a_id}"
                 ))
         footer = "➕ เพิ่มเตือนใหม่: `/setalert [หุ้น] [ราคา]`\nเช่น `/setalert PTT.BK 35`"
+        _alerts_btn = _dashboard_cta_button(user_id, "🔔 จัดการ Alerts ใน Dashboard", src="alerts_cmd", next_path="/alerts")
+        if _alerts_btn:
+            markup.add(_alerts_btn)
         bot.reply_to(message, header + footer, parse_mode="Markdown", reply_markup=markup)
     except Exception as e:
         print(f"[/myalerts] error: {e}", flush=True)
@@ -1197,8 +1208,12 @@ def handle_portfolio(message):
         )
 
         msg = "\n".join(lines)
-        bot.edit_message_text(msg, chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='HTML')
-        
+        port_markup = InlineKeyboardMarkup()
+        _port_btn = _dashboard_cta_button(user_id, "📊 จัดการพอร์ตใน Dashboard", src="portfolio_cmd", next_path="/portfolio")
+        if _port_btn:
+            port_markup.add(_port_btn)
+        bot.edit_message_text(msg, chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='HTML', reply_markup=port_markup)
+
     except Exception as e:
         print(f"[user_history] {e}", flush=True)
         bot.edit_message_text(friendly_error("ดึงข้อมูลผู้ใช้ไม่สำเร็จ"), chat_id=message.chat.id, message_id=processing_msg.message_id)
@@ -4317,6 +4332,9 @@ def handle_main(message):
                 markup.add(
                     InlineKeyboardButton("🆓 ทดลองใช้ PRO 7 วันฟรี!", callback_data="menu_freetrial")
                 )
+            _account_btn = _dashboard_cta_button(user_id, "🌐 ดูสิทธิ์ใน Dashboard", src="account_panel")
+            if _account_btn:
+                markup.add(_account_btn)
             bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
         else:
             bot.reply_to(message, "❌ ไม่พบข้อมูลบัญชี พิมพ์ /start เพื่อลงทะเบียนใหม่")
@@ -4408,6 +4426,9 @@ def handle_main(message):
         if not has_used_free_trial(user_id):
             upsell_kb.add(InlineKeyboardButton("🆓 ทดลองใช้ PRO 7 วันฟรี!", callback_data="menu_freetrial"))
         upsell_kb.add(InlineKeyboardButton("🎁 เติมโค้ดส่วนลด", callback_data="menu_code"))
+        _quota_btn = _dashboard_cta_button(user_id, "📊 ดูฟีเจอร์ VIP/PRO ใน Dashboard", src="quota_exceeded")
+        if _quota_btn:
+            upsell_kb.add(_quota_btn)
         upsell_msg = (
             f"✨ **ขอบคุณที่ใช้ครบโควต้าประจำวันครับ** ({FREE_DAILY_QUOTA}/{FREE_DAILY_QUOTA})\n\n"
             f"🕛 ระบบจะรีเซ็ตโควต้าใหม่ในอีก **{_reset_str}**\n\n"
@@ -4577,6 +4598,12 @@ def handle_main(message):
         InlineKeyboardButton("💼 พอร์ต", callback_data="hub_portfolio"),
         InlineKeyboardButton("📱 เมนูหลัก", callback_data="hub_home"),
     )
+    _analysis_btn = _dashboard_cta_button(
+        user_id, "📂 ดู Dashboard", src="analysis_result",
+        next_path=f"/watchlist?symbol={correct_symbol}",
+    )
+    if _analysis_btn:
+        markup.add(_analysis_btn)
 
     try:
         bot.delete_message(message.chat.id, load_msg.message_id)

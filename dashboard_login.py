@@ -69,10 +69,11 @@ def build_admin_dashboard_token(telegram_id: str) -> str:
     return jwt.encode(payload, ADMIN_DASHBOARD_LOGIN_SECRET, algorithm="HS256")
 
 
-def build_dashboard_login_url(telegram_id: str) -> str:
+def build_dashboard_login_url(telegram_id: str, src: str = "command", next_path: str = "/") -> str:
     token = build_dashboard_login_token(telegram_id)
     base_url = DASHBOARD_BASE_URL.rstrip("/")
-    return f"{base_url}/login-token?token={quote(token, safe='')}"
+    params = f"src={quote(src, safe='')}&next={quote(next_path, safe='')}"
+    return f"{base_url}/login-token?token={quote(token, safe='')}&{params}"
 
 
 def build_admin_dashboard_url(telegram_id: str) -> str:
@@ -81,7 +82,7 @@ def build_admin_dashboard_url(telegram_id: str) -> str:
     return f"{base_url}/admin-login-token?token={quote(token, safe='')}"
 
 
-def issue_dashboard_login_url(telegram_id: str) -> tuple[bool, str, str]:
+def issue_dashboard_login_url(telegram_id: str, src: str = "command", next_path: str = "/") -> tuple[bool, str, str]:
     ready, reason = is_dashboard_login_ready()
     if not ready:
         logger.warning(
@@ -92,7 +93,7 @@ def issue_dashboard_login_url(telegram_id: str) -> tuple[bool, str, str]:
         return False, "", reason
 
     try:
-        url = build_dashboard_login_url(telegram_id)
+        url = build_dashboard_login_url(telegram_id, src=src, next_path=next_path)
         logger.info("dashboard_token_issued telegram_id=%s", mask_telegram_id(telegram_id))
         return True, url, "ok"
     except Exception:
