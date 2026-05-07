@@ -21,6 +21,7 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       init_new_features_db, process_referral, get_referral_stats,
                       add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,
                       get_connection, add_portfolio_stock, get_user_portfolio,
+                      delete_portfolio_stock, update_portfolio_stock,
                       get_user_settings, set_user_notifications, set_user_timezone,
                       set_user_language, set_user_digest_frequency, set_user_news_window,
                       ALLOWED_TIMEZONES, ALLOWED_LANGUAGES, ALLOWED_DIGEST_FREQUENCIES,
@@ -921,9 +922,20 @@ def handle_add_stock(message):
         shares = float(parts[2])
         cost = float(parts[3])
 
+        existing = get_user_portfolio(user_id)
+        if any(p['ticker'] == ticker for p in existing):
+            bot.reply_to(
+                message,
+                f"⚠️ **{ticker}** มีอยู่ในพอร์ตแล้ว\n"
+                f"• แก้จำนวน/ต้นทุน: `/edit {ticker} [จำนวน] [ราคาเฉลี่ย]`\n"
+                f"• ลบทิ้ง: `/del {ticker}`",
+                parse_mode='Markdown',
+            )
+            return
+
         role = check_subscription(user_id)
         if user_id != ADMIN_ID:
-            portfolio_count = len(get_user_portfolio(user_id))
+            portfolio_count = len(existing)
             if role == 'free' and portfolio_count >= 3:
                 bot.reply_to(message, "🔒 **จำกัดพอร์ต 3 หุ้น (Free)**\nอัปเกรดเป็น **VIP** เพื่อเพิ่มได้ถึง 10 ตัว หรือ **PRO** ไม่จำกัดครับ!", parse_mode='Markdown')
                 return
@@ -969,6 +981,83 @@ def handle_add_stock(message):
     except Exception as e:
         print(f"[BotError] {e}", flush=True)
         bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")
+
+@bot.message_handler(commands=['del', 'remove'])
+def handle_del_stock(message):
+    """ลบหุ้นออกจากพอร์ต — /del [ticker]"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
+
+    try:
+        parts = message.text.split()
+        if len(parts) != 2:
+            bot.reply_to(
+                message,
+                "❌ รูปแบบผิด! พิมพ์: `/del [ชื่อหุ้น]`\nเช่น: `/del AAPL`",
+                parse_mode='Markdown',
+            )
+            return
+
+        ticker = parts[1].upper()
+        removed = delete_portfolio_stock(user_id, ticker)
+        if not removed:
+            bot.reply_to(
+                message,
+                f"ℹ️ ไม่พบ **{ticker}** ในพอร์ตของคุณ\nพิมพ์ `/portfolio` เพื่อดูรายการที่มีอยู่ครับ",
+                parse_mode='Markdown',
+            )
+            return
+
+        bot.reply_to(
+            message,
+            f"🗑️ ลบ **{ticker}** ออกจากพอร์ตเรียบร้อยแล้วครับ",
+            parse_mode='Markdown',
+        )
+    except Exception as e:
+        print(f"[BotError /del] {e}", flush=True)
+        bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")
+
+
+@bot.message_handler(commands=['edit'])
+def handle_edit_stock(message):
+    """แก้จำนวน/ราคาเฉลี่ยของหุ้นในพอร์ต — /edit [ticker] [shares] [cost]"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
+
+    try:
+        parts = message.text.split()
+        if len(parts) != 4:
+            bot.reply_to(
+                message,
+                "❌ รูปแบบผิด! พิมพ์: `/edit [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]`\nเช่น: `/edit AAPL 15 165`",
+                parse_mode='Markdown',
+            )
+            return
+
+        ticker = parts[1].upper()
+        shares = float(parts[2])
+        cost = float(parts[3])
+
+        updated = update_portfolio_stock(user_id, ticker, shares, cost)
+        if not updated:
+            bot.reply_to(
+                message,
+                f"ℹ️ ไม่พบ **{ticker}** ในพอร์ต\nใช้ `/add {ticker} {shares} {cost}` เพื่อเพิ่มใหม่ครับ",
+                parse_mode='Markdown',
+            )
+            return
+
+        bot.reply_to(
+            message,
+            f"✏️ อัปเดต **{ticker}** เป็น {shares} หุ้น (ต้นทุน ${cost}) เรียบร้อยแล้วครับ",
+            parse_mode='Markdown',
+        )
+    except ValueError:
+        bot.reply_to(message, "❌ จำนวนหุ้นและราคาต้องเป็นตัวเลขเท่านั้นครับ!")
+    except Exception as e:
+        print(f"[BotError /edit] {e}", flush=True)
+        bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")
+
 
 # ==========================================
 # 🌟 ระบบบันทึกและดูพอร์ตลงทุน (แก้บั๊ก Telegram Markdown)
@@ -1825,6 +1914,8 @@ def handle_manual(message):
 
         "**💼 จัดการพอร์ต**\n"
         "`/add AAPL 10 150` — บันทึกซื้อหุ้น 10 หุ้น ราคา 150\n"
+        "`/edit AAPL 15 165` — แก้จำนวน/ราคาเฉลี่ยของหุ้นเดิม\n"
+        "`/del AAPL` — ลบหุ้นออกจากพอร์ต\n"
         "`/portfolio` หรือ `/port` — ดูพอร์ตทั้งหมด\n"
         "`/pnl` — สร้างการ์ด P&L แบบสวยงาม\n\n"
 

@@ -2121,7 +2121,7 @@ def get_user_portfolio(user_id):
     c.execute("SELECT ticker, shares, avg_cost FROM portfolios WHERE user_id = %s", (str(user_id),))
     res = c.fetchall()
     conn.close()
-    
+
     # แปลงผลลัพธ์ให้ออกมาเป็น List of Dict (เพื่อให้ดึงค่าง่ายๆ)
     portfolio = []
     for row in res:
@@ -2131,6 +2131,36 @@ def get_user_portfolio(user_id):
             'avg_cost': float(row[2])
         })
     return portfolio
+
+def delete_portfolio_stock(user_id, ticker):
+    """ลบหุ้น 1 ตัวออกจากพอร์ต — คืน True ถ้ามีแถวถูกลบ"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "DELETE FROM portfolios WHERE user_id = %s AND ticker = %s",
+            (str(user_id), ticker.upper()),
+        )
+        deleted = c.rowcount or 0
+        conn.commit()
+        return deleted > 0
+    finally:
+        conn.close()
+
+def update_portfolio_stock(user_id, ticker, shares, avg_cost):
+    """แก้จำนวนหุ้น/ราคาเฉลี่ยของ ticker เดิม — คืน True ถ้ามีแถวถูกอัปเดต"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "UPDATE portfolios SET shares = %s, avg_cost = %s WHERE user_id = %s AND ticker = %s",
+            (float(shares), float(avg_cost), str(user_id), ticker.upper()),
+        )
+        updated = c.rowcount or 0
+        conn.commit()
+        return updated > 0
+    finally:
+        conn.close()
 def get_user_watch(user_id: str):
     """ให้เว็บดึง Watchlist ได้แบบเดียวกับบอท"""
     try:
