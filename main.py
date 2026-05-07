@@ -2013,8 +2013,14 @@ def handle_manual(message):
         "`/compare AAPL MSFT` — เปรียบเทียบ 2-3 หุ้น + AI verdict _(PRO)_\n"
         "`/ask <คำถาม>` — ถาม AI อะไรก็ได้ _(PRO)_\n\n"
 
-        "**📊 Track Record & Streak**\n"
+        "**📰 Breaking News** _(PRO)_\n"
+        "`/breaking_on` — เปิดรับข่าว flash ทันทีเมื่อมีข่าวใหญ่\n"
+        "`/breaking_off` — ปิดรับข่าว flash\n"
+        "`/breaking_status` — เช็คสถานะ subscription ปัจจุบัน\n\n"
+
+        "**📊 Track Record & Streak & Badges**\n"
         "`/track` — สถิติ AI Plans: hit rate TP1/TP2 ย้อนหลัง 30/90 วัน\n"
+        "`/badges` หรือ `/achievements` — ดูเหรียญตราที่ได้รับ\n"
         "🔥 **Daily Streak:** ใช้ทุกวันติดต่อกัน → ครบ 7 วัน รับ VIP 1 วันฟรี!\n\n"
 
         "**💎 บัญชี & สิทธิ์**\n"
@@ -2030,7 +2036,8 @@ def handle_manual(message):
 
         "**🎬 สำรวจฟีเจอร์**\n"
         "`/demo` — ทัวร์ฟีเจอร์ทั้งหมดในหน้าเดียว\n"
-        "`/manual` หรือ `/help` — เปิดคู่มือนี้อีกครั้ง\n\n"
+        "`/manual` หรือ `/help` — เปิดคู่มือนี้อีกครั้ง\n"
+        "`/contact` หรือ `/support` — ส่งข้อความถึงแอดมินโดยตรง\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━━\n"
         "**🌟 Workflow แนะนำ**\n\n"
@@ -2110,13 +2117,20 @@ def handle_manual(message):
 
             "*📈 สถิติ & Performance*\n"
             "`/stats` — สถิติ user/รายได้\n"
-            "`/performance` — ผลกำไร/ขาดทุนของ AI plans\n\n"
+            "`/performance` — ผลกำไร/ขาดทุนของ AI plans\n"
+            "`/perf_stats` — สรุป latency/throughput ของระบบ\n"
+            "`/streak_debug [uid]` — ตรวจ streak counter ของ user\n\n"
+
+            "*🤝 Referral Review*\n"
+            "`/pending_refs` — list referral submissions ที่รออนุมัติ\n"
+            "`/award_ref [pending_id] [referrer_uid]` — อนุมัติ + ให้รางวัล\n\n"
 
             "*📢 Broadcast & Force*\n"
             "`/broadcast [msg]` — ส่งข้อความทุก active user\n"
             "`/force_news flash/digest` — บรอดแคสต์ข่าวทันที\n"
             "`/force_weekly` — บรอดแคสต์ Weekly Digest ทันที\n"
-            "`/mock_alert [symbol] [type]` — จำลอง alert ทดสอบ\n\n"
+            "`/mock_alert [symbol] [type]` — จำลอง alert ทดสอบ\n"
+            "`/breaking_test` — ทดสอบ flow Breaking News\n\n"
 
             "*🛠 System*\n"
             "`/maintenance` — toggle maintenance mode\n"
@@ -3023,7 +3037,7 @@ def inline_callbacks(call):
     elif call.data == 'hub_scan':
         try:
             if user_id != ADMIN_ID and role == 'free':
-                bot.send_message(user_id, "🔒 ฟีเจอร์สงวนสิทธิ์เฉพาะ **VIP / PRO**")
+                bot.send_message(user_id, "🔒 ฟีเจอร์สงวนสิทธิ์เฉพาะ **VIP / PRO**", parse_mode="Markdown")
                 return
             my_list = get_user_watch(user_id)
             if not my_list:
@@ -3056,7 +3070,7 @@ def inline_callbacks(call):
                 bot.send_message(user_id, "🔒 **ฟีเจอร์ระดับพรีเมียม (PRO Exclusive)**\nสแกนหุ้นเด่นอัตโนมัติสงวนสิทธิ์ให้ลูกค้าระดับ PRO เท่านั้นครับ 👑", parse_mode="Markdown")
                 return
             
-            scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหุ้นเมกาเด่น...**\n*(สแกน 150 ตัว US large/mid-cap แบบขนาน — คัด 10 อันดับน่าสะสมที่สุด)*")
+            scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหุ้นเมกาเด่น...**\n*(สแกน 150 ตัว US large/mid-cap แบบขนาน — คัด 10 อันดับน่าสะสมที่สุด)*", parse_mode="Markdown")
 
             # 🇺🇸 US large/mid-cap universe — 150 ตัว ครอบคลุม 13 sectors
             scan_list = [

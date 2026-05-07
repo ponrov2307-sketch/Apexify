@@ -869,9 +869,6 @@ def reset_daily_free_usage():
     conn.close()
     print(f"🔄 รีเซ็ตโควต้าฟรีรายวัน: {rows} คน")
 
-def get_user_watch(user_id):
-    return _get_user_watchlist_items(user_id)
-
 def get_users_watching(symbol):
     return _get_watchers_for_ticker(symbol)
 
@@ -1901,7 +1898,10 @@ def process_referral(referrer_id, new_user_id):
         if c.fetchone():
             return False, False
 
-        c.execute("INSERT INTO referrals (referrer_id, referred_id) VALUES (%s, %s)", (referrer_id, new_user_id))
+        c.execute(
+            "INSERT INTO referrals (referrer_id, referred_id) VALUES (%s, %s) ON CONFLICT (referred_id) DO NOTHING",
+            (referrer_id, new_user_id),
+        )
 
         c.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = %s", (referrer_id,))
         new_count = c.fetchone()[0]
@@ -2103,13 +2103,23 @@ def auto_downgrade_expired_users():
 # 🌟 [เพิ่มใหม่] ระบบจัดการพอร์ตลงทุน (Apex Wealth Master)
 # ==========================================
 def add_portfolio_stock(user_id, ticker, shares, avg_cost):
-    """บันทึกหุ้นเข้าพอร์ต"""
+    """บันทึกหุ้นเข้าพอร์ต — คืน True ถ้าเพิ่มใหม่, False ถ้า ticker ซ้ำในพอร์ต"""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("INSERT INTO portfolios (user_id, ticker, shares, avg_cost) VALUES (%s, %s, %s, %s)",
-              (str(user_id), ticker.upper(), float(shares), float(avg_cost)))
-    conn.commit()
-    conn.close()
+    try:
+        c.execute(
+            """
+            INSERT INTO portfolios (user_id, ticker, shares, avg_cost)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (user_id, ticker) DO NOTHING
+            """,
+            (str(user_id), ticker.upper(), float(shares), float(avg_cost)),
+        )
+        inserted = (c.rowcount or 0) > 0
+        conn.commit()
+        return inserted
+    finally:
+        conn.close()
 
 def get_user_portfolio(user_id):
     """ดึงหุ้นทั้งหมดในพอร์ตของลูกค้ารายนั้น"""
