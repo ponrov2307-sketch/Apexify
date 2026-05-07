@@ -1660,6 +1660,20 @@ def _capture_referrer_input(message):
         bot.send_message(int(user_id), "ยกเลิกแล้วครับ ใช้ /start หากต้องการเริ่มใหม่")
         return
 
+    # 🛡️ กันลูกค้ากดปุ่มเมนูแทนการพิมพ์ชื่อเพื่อน → ตีความเป็น cancel
+    MENU_BUTTON_KEYWORDS = (
+        "เปิดเมนู", "Dashboard", "แผงควบคุม", "บัญชี / VIP",
+        "วิเคราะห์หุ้น", "ติดต่อแอดมิน",
+    )
+    if any(kw in txt for kw in MENU_BUTTON_KEYWORDS):
+        bot.send_message(
+            int(user_id),
+            "ℹ️ ดูเหมือนคุณกดปุ่มเมนู — กรุณา *พิมพ์ชื่อ* หรือ *user\\_id* ของเพื่อนที่ชวนแทนนะครับ\n"
+            "หรือพิมพ์ /start เพื่อเริ่มใหม่",
+            parse_mode="Markdown",
+        )
+        return
+
     first = message.from_user.first_name or ""
     last = message.from_user.last_name or ""
     name = f"{first} {last}".strip()
@@ -1840,7 +1854,7 @@ def handle_award_ref(message):
                      parse_mode="Markdown")
         return
     try:
-        pid = int(parts[1])
+        pid = int(parts[1].lstrip("#"))
         ref_id = parts[2].lstrip("@")
     except ValueError:
         bot.reply_to(message, "❌ pending_id ต้องเป็นตัวเลข")
@@ -1884,7 +1898,7 @@ def handle_del_pending_ref(message):
         bot.reply_to(message, "❌ รูปแบบ: `/del_pending [pending_id]`\nใช้ `/pending_refs` เพื่อดู id", parse_mode="Markdown")
         return
     try:
-        pid = int(args[1])
+        pid = int(args[1].lstrip("#"))
     except ValueError:
         bot.reply_to(message, "❌ pending_id ต้องเป็นตัวเลข")
         return
