@@ -3344,9 +3344,13 @@ def inline_callbacks(call):
         bot.edit_message_text(f"🗑️ ลบ **{symbol}** ออกจาก Watchlist แล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown")
 
     elif call.data.startswith('delalert_'):
-        alert_id = int(call.data.removeprefix('delalert_'))
-        remove_price_alert_db(user_id, alert_id)
-        bot.edit_message_text(f"🗑️ ลบการตั้งเตือน ID {alert_id} แล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id)
+        try:
+            alert_id = int(call.data.removeprefix('delalert_'))
+            remove_price_alert_db(user_id, alert_id)
+            bot.edit_message_text(f"🗑️ ลบการตั้งเตือน ID {alert_id} แล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id)
+        except Exception as e:
+            print(f"[delalert_callback] {e}", flush=True)
+            bot.answer_callback_query(call.id, "❌ ลบไม่สำเร็จ", show_alert=True)
         
     # ==========================================
     # 🌟 ส่วนรับคำสั่งจากปุ่มแผงควบคุมแอดมิน

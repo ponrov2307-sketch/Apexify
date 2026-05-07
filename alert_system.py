@@ -688,8 +688,8 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
     if not fresh_news:
         try:
             bot_instance.send_message(ADMIN_ID, "⚠️ **Flash News System:** ไม่พบข่าวใหม่จากสำนักข่าวเลย (อาจเกิดจาก Network หรือไม่มีข่าวจริงๆ)")
-        except Exception:
-            pass
+        except Exception as notify_err:
+            print(f"[FlashNews] notify-admin failed: {notify_err}", flush=True)
         return
     
     titles_str = "\n".join(
@@ -800,8 +800,8 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
                 bot_instance.send_message(ADMIN_ID, "⚠️ **Flash News สะดุด:** AI ปฏิเสธการสรุปข่าวเนื่องจากติดฟิลเตอร์คำรุนแรง (Safety Policy)")
             else:
                 bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News System Error:** {error_msg}\n\n`{tb[-300:]}`", parse_mode="Markdown")
-        except Exception:
-            pass
+        except Exception as notify_err:
+            print(f"[FlashNews] notify-admin failed: {notify_err}", flush=True)
 
 # ==========================================
 # 🌟 ระบบส่งข่าว 4 ชั่วโมง (Digest News)
@@ -909,8 +909,8 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             return
         try:
             bot_instance.send_message(ADMIN_ID, f"⚠️ **Digest News Error:** {str(e)[:100]}\n\n`{tb[-300:]}`", parse_mode="Markdown")
-        except Exception:
-            pass
+        except Exception as notify_err:
+            print(f"[DigestNews] notify-admin failed: {notify_err}", flush=True)
 
 
 # ==========================================
@@ -1192,8 +1192,8 @@ async def create_and_send_podcast(bot_instance, force=False):
         print(f"❌ [Podcast] Error: {e}")
         try:
             bot_instance.send_message(ADMIN_ID, f"⚠️ **Podcast Error:** สร้าง/ส่ง Podcast ล้มเหลว\n`{str(e)[:200]}`", parse_mode="Markdown")
-        except Exception:
-            pass
+        except Exception as notify_err:
+            print(f"[Podcast] notify-admin failed: {notify_err}", flush=True)
 
 # US Economic Calendar 2026 — อัปเดตทุกต้นปี
 ECONOMIC_CALENDAR_2026 = [
@@ -1278,8 +1278,8 @@ def _get_top_movers_section():
                 if prev > 0:
                     pct = (curr - prev) / prev * 100
                     moves.append((sym, pct))
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[TopMovers] {sym} fetch failed: {e}", flush=True)
     if not moves:
         return ""
     moves.sort(key=lambda x: x[1], reverse=True)
@@ -1366,8 +1366,8 @@ def send_morning_briefing(bot_instance, force=False):
                 usdthb_str = f"• USD/THB: {usdthb_hist['Close'].iloc[-1]:.2f}\n" if not usdthb_hist.empty else ""
                 if set_str or usdthb_str:
                     thai_market_section = f"🇹🇭 **ตลาดไทย:**\n{set_str}{usdthb_str}\n"
-            except Exception:
-                pass
+            except Exception as thai_err:
+                print(f"[MorningBriefing] Thai market section failed: {thai_err}", flush=True)
             top_movers_text = _get_top_movers_section()
             top_movers_section = f"{top_movers_text}\n\n" if top_movers_text else ""
             movers_text = _get_morning_market_movers_text()
@@ -1451,8 +1451,8 @@ def send_morning_briefing(bot_instance, force=False):
         print(f"❌ [MorningBriefing] Error:\n{tb}")
         try:
             bot_instance.send_message(ADMIN_ID, f"⚠️ **Morning Briefing Error:** {str(e)[:200]}\n\n`{tb[-300:]}`", parse_mode="Markdown")
-        except Exception:
-            pass
+        except Exception as notify_err:
+            print(f"[MorningBriefing] notify-admin failed: {notify_err}", flush=True)
 
 # ==========================================
 # 🌟 ฟีเจอร์ใหม่: Dividend & XD Alerts (เตือนก่อน 3 วัน)
@@ -1678,8 +1678,8 @@ def send_watchlist_daily_summary(bot_instance):
                     signal = "➡️ Neutral"
                 icon = "🟢" if pct >= 0 else "🔴"
                 rows.append(f"{icon} **{sym}** {pct:+.2f}%  RSI: {rsi:.0f}  {signal}")
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[WatchlistDigest] {sym} fetch failed: {e}", flush=True)
         if not rows:
             continue
         msg = (
@@ -1768,8 +1768,8 @@ def send_weekly_performance_digest(bot_instance):
                         f"{u_stats['tp1_hit'] + u_stats['tp2_hit']} hit / "
                         f"{u_stats['sl_hit']} SL / {u_stats['open']} เปิดอยู่\n"
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[WeeklyDigest] user plan stats failed for {user_id}: {e}", flush=True)
 
         # สร้างข้อความ
         tier_badge = "👑 PRO" if role == 'pro' else "💎 VIP"
@@ -1817,8 +1817,8 @@ def check_plan_outcomes():
     if not pending:
         try:
             expire_stale_plans(max_age_days=45)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[PlanOutcome] expire_stale_plans failed: {e}", flush=True)
         return
 
     # group by symbol เพื่อลด API call
