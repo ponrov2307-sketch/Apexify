@@ -1650,17 +1650,53 @@ def handle_free_trial(message):
 
 
 def _capture_referrer_input(message):
-    """Receives the user's reply to 'who referred you?' — save to pending_referrals."""
+    """Receives the user's reply to 'who referred you?'.
+    Fast path: ถ้าใส่ user_id ตัวเลขที่มีจริงและไม่ใช่ตัวเอง → auto-credit ทันที
+    Slow path: ใส่ชื่อ / @username / uid ที่ไม่มีในระบบ → เข้า pending_referrals รอ admin review
+    """
     user_id = str(message.chat.id)
     txt = (message.text or "").strip()
     if not txt or txt.startswith("/"):
         bot.send_message(int(user_id), "ยกเลิกแล้วครับ ใช้ /start หากต้องการเริ่มใหม่")
         return
+
+    first = message.from_user.first_name or ""
+    last = message.from_user.last_name or ""
+    name = f"{first} {last}".strip()
+
+    # 🚀 Fast path — auto-credit ถ้า input คือ user_id ตัวเลข + valid + ไม่ใช่ตัวเอง
+    candidate = txt.lstrip("@").strip()
+    if candidate.isdigit() and candidate != user_id:
+        try:
+            from database import user_exists, process_referral
+            if user_exists(candidate):
+                success, milestone = process_referral(candidate, user_id)
+                if success:
+                    bot.send_message(
+                        int(user_id),
+                        "🎉 *เครดิตให้เพื่อนคุณเรียบร้อยแล้ว!*\n\n"
+                        "เพื่อนได้รางวัลทันที + คุณได้ VIP 3 วันฟรี 🎁\n"
+                        "ขอบคุณที่ช่วยบอกต่อ Apexify ครับ 🤝",
+                        parse_mode="Markdown",
+                    )
+                    try:
+                        bonus = "milestone +10 days VIP" if milestone else "+3 quota"
+                        bot.send_message(
+                            int(ADMIN_ID),
+                            f"✅ *Auto-credited referral*\n\n"
+                            f"Referrer: `{candidate}` ({bonus})\n"
+                            f"Referred: `{user_id}` ({name or '-'})",
+                            parse_mode="Markdown",
+                        )
+                    except Exception as notify_err:
+                        print(f"[ReferralAutoCredit] admin notify failed: {notify_err}", flush=True)
+                    return
+        except Exception as e:
+            print(f"[ReferralAutoCredit] fast path failed, falling back to pending: {e}", flush=True)
+
+    # 🐌 Slow path — ชื่อ/text/uid ที่ไม่มีในระบบ → pending review
     try:
         from database import add_pending_referral
-        first = message.from_user.first_name or ""
-        last = message.from_user.last_name or ""
-        name = f"{first} {last}".strip()
         add_pending_referral(user_id, name, txt)
         bot.send_message(
             int(user_id),
@@ -1742,23 +1778,53 @@ def handle_contact(message):
 
 @bot.message_handler(commands=['pending_refs'])
 def handle_pending_refs(message):
-    """[Admin] ดู pending referral submissions"""
+    """[Admin] ดู pending referral submissions พร้อม candidate match อัตโนมัติ"""
     user_id = str(message.chat.id)
     if str(user_id) != str(ADMIN_ID):
         return
-    from database import list_pending_referrals
+    from database import list_pending_referrals, find_users_by_name
     rows = list_pending_referrals(limit=20)
     if not rows:
         bot.reply_to(message, "✅ ไม่มี pending referral")
         return
     lines = ["📋 *Pending Referrals* (รอ admin จับคู่)", ""]
     for r in rows:
-        lines.append(
-            f"`#{r['id']}` user `{r['new_user_id']}` ({r['new_user_name'] or '-'})\n"
-            f"   → ระบุว่ามาจาก: *{r['referrer_query']}*\n"
-            f"   _submitted: {r['submitted_at'][:16] if r['submitted_at'] else '-'}_"
-        )
+        query = (r['referrer_query'] or "").strip()
+        candidates = find_users_by_name(query.lstrip("@"), limit=3) if query else []
+        block = [
+            f"`#{r['id']}` user `{r['new_user_id']}` ({r['new_user_name'] or '-'})",
+            f"   → ระบุว่ามาจาก: *{query}*",
+        ]
+        if candidates:
+            block.append("   🔍 *candidate match:*")
+            for cand_uid, cand_name in candidates:
+                block.append(f"      • `/award_ref {r['id']} {cand_uid}` — {cand_name or '(no name)'}")
+        else:
+            block.append(f"   _ไม่พบ user ที่ชื่อใกล้เคียง — ใช้ /finduser ค้นเอง_")
+        block.append(f"   _submitted: {r['submitted_at'][:16] if r['submitted_at'] else '-'}_")
+        lines.append("\n".join(block))
     lines.append("\n_จับคู่ด้วย:_ `/award_ref <id> <referrer_telegram_id>`")
+    lines.append("_ลบ submission ผิด:_ `/del_pending <id>`")
+    bot.reply_to(message, "\n\n".join(lines), parse_mode="Markdown")
+
+
+@bot.message_handler(commands=['finduser'])
+def handle_finduser(message):
+    """[Admin] ค้นหา user_id จากชื่อ — /finduser [partial_name]"""
+    if str(message.chat.id) != str(ADMIN_ID):
+        return
+    parts = message.text.split(maxsplit=1)
+    if len(parts) != 2 or not parts[1].strip():
+        bot.reply_to(message, "❌ รูปแบบ: `/finduser [ชื่อ_หรือ_บางส่วน]`", parse_mode="Markdown")
+        return
+    from database import find_users_by_name
+    matches = find_users_by_name(parts[1].strip(), limit=10)
+    if not matches:
+        bot.reply_to(message, f"ℹ️ ไม่พบ user ชื่อใกล้เคียง `{parts[1]}`", parse_mode="Markdown")
+        return
+    lines = [f"🔍 *พบ {len(matches)} user* ที่ชื่อตรงกับ `{parts[1]}`", ""]
+    for uid, uname in matches:
+        lines.append(f"• `{uid}` — {uname or '(no name)'}")
     bot.reply_to(message, "\n".join(lines), parse_mode="Markdown")
 
 
@@ -2182,10 +2248,12 @@ def handle_manual(message):
             "`/streak_debug [uid]` — ตรวจ streak counter ของ user\n\n"
 
             "*🤝 Referral Review*\n"
-            "`/pending_refs` — list referral submissions ที่รออนุมัติ\n"
+            "`/pending_refs` — list (พร้อม candidate match auto)\n"
             "`/award_ref [pending_id] [referrer_uid]` — อนุมัติ + ให้รางวัล\n"
             "`/del_pending [pending_id]` — ลบ submission ผิด/spam\n"
-            "`/reset_trial [uid]` — รีเซ็ต free_trial flag (refund/support)\n\n"
+            "`/finduser [ชื่อ]` — ค้นหา user_id จากชื่อ\n"
+            "`/reset_trial [uid]` — รีเซ็ต free_trial flag (refund/support)\n"
+            "_💡 ลูกค้าใส่ user_id ตัวเลข → auto-credit ทันที (ไม่เข้า pending)_\n\n"
 
             "*📢 Broadcast & Force*\n"
             "`/broadcast [msg]` — ส่งข้อความทุก active user\n"
@@ -3500,10 +3568,12 @@ def inline_callbacks(call):
                 ),
                 'admin_guide_referral': (
                     "🤝 *คู่มือ Referral Review* (คัดลอกได้เลย)\n\n"
-                    "• `/pending_refs` — list referral submissions ที่รออนุมัติ\n"
+                    "• `/pending_refs` — list (โชว์ candidate uid match ให้)\n"
                     "• `/award_ref [pending_id] [referrer_uid]` — อนุมัติ + ให้รางวัล\n"
                     "• `/del_pending [pending_id]` — ลบ submission ผิด/spam\n"
-                    "• `/reset_trial [uid]` — รีเซ็ต free_trial flag (refund/support)"
+                    "• `/finduser [ชื่อ]` — ค้นหา user_id จากชื่อ\n"
+                    "• `/reset_trial [uid]` — รีเซ็ต free_trial flag (refund/support)\n\n"
+                    "💡 ลูกค้าใส่ user_id ตัวเลข → ระบบ auto-credit ทันที"
                 ),
                 'admin_guide_system': (
                     "🛠 *คู่มือ System* (คัดลอกได้เลย)\n\n"
@@ -4554,6 +4624,7 @@ if __name__ == "__main__":
                     BotCommand("award_ref",      "[Admin] อนุมัติ + ให้รางวัล referral"),
                     BotCommand("del_pending",    "[Admin] ลบ pending referral"),
                     BotCommand("reset_trial",    "[Admin] รีเซ็ต free_trial flag"),
+                    BotCommand("finduser",       "[Admin] ค้นหา user_id จากชื่อ"),
                     BotCommand("broadcast",      "[Admin] ส่งข้อความทุก active user"),
                     BotCommand("force_news",     "[Admin] บรอดแคสต์ flash/digest"),
                     BotCommand("force_weekly",   "[Admin] บรอดแคสต์ Weekly Digest"),

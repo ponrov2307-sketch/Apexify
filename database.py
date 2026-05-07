@@ -2579,6 +2579,44 @@ def delete_pending_referral(pending_id: int) -> bool:
         conn.close()
 
 
+def user_exists(user_id: str) -> bool:
+    """เช็คว่า user_id มี row ใน users table"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT 1 FROM users WHERE user_id = %s LIMIT 1", (str(user_id),))
+        return c.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def find_users_by_name(query: str, limit: int = 5) -> list[tuple[str, str]]:
+    """หา user จากชื่อ (case-insensitive partial match บน users.username)
+    คืน list ของ (user_id, username) — เรียงตาม recently active"""
+    q = (query or "").strip()
+    if not q:
+        return []
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            SELECT user_id, COALESCE(username, '')
+            FROM users
+            WHERE username ILIKE %s
+            ORDER BY last_active DESC NULLS LAST, registered_date DESC NULLS LAST
+            LIMIT %s
+            """,
+            (f"%{q}%", int(limit)),
+        )
+        return [(str(row[0]), str(row[1])) for row in c.fetchall()]
+    except Exception as e:
+        print(f"[find_users_by_name] {e}", flush=True)
+        return []
+    finally:
+        conn.close()
+
+
 def mark_referral_awarded(pending_id: int, referrer_id: str) -> bool:
     conn = get_connection()
     c = conn.cursor()
