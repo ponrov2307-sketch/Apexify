@@ -702,6 +702,81 @@ def handle_my_alerts(message):
         bot.reply_to(message, "📡 ระบบขัดข้องชั่วคราว ลองอีกครั้งนะครับ")
 
 
+@bot.message_handler(commands=['weekly_recap', 'weekly'])
+def handle_weekly_recap(message):
+    """สรุปประจำสัปดาห์ส่วนตัว — watchlist 7d, streak, tier status. on-demand any tier."""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+
+    role = check_subscription(user_id)
+    try:
+        from database import get_streak_info
+        streak = get_streak_info(user_id) or {}
+    except Exception:
+        streak = {}
+    try:
+        watchlist = get_user_watch(user_id) or []
+    except Exception:
+        watchlist = []
+
+    lines = ["🗓️ **Weekly Recap** — สรุปอาทิตย์นี้\n"]
+
+    # Tier line
+    if role == 'pro':
+        lines.append("👑 **PRO** กำลังใช้งาน · ฟีเจอร์ครบทุกอย่าง")
+    elif role == 'vip':
+        lines.append("💎 **VIP** กำลังใช้งาน · กราฟเทคนิค + Trend Radar")
+    else:
+        lines.append("🆓 **Free** · 3 ครั้ง/วัน · `/freetrial` ทดลอง PRO 7 วันฟรี")
+
+    # Streak
+    cur_streak = streak.get('current', 0) if isinstance(streak, dict) else 0
+    longest = streak.get('longest', 0) if isinstance(streak, dict) else 0
+    if cur_streak > 0:
+        lines.append(f"🔥 Streak: **{cur_streak} วันติด** (best: {longest})")
+    else:
+        lines.append("🔥 Streak: ยังไม่เริ่ม — วิเคราะห์หุ้นวันนี้เพื่อสะสม streak")
+
+    # Watchlist 7d performance
+    if watchlist:
+        lines.append(f"\n📋 **Watchlist 7 วันที่ผ่านมา** ({len(watchlist)} ตัว)")
+        perfs = []
+        for sym in watchlist[:10]:  # cap at 10 — yfinance latency
+            try:
+                hist = yf.Ticker(sym).history(period='8d')
+                if len(hist) < 2:
+                    continue
+                start = hist['Close'].iloc[0]
+                end = hist['Close'].iloc[-1]
+                if not start:
+                    continue
+                pct = (end - start) / start * 100
+                perfs.append((sym, pct))
+            except Exception:
+                continue
+        if perfs:
+            perfs.sort(key=lambda x: x[1], reverse=True)
+            top = perfs[:3]
+            bottom = [p for p in perfs[-3:] if p[1] < 0 and p not in top]
+            lines.append("\n📈 _ขึ้นมากสุด:_")
+            for sym, pct in top:
+                icon = "🟢" if pct >= 0 else "🔴"
+                lines.append(f"   {icon} **{sym}** {pct:+.2f}%")
+            if bottom:
+                lines.append("\n📉 _ลงมากสุด:_")
+                for sym, pct in bottom[::-1]:
+                    lines.append(f"   🔴 **{sym}** {pct:+.2f}%")
+        else:
+            lines.append("   _ดึงข้อมูลตลาดไม่สำเร็จ — ลองพิมพ์ `/weekly_recap` ใหม่_")
+    else:
+        lines.append("\n📋 **Watchlist:** ยังว่าง — `/watch AAPL` เพิ่มหุ้นที่สนใจไว้ติดตาม")
+
+    lines.append("\n_💡 พิมพ์ `/weekly_recap` ทุกอาทิตย์เพื่อดูสรุปใหม่_")
+
+    bot.reply_to(message, "\n".join(lines), parse_mode="Markdown")
+
+
 @bot.message_handler(commands=['demo', 'showcase', 'features'])
 def handle_demo(message):
     """แสดง overview ฟีเจอร์ทั้งหมด — ใช้ทั้งโชว์ user ใหม่ + sales pitch"""
@@ -4740,6 +4815,7 @@ if __name__ == "__main__":
             BotCommand("delalert", "ลบ price alert — /delalert [id]"),
             BotCommand("breaking", "ข่าวด่วนตลาด US (เปิด/ปิด) — PRO"),
             BotCommand("badges", "ดู Achievement badges ที่สะสม"),
+            BotCommand("weekly_recap", "สรุปอาทิตย์นี้ — watchlist 7d + streak"),
             BotCommand("freetrial", "ทดลอง PRO 7 วันฟรี"),
             BotCommand("redeem", "เติมโค้ดโปรโมชั่น"),
             BotCommand("settings", "ตั้งค่าการแจ้งเตือน"),

@@ -1635,6 +1635,75 @@ def send_expiry_warnings(bot_instance):
                 print(f"[expiry_warnings] send to {user_id} failed: {e}")
     print(f"[expiry_warnings] ส่งแจ้งเตือนหมดอายุเรียบร้อย (7/3/1 วัน)")
 
+def send_final_hour_warnings(bot_instance):
+    """แจ้งเตือนคนที่แพ็กเกจกำลังจะหมดอายุใน 1-2 ชม. ข้างหน้า — peak intent moment
+    ก่อน downgrade. Daily 1-day warning ส่งตอนเที่ยงคืน อาจห่างจริงหลายชม. — รอบนี้
+    จับโค้งสุดท้ายไม่ให้พลาด.
+
+    Dedup ผ่านตาราง expiry_final_warned (PRIMARY KEY user_id+expiry_at) — fire ครั้ง
+    เดียวต่อ subscription period. ถ้า user ต่ออายุแล้ว expiry_at ใหม่ → fire ใหม่ได้.
+    """
+    from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+    conn = get_connection()
+    c = conn.cursor()
+    rows = []
+    try:
+        c.execute("""
+            SELECT user_id, role, expiry_date FROM users
+            WHERE role IN ('vip', 'pro')
+              AND expiry_date IS NOT NULL
+              AND expiry_date::timestamptz > NOW()
+              AND expiry_date::timestamptz <= NOW() + INTERVAL '2 hours'
+        """)
+        rows = c.fetchall()
+    except Exception as e:
+        print(f"[final_hour_warnings] query error: {e}", flush=True)
+        conn.close()
+        return
+
+    sent = 0
+    for user_id, role, expiry in rows:
+        # Atomic dedup — INSERT only succeeds for first warning of this expiry
+        try:
+            c.execute(
+                "INSERT INTO expiry_final_warned (user_id, expiry_at) VALUES (%s, %s) "
+                "ON CONFLICT (user_id, expiry_at) DO NOTHING",
+                (str(user_id), expiry),
+            )
+            already_warned = c.rowcount == 0
+            conn.commit()
+        except Exception as e:
+            print(f"[final_hour_warnings] dedup error for {user_id}: {e}", flush=True)
+            conn.rollback()
+            continue
+        if already_warned:
+            continue
+
+        role_label = "💎 VIP" if role == 'vip' else "👑 PRO"
+        expiry_str = str(expiry)[:16] if expiry else "-"
+        msg = (
+            f"🚨 **{role_label} ของคุณกำลังจะหมดอายุ!**\n\n"
+            f"⏰ หมดภายใน **1-2 ชั่วโมง** ({expiry_str})\n"
+            f"_หลังจากนั้นฟีเจอร์พรีเมียมจะถูกปิดทันที_\n\n"
+            f"⚡ ต่ออายุตอนนี้เพื่อใช้งานต่อเนื่อง:"
+        )
+        kb = InlineKeyboardMarkup(row_width=2)
+        kb.add(
+            InlineKeyboardButton("💎 ต่ออายุ VIP 79฿", callback_data="menu_vip"),
+            InlineKeyboardButton("👑 ต่ออายุ PRO 109฿", callback_data="menu_vip"),
+        )
+        kb.add(InlineKeyboardButton("🎁 ใช้โค้ดส่วนลด", callback_data="menu_code"))
+        try:
+            bot_instance.send_message(user_id, msg, parse_mode="Markdown", reply_markup=kb)
+            sent += 1
+        except Exception as e:
+            print(f"[final_hour_warnings] send to {user_id} failed: {e}", flush=True)
+
+    conn.close()
+    if sent > 0:
+        print(f"[final_hour_warnings] ส่ง {sent} คน — last-hour upsell window", flush=True)
+
+
 def send_watchlist_daily_summary(bot_instance):
     """ส่งสรุป Watchlist รายวันให้ VIP+/PRO ที่มี watchlist (05:00 Thai time, หลังตลาด US ปิด)"""
     from database import get_user_watch
@@ -1962,6 +2031,7 @@ def run_alert_loop(bot_instance=None):
     last_hourly_news_time = time.time() - FLASH_NEWS_INTERVAL_SECONDS
     last_global_news_time = time.time() - DIGEST_NEWS_CHECK_INTERVAL_SECONDS
     last_stock_news_check_time = time.time() - STOCK_NEWS_CHECK_INTERVAL_SECONDS
+    last_final_hour_warning_time = 0.0
     last_breaking_news_time = 0.0
     BREAKING_NEWS_INTERVAL_SECONDS = 5 * 60  # poll every 5 min (matches loop cadence)
     last_morning_briefing_date = None
@@ -2047,6 +2117,14 @@ def run_alert_loop(bot_instance=None):
 
         check_market_conditions()
         check_custom_price_alerts()
+
+        # 🚨 Final-hour expiry warning — runs hourly, dedup'd via expiry_final_warned
+        if current_time - last_final_hour_warning_time >= 3600:
+            try:
+                send_final_hour_warnings(bot_instance)
+            except Exception as e:
+                print(f"[AlertLoop] final_hour_warnings failed: {e}", flush=True)
+            last_final_hour_warning_time = current_time
 
         # 🚨 Breaking News — poll macro RSS, classify HIGH via Gemini, push to PRO
         if current_time - last_breaking_news_time >= BREAKING_NEWS_INTERVAL_SECONDS:

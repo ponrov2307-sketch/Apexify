@@ -519,6 +519,18 @@ def init_db():
     """)
     c.execute("CREATE INDEX IF NOT EXISTS idx_dash_events ON dashboard_events (user_id, event_name, created_at DESC)")
 
+    # Dedup table for "1-2 hour before expiry" warnings — fires once per (user, expiry).
+    # The 7/3/1-day warnings in send_expiry_warnings rely on the daily-fire cadence
+    # for dedup, but the final-hour warning runs hourly so it needs explicit guard.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS expiry_final_warned (
+            user_id     TEXT NOT NULL,
+            expiry_at   TIMESTAMPTZ NOT NULL,
+            warned_at   TIMESTAMPTZ DEFAULT NOW(),
+            PRIMARY KEY (user_id, expiry_at)
+        )
+    """)
+
     conn.commit()
     conn.close()
     init_watchlist_db()
