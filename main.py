@@ -27,7 +27,8 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       ALLOWED_TIMEZONES, ALLOWED_LANGUAGES, ALLOWED_DIGEST_FREQUENCIES,
                       has_used_free_trial, activate_free_trial,
                       add_earnings_alert_db, get_user_earnings_alerts_db, remove_earnings_alert_db,
-                      update_last_active, mark_user_inactive, get_active_users, log_command)
+                      update_last_active, mark_user_inactive, get_active_users, log_command,
+                      delete_pending_referral, reset_free_trial, cleanup_old_logs)
 from bot_utils import friendly_error, broadcast_maintenance_notice
 from admin_service import (
     build_local_backup_zip,
@@ -1807,6 +1808,65 @@ def handle_award_ref(message):
         bot.reply_to(message, friendly_error("เพิ่มรางวัล referral ไม่สำเร็จ"))
 
 
+@bot.message_handler(commands=['del_pending'])
+def handle_del_pending_ref(message):
+    """[Admin] ลบ pending referral ผิด/spam — /del_pending [pending_id]"""
+    if str(message.chat.id) != str(ADMIN_ID):
+        return
+    args = message.text.split()
+    if len(args) != 2:
+        bot.reply_to(message, "❌ รูปแบบ: `/del_pending [pending_id]`\nใช้ `/pending_refs` เพื่อดู id", parse_mode="Markdown")
+        return
+    try:
+        pid = int(args[1])
+    except ValueError:
+        bot.reply_to(message, "❌ pending_id ต้องเป็นตัวเลข")
+        return
+    if delete_pending_referral(pid):
+        bot.reply_to(message, f"🗑️ ลบ pending referral `{pid}` แล้ว", parse_mode="Markdown")
+    else:
+        bot.reply_to(message, f"ℹ️ ไม่พบ pending_id `{pid}`", parse_mode="Markdown")
+
+
+@bot.message_handler(commands=['reset_trial'])
+def handle_reset_trial(message):
+    """[Admin] รีเซ็ต free_trial_used flag ของ user — /reset_trial [uid]"""
+    if str(message.chat.id) != str(ADMIN_ID):
+        return
+    args = message.text.split()
+    if len(args) != 2:
+        bot.reply_to(message, "❌ รูปแบบ: `/reset_trial [user_id]`", parse_mode="Markdown")
+        return
+    target = args[1].strip()
+    if reset_free_trial(target):
+        bot.reply_to(message, f"✅ รีเซ็ต Free Trial flag ของ `{target}` แล้ว — user สมัคร `/freetrial` ได้อีกครั้ง", parse_mode="Markdown")
+    else:
+        bot.reply_to(message, f"ℹ️ ไม่พบ user `{target}` ในระบบ", parse_mode="Markdown")
+
+
+@bot.message_handler(commands=['cleanup_logs'])
+def handle_cleanup_logs(message):
+    """[Admin] ลบ row เก่าใน bot_command_log + broadcast_log — /cleanup_logs [days=90]"""
+    if str(message.chat.id) != str(ADMIN_ID):
+        return
+    args = message.text.split()
+    days = 90
+    if len(args) >= 2:
+        try:
+            days = max(1, int(args[1]))
+        except ValueError:
+            bot.reply_to(message, "❌ days ต้องเป็นตัวเลข")
+            return
+    result = cleanup_old_logs(days=days)
+    bot.reply_to(
+        message,
+        f"🧹 *Cleanup เสร็จ* (เก็บ {days} วันล่าสุด)\n"
+        f"• bot_command_log: ลบ {result['bot_command_log']:,} แถว\n"
+        f"• broadcast_log: ลบ {result['broadcast_log']:,} แถว",
+        parse_mode="Markdown",
+    )
+
+
 # Day-trade coach state — in-memory dict {(user_id, ticker, date_str): count}
 # OK to lose on restart; coaching is a soft nudge not data-critical.
 _daytrade_count: dict = {}
@@ -2123,7 +2183,9 @@ def handle_manual(message):
 
             "*🤝 Referral Review*\n"
             "`/pending_refs` — list referral submissions ที่รออนุมัติ\n"
-            "`/award_ref [pending_id] [referrer_uid]` — อนุมัติ + ให้รางวัล\n\n"
+            "`/award_ref [pending_id] [referrer_uid]` — อนุมัติ + ให้รางวัล\n"
+            "`/del_pending [pending_id]` — ลบ submission ผิด/spam\n"
+            "`/reset_trial [uid]` — รีเซ็ต free_trial flag (refund/support)\n\n"
 
             "*📢 Broadcast & Force*\n"
             "`/broadcast [msg]` — ส่งข้อความทุก active user\n"
@@ -2136,6 +2198,7 @@ def handle_manual(message):
             "`/maintenance` — toggle maintenance mode\n"
             "`/force_backup` — backup database ทันที\n"
             "`/system_health` — สถานะเซิร์ฟเวอร์ + memory\n"
+            "`/cleanup_logs [days=90]` — ลบ log เก่าใน DB\n"
         )
 
     # 🌟 ถ้ายาวเกิน Telegram limit → แบ่งเป็น 2 message

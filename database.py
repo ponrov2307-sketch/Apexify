@@ -559,6 +559,26 @@ def log_broadcast(audience, total, success, fail):
             except Exception: pass
 
 
+def cleanup_old_logs(days: int = 90) -> dict:
+    """ลบ row เก่าใน bot_command_log + broadcast_log ที่อายุเกิน N วัน"""
+    days = max(1, int(days))
+    conn = get_connection()
+    c = conn.cursor()
+    deleted = {"bot_command_log": 0, "broadcast_log": 0}
+    try:
+        c.execute(f"DELETE FROM bot_command_log WHERE ts < NOW() - INTERVAL '{days} days'")
+        deleted["bot_command_log"] = c.rowcount or 0
+        c.execute(f"DELETE FROM broadcast_log  WHERE ts < NOW() - INTERVAL '{days} days'")
+        deleted["broadcast_log"] = c.rowcount or 0
+        conn.commit()
+    except Exception as e:
+        print(f"[cleanup_old_logs] {e}", flush=True)
+        conn.rollback()
+    finally:
+        conn.close()
+    return deleted
+
+
 def load_all_alert_states():
     """โหลด alert state ทั้งหมดจาก DB → คืน {symbol: {kind: state}}
     ใช้ใน alert_system ตอน startup เพื่อให้รู้ว่าเคยส่ง alert ตัวไหนไปแล้ว
@@ -2196,6 +2216,23 @@ def has_used_free_trial(user_id: str) -> bool:
     return bool(row and row[0])
 
 
+def reset_free_trial(user_id: str) -> bool:
+    """รีเซ็ต flag free_trial_used เป็น FALSE — สำหรับ refund / support
+    คืน True ถ้ามีแถวถูกอัปเดต"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "UPDATE users SET free_trial_used = FALSE WHERE user_id = %s",
+            (str(user_id),),
+        )
+        updated = (c.rowcount or 0) > 0
+        conn.commit()
+        return updated
+    finally:
+        conn.close()
+
+
 def activate_free_trial(user_id: str) -> bool:
     """เปิด Free Trial PRO 7 วัน — คืนค่า True ถ้าสำเร็จ"""
     conn = get_connection()
@@ -2526,6 +2563,20 @@ def list_pending_referrals(limit: int = 50) -> list[dict]:
         "submitted_at": r[4].isoformat() if r[4] else None,
         "awarded": r[5],
     } for r in rows]
+
+
+def delete_pending_referral(pending_id: int) -> bool:
+    """ลบ pending referral row (สำหรับ admin จัดการ submission ผิด/spam)
+    คืน True ถ้ามีแถวถูกลบ"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("DELETE FROM pending_referrals WHERE id = %s", (int(pending_id),))
+        deleted = (c.rowcount or 0) > 0
+        conn.commit()
+        return deleted
+    finally:
+        conn.close()
 
 
 def mark_referral_awarded(pending_id: int, referrer_id: str) -> bool:
