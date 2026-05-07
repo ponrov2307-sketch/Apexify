@@ -4439,13 +4439,21 @@ if __name__ == "__main__":
 
     # 🌟 Set bot commands menu — แสดงใน Telegram เมื่อ user พิมพ์ "/"
     try:
-        from telebot.types import BotCommand
-        bot.set_my_commands([
+        from telebot.types import BotCommand, BotCommandScopeChat
+
+        public_commands = [
             BotCommand("start", "เริ่มใช้งาน / ลงทะเบียน"),
             BotCommand("demo", "ทัวร์ฟีเจอร์ทั้งหมด — ดูบอททำอะไรได้บ้าง"),
             BotCommand("manual", "คู่มือคำสั่งทั้งหมด"),
             BotCommand("account", "ดูสถานะบัญชี + Streak + โควต้า"),
             BotCommand("payment", "สมัคร/ต่ออายุ VIP/PRO + ดู QR ชำระเงิน"),
+            BotCommand("portfolio", "ดูพอร์ตลงทุน + กำไร/ขาดทุนสด"),
+            BotCommand("add", "เพิ่มหุ้นเข้าพอร์ต — /add AAPL 10 150"),
+            BotCommand("edit", "แก้จำนวน/ราคาเฉลี่ย — /edit AAPL 15 165"),
+            BotCommand("del", "ลบหุ้นออกจากพอร์ต — /del AAPL"),
+            BotCommand("pnl", "สร้างการ์ด P&L แบบสวยงาม"),
+            BotCommand("watch", "เพิ่มหุ้นเข้า Watchlist — /watch AAPL"),
+            BotCommand("unwatch", "ลบหุ้นออกจาก Watchlist — /unwatch AAPL"),
             BotCommand("track", "สถิติ AI Plans — hit rate ย้อนหลัง"),
             BotCommand("fund", "ข้อมูลพื้นฐาน (P/E, EPS, Dividend) — VIP/PRO"),
             BotCommand("compare", "เปรียบเทียบ 2-3 หุ้น — PRO"),
@@ -4454,6 +4462,7 @@ if __name__ == "__main__":
             BotCommand("ealert", "แจ้งเตือนวัน Earnings — VIP/PRO"),
             BotCommand("setalert", "ตั้งเตือนราคา — PRO"),
             BotCommand("myalerts", "ดู price alerts ที่ตั้งไว้"),
+            BotCommand("delalert", "ลบ price alert — /delalert [id]"),
             BotCommand("breaking", "ข่าวด่วนตลาด US (เปิด/ปิด) — PRO"),
             BotCommand("badges", "ดู Achievement badges ที่สะสม"),
             BotCommand("freetrial", "ทดลอง PRO 7 วันฟรี"),
@@ -4461,8 +4470,46 @@ if __name__ == "__main__":
             BotCommand("settings", "ตั้งค่าการแจ้งเตือน"),
             BotCommand("dashboard", "เปิด Web Dashboard"),
             BotCommand("contact", "ติดต่อแอดมิน @apexify_admin"),
-        ])
-        print("✅ Bot commands menu set", flush=True)
+        ]
+        bot.set_my_commands(public_commands)
+        print("✅ Public bot commands menu set", flush=True)
+
+        # 🔒 Admin scope — admin เห็น public + admin commands ใน popup ของตัวเอง
+        # ใช้ BotCommandScopeChat ผูกกับ ADMIN_ID — user ปกติยังเห็นแค่ public list
+        if ADMIN_ID:
+            try:
+                admin_extras = [
+                    BotCommand("ban",            "[Admin] แบน user"),
+                    BotCommand("unban",          "[Admin] ยกเลิกแบน user"),
+                    BotCommand("addrole",        "[Admin] เพิ่ม role ให้ user"),
+                    BotCommand("gencode",        "[Admin] สร้างโค้ดโปรโมชั่น"),
+                    BotCommand("users_pro",      "[Admin] list VIP/PRO ทั้งหมด"),
+                    BotCommand("user_history",   "[Admin] ดูประวัติ activity ของ user"),
+                    BotCommand("stats",          "[Admin] สถิติ user/รายได้"),
+                    BotCommand("performance",    "[Admin] ผลกำไร/ขาดทุน AI plans"),
+                    BotCommand("perf_stats",     "[Admin] latency/throughput"),
+                    BotCommand("streak_debug",   "[Admin] ตรวจ streak counter"),
+                    BotCommand("pending_refs",   "[Admin] referral submissions รออนุมัติ"),
+                    BotCommand("award_ref",      "[Admin] อนุมัติ + ให้รางวัล referral"),
+                    BotCommand("del_pending",    "[Admin] ลบ pending referral"),
+                    BotCommand("reset_trial",    "[Admin] รีเซ็ต free_trial flag"),
+                    BotCommand("broadcast",      "[Admin] ส่งข้อความทุก active user"),
+                    BotCommand("force_news",     "[Admin] บรอดแคสต์ flash/digest"),
+                    BotCommand("force_weekly",   "[Admin] บรอดแคสต์ Weekly Digest"),
+                    BotCommand("mock_alert",     "[Admin] จำลอง alert ทดสอบ"),
+                    BotCommand("breaking_test",  "[Admin] ทดสอบ Breaking News"),
+                    BotCommand("maintenance",    "[Admin] toggle maintenance mode"),
+                    BotCommand("force_backup",   "[Admin] backup database"),
+                    BotCommand("system_health",  "[Admin] สถานะเซิร์ฟเวอร์"),
+                    BotCommand("cleanup_logs",   "[Admin] ลบ log เก่าใน DB"),
+                ]
+                bot.set_my_commands(
+                    public_commands + admin_extras,
+                    scope=BotCommandScopeChat(chat_id=int(ADMIN_ID)),
+                )
+                print(f"✅ Admin bot commands menu set (chat_id={ADMIN_ID})", flush=True)
+            except Exception as admin_err:
+                print(f"⚠️ admin set_my_commands failed: {admin_err}", flush=True)
     except Exception as e:
         print(f"⚠️ set_my_commands failed: {e}", flush=True)
 
