@@ -72,6 +72,13 @@ def build_admin_dashboard_token(telegram_id: str) -> str:
 def build_dashboard_login_url(telegram_id: str, src: str = "command", next_path: str = "/") -> str:
     token = build_dashboard_login_token(telegram_id)
     base_url = DASHBOARD_BASE_URL.rstrip("/")
+    # Same-origin guard — defensive even though all current callers are static.
+    # Reject empty, off-host ("//host"), absolute ("https://..."), or non-rooted paths.
+    if (not next_path
+            or not next_path.startswith("/")
+            or next_path.startswith("//")
+            or "://" in next_path):
+        next_path = "/"
     params = f"src={quote(src, safe='')}&next={quote(next_path, safe='')}"
     return f"{base_url}/login-token?token={quote(token, safe='')}&{params}"
 

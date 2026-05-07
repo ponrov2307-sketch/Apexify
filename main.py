@@ -468,11 +468,18 @@ def _log_dashboard_event(user_id, role, event_name, source=None, feature=None):
 
 
 def _dashboard_cta_button(user_id: str, label: str, src: str, next_path: str = "/"):
-    """Returns an InlineKeyboardButton with a magic-login URL, or None if dashboard is unavailable."""
+    """Returns an InlineKeyboardButton with a magic-login URL, or None if dashboard is unavailable.
+    Logs `dashboard_link_issued` with `source=src` so funnel analytics can attribute
+    each CTA touchpoint (alerts_cmd, portfolio_cmd, etc.) — not just /dashboard."""
     ready, _ = is_dashboard_login_ready()
     if not ready:
         return None
     url = build_dashboard_login_url(user_id, src=src, next_path=next_path)
+    try:
+        role = check_subscription(user_id)
+    except Exception:
+        role = None
+    _log_dashboard_event(user_id, role, "dashboard_link_issued", source=src)
     return InlineKeyboardButton(label, url=url)
 
 
@@ -1758,7 +1765,13 @@ def handle_badges(message):
     user_id = str(message.chat.id)
     if not is_allowed(user_id):
         return
-    from database import get_user_achievements, ACHIEVEMENT_CATALOG
+    from database import get_user_achievements, ACHIEVEMENT_CATALOG, evaluate_achievements
+    # Safety net — catch any badges that should have been granted but weren't
+    # (e.g., trial activated before badge logic existed, referrals without trigger)
+    try:
+        evaluate_achievements(user_id, context=None)
+    except Exception:
+        pass
     earned = get_user_achievements(user_id)
     earned_codes = {b["code"] for b in earned}
     total = len(ACHIEVEMENT_CATALOG)
@@ -3407,7 +3420,11 @@ def inline_callbacks(call):
             parse_mode="Markdown")
 
     elif call.data == 'hub_badges':
-        from database import get_user_achievements, ACHIEVEMENT_CATALOG
+        from database import get_user_achievements, ACHIEVEMENT_CATALOG, evaluate_achievements
+        try:
+            evaluate_achievements(user_id, context=None)
+        except Exception:
+            pass
         earned = get_user_achievements(user_id)
         earned_codes = {b["code"] for b in earned}
         total = len(ACHIEVEMENT_CATALOG)

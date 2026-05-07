@@ -2829,4 +2829,22 @@ def evaluate_achievements(user_id: str, *, context: str | None = None) -> list[s
         except Exception:
             pass
 
+    # 5. Trial badge — granted once free_trial_used flips to True
+    if context in (None, "trial"):
+        try:
+            if has_used_free_trial(user_id) and not has_achievement(user_id, "first_trial"):
+                if grant_achievement(user_id, "first_trial"):
+                    new_grants.append("first_trial")
+        except Exception:
+            pass
+
+    # 6. Referral badge — granted on first successful referral (referrer side)
+    if context in (None, "referral"):
+        try:
+            if get_referral_stats(user_id) >= 1 and not has_achievement(user_id, "first_referral"):
+                if grant_achievement(user_id, "first_referral"):
+                    new_grants.append("first_referral")
+        except Exception:
+            pass
+
     return new_grants
