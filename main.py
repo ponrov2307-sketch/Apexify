@@ -3472,56 +3472,58 @@ def inline_callbacks(call):
             handle_force_backup(mock_msg)
         elif call.data == 'admin_web_dashboard':
             send_admin_dashboard_link(user_id)
-        elif call.data == 'admin_guide_user':
-            guide = (
-                "📖 **คู่มือจัดการสมาชิก & สถิติ** _(คัดลอกได้เลย)_\n\n"
-                "*จัดการ User & Subscription:*\n"
-                "• `/user_history [uid]` — ดูประวัติ activity\n"
-                "• `/addrole [uid] [vip/pro] [days]` — ปรับ role / ต่ออายุ\n"
-                "• `/gencode [days] [uses] [vip/pro]` — สร้างโค้ดโปรโมชั่น\n"
-                "• `/ban [uid]` / `/unban [uid]` — ระงับ/คืนสิทธิ์\n"
-                "• `/users_pro` — list VIP/PRO ทั้งหมด + วันหมด\n\n"
-                "*สถิติ & Performance:*\n"
-                "• `/stats` — สถิติ user/รายได้\n"
-                "• `/performance` — กำไร/ขาดทุน AI plans\n"
-                "• `/perf_stats` — latency/throughput ระบบ\n"
-                "• `/streak_debug [uid]` — ตรวจ streak counter"
-            )
-            bot.send_message(user_id, guide, parse_mode="Markdown")
-
-        elif call.data == 'admin_guide_msg':
-            guide = (
-                "📣 **คู่มือบรอดแคสต์ & ข่าว** _(คัดลอกได้เลย)_\n\n"
-                "• `/broadcast [ข้อความ]` — ส่งข้อความทุก active user\n"
-                "• `/force_news flash` — ยิงข่าวด่วน 1 ข่าวทันที\n"
-                "• `/force_news digest` — ยิงสรุปข่าวย่อ 2 ข่าว\n"
-                "• `/force_weekly` — บรอดแคสต์ Weekly Digest\n"
-                "• `/breaking_test` — ทดสอบ flow Breaking News\n"
-                "• `/mock_alert [symbol] [whale/dump/xd/golden]` — จำลอง alert\n"
-                "• `/earnings [ticker]` — AI วิเคราะห์งบการเงินล่าสุด"
-            )
-            bot.send_message(user_id, guide, parse_mode="Markdown")
-
-        elif call.data == 'admin_guide_referral':
-            guide = (
-                "🤝 **คู่มือ Referral Review** _(คัดลอกได้เลย)_\n\n"
-                "• `/pending_refs` — list referral submissions ที่รออนุมัติ\n"
-                "• `/award_ref [pending_id] [referrer_uid]` — อนุมัติ + ให้รางวัล\n"
-                "• `/del_pending [pending_id]` — ลบ submission ผิด/spam\n"
-                "• `/reset_trial [uid]` — รีเซ็ต free_trial flag (refund/support)"
-            )
-            bot.send_message(user_id, guide, parse_mode="Markdown")
-
-        elif call.data == 'admin_guide_system':
-            guide = (
-                "🛠 **คู่มือ System** _(คัดลอกได้เลย)_\n\n"
-                "• `/maintenance` — toggle maintenance mode\n"
-                "• `/system_health` — สถานะเซิร์ฟเวอร์ + memory\n"
-                "• `/force_backup` — backup database ทันที\n"
-                "• `/cleanup_logs [days=90]` — ลบ log เก่าใน DB\n"
-                "• `/manual` — คู่มือคำสั่งทั้งหมด (มี admin section)"
-            )
-            bot.send_message(user_id, guide, parse_mode="Markdown")
+        elif call.data in ('admin_guide_user', 'admin_guide_msg', 'admin_guide_referral', 'admin_guide_system'):
+            _admin_guides = {
+                'admin_guide_user': (
+                    "📖 *คู่มือจัดการสมาชิก & สถิติ* (คัดลอกได้เลย)\n\n"
+                    "*จัดการ User & Subscription:*\n"
+                    "• `/user_history [uid]` — ดูประวัติ activity\n"
+                    "• `/addrole [uid] [vip/pro] [days]` — ปรับ role / ต่ออายุ\n"
+                    "• `/gencode [days] [uses] [vip/pro]` — สร้างโค้ดโปรโมชั่น\n"
+                    "• `/ban [uid]` / `/unban [uid]` — ระงับ/คืนสิทธิ์\n"
+                    "• `/users_pro` — list VIP/PRO ทั้งหมด + วันหมด\n\n"
+                    "*สถิติ & Performance:*\n"
+                    "• `/stats` — สถิติ user/รายได้\n"
+                    "• `/performance` — กำไร/ขาดทุน AI plans\n"
+                    "• `/perf_stats` — latency/throughput ระบบ\n"
+                    "• `/streak_debug [uid]` — ตรวจ streak counter"
+                ),
+                'admin_guide_msg': (
+                    "📣 *คู่มือบรอดแคสต์ & ข่าว* (คัดลอกได้เลย)\n\n"
+                    "• `/broadcast [ข้อความ]` — ส่งข้อความทุก active user\n"
+                    "• `/force_news flash` — ยิงข่าวด่วน 1 ข่าวทันที\n"
+                    "• `/force_news digest` — ยิงสรุปข่าวย่อ 2 ข่าว\n"
+                    "• `/force_weekly` — บรอดแคสต์ Weekly Digest\n"
+                    "• `/breaking_test` — ทดสอบ flow Breaking News\n"
+                    "• `/mock_alert [symbol] [whale/dump/xd/golden]` — จำลอง alert\n"
+                    "• `/earnings [ticker]` — AI วิเคราะห์งบการเงินล่าสุด"
+                ),
+                'admin_guide_referral': (
+                    "🤝 *คู่มือ Referral Review* (คัดลอกได้เลย)\n\n"
+                    "• `/pending_refs` — list referral submissions ที่รออนุมัติ\n"
+                    "• `/award_ref [pending_id] [referrer_uid]` — อนุมัติ + ให้รางวัล\n"
+                    "• `/del_pending [pending_id]` — ลบ submission ผิด/spam\n"
+                    "• `/reset_trial [uid]` — รีเซ็ต free_trial flag (refund/support)"
+                ),
+                'admin_guide_system': (
+                    "🛠 *คู่มือ System* (คัดลอกได้เลย)\n\n"
+                    "• `/maintenance` — toggle maintenance mode\n"
+                    "• `/system_health` — สถานะเซิร์ฟเวอร์ + memory\n"
+                    "• `/force_backup` — backup database ทันที\n"
+                    "• `/cleanup_logs [days=90]` — ลบ log เก่าใน DB\n"
+                    "• `/manual` — คู่มือคำสั่งทั้งหมด (มี admin section)"
+                ),
+            }
+            guide = _admin_guides[call.data]
+            try:
+                bot.send_message(user_id, guide, parse_mode="Markdown")
+            except Exception as md_err:
+                print(f"[{call.data}] Markdown send failed: {md_err} — retrying as plain text", flush=True)
+                try:
+                    bot.send_message(user_id, guide)
+                except Exception as plain_err:
+                    print(f"[{call.data}] plain send failed: {plain_err}", flush=True)
+                    bot.answer_callback_query(call.id, "❌ ส่งคู่มือไม่สำเร็จ", show_alert=True)
 
 @bot.message_handler(commands=['earnings'])
 def handle_earnings(message):
