@@ -1948,6 +1948,12 @@ def process_referral(referrer_id, new_user_id):
     รางวัล Referred (v2 ใหม่):
       - ทุก new user ผ่านลิงก์ → ได้ VIP ฟรี 3 วัน (welcome bonus)
     """
+    # Defense-in-depth — main.py:808 already guards /start REF_ flow,
+    # but admin /award_ref + uid-input paths reach here too. Block the
+    # easiest exploit: claiming yourself as referrer to farm milestones.
+    if str(referrer_id) == str(new_user_id):
+        return False, False
+
     conn = get_connection()
     c = conn.cursor()
     try:
@@ -1959,6 +1965,12 @@ def process_referral(referrer_id, new_user_id):
             "INSERT INTO referrals (referrer_id, referred_id) VALUES (%s, %s) ON CONFLICT (referred_id) DO NOTHING",
             (referrer_id, new_user_id),
         )
+        # Bail if INSERT was a no-op (referred_id already credited to someone).
+        # Without this, a re-call computes new_count from the existing rows and
+        # could re-fire milestone bonuses on every retry — silent VIP leak.
+        if c.rowcount == 0:
+            conn.commit()
+            return False, False
 
         c.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = %s", (referrer_id,))
         new_count = c.fetchone()[0]

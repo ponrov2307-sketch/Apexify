@@ -1216,7 +1216,7 @@ def handle_portfolio(message):
 
         msg = "\n".join(lines)
         port_markup = InlineKeyboardMarkup()
-        _port_btn = _dashboard_cta_button(user_id, "📊 จัดการพอร์ตใน Dashboard", src="portfolio_cmd", next_path="/portfolio")
+        _port_btn = _dashboard_cta_button(user_id, "📊 จัดการพอร์ตใน Dashboard", src="portfolio_cmd", next_path="/")
         if _port_btn:
             port_markup.add(_port_btn)
         bot.edit_message_text(msg, chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='HTML', reply_markup=port_markup)
