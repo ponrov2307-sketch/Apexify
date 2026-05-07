@@ -3451,22 +3451,52 @@ def inline_callbacks(call):
             send_admin_dashboard_link(user_id)
         elif call.data == 'admin_guide_user':
             guide = (
-                "📖 **คู่มือจัดการสมาชิก (คัดลอกคำสั่งไปพิมพ์ได้เลย)**\n\n"
-                "• `/user_history [ID]` : ส่องคำสั่งล่าสุดของ User\n"
-                "• `/addrole [ID] [Role] [Days]` : ปรับระดับ/เพิ่มวันสมาชิก\n"
-                "• `/gencode [Days] [Uses] [Role]` : สร้างโค้ดโปรโมชั่น\n"
-                "• `/ban [ID]` หรือ `/unban [ID]` : ระงับ/คืนสิทธิ์ผู้ใช้งาน"
+                "📖 **คู่มือจัดการสมาชิก & สถิติ** _(คัดลอกได้เลย)_\n\n"
+                "*จัดการ User & Subscription:*\n"
+                "• `/user_history [uid]` — ดูประวัติ activity\n"
+                "• `/addrole [uid] [vip/pro] [days]` — ปรับ role / ต่ออายุ\n"
+                "• `/gencode [days] [uses] [vip/pro]` — สร้างโค้ดโปรโมชั่น\n"
+                "• `/ban [uid]` / `/unban [uid]` — ระงับ/คืนสิทธิ์\n"
+                "• `/users_pro` — list VIP/PRO ทั้งหมด + วันหมด\n\n"
+                "*สถิติ & Performance:*\n"
+                "• `/stats` — สถิติ user/รายได้\n"
+                "• `/performance` — กำไร/ขาดทุน AI plans\n"
+                "• `/perf_stats` — latency/throughput ระบบ\n"
+                "• `/streak_debug [uid]` — ตรวจ streak counter"
             )
             bot.send_message(user_id, guide, parse_mode="Markdown")
-            
+
         elif call.data == 'admin_guide_msg':
             guide = (
-                "📣 **คู่มือบรอดแคสต์และข่าวสาร (คัดลอกคำสั่งไปพิมพ์ได้เลย)**\n\n"
-                "• `/broadcast [ข้อความที่ต้องการส่ง]` : แจ้งเตือน User ทุกคน\n"
-                "• `/force_news flash` : ยิงข่าวด่วนที่สุด 1 ข่าว\n"
-                "• `/force_news digest` : ยิงสรุปข่าวย่อ 2 ข่าว\n"
-                "• `/mock_alert [whale/dump/xd/golden]` : ทดสอบการแจ้งเตือน\n"
-                "• `/earnings [ชื่อหุ้น]` : สั่ง AI วิเคราะห์งบการเงินล่าสุด"
+                "📣 **คู่มือบรอดแคสต์ & ข่าว** _(คัดลอกได้เลย)_\n\n"
+                "• `/broadcast [ข้อความ]` — ส่งข้อความทุก active user\n"
+                "• `/force_news flash` — ยิงข่าวด่วน 1 ข่าวทันที\n"
+                "• `/force_news digest` — ยิงสรุปข่าวย่อ 2 ข่าว\n"
+                "• `/force_weekly` — บรอดแคสต์ Weekly Digest\n"
+                "• `/breaking_test` — ทดสอบ flow Breaking News\n"
+                "• `/mock_alert [symbol] [whale/dump/xd/golden]` — จำลอง alert\n"
+                "• `/earnings [ticker]` — AI วิเคราะห์งบการเงินล่าสุด"
+            )
+            bot.send_message(user_id, guide, parse_mode="Markdown")
+
+        elif call.data == 'admin_guide_referral':
+            guide = (
+                "🤝 **คู่มือ Referral Review** _(คัดลอกได้เลย)_\n\n"
+                "• `/pending_refs` — list referral submissions ที่รออนุมัติ\n"
+                "• `/award_ref [pending_id] [referrer_uid]` — อนุมัติ + ให้รางวัล\n"
+                "• `/del_pending [pending_id]` — ลบ submission ผิด/spam\n"
+                "• `/reset_trial [uid]` — รีเซ็ต free_trial flag (refund/support)"
+            )
+            bot.send_message(user_id, guide, parse_mode="Markdown")
+
+        elif call.data == 'admin_guide_system':
+            guide = (
+                "🛠 **คู่มือ System** _(คัดลอกได้เลย)_\n\n"
+                "• `/maintenance` — toggle maintenance mode\n"
+                "• `/system_health` — สถานะเซิร์ฟเวอร์ + memory\n"
+                "• `/force_backup` — backup database ทันที\n"
+                "• `/cleanup_logs [days=90]` — ลบ log เก่าใน DB\n"
+                "• `/manual` — คู่มือคำสั่งทั้งหมด (มี admin section)"
             )
             bot.send_message(user_id, guide, parse_mode="Markdown")
 
@@ -4157,10 +4187,16 @@ def handle_main(message):
             InlineKeyboardButton("🌐 เปิด Admin Dashboard", callback_data="admin_web_dashboard")
         )
         markup.add(
-            InlineKeyboardButton("📖 คู่มือจัดการสมาชิก & โค้ด", callback_data="admin_guide_user")
+            InlineKeyboardButton("📖 คู่มือจัดการสมาชิก & สถิติ", callback_data="admin_guide_user")
         )
         markup.add(
             InlineKeyboardButton("📣 คู่มือบรอดแคสต์ & ข่าว", callback_data="admin_guide_msg")
+        )
+        markup.add(
+            InlineKeyboardButton("🤝 คู่มือ Referral Review", callback_data="admin_guide_referral")
+        )
+        markup.add(
+            InlineKeyboardButton("🛠 คู่มือ System & Maintenance", callback_data="admin_guide_system")
         )
 
         admin_text = "👑 **Apexify Admin Master Control**\nเลือกระบบที่คุณต้องการจัดการจากปุ่มด้านล่างได้เลยครับ:"
