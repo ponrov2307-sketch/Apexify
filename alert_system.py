@@ -1661,6 +1661,14 @@ def send_final_hour_warnings(bot_instance):
         conn.close()
         return
 
+    # Pull free_trial_used in a separate light query so we can pick the right copy
+    trial_users = set()
+    try:
+        c.execute("SELECT user_id FROM users WHERE free_trial_used = TRUE")
+        trial_users = {row[0] for row in c.fetchall()}
+    except Exception as e:
+        print(f"[final_hour_warnings] trial flag query error: {e}", flush=True)
+
     sent = 0
     for user_id, role, expiry in rows:
         # Atomic dedup — INSERT only succeeds for first warning of this expiry
@@ -1681,12 +1689,50 @@ def send_final_hour_warnings(bot_instance):
 
         role_label = "💎 VIP" if role == 'vip' else "👑 PRO"
         expiry_str = str(expiry)[:16] if expiry else "-"
-        msg = (
-            f"🚨 **{role_label} ของคุณกำลังจะหมดอายุ!**\n\n"
-            f"⏰ หมดภายใน **1-2 ชั่วโมง** ({expiry_str})\n"
-            f"_หลังจากนั้นฟีเจอร์พรีเมียมจะถูกปิดทันที_\n\n"
-            f"⚡ ต่ออายุตอนนี้เพื่อใช้งานต่อเนื่อง:"
-        )
+        is_trial = role == 'pro' and user_id in trial_users
+
+        if is_trial:
+            # Trial wrap-up — concrete usage stats so the renew decision is informed
+            try:
+                c.execute(
+                    "SELECT COUNT(*) FROM analysis_plans WHERE user_id = %s "
+                    "AND issued_at >= %s::timestamptz - INTERVAL '7 days'",
+                    (str(user_id), expiry),
+                )
+                plans_count = c.fetchone()[0] or 0
+            except Exception:
+                plans_count = 0
+            try:
+                c.execute(
+                    "SELECT COUNT(*) FROM user_price_alerts WHERE user_id = %s AND is_active = 1",
+                    (str(user_id),),
+                )
+                alerts_count = c.fetchone()[0] or 0
+            except Exception:
+                alerts_count = 0
+            try:
+                c.execute("SELECT COUNT(*) FROM user_watchlist WHERE user_id = %s", (str(user_id),))
+                watch_count = c.fetchone()[0] or 0
+            except Exception:
+                watch_count = 0
+
+            msg = (
+                f"🚨 **PRO Trial เหลือ 1-2 ชม. สุดท้าย**\n\n"
+                f"⏰ หมดอายุ: {expiry_str}\n\n"
+                f"📊 ตลอด 7 วันที่ผ่านมา คุณใช้:\n"
+                f"   • วิเคราะห์ + Plan: **{plans_count}** ครั้ง\n"
+                f"   • Price Alerts: **{alerts_count}** รายการ\n"
+                f"   • Watchlist: **{watch_count}** หุ้น\n\n"
+                f"⚡ ต่อสมัครต่อเลย ใช้ต่อเนื่องไม่ต้องเริ่มใหม่:"
+            )
+        else:
+            msg = (
+                f"🚨 **{role_label} ของคุณกำลังจะหมดอายุ!**\n\n"
+                f"⏰ หมดภายใน **1-2 ชั่วโมง** ({expiry_str})\n"
+                f"_หลังจากนั้นฟีเจอร์พรีเมียมจะถูกปิดทันที_\n\n"
+                f"⚡ ต่ออายุตอนนี้เพื่อใช้งานต่อเนื่อง:"
+            )
+
         kb = InlineKeyboardMarkup(row_width=2)
         kb.add(
             InlineKeyboardButton("💎 ต่ออายุ VIP 79฿", callback_data="menu_vip"),
@@ -1702,6 +1748,167 @@ def send_final_hour_warnings(bot_instance):
     conn.close()
     if sent > 0:
         print(f"[final_hour_warnings] ส่ง {sent} คน — last-hour upsell window", flush=True)
+
+
+def send_trial_spotlights(bot_instance):
+    """Mid-trial DMs — Day 2 (5d remaining): Smart Alerts, Day 5 (2d remaining): AI Plan.
+    Day 4 (3d) and Day 6 (1d) are skipped because the existing 7/3/1-day expiry warnings
+    already fire on those days. Daily fire at noon Thai time + dedup table → each user
+    sees each spotlight once per trial period.
+    """
+    SPOTLIGHTS = [
+        ('day2', 5,
+         "🎯 **PRO Trial Day 2 — ลอง Smart Alerts**\n\n"
+         "ตั้งให้ AI แจ้งเมื่อหุ้นถึง RSI/MACD/breakout — ไม่ต้องเฝ้าจอ\n\n"
+         "ลองพิมพ์: `/setalert AAPL 200`\n"
+         "ดูที่ตั้งไว้: `/myalerts`"),
+        ('day5', 2,
+         "🎯 **PRO Trial Day 5 — ลอง AI Plan เทรด**\n\n"
+         "พิมพ์ชื่อหุ้นใด ๆ → รายงานจะมี Entry/TP1/TP2/SL พร้อม + กราฟวาด zone\n\n"
+         "ลองพิมพ์: `AAPL` หรือ `NVDA`"),
+    ]
+
+    sent_total = 0
+    for marker, days_remaining, body in SPOTLIGHTS:
+        target_date = (datetime.now() + timedelta(days=days_remaining)).strftime('%Y-%m-%d')
+        conn = get_connection()
+        c = conn.cursor()
+        try:
+            c.execute("""
+                SELECT u.user_id FROM users u
+                LEFT JOIN trial_spotlight_sent t ON t.user_id = u.user_id AND t.day_marker = %s
+                WHERE t.user_id IS NULL
+                  AND u.role = 'pro'
+                  AND u.free_trial_used = TRUE
+                  AND u.expiry_date IS NOT NULL
+                  AND u.expiry_date::date = %s::date
+            """, (marker, target_date))
+            users = [row[0] for row in c.fetchall()]
+        except Exception as e:
+            print(f"[trial_spotlight] {marker} query error: {e}", flush=True)
+            conn.close()
+            continue
+
+        for user_id in users:
+            try:
+                c.execute(
+                    "INSERT INTO trial_spotlight_sent (user_id, day_marker) VALUES (%s, %s) "
+                    "ON CONFLICT DO NOTHING",
+                    (str(user_id), marker),
+                )
+                inserted = c.rowcount > 0
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                print(f"[trial_spotlight] dedup error: {e}", flush=True)
+                continue
+            if not inserted:
+                continue
+            try:
+                bot_instance.send_message(user_id, body, parse_mode="Markdown")
+                sent_total += 1
+            except Exception as e:
+                print(f"[trial_spotlight] send to {user_id} failed: {e}", flush=True)
+
+        conn.close()
+
+    if sent_total > 0:
+        print(f"[trial_spotlight] ส่ง {sent_total} คน — mid-trial spotlights", flush=True)
+
+
+def send_winback_dms(bot_instance):
+    """Re-engage free users inactive 7/14/30 days. Hooks the open with their
+    biggest watchlist mover (last 7d) so it doesn't read like a generic blast."""
+    from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+    from database import get_user_watch
+    import yfinance as yf
+
+    MILESTONES = [(7, "7d", "1 อาทิตย์"), (14, "14d", "2 อาทิตย์"), (30, "30d", "1 เดือน")]
+
+    sent_total = 0
+    for days, marker, day_word in MILESTONES:
+        conn = get_connection()
+        c = conn.cursor()
+        try:
+            c.execute("""
+                SELECT u.user_id FROM users u
+                LEFT JOIN winback_sent w ON w.user_id = u.user_id AND w.milestone = %s
+                WHERE w.user_id IS NULL
+                  AND u.last_active IS NOT NULL
+                  AND u.last_active::timestamptz < NOW() - INTERVAL %s
+                  AND COALESCE(u.role, 'free') = 'free'
+            """, (marker, f"{days} days"))
+            users = [row[0] for row in c.fetchall()]
+        except Exception as e:
+            print(f"[winback] {marker} query error: {e}", flush=True)
+            conn.close()
+            continue
+
+        sent = 0
+        for user_id in users:
+            if str(user_id) == str(ADMIN_ID):
+                continue
+
+            # Build personalized hook — biggest absolute mover from their watchlist
+            watchlist = get_user_watch(user_id) or []
+            hook = ""
+            if watchlist:
+                perfs = []
+                for sym in watchlist[:5]:
+                    try:
+                        hist = yf.Ticker(sym).history(period='8d')
+                        if len(hist) < 2:
+                            continue
+                        start = hist['Close'].iloc[0]
+                        end = hist['Close'].iloc[-1]
+                        if not start:
+                            continue
+                        pct = (end - start) / start * 100
+                        perfs.append((sym, pct))
+                    except Exception:
+                        continue
+                if perfs:
+                    perfs.sort(key=lambda x: abs(x[1]), reverse=True)
+                    sym, pct = perfs[0]
+                    sign = '+' if pct >= 0 else ''
+                    hook = f"📊 **{sym}** {sign}{pct:.2f}% ใน 7 วันที่ผ่านมา\n\n"
+
+            msg = (
+                f"👋 ไม่เจอคุณมา **{day_word}** แล้วครับ\n\n"
+                f"{hook}"
+                f"💡 พิมพ์ชื่อหุ้นเพื่อกลับมาวิเคราะห์ หรือ `/weekly_recap` ดูสรุปอาทิตย์นี้\n\n"
+                f"🆓 Free Trial: 3 ครั้ง/วัน รีเซ็ตเที่ยงคืน 🌙"
+            )
+            kb = InlineKeyboardMarkup()
+            kb.add(InlineKeyboardButton("📱 เปิดเมนูหลัก", callback_data="hub_home"))
+
+            # Mark sent atomically
+            try:
+                c.execute(
+                    "INSERT INTO winback_sent (user_id, milestone) VALUES (%s, %s) "
+                    "ON CONFLICT DO NOTHING",
+                    (str(user_id), marker),
+                )
+                inserted = c.rowcount > 0
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                print(f"[winback] dedup error: {e}", flush=True)
+                continue
+            if not inserted:
+                continue
+
+            try:
+                bot_instance.send_message(user_id, msg, parse_mode="Markdown", reply_markup=kb)
+                sent += 1
+            except Exception as e:
+                print(f"[winback] send to {user_id} failed: {e}", flush=True)
+
+        conn.close()
+        sent_total += sent
+
+    if sent_total > 0:
+        print(f"[winback] ส่ง {sent_total} คน — re-engagement", flush=True)
 
 
 def send_watchlist_daily_summary(bot_instance):
@@ -2044,6 +2251,7 @@ def run_alert_loop(bot_instance=None):
     last_earnings_check_date = None
     last_plan_outcome_date = None
     last_weekly_digest_date = None
+    last_engagement_date = None
 
     while True:
       try:
@@ -2114,6 +2322,20 @@ def run_alert_loop(bot_instance=None):
                 and last_weekly_digest_date != current_date_str):
             send_weekly_performance_digest(bot_instance)
             last_weekly_digest_date = current_date_str
+
+        # 🎯 Engagement loop — once daily at noon Thai time
+        # Trial spotlights + win-back DMs share the same fire window so
+        # users don't get pinged at random throughout the day.
+        if thai_time.hour == 12 and last_engagement_date != current_date_str:
+            try:
+                send_trial_spotlights(bot_instance)
+            except Exception as e:
+                print(f"[AlertLoop] send_trial_spotlights failed: {e}", flush=True)
+            try:
+                send_winback_dms(bot_instance)
+            except Exception as e:
+                print(f"[AlertLoop] send_winback_dms failed: {e}", flush=True)
+            last_engagement_date = current_date_str
 
         check_market_conditions()
         check_custom_price_alerts()

@@ -531,6 +531,30 @@ def init_db():
         )
     """)
 
+    # Trial-day spotlight DMs — Day 2 / Day 5 of the 7-day PRO trial. Day 4
+    # would collide with the existing 3-day expiry warning, so we skip it.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS trial_spotlight_sent (
+            user_id     TEXT NOT NULL,
+            day_marker  TEXT NOT NULL,
+            sent_at     TIMESTAMPTZ DEFAULT NOW(),
+            PRIMARY KEY (user_id, day_marker)
+        )
+    """)
+
+    # Win-back DMs at 7/14/30 days of inactivity. Each milestone fires once
+    # per user; if user comes back and goes inactive again, they cycle through
+    # the milestones again only after PRIMARY KEY rows are cleared (manual
+    # for now — future cleanup can re-enable cadence for repeat-churn users).
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS winback_sent (
+            user_id     TEXT NOT NULL,
+            milestone   TEXT NOT NULL,
+            sent_at     TIMESTAMPTZ DEFAULT NOW(),
+            PRIMARY KEY (user_id, milestone)
+        )
+    """)
+
     conn.commit()
     conn.close()
     init_watchlist_db()
