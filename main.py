@@ -3548,13 +3548,30 @@ def inline_callbacks(call):
             handle_stats(mock_msg)
         elif call.data == 'admin_perf':
             handle_performance(mock_msg)
+        elif call.data == 'admin_perf_stats':
+            handle_perf_stats(mock_msg)
+        elif call.data == 'admin_pending_refs':
+            handle_pending_refs(mock_msg)
         elif call.data == 'admin_users_pro':
             handle_users_pro(mock_msg)
         elif call.data == 'admin_backup':
             handle_force_backup(mock_msg)
+        elif call.data == 'admin_force_news_flash':
+            mock_msg.text = "/force_news flash"
+            handle_force_news(mock_msg)
+        elif call.data == 'admin_force_news_digest':
+            mock_msg.text = "/force_news digest"
+            handle_force_news(mock_msg)
+        elif call.data == 'admin_force_weekly':
+            handle_force_weekly(mock_msg)
+        elif call.data == 'admin_breaking_test':
+            handle_breaking_test(mock_msg)
+        elif call.data == 'admin_cleanup_logs':
+            mock_msg.text = "/cleanup_logs 90"
+            handle_cleanup_logs(mock_msg)
         elif call.data == 'admin_web_dashboard':
             send_admin_dashboard_link(user_id)
-        elif call.data in ('admin_guide_user', 'admin_guide_msg', 'admin_guide_referral', 'admin_guide_system'):
+        elif call.data in ('admin_guide_user', 'admin_guide_msg', 'admin_guide_referral', 'admin_guide_system', 'admin_guide_all'):
             _admin_guides = {
                 'admin_guide_user': (
                     "📖 *คู่มือจัดการสมาชิก & สถิติ* (คัดลอกได้เลย)\n\n"
@@ -3596,6 +3613,40 @@ def inline_callbacks(call):
                     "• `/force_backup` — backup database ทันที\n"
                     "• `/cleanup_logs [days=90]` — ลบ log เก่าใน DB\n"
                     "• `/manual` — คู่มือคำสั่งทั้งหมด (มี admin section)"
+                ),
+                'admin_guide_all': (
+                    "📜 *คำสั่ง Admin ทั้งหมด* (คัดลอกได้เลย)\n\n"
+                    "*👥 User & Subscription:*\n"
+                    "• `/user_history [uid]` — ประวัติ activity\n"
+                    "• `/addrole [uid] [vip/pro] [days]` — ปรับ role / ต่ออายุ\n"
+                    "• `/gencode [days] [uses] [vip/pro]` — โค้ดโปรโมชั่น\n"
+                    "• `/ban [uid]` / `/unban [uid]`\n"
+                    "• `/users_pro` — list VIP/PRO\n\n"
+                    "*📈 Stats & Performance:*\n"
+                    "• `/stats` — user/รายได้\n"
+                    "• `/performance` — กำไร/ขาดทุน AI plans\n"
+                    "• `/perf_stats` — latency/throughput\n"
+                    "• `/streak_debug [uid]` — streak counter\n\n"
+                    "*🤝 Referral:*\n"
+                    "• `/pending_refs` — list (มี candidate match)\n"
+                    "• `/award_ref [pid] [uid]` — อนุมัติ + รางวัล\n"
+                    "• `/del_pending [pid]` — ลบ submission ผิด\n"
+                    "• `/finduser [ชื่อ]` — ค้น user_id จากชื่อ\n"
+                    "• `/reset_trial [uid]` — รีเซ็ต free_trial flag\n\n"
+                    "*📣 Broadcast & News:*\n"
+                    "• `/broadcast [ข้อความ]`\n"
+                    "• `/force_news flash` / `/force_news digest`\n"
+                    "• `/force_weekly` — Weekly Digest\n"
+                    "• `/breaking_test` — ทดสอบ Breaking News\n"
+                    "• `/mock_alert [symbol] [whale/dump/xd/golden]`\n"
+                    "• `/earnings [ticker]` — AI วิเคราะห์งบ\n\n"
+                    "*🛠 System:*\n"
+                    "• `/maintenance` — toggle\n"
+                    "• `/system_health` — status\n"
+                    "• `/force_backup` — backup DB\n"
+                    "• `/cleanup_logs [days=90]` — ลบ log เก่า\n"
+                    "• `/manual` — คู่มือ user (มี admin section)\n\n"
+                    "💡 *Quick action ทั้งหมด* — กดผ่านปุ่มในแผงควบคุมแอดมินได้โดยตรง"
                 ),
             }
             guide = _admin_guides[call.data]
@@ -4277,35 +4328,50 @@ def handle_main(message):
         
     elif text == "👑 แผงควบคุมแอดมิน":
         if user_id != ADMIN_ID: return
-        
+
         markup = InlineKeyboardMarkup(row_width=2)
-        
+
+        # 🚀 Quick actions — ปุ่มที่กดแล้วทำงานเลยไม่ต้องพิมพ์อาร์กิวเมนต์
         markup.add(
             InlineKeyboardButton("🛠 เปิด/ปิด Maintenance", callback_data="admin_maintenance"),
-            InlineKeyboardButton("💻 สถานะเซิร์ฟเวอร์", callback_data="admin_health")
+            InlineKeyboardButton("💻 สถานะเซิร์ฟเวอร์", callback_data="admin_health"),
         )
         markup.add(
             InlineKeyboardButton("📊 สถิติผู้ใช้งาน", callback_data="admin_stats"),
-            InlineKeyboardButton("🎯 ผลงานความแม่นยำ", callback_data="admin_perf")
+            InlineKeyboardButton("🎯 ผลงานความแม่นยำ", callback_data="admin_perf"),
+        )
+        markup.add(
+            InlineKeyboardButton("⏱ Perf Stats (latency)", callback_data="admin_perf_stats"),
+            InlineKeyboardButton("📋 Pending Referrals", callback_data="admin_pending_refs"),
         )
         markup.add(
             InlineKeyboardButton("👑 รายชื่อ PRO/VIP", callback_data="admin_users_pro"),
-            InlineKeyboardButton("📦 Backup ฐานข้อมูล", callback_data="admin_backup")
+            InlineKeyboardButton("📦 Backup ฐานข้อมูล", callback_data="admin_backup"),
         )
         markup.add(
-            InlineKeyboardButton("🌐 เปิด Admin Dashboard", callback_data="admin_web_dashboard")
+            InlineKeyboardButton("📰 Flash News (force)", callback_data="admin_force_news_flash"),
+            InlineKeyboardButton("📊 Digest News (force)", callback_data="admin_force_news_digest"),
         )
         markup.add(
-            InlineKeyboardButton("📖 คู่มือจัดการสมาชิก & สถิติ", callback_data="admin_guide_user")
+            InlineKeyboardButton("📅 Weekly Digest (force)", callback_data="admin_force_weekly"),
+            InlineKeyboardButton("🚨 ทดสอบ Breaking News", callback_data="admin_breaking_test"),
         )
         markup.add(
-            InlineKeyboardButton("📣 คู่มือบรอดแคสต์ & ข่าว", callback_data="admin_guide_msg")
+            InlineKeyboardButton("🧹 Cleanup Logs (90d)", callback_data="admin_cleanup_logs"),
+            InlineKeyboardButton("🌐 Admin Dashboard", callback_data="admin_web_dashboard"),
+        )
+
+        # 📚 Guides — สำหรับคำสั่งที่ต้องพิมพ์อาร์กิวเมนต์เอง
+        markup.add(
+            InlineKeyboardButton("📖 จัดการสมาชิก & สถิติ", callback_data="admin_guide_user"),
+            InlineKeyboardButton("📣 บรอดแคสต์ & ข่าว", callback_data="admin_guide_msg"),
         )
         markup.add(
-            InlineKeyboardButton("🤝 คู่มือ Referral Review", callback_data="admin_guide_referral")
+            InlineKeyboardButton("🤝 Referral Review", callback_data="admin_guide_referral"),
+            InlineKeyboardButton("🛠 System & Maintenance", callback_data="admin_guide_system"),
         )
         markup.add(
-            InlineKeyboardButton("🛠 คู่มือ System & Maintenance", callback_data="admin_guide_system")
+            InlineKeyboardButton("📜 ดูคำสั่ง Admin ทั้งหมด (รวม)", callback_data="admin_guide_all"),
         )
 
         admin_text = "👑 **Apexify Admin Master Control**\nเลือกระบบที่คุณต้องการจัดการจากปุ่มด้านล่างได้เลยครับ:"
