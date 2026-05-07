@@ -2201,19 +2201,42 @@ def handle_manual(message):
             "`/cleanup_logs [days=90]` — ลบ log เก่าใน DB\n"
         )
 
-    # 🌟 ถ้ายาวเกิน Telegram limit → แบ่งเป็น 2 message
-    if len(msg) <= 4096:
+    # 🌟 ถ้ายาวเกิน Telegram limit → แบ่งเป็น 2-3 messages
+    # เริ่มที่ 4096 limit แต่ใช้ 3900 เป็น margin กัน parse_mode overhead
+    TG_LIMIT = 3900
+    if len(msg) <= TG_LIMIT:
         bot.reply_to(message, msg, parse_mode="Markdown")
     else:
-        split_marker = "━━━━━━━━━━━━━━━━━━━━━\n**🌟 Workflow"
-        split_at = msg.find(split_marker)
-        if split_at > 0:
-            part1 = msg[:split_at]
-            part2 = "📖 **คู่มือ (ต่อ)**\n\n" + msg[split_at:]
-            bot.reply_to(message, part1, parse_mode="Markdown")
-            bot.send_message(message.chat.id, part2, parse_mode="Markdown")
+        workflow_marker = "━━━━━━━━━━━━━━━━━━━━━\n**🌟 Workflow"
+        admin_marker = "━━━━━━━━━━━━━━━━━━━━━\n**👑 Admin Commands**"
+
+        workflow_at = msg.find(workflow_marker)
+        admin_at = msg.find(admin_marker)
+
+        parts: list[str] = []
+        if workflow_at > 0 and admin_at > 0:
+            # 3 ส่วน: public → workflow+FAQ → admin
+            parts = [
+                msg[:workflow_at],
+                "📖 **คู่มือ (ต่อ)**\n\n" + msg[workflow_at:admin_at],
+                "👑 **Admin Section**\n\n" + msg[admin_at:],
+            ]
+        elif workflow_at > 0:
+            # 2 ส่วน: public → workflow+FAQ (ไม่มี admin section)
+            parts = [
+                msg[:workflow_at],
+                "📖 **คู่มือ (ต่อ)**\n\n" + msg[workflow_at:],
+            ]
         else:
-            bot.reply_to(message, msg[:4000], parse_mode="Markdown")
+            parts = [msg[:TG_LIMIT]]
+
+        bot.reply_to(message, parts[0], parse_mode="Markdown")
+        for extra in parts[1:]:
+            # ถ้ายัง > limit → ตัด chunk แบบไม่หาย
+            while len(extra) > TG_LIMIT:
+                bot.send_message(message.chat.id, extra[:TG_LIMIT], parse_mode="Markdown")
+                extra = extra[TG_LIMIT:]
+            bot.send_message(message.chat.id, extra, parse_mode="Markdown")
 
 
 @bot.message_handler(commands=['addrole'])
