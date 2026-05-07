@@ -743,6 +743,9 @@ def handle_demo(message):
         InlineKeyboardButton("🇹🇭 ลอง PTT.BK", callback_data="tutorial_analyze_PTT.BK"),
     )
     markup.add(
+        InlineKeyboardButton("⚡ ลอง NVDA", callback_data="tutorial_analyze_NVDA"),
+    )
+    markup.add(
         InlineKeyboardButton("📊 ดู Track Record", callback_data="hub_track"),
         InlineKeyboardButton("📋 Full Commands", callback_data="menu_manual"),
     )
@@ -909,8 +912,9 @@ def send_welcome(message):
     tutorial_markup = InlineKeyboardMarkup(row_width=2)
     tutorial_markup.add(
         InlineKeyboardButton("📊 ลอง AAPL", callback_data="tutorial_analyze_AAPL"),
-        InlineKeyboardButton("📊 ลอง PTT.BK", callback_data="tutorial_analyze_PTT.BK"),
+        InlineKeyboardButton("⚡ ลอง NVDA", callback_data="tutorial_analyze_NVDA"),
     )
+    tutorial_markup.add(InlineKeyboardButton("🇹🇭 ลอง PTT.BK", callback_data="tutorial_analyze_PTT.BK"))
     tutorial_markup.add(InlineKeyboardButton("📱 เปิดเมนูหลัก", callback_data="hub_home"))
     _, login_url, _ = issue_dashboard_login_url(user_id)
     if login_url:
@@ -4525,12 +4529,28 @@ def handle_main(message):
         # 🌟 Quota visibility — show usage explicitly so trial users feel pressure to upgrade
         used = usage + 1
         remaining = FREE_DAILY_QUOTA - used
+        # Concrete tier teaser — same copy on every free analysis so user sees
+        # what they're missing in real numbers, not generic "upgrade" CTAs.
+        tier_teaser = (
+            "💎 _VIP 79฿/เดือน เห็นเพิ่ม:_ กราฟเทคนิค · Trend Radar 3 TF · Watch Next\n"
+            "👑 _PRO 109฿/เดือน เพิ่ม:_ Entry/TP1/TP2/SL · กราฟ annotated · /ask /compare"
+        )
         if remaining <= 0:
-            report += f"\n\n📊 **Free Trial:** ใช้ครบ {used}/{FREE_DAILY_QUOTA} วันนี้แล้ว — รีเซ็ตเที่ยงคืน 🌙\n💎 อัปเกรด VIP/PRO เพื่อใช้ไม่จำกัด"
+            report += (
+                f"\n\n📊 **Free Trial:** ใช้ครบ {used}/{FREE_DAILY_QUOTA} วันนี้แล้ว — รีเซ็ตเที่ยงคืน 🌙\n\n"
+                f"{tier_teaser}"
+            )
         elif remaining == 1:
-            report += f"\n\n⚠️ **Free Trial:** เหลือ {remaining} ครั้งสุดท้ายวันนี้ ({used}/{FREE_DAILY_QUOTA})"
+            # Penultimate analysis — peak intent moment for upgrade decision
+            report += (
+                f"\n\n⚠️ **Free Trial:** เหลือ {remaining} ครั้งสุดท้ายวันนี้ ({used}/{FREE_DAILY_QUOTA})\n\n"
+                f"{tier_teaser}"
+            )
         else:
-            report += f"\n\n📊 **Free Trial:** {used}/{FREE_DAILY_QUOTA} วันนี้ (เหลือ {remaining} ครั้ง)"
+            report += (
+                f"\n\n📊 **Free Trial:** {used}/{FREE_DAILY_QUOTA} วันนี้ (เหลือ {remaining} ครั้ง)\n\n"
+                f"{tier_teaser}"
+            )
 
     # 🌟 Day-trade discipline coach — แจ้งเตือนถ้าวิเคราะห์ซ้ำหุ้นเดียวกันถี่เกินใน 1 วัน
     # ตลาดไม่เปลี่ยนทุก 30 นาที — โค้ชเตือนให้ใจเย็น (PP P. ขอ)
