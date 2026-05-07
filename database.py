@@ -869,9 +869,6 @@ def reset_daily_free_usage():
     conn.close()
     print(f"🔄 รีเซ็ตโควต้าฟรีรายวัน: {rows} คน")
 
-def add_watch(user_id, symbol):
-    return _add_user_watchlist_item(user_id, symbol)
-
 def get_user_watch(user_id):
     return _get_user_watchlist_items(user_id)
 

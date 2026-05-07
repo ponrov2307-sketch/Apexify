@@ -1059,6 +1059,80 @@ def handle_edit_stock(message):
         bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")
 
 
+@bot.message_handler(commands=['watch'])
+def handle_watch(message):
+    """เพิ่มหุ้นเข้า Watchlist — /watch [ticker]"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
+
+    try:
+        parts = message.text.split()
+        if len(parts) != 2:
+            bot.reply_to(
+                message,
+                "❌ รูปแบบผิด! พิมพ์: `/watch [ชื่อหุ้น]`\nเช่น: `/watch AAPL`",
+                parse_mode='Markdown',
+            )
+            return
+
+        symbol = parts[1].upper()
+        role = check_subscription(user_id)
+        current_watch = len(get_user_watch(user_id))
+        if user_id != ADMIN_ID:
+            if role == 'free' and current_watch >= 3:
+                bot.reply_to(message, "🔒 **จำกัด Watchlist 3 ตัว (Free)**\nอัปเกรดเป็น **VIP** เพื่อเพิ่มได้ถึง 10 ตัว หรือ **PRO** ไม่จำกัดครับ!", parse_mode='Markdown')
+                return
+            elif role == 'vip' and current_watch >= 10:
+                bot.reply_to(message, "🔒 **จำกัด Watchlist 10 ตัว (VIP)**\nอัปเกรดเป็น **PRO** เพื่อเพิ่มได้ไม่จำกัดครับ! 👑", parse_mode='Markdown')
+                return
+
+        first_name = message.from_user.first_name or ""
+        last_name = message.from_user.last_name or ""
+        full_name = f"{first_name} {last_name}".strip() or message.from_user.username or f"User_{user_id[-4:]}"
+        register_user(user_id, full_name)
+
+        if add_watch(user_id, symbol):
+            bot.reply_to(message, f"✅ เพิ่ม **{symbol}** เข้า Watchlist แล้วครับ", parse_mode='Markdown')
+        else:
+            bot.reply_to(message, f"⚠️ **{symbol}** มีอยู่ใน Watchlist แล้วครับ", parse_mode='Markdown')
+    except Exception as e:
+        print(f"[BotError /watch] {e}", flush=True)
+        bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")
+
+
+@bot.message_handler(commands=['unwatch'])
+def handle_unwatch(message):
+    """ลบหุ้นออกจาก Watchlist — /unwatch [ticker]"""
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id): return
+
+    try:
+        parts = message.text.split()
+        if len(parts) != 2:
+            bot.reply_to(
+                message,
+                "❌ รูปแบบผิด! พิมพ์: `/unwatch [ชื่อหุ้น]`\nเช่น: `/unwatch AAPL`",
+                parse_mode='Markdown',
+            )
+            return
+
+        symbol = parts[1].upper()
+        existing = get_user_watch(user_id)
+        if symbol not in existing:
+            bot.reply_to(
+                message,
+                f"ℹ️ ไม่พบ **{symbol}** ใน Watchlist\nพิมพ์ `/portfolio` หรือเปิดเมนู Watchlist เพื่อดูรายการที่มีอยู่ครับ",
+                parse_mode='Markdown',
+            )
+            return
+
+        remove_watch_db(user_id, symbol)
+        bot.reply_to(message, f"🗑️ ลบ **{symbol}** ออกจาก Watchlist แล้วครับ", parse_mode='Markdown')
+    except Exception as e:
+        print(f"[BotError /unwatch] {e}", flush=True)
+        bot.reply_to(message, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ")
+
+
 # ==========================================
 # 🌟 ระบบบันทึกและดูพอร์ตลงทุน (แก้บั๊ก Telegram Markdown)
 # ==========================================
@@ -1918,6 +1992,10 @@ def handle_manual(message):
         "`/del AAPL` — ลบหุ้นออกจากพอร์ต\n"
         "`/portfolio` หรือ `/port` — ดูพอร์ตทั้งหมด\n"
         "`/pnl` — สร้างการ์ด P&L แบบสวยงาม\n\n"
+
+        "**⭐ Watchlist**\n"
+        "`/watch AAPL` — เพิ่มหุ้นเข้า Watchlist (หรือกด ⭐ ใต้รายงาน)\n"
+        "`/unwatch AAPL` — ลบหุ้นออกจาก Watchlist\n\n"
 
         "**🔔 ตั้งเตือนราคา** _(PRO)_\n"
         "`/setalert AAPL 200` — แจ้งเตือนเมื่อ AAPL ถึง $200\n"
@@ -3233,7 +3311,7 @@ def inline_callbacks(call):
             bot.send_message(user_id, friendly_error("ระบบตั้งเตือนราคาขัดข้อง"))
 
     elif call.data.startswith('addwatch_'):
-        symbol = call.data.split('_')[1]
+        symbol = call.data.removeprefix('addwatch_')
         current_watch = len(get_user_watch(user_id))
         if role == 'free' and current_watch >= 3:
             bot.send_message(user_id, "🔒 **จำกัด Watchlist 3 ตัว** โปรดอัปเกรด", parse_mode="Markdown")
@@ -3242,17 +3320,17 @@ def inline_callbacks(call):
             bot.send_message(user_id, "🔒 **จำกัด Watchlist 10 ตัว** โปรดอัปเกรดเป็น PRO", parse_mode="Markdown")
             return
         if add_watch(user_id, symbol):
-            bot.send_message(user_id, f"✅ เพิ่ม **{symbol}** แล้ว")
+            bot.send_message(user_id, f"✅ เพิ่ม **{symbol}** แล้ว", parse_mode="Markdown")
         else:
-            bot.send_message(user_id, f"⚠️ มี **{symbol}** อยู่แล้ว")
-            
+            bot.send_message(user_id, f"⚠️ มี **{symbol}** อยู่แล้ว", parse_mode="Markdown")
+
     elif call.data.startswith('delwatch_'):
-        symbol = call.data.split('_')[1]
+        symbol = call.data.removeprefix('delwatch_')
         remove_watch_db(user_id, symbol)
-        bot.edit_message_text(f"🗑️ ลบ **{symbol}** ออกจาก Watchlist แล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id)
+        bot.edit_message_text(f"🗑️ ลบ **{symbol}** ออกจาก Watchlist แล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown")
 
     elif call.data.startswith('delalert_'):
-        alert_id = int(call.data.split('_')[1])
+        alert_id = int(call.data.removeprefix('delalert_'))
         remove_price_alert_db(user_id, alert_id)
         bot.edit_message_text(f"🗑️ ลบการตั้งเตือน ID {alert_id} แล้ว", chat_id=call.message.chat.id, message_id=call.message.message_id)
         
