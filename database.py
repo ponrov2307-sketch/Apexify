@@ -1272,9 +1272,18 @@ def check_and_grant_tier_codes(user_id, total_analyses, current_streak):
     """ตรวจว่า user ถึง tier ใหม่หรือยัง — ถ้าใช่ auto-create personal promo code
     Returns: list of dict {tier_id, badge, label, code, days, role_type} ที่ unlock ใหม่
     Idempotent: ถ้าเคย unlock แล้วจะไม่สร้าง code ซ้ำ
+    Note: skip code generation สำหรับ admin (ป้องกัน DM spam) — admin ดู badge UI ได้ปกติ
     """
     if not user_id:
         return []
+    # Skip admin — ไม่ต้องส่งโค้ดให้ admin (ใช้ DB ตรงได้)
+    try:
+        from config import ADMIN_ID as _ADMIN_ID
+        if _ADMIN_ID and str(user_id) == str(_ADMIN_ID):
+            return []
+    except Exception:
+        pass
+
     conn = get_connection()
     c = conn.cursor()
     newly_unlocked = []
