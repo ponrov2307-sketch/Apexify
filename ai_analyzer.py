@@ -12,6 +12,7 @@ from cachetools import TTLCache
 from config import GEMINI_API_KEY, gemini_client
 from technical_tools import build_multitimeframe_trade_context
 from news_context import fetch_ticker_news, format_news_for_prompt, format_news_for_display
+from user_memory import build_user_memory, find_holding, format_memory_for_prompt, render_holding_line
 
 client = gemini_client
 
@@ -681,7 +682,7 @@ Output schema (ตอบเฉพาะ JSON object ตามนี้):
 """.strip()
 
 
-def _build_member_prompt(context, trends, defaults, tier, news_block=""):
+def _build_member_prompt(context, trends, defaults, tier, news_block="", memory_block=""):
     """Dynamic content per-symbol — prepend to contents (system_instruction มี rules แล้ว)"""
     def trend_snapshot(label, snapshot):
         if not snapshot.get("available"):
@@ -709,6 +710,9 @@ tier={tier_label} | {context.get('symbol')} @ {_format_price(context.get('price'
         base += "\n\nRecent headlines (newest first, [age]):\n" + news_block
     else:
         base += "\n\nRecent headlines: (ไม่มีข่าว — ตอบ news_summary=\"ไม่มีข่าวสำคัญใน 7 วัน\" news_impact=\"neutral\")"
+
+    if memory_block:
+        base += f"\n\nUser context: {memory_block}\n(ถ้า symbol อยู่ใน holds/watching → ใช้ ai_insight ผูกเข้ากับ avg_cost ของ user เช่น 'ที่ราคาทุน X ตอนนี้กำไร/ขาดทุน Y%' หรือ 'หุ้นที่คุณติดตามอยู่')"
 
     return base
 
@@ -878,7 +882,7 @@ def _calculate_confidence_score(context, trends):
     return score, label, factors
 
 
-def _build_member_analysis(context, tier):
+def _build_member_analysis(context, tier, user_memory=None):
     trends = _build_trend_summary(context)
     dominant_bias = _choose_dominant_bias(trends)
     deterministic_plan = _build_deterministic_plan(context, dominant_bias)
@@ -897,9 +901,17 @@ def _build_member_analysis(context, tier):
         news_items = []
         news_block = ""
 
-    prompt = _build_member_prompt(context, trends, defaults, tier, news_block=news_block)
-    # cache key รวม news_count เพื่อให้ cache miss เมื่อข่าวเปลี่ยน (ไม่งั้น AI summary ค้าง)
-    cache_key = _ai_cache_key(context.get("symbol"), dominant_bias, context.get("price")) + (len(news_items),)
+    # 🧠 User memory block — ถ้า user มี holdings/watchlist
+    memory_block = ""
+    if user_memory:
+        try:
+            memory_block = format_memory_for_prompt(user_memory, current_symbol=context.get("symbol"))
+        except Exception as e:
+            print(f"[ai_analyzer] memory format err: {type(e).__name__}: {str(e)[:80]}", flush=True)
+
+    prompt = _build_member_prompt(context, trends, defaults, tier, news_block=news_block, memory_block=memory_block)
+    # cache key รวม news_count + memory presence เพื่อให้ cache miss เมื่อ context เปลี่ยน
+    cache_key = _ai_cache_key(context.get("symbol"), dominant_bias, context.get("price")) + (len(news_items), bool(memory_block))
     payload = _request_member_payload(prompt, defaults, cache_key=cache_key)
     analysis = _merge_member_payload(defaults, payload, context)
     analysis["news_items"] = news_items  # raw headlines สำหรับ render
@@ -1195,11 +1207,22 @@ def _render_news_block(analysis, max_headlines=3):
     return "\n".join(lines)
 
 
-def _render_vip_report(context, trends, analysis):
+def _render_vip_report(context, trends, analysis, user_memory=None):
     """VIP: ภาพรวม + Trend Radar + Watch Next + Insight (ไม่มี entry/TP/SL ตัวเลข — นั่นคือ PRO)"""
     sections = [
         _build_member_snapshot(context, trends, "vip"),
     ]
+    # 💼 ถ้า user ถือ symbol นี้ — แสดง holding line ใต้ snapshot
+    if user_memory:
+        try:
+            holding = find_holding(user_memory, context.get("symbol"))
+            if holding:
+                price = _first_valid(context.get("price"), context.get("day", {}).get("price"))
+                holding_line = render_holding_line(holding, current_price=price)
+                if holding_line:
+                    sections.extend(["", holding_line])
+        except Exception as _e:
+            print(f"[ai_analyzer] holding render err: {type(_e).__name__}", flush=True)
     confidence_line = _render_confidence_meter(analysis)
     if confidence_line:
         sections.extend(["", confidence_line])
@@ -1226,7 +1249,7 @@ def _render_vip_report(context, trends, analysis):
     return "\n".join(sections)
 
 
-def _render_pro_report(context, trends, deterministic_plan, analysis):
+def _render_pro_report(context, trends, deterministic_plan, analysis, user_memory=None):
     plan_bias = deterministic_plan.get("bias", "bullish")
     day_plan = deterministic_plan["day_plan"]
     position_plan = deterministic_plan["position_plan"]
@@ -1239,6 +1262,16 @@ def _render_pro_report(context, trends, deterministic_plan, analysis):
     sections = [
         _build_member_snapshot(context, trends, "pro"),
     ]
+    # 💼 ถ้า user ถือ symbol นี้ — แสดง holding line + P&L
+    if user_memory:
+        try:
+            holding = find_holding(user_memory, context.get("symbol"))
+            if holding:
+                holding_line = render_holding_line(holding, current_price=current_price)
+                if holding_line:
+                    sections.extend(["", holding_line])
+        except Exception as _e:
+            print(f"[ai_analyzer] holding render err: {type(_e).__name__}", flush=True)
     confidence_line = _render_confidence_meter(analysis)
     if confidence_line:
         sections.extend(["", confidence_line])
@@ -1465,10 +1498,13 @@ def render_paywall_preview(preview):
     return "\n".join(lines)
 
 
-def generate_apexify_report(tech_data, role="free"):
+def generate_apexify_report(tech_data, role="free", user_id=None):
     """คืน (report_text, plan_dict_or_none)
     plan_dict = day_plan ของ deterministic_plan สำหรับ PRO เท่านั้น (ใช้วาดบนกราฟ)
     Free/VIP คืน plan = None
+
+    user_id (optional): ใช้สำหรับ personalize — ถ้ามี holdings/watchlist จะใส่
+    เข้า Gemini prompt ให้ AI กล่าวถึง + render "💼 คุณถืออยู่" บน report
     """
     normalized_role = str(role or "free").lower()
     if normalized_role not in ("vip", "pro"):
@@ -1480,19 +1516,27 @@ def generate_apexify_report(tech_data, role="free"):
     except Exception:
         context = _fallback_context_from_tech_data(tech_data)
 
+    # 🧠 User memory — fetch holdings + watchlist (cached 30 min)
+    user_memory = None
+    if user_id:
+        try:
+            user_memory = build_user_memory(user_id)
+        except Exception as _e:
+            print(f"[ai_analyzer] user_memory err for {user_id}: {type(_e).__name__}: {str(_e)[:80]}", flush=True)
+
     try:
-        trends, deterministic_plan, analysis = _build_member_analysis(context, normalized_role)
+        trends, deterministic_plan, analysis = _build_member_analysis(context, normalized_role, user_memory=user_memory)
         if normalized_role == "vip":
-            return _render_vip_report(context, trends, analysis), None
-        return _render_pro_report(context, trends, deterministic_plan, analysis), deterministic_plan.get("day_plan")
+            return _render_vip_report(context, trends, analysis, user_memory=user_memory), None
+        return _render_pro_report(context, trends, deterministic_plan, analysis, user_memory=user_memory), deterministic_plan.get("day_plan")
     except Exception:
         fallback_context = context or _fallback_context_from_tech_data(tech_data)
         trends = _build_trend_summary(fallback_context)
         deterministic_plan = _build_deterministic_plan(fallback_context, _choose_dominant_bias(trends))
         analysis = _build_member_defaults(fallback_context, trends, deterministic_plan)
         if normalized_role == "vip":
-            return _render_vip_report(fallback_context, trends, analysis), None
-        return _render_pro_report(fallback_context, trends, deterministic_plan, analysis), deterministic_plan.get("day_plan")
+            return _render_vip_report(fallback_context, trends, analysis, user_memory=user_memory), None
+        return _render_pro_report(fallback_context, trends, deterministic_plan, analysis, user_memory=user_memory), deterministic_plan.get("day_plan")
 
 
 def analyze_payment_slip(file_path_or_bytes):
@@ -1519,3 +1563,128 @@ def analyze_payment_slip(file_path_or_bytes):
         return response.text
     except Exception:
         return '{"is_slip": false, "amount": 0, "ref_no": ""}'
+
+
+# ==========================================
+# 📷 Chart Vision — VIP/PRO ส่งรูป chart → Apexify อ่าน + วิเคราะห์
+# ==========================================
+_CHART_VISION_PROMPT = """
+คุณคือนักวิเคราะห์เทคนิคของ Apexify วิเคราะห์ chart นี้แล้วตอบเป็น JSON เท่านั้น ห้ามมี markdown หรือข้อความนอก JSON
+
+กฎ:
+- ภาษาไทยสะกดถูก ห้ามใช้คำแปลก
+- โทนเป็นกลาง-ระวัง ห้ามชี้นำซื้อขายเด็ดขาด (ห้ามใช้ "ซื้อเลย" "ขายเลย" "100%" "การันตี")
+- ถ้าไม่ใช่ chart หุ้น/crypto/forex → is_chart=false
+- field "สั้น" ห้ามเกิน 100 ตัวอักษร, field analysis/recommendation ห้ามเกิน 200
+
+Output schema:
+{
+  "is_chart": true | false,
+  "symbol_visible": "ticker ที่เห็นในรูป (ถ้าเห็น) เช่น AAPL หรือ N/A",
+  "timeframe": "รายวัน | รายสัปดาห์ | 4 ชม. | รายชั่วโมง | 5 นาที | ไม่ระบุ",
+  "trend": "ขาขึ้น | ขาลง | sideways | ไม่ชัดเจน",
+  "key_support": "ราคาแนวรับที่เห็น (ตัวเลข หรือ N/A)",
+  "key_resistance": "ราคาแนวต้านที่เห็น (ตัวเลข หรือ N/A)",
+  "patterns": ["pattern ที่เห็น เช่น head&shoulders, triangle, flag"],
+  "indicators_visible": ["RSI", "MACD", "EMA", "Bollinger", ฯลฯ],
+  "current_position": "ตอนนี้ราคาอยู่ตรงไหนของกรอบ (ใกล้แนวรับ/แนวต้าน/กลาง)",
+  "analysis": "สรุปสิ่งที่เห็น 2-3 ประโยค (ภาษาไทย)",
+  "recommendation": "คำแนะนำเชิงเทคนิค: ถ้าผ่านแนวต้าน X ให้ดู Y; ถ้าหลุดแนวรับ Z ให้ระวัง"
+}
+""".strip()
+
+
+def analyze_chart_image(file_path_or_bytes):
+    """ใช้ Gemini Vision อ่าน chart screenshot — คืน parsed dict หรือ None ถ้าล้มเหลว
+
+    Args: file path หรือ bytes ของรูป chart
+    Returns: dict ตาม schema ใน _CHART_VISION_PROMPT หรือ None
+    """
+    try:
+        if isinstance(file_path_or_bytes, bytes):
+            image = PIL.Image.open(io.BytesIO(file_path_or_bytes))
+        else:
+            image = PIL.Image.open(file_path_or_bytes)
+    except Exception as e:
+        print(f"[ChartVision] image load err: {type(e).__name__}: {str(e)[:80]}", flush=True)
+        return None
+
+    try:
+        from google.genai import types as genai_types
+        config = genai_types.GenerateContentConfig(
+            temperature=0.3,
+            response_mime_type="application/json",
+        )
+    except ImportError:
+        config = None
+
+    try:
+        kwargs = {
+            "model": "gemini-2.5-flash",
+            "contents": [image, _CHART_VISION_PROMPT],
+        }
+        if config is not None:
+            kwargs["config"] = config
+        response = _gemini_call_with_timeout(timeout_s=GEMINI_IMAGE_TIMEOUT_S, **kwargs)
+        raw = getattr(response, "text", "") or ""
+        block = _extract_json_block(raw)
+        if not block:
+            return None
+        parsed = json.loads(block)
+        if not isinstance(parsed, dict):
+            return None
+        return parsed
+    except Exception as e:
+        print(f"[ChartVision] gemini err: {type(e).__name__}: {str(e)[:120]}", flush=True)
+        return None
+
+
+def render_chart_vision_report(parsed):
+    """แปลง parsed dict เป็น Markdown text สำหรับ Telegram"""
+    if not parsed or not isinstance(parsed, dict):
+        return None
+    if not parsed.get("is_chart"):
+        return (
+            "📷 *Apexify อ่าน Chart*\n\n"
+            "ดูเหมือนรูปนี้ไม่ใช่ chart หุ้น/crypto/forex ครับ\n"
+            "ลองส่งรูป chart ที่ชัดเจน (จาก TradingView, Bualuang, Settrade ฯลฯ)"
+        )
+
+    symbol = parsed.get("symbol_visible") or "N/A"
+    timeframe = parsed.get("timeframe") or "ไม่ระบุ"
+    trend = parsed.get("trend") or "ไม่ชัดเจน"
+    support = parsed.get("key_support") or "N/A"
+    resistance = parsed.get("key_resistance") or "N/A"
+    position = parsed.get("current_position") or ""
+    analysis = parsed.get("analysis") or ""
+    recommendation = parsed.get("recommendation") or ""
+    patterns = parsed.get("patterns") or []
+    indicators = parsed.get("indicators_visible") or []
+
+    trend_emoji = {"ขาขึ้น": "📈", "ขาลง": "📉", "sideways": "↔️"}.get(trend, "❓")
+
+    lines = [
+        "📷 *Apexify อ่าน Chart ของคุณ*",
+        "─" * 17,
+        f"🎯 *Symbol:* `{symbol}`",
+        f"⏱ *Timeframe:* {timeframe}",
+        f"{trend_emoji} *Trend:* {trend}",
+        f"🟢 *แนวรับ:* `{support}`",
+        f"🔴 *แนวต้าน:* `{resistance}`",
+    ]
+    if position:
+        lines.append(f"📍 *ตำแหน่งราคา:* {position}")
+    if patterns:
+        lines.append(f"🔷 *Pattern:* {', '.join(patterns[:3])}")
+    if indicators:
+        lines.append(f"📊 *Indicators:* {', '.join(indicators[:5])}")
+    if analysis:
+        lines.extend(["", f"🧠 *วิเคราะห์:* {analysis}"])
+    if recommendation:
+        lines.extend(["", f"💡 *แนะนำ:* {recommendation}"])
+
+    if symbol and symbol != "N/A":
+        lines.extend(["", f"_พิมพ์ `{symbol}` ให้ Apexify ดึงข้อมูล real-time + Plan เทรด_"])
+
+    lines.extend(["", DISCLAIMER_TEXT])
+    return "\n".join(lines)

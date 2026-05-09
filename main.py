@@ -2766,6 +2766,62 @@ def handle_payment_slip_check(message):
             return
 
         if status in {'invalid_slip', 'amount_mismatch'}:
+            # 📷 Chart Vision fallback — ถ้า slip ใช้ไม่ได้ ลอง treat as chart screenshot
+            # Free → upsell, VIP/PRO → run Gemini Vision อ่าน chart ให้
+            if status == 'invalid_slip':
+                try:
+                    role, _ = check_subscription(user_id)
+                except Exception:
+                    role = 'free'
+                if role in ('vip', 'pro') or user_id == ADMIN_ID:
+                    bot.edit_message_text(
+                        "📷 ดูเหมือนรูปนี้ไม่ใช่สลิป — Apexify กำลังลองอ่านเป็น Chart...",
+                        message.chat.id,
+                        progress_msg.message_id,
+                    )
+                    try:
+                        from ai_analyzer import analyze_chart_image, render_chart_vision_report
+                        parsed = analyze_chart_image(downloaded_file)
+                        rendered = render_chart_vision_report(parsed)
+                        if rendered:
+                            bot.edit_message_text(
+                                rendered,
+                                message.chat.id,
+                                progress_msg.message_id,
+                                parse_mode="Markdown",
+                            )
+                            return
+                    except Exception as _e:
+                        print(f"[ChartVision] err for {user_id}: {type(_e).__name__}: {str(_e)[:80]}", flush=True)
+                    bot.edit_message_text(
+                        "❌ Apexify อ่าน chart นี้ไม่ได้ครับ ลองส่งรูปใหม่ที่ชัดเจนกว่านี้",
+                        message.chat.id,
+                        progress_msg.message_id,
+                    )
+                    return
+                # Free user — upsell chart vision เป็น VIP/PRO feature
+                upsell_kb = InlineKeyboardMarkup(row_width=1)
+                upsell_kb.add(
+                    InlineKeyboardButton("🆓 ทดลอง PRO 7 วันฟรี — อ่าน chart ได้", callback_data="menu_freetrial"),
+                )
+                upsell_kb.add(
+                    InlineKeyboardButton("💎 สมัคร VIP/PRO", callback_data="menu_vip"),
+                )
+                bot.edit_message_text(
+                    (
+                        "📷 *Apexify อ่าน Chart ได้!*\n\n"
+                        "ส่งรูป chart จาก Bualuang/Settrade/TradingView/อื่นๆ → Apexify "
+                        "วิเคราะห์ trend, แนวรับ/แนวต้าน, pattern, indicators ที่เห็น\n\n"
+                        "🔒 ฟีเจอร์นี้สำหรับ *VIP / PRO* เท่านั้น\n"
+                        "_(หรือทดลอง PRO 7 วันฟรี ใช้ได้ทันที)_"
+                    ),
+                    message.chat.id,
+                    progress_msg.message_id,
+                    parse_mode="Markdown",
+                    reply_markup=upsell_kb,
+                )
+                return
+            # amount_mismatch — รูปเป็น slip จริง แต่ยอดผิด → ข้อความเดิม
             bot.edit_message_text(
                 "❌ รูปนี้ไม่ใช่สลิปโอนเงินที่ตรวจสอบได้ หรือข้อมูลบนสลิปไม่ถูกต้องครับ",
                 message.chat.id,
@@ -2880,7 +2936,7 @@ def inline_callbacks(call):
         if err or not tech_data:
             bot.edit_message_text(f"❌ ไม่สามารถดึงข้อมูล {symbol} ได้", user_id, load_msg.message_id)
             return
-        report, _ = generate_apexify_report(tech_data, role=role)
+        report, _ = generate_apexify_report(tech_data, role=role, user_id=user_id)
         correct_symbol = tech_data['symbol']
         kb = InlineKeyboardMarkup(row_width=2)
         kb.add(InlineKeyboardButton(f"⭐ เพิ่ม {correct_symbol} เข้า Watchlist", callback_data=f"addwatch_{correct_symbol}"))
@@ -4675,7 +4731,7 @@ def handle_main(message):
 
     # 🌟 Wrap AI report generation — กัน Gemini 503/safety crash ทำให้ load_msg ค้าง
     try:
-        report, plan = generate_apexify_report(tech_data, role=role)
+        report, plan = generate_apexify_report(tech_data, role=role, user_id=user_id)
     except Exception as e:
         print(f"[Analyze] generate_apexify_report failed for {symbol}: {e}", flush=True)
         err_str = str(e).lower()

@@ -278,7 +278,7 @@ step "📦 [7/11] Syncing Python dependencies" \
      "install_requirements" "false"
 
 step "🧪 [8/11] Running Python warp-syntax check" \
-     "\"\$PYTHON_BIN\" -m py_compile main.py config.py dashboard_login.py keep_alive.py admin_service.py alert_system.py database.py ai_analyzer.py technical_tools.py slipok_service.py news_context.py intraday_volume.py" "false"
+     "\"\$PYTHON_BIN\" -m py_compile main.py config.py dashboard_login.py keep_alive.py admin_service.py alert_system.py database.py ai_analyzer.py technical_tools.py slipok_service.py news_context.py intraday_volume.py user_memory.py" "false"
 
 step "🧰 [9/11] Verifying runtime imports" \
      "verify_runtime_imports" "false"
