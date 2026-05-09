@@ -2624,7 +2624,7 @@ def handle_payment_slip_check(message):
             if amount in topup_packages:
                 # === Top-up flow ===
                 credits = topup_packages[amount]
-                claim_status, new_balance = claim_slip_and_add_topup(user_id, ref_no, credits)
+                claim_status, new_balance = claim_slip_and_add_topup(user_id, ref_no, credits, amount=amount)
                 if claim_status == "duplicate":
                     bot.edit_message_text(
                         "❌ **สลิปนี้ถูกใช้งานไปแล้ว!**\nไม่อนุญาตให้ใช้สลิปซ้ำครับ",
@@ -2688,11 +2688,23 @@ def handle_payment_slip_check(message):
                 return
 
             target_role, subscription_days, message_template = package_info
+            # 📊 Tag payment type สำหรับ analytics — flash vs annual vs monthly
+            _payment_type_map = {
+                FLASH_VIP_AMOUNT: 'flash_vip',
+                FLASH_PRO_AMOUNT: 'flash_pro',
+                79: 'monthly_vip',
+                109: 'monthly_pro',
+                790: 'annual_vip',
+                1090: 'annual_pro',
+            }
+            _payment_type = _payment_type_map.get(amount, 'standard')
             claim_status, expiry = claim_slip_and_add_subscription(
                 user_id,
                 ref_no,
                 target_role,
                 subscription_days,
+                payment_type=_payment_type,
+                amount=amount,
             )
             if claim_status == "duplicate":
                 bot.edit_message_text(

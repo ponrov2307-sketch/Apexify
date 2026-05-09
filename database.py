@@ -461,6 +461,15 @@ def init_db():
     # 🌟 ฐานข้อมูลเก็บสลิปที่ใช้แล้ว ป้องกันการส่งซ้ำ
     c.execute('''CREATE TABLE IF NOT EXISTS used_slips
                  (ref_no TEXT PRIMARY KEY, user_id TEXT, date_used TEXT)''')
+    # 📊 Payment type tracking — แยก flash/annual/monthly/topup เพื่อดู conversion ภายหลัง
+    try:
+        c.execute("ALTER TABLE used_slips ADD COLUMN IF NOT EXISTS payment_type TEXT DEFAULT 'standard'")
+    except Exception as _e:
+        print(f"[init_db] used_slips.payment_type migration: {_e}", flush=True)
+    try:
+        c.execute("ALTER TABLE used_slips ADD COLUMN IF NOT EXISTS amount NUMERIC")
+    except Exception as _e:
+        print(f"[init_db] used_slips.amount migration: {_e}", flush=True)
 
     # 🌟 ตารางใหม่: เก็บประวัติสัญญาณเพื่อใช้วัดความแม่นยำ (Accuracy Log)
     _ensure_alert_log_schema(c)
@@ -1163,6 +1172,41 @@ def consume_flash_discount(user_id):
         conn.close()
 
 
+def get_payment_type_breakdown(days_back=30):
+    """รายงาน conversion breakdown แยกตาม payment_type ใน N วันล่าสุด
+    Returns: list of dict {type, count, total_amount}
+    ใช้กับ /admin command ดู conversion rate ของ flash vs standard vs annual
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        from datetime import timedelta
+        cutoff = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d %H:%M:%S')
+        c.execute(
+            """
+            SELECT
+              COALESCE(payment_type, 'standard') AS type,
+              COUNT(*) AS cnt,
+              COALESCE(SUM(amount), 0) AS total
+            FROM used_slips
+            WHERE date_used >= %s
+            GROUP BY COALESCE(payment_type, 'standard')
+            ORDER BY cnt DESC
+            """,
+            (cutoff,),
+        )
+        rows = c.fetchall() or []
+        return [
+            {"type": str(r[0]), "count": int(r[1]), "total_amount": float(r[2] or 0)}
+            for r in rows
+        ]
+    except Exception as e:
+        print(f"[payment_breakdown] err: {e}", flush=True)
+        return []
+    finally:
+        conn.close()
+
+
 # 👥 Social proof stats — ดึง real-time จาก DB ใส่ paywall
 def get_social_proof_stats(symbol=None):
     """ดึงสถิติเพื่อแสดง social proof ใน paywall — ทุก count atomic ไม่กิน performance
@@ -1598,7 +1642,7 @@ def mark_slip_used(ref_no, user_id):
     finally:
         conn.close()
 
-def claim_slip_and_add_subscription(user_id: str, ref_no: str, role: str, days: int) -> tuple[str, str | None]:
+def claim_slip_and_add_subscription(user_id: str, ref_no: str, role: str, days: int, payment_type: str = 'standard', amount: float | None = None) -> tuple[str, str | None]:
     conn = get_connection()
     c = conn.cursor()
     try:
@@ -1606,12 +1650,12 @@ def claim_slip_and_add_subscription(user_id: str, ref_no: str, role: str, days: 
         now_str = now.strftime('%Y-%m-%d %H:%M:%S')
         c.execute(
             """
-            INSERT INTO used_slips (ref_no, user_id, date_used)
-            VALUES (%s, %s, %s)
+            INSERT INTO used_slips (ref_no, user_id, date_used, payment_type, amount)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (ref_no) DO NOTHING
             RETURNING ref_no
             """,
-            (str(ref_no), str(user_id), now_str),
+            (str(ref_no), str(user_id), now_str, str(payment_type or 'standard'), float(amount) if amount else None),
         )
         if c.fetchone() is None:
             return "duplicate", None
@@ -1670,7 +1714,7 @@ def claim_slip_and_add_subscription(user_id: str, ref_no: str, role: str, days: 
         conn.close()
 
 
-def claim_slip_and_add_topup(user_id: str, ref_no: str, count: int) -> tuple[str, int | None]:
+def claim_slip_and_add_topup(user_id: str, ref_no: str, count: int, amount: float | None = None) -> tuple[str, int | None]:
     """ใช้สลิปเติม top-up balance — ไม่เปลี่ยน role/expiry แค่บวก credits
 
     Returns: (status, new_balance_or_None)
@@ -1685,12 +1729,12 @@ def claim_slip_and_add_topup(user_id: str, ref_no: str, count: int) -> tuple[str
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         c.execute(
             """
-            INSERT INTO used_slips (ref_no, user_id, date_used)
-            VALUES (%s, %s, %s)
+            INSERT INTO used_slips (ref_no, user_id, date_used, payment_type, amount)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (ref_no) DO NOTHING
             RETURNING ref_no
             """,
-            (str(ref_no), str(user_id), now_str),
+            (str(ref_no), str(user_id), now_str, 'topup', float(amount) if amount else None),
         )
         if c.fetchone() is None:
             return "duplicate", None
