@@ -200,7 +200,9 @@ def format_news_for_prompt(items, max_items=5):
 
 
 def format_news_for_display(items, max_items=3):
-    """format สำหรับแสดงให้ user เห็น (Telegram MarkdownV1) — สั้นกระชับ"""
+    """format สำหรับแสดงให้ user เห็น (Telegram MarkdownV1) — กระชับ 1 บรรทัด/ข่าว
+    ตัด source ออก เพราะ user ไม่ต้องการ source ขนาดนั้น + headline 90 char พอ
+    """
     if not items:
         return ""
     now = time.time()
@@ -210,17 +212,14 @@ def format_news_for_display(items, max_items=3):
         if pub > 0:
             age_h = max(0, (now - pub) / 3600)
             if age_h < 1:
-                age = f"{int(age_h * 60)} นาที"
+                age = f"{int(age_h * 60)}m"
             elif age_h < 48:
-                age = f"{age_h:.0f} ชม."
+                age = f"{age_h:.0f}h"
             else:
-                age = f"{age_h / 24:.0f} วัน"
+                age = f"{age_h / 24:.0f}d"
         else:
-            age = "ล่าสุด"
-        # escape underscore + asterisk ใน title (Telegram Markdown)
-        title = (item.get("title") or "").strip()[:120]
+            age = "—"
+        title = (item.get("title") or "").strip()[:90]
         title = title.replace("*", "·").replace("_", " ").replace("`", "'")
-        source = (item.get("source") or "").strip()
-        source_str = f" — _{source}_" if source else ""
-        lines.append(f"  • {title}  `({age})`{source_str}")
+        lines.append(f"  • {title} `[{age}]`")
     return "\n".join(lines)

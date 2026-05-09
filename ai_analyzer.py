@@ -80,9 +80,7 @@ def _ai_cache_set(key, value):
         _ai_response_cache[key] = value
 
 DISCLAIMER_TEXT = (
-    "_⚠️ ข้อมูลในรายงานฉบับนี้จัดทำขึ้นเพื่อประกอบการพิจารณาเท่านั้น "
-    "มิใช่คำแนะนำการลงทุน การเสนอขาย หรือการชักชวนให้ซื้อขายหลักทรัพย์ใด ๆ "
-    "การลงทุนมีความเสี่ยง ผู้ลงทุนควรศึกษาข้อมูลและใช้ดุลยพินิจของตนเองก่อนตัดสินใจลงทุน_"
+    "_⚠️ ข้อมูลเพื่อประกอบการพิจารณา ไม่ใช่คำแนะนำลงทุน · การลงทุนมีความเสี่ยง_"
 )
 
 UNSAFE_MARKDOWN_CHARS = r"[_`~>#\\+\\=\\|\\{\\}\\!\\*]"
@@ -659,7 +657,7 @@ _MEMBER_SYSTEM_INSTRUCTION = """
 - ข้อมูลไม่พอ→ใช้คำว่า "ข้อมูลไม่เพียงพอ"
 - ทุกฟิลด์ "สั้น" = ห้ามเกิน 80 ตัวอักษร และต้อง actionable ไม่ใช่ขยายความซ้ำ
 - ฟิลด์ watch_next/confirmation_signal/invalidation = ห้ามเกิน 120 ตัวอักษร
-- ฟิลด์ news_summary = ห้ามเกิน 180 ตัวอักษร อ้างอิงเฉพาะ headline ที่ให้มา ห้ามแต่งข่าวเอง
+- ฟิลด์ news_summary = ห้ามเกิน 100 ตัวอักษร อ้างอิงเฉพาะ headline ที่ให้มา ห้ามแต่งข่าวเอง — สั้นกระชับ พูดเฉพาะที่กระทบราคา
 - ถ้าไม่มี headline หรือ headline ไม่เกี่ยว = news_summary="ไม่มีข่าวสำคัญใน 7 วัน" และ news_impact="neutral"
 - ห้ามคัดลอก headline ตรงๆ — ต้องสรุปเป็นภาษาไทยเชื่อมโยงต่อราคา
 
@@ -1237,7 +1235,7 @@ def _render_vip_report(context, trends, analysis, user_memory=None):
         "",
         f"*🧠 Apexify Insight:* {analysis['ai_insight']}",
     ])
-    news_block = _render_news_block(analysis, max_headlines=3)
+    news_block = _render_news_block(analysis, max_headlines=2)
     if news_block:
         sections.extend(["", news_block])
     sections.extend([
@@ -1305,7 +1303,7 @@ def _render_pro_report(context, trends, deterministic_plan, analysis, user_memor
         "",
         f"*🧠 Apexify Insight:* {analysis['ai_insight']}",
     ])
-    news_block = _render_news_block(analysis, max_headlines=5)
+    news_block = _render_news_block(analysis, max_headlines=3)
     if news_block:
         sections.extend(["", news_block])
     sections.extend([
@@ -1358,30 +1356,32 @@ def _generate_free_report(tech_data):
     else:
         obv_status = "➖ นิ่งๆ ทรงตัว"
 
-    report = f"🤖 **Apexify สแกนหุ้น: {symbol}**\n"
-    report += f"🏷 **ราคาล่าสุด:** `{price:,.2f}`\n"
-    report += "━" * 15 + "\n"
-    report += "📊 **[ สุขภาพหุ้นตอนนี้ ]**\n"
-    report += f"• 🌊 **เทรนด์หลัก:** {momentum} `{trend_detail}`\n"
-    report += f"• 🌡️ **RSI (ความร้อนแรง):** {rsi_status} `({rsi:.2f})`\n"
-    report += f"• ⚡ **MACD (โมเมนตัม):** {macd_status} `{macd_detail}`\n"
-    report += f"• 💰 **Volume (กระแสเงิน):** {obv_status} `{volume_detail}`\n"
-    report += "\n🎯 **[ โซนราคาที่ต้องจับตา ]**\n"
-    report += f"• 🟢 **แนวรับ:** `{support:,.2f}`\n"
-    report += f"• 🔴 **แนวต้าน (จุดวัดใจ):** `{resistance:,.2f}`\n"
+    report = f"🤖 **Apexify: {symbol}** · `{price:,.2f}`\n"
+    report += "─" * 15 + "\n"
+    report += "*📊 สุขภาพหุ้น*\n"
+    report += f"• 🌊 *เทรนด์:* {momentum} `{trend_detail}`\n"
+    report += f"• 🌡️ *RSI:* {rsi_status} `({rsi:.2f})`\n"
+    report += f"• ⚡ *MACD:* {macd_status} `{macd_detail}`\n"
+    report += f"• 💰 *Volume:* {obv_status} `{volume_detail}`\n"
+    report += "\n*🎯 โซนราคา*\n"
+    report += f"• 🟢 *แนวรับ:* `{support:,.2f}`\n"
+    report += f"• 🔴 *แนวต้าน:* `{resistance:,.2f}`\n"
 
+    # POC แสดงเฉพาะกรณีมี value + ห่างจาก mid ของ S/R พอควร (ไม่งั้นซ้ำซ้อน BB)
     if poc_price > 0:
-        report += f"• 🟡 **โซนคนกระจุกตัว (POC):** `{poc_price:,.2f}` *(จุดสำคัญ)*\n"
+        report += f"• 🟡 *POC (โซนซื้อขายหนาแน่น):* `{poc_price:,.2f}`\n"
 
-    if lower_band != 0 and upper_band != 0:
-        report += f"• 🟡 **กรอบแกว่งตัว (BB):** `{lower_band:,.2f} - {upper_band:,.2f}`\n"
+    # BB แสดงเฉพาะถ้าต่างจาก S/R range พอควร (ไม่ซ้ำ)
+    if lower_band > 0 and upper_band > 0:
+        sr_mid = (support + resistance) / 2 if (support and resistance) else 0
+        bb_mid = (lower_band + upper_band) / 2
+        if not sr_mid or abs(bb_mid - sr_mid) / sr_mid > 0.01:
+            report += f"• 🔵 *Bollinger:* `{lower_band:,.2f} – {upper_band:,.2f}`\n"
 
-    report += "\n💎 *อัปเกรด VIP/PRO เพื่อดู:*\n"
-    report += "• 📈 กราฟเทคนิคพร้อม EMA + S/R + POC\n"
-    report += "• 🔭 Apexify Trend Radar 3 ระยะ (วัน/สัปดาห์/เดือน)\n"
-    report += "• 📰 ข่าวล่าสุดของหุ้น + Apexify สรุปผลกระทบต่อราคา\n"
-    report += "• 🎯 Entry/TP/SL ตัวเลขชัด + กราฟแสดง zone (PRO)\n"
-    report += "• 🔔 Smart Alerts + ตั้งเตือนราคา (PRO)\n"
+    report += "\n*💎 ที่ VIP/PRO เห็นเพิ่ม:*\n"
+    report += "• 📰 ข่าวล่าสุด + Apexify สรุปผลต่อราคา\n"
+    report += "• 🔭 Trend Radar 3 ระยะ + 🎯 Confidence Score\n"
+    report += "• 🎯 Entry/TP/SL ชัด + กราฟ annotated (PRO)\n"
     report += f"\n{DISCLAIMER_TEXT}"
     return report
 
