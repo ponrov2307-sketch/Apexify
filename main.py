@@ -22,6 +22,7 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       remove_watch_db, add_promo_code, redeem_code, get_user_stats,
                       claim_slip_and_add_subscription, claim_slip_and_add_topup,
                       get_topup_balance, consume_topup_balance,
+                      get_chart_previews_left, consume_chart_preview,
                       ban_user, unban_user, is_user_banned,
                       init_new_features_db, process_referral, get_referral_stats,
                       add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,
@@ -2932,14 +2933,28 @@ def inline_callbacks(call):
     if call.data.startswith('tutorial_analyze_'):
         symbol = call.data.replace('tutorial_analyze_', '').upper()
         load_msg = bot.send_message(user_id, f"🔍 กำลังวิเคราะห์ {symbol}...")
-        # 🛡 Tier-aware chart — Free: ไม่มีกราฟ (เหมือน flow ปกติ), VIP: basic chart
-        # PRO ก็ skip basic เพราะปกติจะวาด annotated หลัง plan (แต่ tutorial flow ไม่ทำ → text-only)
-        skip_chart = (role == 'free') or (role == 'pro')
-        tech_data, chart, err = _get_cached_analysis(symbol, generate_chart=not skip_chart)
+        # 🎁 Tier-aware chart — Free user: ใช้ chart preview (atomic consume ครั้งแรกครั้งเดียว)
+        # VIP: basic chart, PRO: skip (no annotated in tutorial flow)
+        chart_preview_consumed = False
+        if role == 'free' and user_id != ADMIN_ID:
+            try:
+                consumed, _remaining = consume_chart_preview(user_id)
+                chart_preview_consumed = consumed
+            except Exception as _e:
+                print(f"[ChartPreview] tutorial err: {type(_e).__name__}: {str(_e)[:80]}", flush=True)
+        # generate chart ถ้าเป็น VIP หรือ free ที่ใช้ preview ได้
+        want_chart = (role == 'vip') or chart_preview_consumed
+        tech_data, chart, err = _get_cached_analysis(symbol, generate_chart=want_chart)
         if err or not tech_data:
             bot.edit_message_text(f"❌ ไม่สามารถดึงข้อมูล {symbol} ได้", user_id, load_msg.message_id)
             return
         report, _ = generate_apexify_report(tech_data, role=role, user_id=user_id)
+        # Free + ใช้ preview → เพิ่ม banner ใน report ให้รู้ว่านี่คือพรีวิวฟรี
+        if chart_preview_consumed:
+            report = (
+                "🎁 *พรีวิวฟรี — กราฟครั้งแรกของคุณ* (รอบนี้เห็นกราฟ ครั้งหน้าต้อง VIP/PRO)\n\n"
+                + report
+            )
         correct_symbol = tech_data['symbol']
         kb = InlineKeyboardMarkup(row_width=2)
         kb.add(InlineKeyboardButton(f"⭐ เพิ่ม {correct_symbol} เข้า Watchlist", callback_data=f"addwatch_{correct_symbol}"))
@@ -4721,10 +4736,19 @@ def handle_main(message):
         except Exception:
             pass
 
-    # 🌟 Free: ไม่ต้องสร้างกราฟ (ประหยัดเวลา ~3-5 วิ + กันใช้ฟรีเหมือน premium)
-    # VIP: กราฟพื้นฐาน, PRO: จะสร้างกราฟ annotated หลังได้ plan
-    skip_chart = (role == 'free') or (role == 'pro')
-    tech_data, chart, err = _get_cached_analysis(symbol, generate_chart=not skip_chart)
+    # 🌟 Tier-aware chart:
+    # - Free: text only (แต่ใช้ preview ครั้งแรกตลอดชีวิตได้กราฟ wow once)
+    # - VIP: basic chart
+    # - PRO: skip basic + วาด annotated หลังได้ plan
+    chart_preview_consumed = False
+    if role == 'free' and user_id != ADMIN_ID:
+        try:
+            consumed, _remaining = consume_chart_preview(user_id)
+            chart_preview_consumed = consumed
+        except Exception as _e:
+            print(f"[ChartPreview] analyze err: {type(_e).__name__}: {str(_e)[:80]}", flush=True)
+    want_chart = (role == 'vip') or chart_preview_consumed
+    tech_data, chart, err = _get_cached_analysis(symbol, generate_chart=want_chart)
 
     if err:
         _safe_edit(err)
@@ -4735,6 +4759,12 @@ def handle_main(message):
     # 🌟 Wrap AI report generation — กัน Gemini 503/safety crash ทำให้ load_msg ค้าง
     try:
         report, plan = generate_apexify_report(tech_data, role=role, user_id=user_id)
+        # 🎁 Free user ใช้ preview ครั้งแรก → ใส่ banner บอกว่ารอบเดียว
+        if chart_preview_consumed:
+            report = (
+                "🎁 *พรีวิวฟรี — กราฟครั้งแรกของคุณ* (รอบนี้เห็นกราฟ ครั้งหน้าต้อง VIP/PRO)\n\n"
+                + report
+            )
     except Exception as e:
         print(f"[Analyze] generate_apexify_report failed for {symbol}: {e}", flush=True)
         err_str = str(e).lower()

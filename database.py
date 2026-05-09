@@ -439,6 +439,12 @@ def init_db():
         c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS topup_balance INTEGER DEFAULT 0")
     except Exception as _e:
         print(f"[init_db] users.topup_balance migration: {_e}", flush=True)
+    # 🎁 Chart preview — free user ได้กราฟครั้งแรกครั้งเดียวตลอดชีวิต (wow moment)
+    # ใช้ INTEGER (ไม่ใช่ BOOLEAN) เพื่อให้ปรับเพิ่มเป็น 2-3 ครั้งได้ในอนาคตโดยไม่ต้อง migrate
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chart_previews_left INTEGER DEFAULT 1")
+    except Exception as _e:
+        print(f"[init_db] users.chart_previews_left migration: {_e}", flush=True)
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes
                  (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '', role_type TEXT DEFAULT 'vip')''')
@@ -1015,6 +1021,39 @@ def consume_topup_balance(user_id, count=1):
     conn.commit()
     conn.close()
     return affected > 0
+
+
+# 🎁 Chart preview — free user ได้กราฟครั้งแรกตลอดชีวิต (default 1)
+def get_chart_previews_left(user_id):
+    """คืนจำนวน preview ที่เหลือ (int >= 0)"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT chart_previews_left FROM users WHERE user_id=%s", (str(user_id),))
+    result = c.fetchone()
+    conn.close()
+    if not result:
+        return 0
+    return int(result[0]) if result[0] is not None else 1
+
+
+def consume_chart_preview(user_id):
+    """หัก preview 1 ครั้ง — atomic UPDATE คืน (consumed:bool, remaining:int)
+    consumed=True ถ้าหักสำเร็จ, False ถ้าหมด/error
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE users SET chart_previews_left = chart_previews_left - 1 "
+        "WHERE user_id=%s AND COALESCE(chart_previews_left, 0) > 0 "
+        "RETURNING chart_previews_left",
+        (str(user_id),),
+    )
+    row = c.fetchone()
+    conn.commit()
+    conn.close()
+    if row is None:
+        return False, 0
+    return True, int(row[0]) if row[0] is not None else 0
 
 def get_users_watching(symbol):
     return _get_watchers_for_ticker(symbol)
