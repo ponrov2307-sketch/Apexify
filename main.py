@@ -900,14 +900,14 @@ def handle_backfill_analyses(message):
         c.close()
         conn.close()
 
+        # ใช้ plain text กัน Markdown parse error (em-dash ในข้อความบางครั้งทำให้ parser พัง)
         bot.reply_to(
             message,
-            f"✅ **Backfill สำเร็จ**\n\n"
+            f"✅ Backfill สำเร็จ\n\n"
             f"📊 พบ {len(rows)} user มี analysis_plans\n"
-            f"✏️ อัปเดต: **{updated}** คน (total=0 → count จาก plans)\n"
+            f"✏️ อัปเดต: {updated} คน (total=0 → count จาก plans)\n"
             f"⏭ ข้าม: {skipped} คน (มี total อยู่แล้ว ไม่เขียนทับ)\n\n"
-            f"_หมายเหตุ: backfill เฉพาะ PRO/admin ที่เคยมี plan log อยู่ — Free user ไม่มี history นับ_",
-            parse_mode="Markdown",
+            f"หมายเหตุ: backfill เฉพาะ PRO/admin ที่เคยมี plan log อยู่ — Free user ไม่มี history นับ",
         )
     except Exception as e:
         bot.reply_to(message, f"❌ Backfill error: {e}")
@@ -967,12 +967,23 @@ def handle_run_outcomes(message):
                     sym_log.append(f"❌ {symbol}: yf empty")
                     continue
 
+                # 🐛 Fix: hist.index = tz-aware (US/Eastern), issued_at = naive (DB)
+                # Strip tz จาก hist.index ก่อนเปรียบ
+                try:
+                    hist.index = hist.index.tz_localize(None)
+                except (TypeError, AttributeError):
+                    pass  # already naive
+
                 sym_updated = 0
                 for plan in plans:
                     plan_id, _, bias, e_low, e_high, tp1, tp2, sl, _, issued_at = plan
                     tp1_v = float(tp1) if tp1 is not None else None
                     tp2_v = float(tp2) if tp2 is not None else None
                     sl_v = float(sl) if sl is not None else None
+
+                    # Strip tz from issued_at if present (DB อาจเก็บมา tz-aware)
+                    if hasattr(issued_at, 'tzinfo') and issued_at.tzinfo is not None:
+                        issued_at = issued_at.replace(tzinfo=None)
 
                     plan_hist = hist[hist.index >= issued_at]
                     if plan_hist.empty:

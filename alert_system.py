@@ -2449,11 +2449,22 @@ def check_plan_outcomes():
             if hist.empty:
                 continue
 
+            # 🐛 Fix: hist.index = tz-aware (US/Eastern), issued_at = naive (DB)
+            # Strip tz ก่อนเปรียบเพื่อกัน TypeError
+            try:
+                hist.index = hist.index.tz_localize(None)
+            except (TypeError, AttributeError):
+                pass  # already naive
+
             for plan in plans:
                 plan_id, _, bias, e_low, e_high, tp1, tp2, sl, _, issued_at = plan
                 tp1_val = float(tp1) if tp1 is not None else None
                 tp2_val = float(tp2) if tp2 is not None else None
                 sl_val = float(sl) if sl is not None else None
+
+                # Strip tz from issued_at if present
+                if hasattr(issued_at, 'tzinfo') and issued_at.tzinfo is not None:
+                    issued_at = issued_at.replace(tzinfo=None)
 
                 # ดึงข้อมูลตั้งแต่วัน issued ของ plan นี้
                 plan_hist = hist[hist.index >= issued_at]
