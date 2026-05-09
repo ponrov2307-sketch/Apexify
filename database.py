@@ -1126,6 +1126,26 @@ def consume_chart_preview(user_id):
     return True, int(row[0]) if row[0] is not None else 0
 
 
+def refund_chart_preview(user_id):
+    """คืน preview 1 ครั้ง — ใช้กรณี analyze fail หลัง consume แล้ว
+    เพื่อกัน user เสียครั้งฟรีโดยไม่ได้ใช้
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "UPDATE users SET chart_previews_left = chart_previews_left + 1 "
+            "WHERE user_id=%s",
+            (str(user_id),),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[refund_chart_preview] err: {e}", flush=True)
+        conn.rollback()
+    finally:
+        conn.close()
+
+
 # 🎁 Flash discount — เปิดเมื่อ free โดน paywall ครั้งแรก
 # pricing: 63 = VIP 20% off, 87 = PRO 20% off
 FLASH_VIP_AMOUNT = 63

@@ -22,7 +22,7 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       remove_watch_db, add_promo_code, redeem_code, get_user_stats,
                       claim_slip_and_add_subscription, claim_slip_and_add_topup,
                       get_topup_balance, consume_topup_balance,
-                      get_chart_previews_left, consume_chart_preview,
+                      get_chart_previews_left, consume_chart_preview, refund_chart_preview,
                       CHART_PREVIEW_TOTAL,
                       start_flash_discount_if_eligible, is_flash_active, consume_flash_discount,
                       FLASH_VIP_AMOUNT, FLASH_PRO_AMOUNT, FLASH_WINDOW_MINUTES,
@@ -3198,6 +3198,9 @@ def handle_payment_slip_check(message):
                 20: 10,  # 20฿ = 10 credits (= 2฿/ครั้ง)
             }
             # 🎁 Flash discount — รับเฉพาะ user ที่ยังอยู่ใน 30 นาทีของ flash window
+            # 🛡 NOTE: ห้าม consume_flash_discount ที่นี่ — defer จนกว่า claim_slip จะ success
+            # (ป้องกัน user เสีย flash window ฟรีถ้า claim ล้มเหลวเช่น downgrade_blocked)
+            is_flash_payment = False
             if amount in (FLASH_VIP_AMOUNT, FLASH_PRO_AMOUNT):
                 if not is_flash_active(user_id):
                     bot.edit_message_text(
@@ -3227,11 +3230,8 @@ def handle_payment_slip_check(message):
                         'pro', 30,
                         "🎉 **Flash 20% สำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายเดือน)** — ประหยัด 22฿\n⏰ หมดอายุ: {expiry}"
                     )
-                # consume flash window กันใช้ซ้ำใน window เดียวกัน
-                try:
-                    consume_flash_discount(user_id)
-                except Exception:
-                    pass
+                is_flash_payment = True
+                # consume_flash_discount จะรันหลัง claim_slip success ด้านล่าง
 
             if amount in topup_packages:
                 # === Top-up flow ===
@@ -3392,6 +3392,13 @@ def handle_payment_slip_check(message):
                     parse_mode="Markdown",
                 )
                 return
+
+            # 🛡 Flash window — consume เฉพาะตอน claim_slip success (กัน user เสีย flash ฟรีถ้า claim fail)
+            if locals().get('is_flash_payment', False):
+                try:
+                    consume_flash_discount(user_id)
+                except Exception as _e:
+                    print(f"[FlashConsume] err: {_e}", flush=True)
 
             msg_text = message_template.format(expiry=expiry)
             bot.delete_message(message.chat.id, progress_msg.message_id)
@@ -3634,6 +3641,10 @@ def inline_callbacks(call):
         want_chart = (role == 'vip') or chart_preview_consumed
         tech_data, chart, err = _get_cached_analysis(symbol, generate_chart=want_chart)
         if err or not tech_data:
+            # 🛡 Refund chart preview ถ้า consume แล้วแต่ดึงข้อมูลไม่ได้
+            if chart_preview_consumed:
+                try: refund_chart_preview(user_id)
+                except Exception: pass
             bot.edit_message_text(f"❌ ไม่สามารถดึงข้อมูล {symbol} ได้", user_id, load_msg.message_id)
             return
         report, _ = generate_apexify_report(tech_data, role=role, user_id=user_id)
@@ -5616,8 +5627,9 @@ def handle_main(message):
         try:
             eligible, expires_at = start_flash_discount_if_eligible(user_id)
             if eligible and expires_at:
-                mins_left = max(1, int((expires_at - _dt.utcnow() - _td(hours=7)).total_seconds() // 60))
-                # ใช้ Thai time delta ไม่ถูก — fallback to total minutes left from FLASH_WINDOW_MINUTES
+                # 🐛 Fix: start_flash_discount ใช้ datetime.now() (server local) — เปรียบกับ
+                # _dt.utcnow() + 7h ทำให้ผลลัพธ์ผิด ใช้ datetime.now() ตรงกัน
+                mins_left = max(1, int((expires_at - _dt.now()).total_seconds() // 60))
                 if mins_left > FLASH_WINDOW_MINUTES + 1:
                     mins_left = FLASH_WINDOW_MINUTES
                 flash_block = (
@@ -5720,6 +5732,12 @@ def handle_main(message):
     tech_data, chart, err = _get_cached_analysis(symbol, generate_chart=want_chart)
 
     if err:
+        # 🛡 Refund chart preview ถ้า consume แล้วแต่ analyze fail
+        if chart_preview_consumed:
+            try:
+                refund_chart_preview(user_id)
+            except Exception as _e:
+                print(f"[ChartPreview] refund err: {_e}", flush=True)
         _safe_edit(err)
         return
 
@@ -5733,6 +5751,10 @@ def handle_main(message):
             report = _build_chart_preview_banner(chart_preview_remaining) + report
     except Exception as e:
         print(f"[Analyze] generate_apexify_report failed for {symbol}: {e}", flush=True)
+        # 🛡 Refund chart preview — Gemini fail ไม่ควรให้ user เสียครั้งฟรี
+        if chart_preview_consumed:
+            try: refund_chart_preview(user_id)
+            except Exception: pass
         err_str = str(e).lower()
         if '503' in err_str or 'unavailable' in err_str or 'overloaded' in err_str or 'high demand' in err_str:
             friendly = "✨ ขณะนี้มีผู้ใช้งาน AI จำนวนมาก ขอรบกวนลองพิมพ์อีกครั้งในอีกสักครู่นะครับ 🙏"
