@@ -8,6 +8,7 @@ import telebot
 import requests 
 from config import TELEGRAM_TOKEN, ADMIN_ID, GEMINI_API_KEY, gemini_client
 from technical_tools import calculate_technical_indicators
+import intraday_volume
 import psycopg2
 from database import (get_all_active_symbols, get_users_watching, init_db, check_subscription,
                       get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert,
@@ -582,16 +583,44 @@ def check_market_conditions():
             elif breakout_condition == 'normal':
                 _set_alert_state(symbol, 'breakout', 'normal')
 
-            # 🌟 [เพิ่มใหม่] เงื่อนไข Whale Alert (วอลุ่มพุ่ง 3 เท่า)
+            # 🐳 Intraday Whale Alert — เปลี่ยนจาก daily volume → 5m bar
+            # เหตุผล: daily volume สะสมทั้งวัน กว่าจะถึง 3x avg ก็ใกล้ปิดตลาด → alert สาย 5-6 ชม.
+            # ใหม่: เทียบ 5m candle ปิดล่าสุดกับ avg ของ 12 candle ผ่านมา (1 ชม.) — detect ภายใน 5-10 นาที
             whale_condition = 'normal'
-            if volume > (avg_volume * 3) and price > tech_data['ema20']: 
-                whale_condition = 'buy_spike'
-                msg = f"🐳 **WHALE ALERT (มีวาฬเข้า!)** 🐳\nหุ้น **{symbol}** มีวอลุ่มซื้อพุ่งกระฉูดกว่าค่าเฉลี่ย {int(volume/avg_volume * 100)}% จับตาดูให้ดี!\n(ราคาปัจจุบัน: {price:.2f})"
-            elif volume > (avg_volume * 3) and price < tech_data['ema20']:
-                whale_condition = 'sell_spike'
-                msg = f"🩸 **WHALE DUMP (วาฬเทขาย!)** 🩸\nหุ้น **{symbol}** โดนสาดวอลุ่มขายทิ้งหนักกว่าค่าเฉลี่ย {int(volume/avg_volume * 100)}% ระวังแรงฉุด!\n(ราคาปัจจุบัน: {price:.2f})"
+            msg = None
+            try:
+                spike = intraday_volume.detect_volume_spike(symbol, threshold=3.0, lookback_bars=12)
+                # spike=None = fetch ล้มเหลว / session_open=False = ตลาดปิด → ทั้งคู่ skip
+                if spike and spike.get("session_open") and spike.get("spike"):
+                    ratio = spike["ratio"]
+                    cur_close = spike["current_close"]
+                    cur_open = spike["current_open"]
+                    candle_time = spike.get("candle_time")
+                    time_str = (
+                        candle_time.strftime("%H:%M")
+                        if candle_time is not None and hasattr(candle_time, "strftime")
+                        else "ล่าสุด"
+                    )
+                    if cur_close >= cur_open:
+                        whale_condition = 'buy_spike'
+                        msg = (
+                            f"🐳 **WHALE ALERT (มีวาฬเข้า!)** 🐳\n"
+                            f"หุ้น **{symbol}** วอลุ่ม 5 นาทีพุ่ง **{ratio:.1f}x** ของ 1 ชม. ผ่านมา\n"
+                            f"แคนเดิล {time_str}: {cur_open:.2f} → {cur_close:.2f} (เขียว)\n"
+                            f"(ราคาปัจจุบัน: {price:.2f})"
+                        )
+                    else:
+                        whale_condition = 'sell_spike'
+                        msg = (
+                            f"🩸 **WHALE DUMP (วาฬเทขาย!)** 🩸\n"
+                            f"หุ้น **{symbol}** วอลุ่ม 5 นาทีพุ่ง **{ratio:.1f}x** ของ 1 ชม. ผ่านมา\n"
+                            f"แคนเดิล {time_str}: {cur_open:.2f} → {cur_close:.2f} (แดง)\n"
+                            f"(ราคาปัจจุบัน: {price:.2f})"
+                        )
+            except Exception as e:
+                print(f"⚠️ [WhaleIntraday] {symbol}: {type(e).__name__}: {str(e)[:80]}", flush=True)
 
-            if whale_condition != 'normal' and whale_condition != last_alert_state[symbol].get('whale', 'normal'):
+            if whale_condition != 'normal' and msg and whale_condition != last_alert_state[symbol].get('whale', 'normal'):
                 send_alert_to_users(symbol, msg, alert_type="whale")
                 log_alert(symbol, f"WHALE_{whale_condition.upper()}", price)
                 _set_alert_state(symbol, 'whale', whale_condition)
