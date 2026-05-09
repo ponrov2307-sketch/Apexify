@@ -913,6 +913,56 @@ def handle_backfill_analyses(message):
         bot.reply_to(message, f"❌ Backfill error: {e}")
 
 
+@bot.message_handler(commands=['run_outcomes', 'evaluate_plans'])
+def handle_run_outcomes(message):
+    """Admin: trigger check_plan_outcomes ทันที (ไม่ต้องรอ cron 6:00)
+    ใช้หลังแก้ bug เพื่อ backfill outcomes ของ plans ที่ค้างอยู่
+    """
+    user_id = str(message.chat.id)
+    if user_id != ADMIN_ID:
+        bot.reply_to(
+            message,
+            f"🔒 *Admin only*\nYour chat_id: `{user_id}`\nADMIN_ID: `{ADMIN_ID}`",
+            parse_mode="Markdown",
+        )
+        return
+    bot.reply_to(message, "⏳ กำลังรัน check_plan_outcomes — ใช้เวลาตามจำนวน symbols (ดึง yfinance)...")
+    try:
+        from alert_system import check_plan_outcomes
+        from database import get_connection
+
+        # นับก่อน-หลัง เพื่อรายงาน
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT outcome, COUNT(*) FROM analysis_plans GROUP BY outcome")
+        before = {row[0]: int(row[1]) for row in c.fetchall()}
+        c.close(); conn.close()
+
+        check_plan_outcomes()
+
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT outcome, COUNT(*) FROM analysis_plans GROUP BY outcome")
+        after = {row[0]: int(row[1]) for row in c.fetchall()}
+        c.close(); conn.close()
+
+        diff_lines = []
+        for outcome in set(list(before.keys()) + list(after.keys())):
+            b = before.get(outcome, 0)
+            a = after.get(outcome, 0)
+            delta = a - b
+            arrow = "↑" if delta > 0 else ("↓" if delta < 0 else "=")
+            diff_lines.append(f"  • `{outcome}`: {b} → {a} {arrow}{abs(delta) if delta else ''}")
+
+        bot.reply_to(
+            message,
+            "✅ *check_plan_outcomes เสร็จ*\n\n" + "\n".join(diff_lines),
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error: {e}")
+
+
 @bot.message_handler(commands=['userdebug'])
 def handle_user_debug(message):
     """Admin: ตรวจ state ของ user ใดๆ — full row + plans + tier

@@ -1508,14 +1508,20 @@ def get_pending_plans(min_age_hours=24, max_age_days=45):
     """
     conn = get_connection()
     c = conn.cursor()
-    c.execute("""
+    # 🐛 Fix: INTERVAL '%s hours' inside string literal — psycopg2 ไม่ replace +
+    # Postgres throw error → silently fail ตั้งแต่ deploy แรก ทำให้ 368 plans
+    # ไม่เคยถูก evaluate ใช้ %s::INTERVAL cast แทน (parametrized ปลอดภัย)
+    c.execute(
+        """
         SELECT id, symbol, bias, entry_low, entry_high, tp1, tp2, sl,
                price_at_issue, issued_at
         FROM analysis_plans
         WHERE outcome = 'open'
-          AND issued_at < NOW() - INTERVAL '%s hours'
-          AND issued_at > NOW() - INTERVAL '%s days'
-    """, (min_age_hours, max_age_days))
+          AND issued_at < NOW() - %s::INTERVAL
+          AND issued_at > NOW() - %s::INTERVAL
+        """,
+        (f"{int(min_age_hours)} hours", f"{int(max_age_days)} days"),
+    )
     rows = c.fetchall()
     conn.close()
     return rows
@@ -1543,14 +1549,19 @@ def expire_stale_plans(max_age_days=45):
     conn = get_connection()
     c = conn.cursor()
     try:
-        c.execute("""
+        # 🐛 Fix: bug เดียวกับ get_pending_plans — INTERVAL ใน string literal
+        c.execute(
+            """
             UPDATE analysis_plans
             SET outcome = 'expired', outcome_at = CURRENT_TIMESTAMP
             WHERE outcome = 'open'
-              AND issued_at < NOW() - INTERVAL '%s days'
-        """, (max_age_days,))
+              AND issued_at < NOW() - %s::INTERVAL
+            """,
+            (f"{int(max_age_days)} days",),
+        )
         conn.commit()
     except Exception as e:
+        print(f"[expire_stale_plans] err: {e}", flush=True)
         conn.rollback()
     finally:
         conn.close()
