@@ -1010,13 +1010,15 @@ def handle_run_outcomes(message):
                     pass  # already naive
 
                 sym_updated = 0
+                from datetime import datetime as _dt2
                 for plan in plans:
                     plan_id, _, bias, e_low, e_high, tp1, tp2, sl, _, issued_at = plan
                     tp1_v = float(tp1) if tp1 is not None else None
                     tp2_v = float(tp2) if tp2 is not None else None
                     sl_v = float(sl) if sl is not None else None
+                    e_low_v = float(e_low) if e_low is not None else None
+                    e_high_v = float(e_high) if e_high is not None else None
 
-                    # Strip tz from issued_at if present (DB อาจเก็บมา tz-aware)
                     if hasattr(issued_at, 'tzinfo') and issued_at.tzinfo is not None:
                         issued_at = issued_at.replace(tzinfo=None)
 
@@ -1024,10 +1026,17 @@ def handle_run_outcomes(message):
                     if plan_hist.empty:
                         continue
 
-                    sl_dt = tp1_dt = tp2_dt = None
+                    # 🛡 Phase 1: รอ entry fill, Phase 2: ตรวจ TP/SL หลัง fill
+                    entry_dt = sl_dt = tp1_dt = tp2_dt = None
                     for date, row_data in plan_hist.iterrows():
                         hi = float(row_data['High'])
                         lo = float(row_data['Low'])
+                        if entry_dt is None:
+                            if e_low_v is not None and e_high_v is not None:
+                                if lo <= e_high_v and hi >= e_low_v:
+                                    entry_dt = date
+                            if entry_dt is None:
+                                continue
                         if sl_v is not None and lo <= sl_v and sl_dt is None:
                             sl_dt = date
                         if tp1_v is not None and hi >= tp1_v and tp1_dt is None:
@@ -1035,8 +1044,15 @@ def handle_run_outcomes(message):
                         if tp2_v is not None and hi >= tp2_v and tp2_dt is None:
                             tp2_dt = date
 
-                    # 🛡 Conservative — same-day SL+TP → SL wins (kill optimistic bias)
-                    if sl_dt and (tp1_dt is None or sl_dt <= tp1_dt):
+                    # Decide outcome — entry-filled-first + conservative
+                    if entry_dt is None:
+                        plan_age = (_dt2.now() - issued_at).days
+                        if plan_age >= 14:
+                            update_plan_outcome(plan_id, 'no_entry', "Entry never reached")
+                            sym_updated += 1
+                        else:
+                            no_hit += 1  # too young, leave open
+                    elif sl_dt and (tp1_dt is None or sl_dt <= tp1_dt):
                         update_plan_outcome(plan_id, 'sl_hit', f"SL {sl_v:.2f}")
                         sym_updated += 1
                     elif tp2_dt and (sl_dt is None or tp2_dt < sl_dt):
@@ -1046,7 +1062,7 @@ def handle_run_outcomes(message):
                         update_plan_outcome(plan_id, 'tp1_hit', f"TP1 {tp1_v:.2f}")
                         sym_updated += 1
                     else:
-                        no_hit += 1
+                        no_hit += 1  # entry filled แต่ TP/SL ยังไม่แตะ
 
                 if sym_updated > 0:
                     sym_log.append(f"✅ {symbol}: +{sym_updated}")
@@ -1338,8 +1354,9 @@ def handle_track_record(message):
     def fmt(s, label):
         if s["closed"] == 0:
             return f"*{label}:* ยังไม่มีข้อมูลพอ (เก็บสถิติเพิ่มอยู่)"
+        no_entry_line = f" · 🚫 No-entry: {s.get('no_entry', 0)}" if s.get('no_entry', 0) > 0 else ""
         return (
-            f"*{label}* ({s['closed']} Plans ปิดแล้ว, {s['open']} ยังเปิด)\n"
+            f"*{label}* ({s['closed']} entry-filled, {s['open']} เปิด){no_entry_line}\n"
             f"  ✅ Hit Rate (TP1/TP2): *{s['hit_rate_pct']:.1f}%*\n"
             f"  🎯 TP2 hit: {s['tp2_hit']} | TP1 hit: {s['tp1_hit']}\n"
             f"  🛑 SL hit: {s['sl_hit']} | ⏱ Expired: {s['expired']}"
@@ -1382,13 +1399,14 @@ def handle_track_record(message):
 
     parts.extend([
         "",
-        "💡 *วิธีนับ (Conservative):*",
-        "• TP1/TP2 hit = ราคา intraday แตะเป้า + เกิดก่อน SL (strict)",
-        "• SL hit = ราคาแตะ SL หรือ same-day กับ TP → SL ชนะ (worst-case)",
-        "• Expired = เกิน 45 วันยังไม่ถึงเป้า",
-        "• คำนวณจาก high/low รายวันจริง — ไม่รู้ลำดับ intraday → assume SL ก่อน",
+        "💡 *วิธีนับ (Realistic — entry-filled-first):*",
+        "• เริ่มนับเฉพาะ trade ที่ราคา **เข้า entry zone จริง** (limit buy filled)",
+        "• 🚫 No-entry = ราคาไม่เคยลงไปแตะ entry zone → ไม่ได้เข้า trade → ไม่นับ hit/miss",
+        "• ✅ TP1/TP2 hit = หลัง entry filled, ราคาแตะเป้า + ก่อน SL",
+        "• 🛑 SL hit = ราคาแตะ SL หรือ same-day กับ TP → SL ชนะ (worst-case)",
+        "• ⏱ Expired = เกิน 45 วันยังไม่ hit",
         "",
-        "_📘 สถิติย้อนหลังเพื่ออ้างอิง · ผลอนาคตอาจแตกต่าง · ข้อมูลไม่ใช่คำแนะนำลงทุน_",
+        "_📘 Hit Rate คิดจาก trade ที่เข้าได้จริง · ผลอนาคตอาจแตกต่าง · ไม่ใช่คำแนะนำลงทุน_",
     ])
     bot.reply_to(message, "\n".join(parts), parse_mode="Markdown")
 

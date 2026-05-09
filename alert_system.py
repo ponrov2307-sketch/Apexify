@@ -2461,6 +2461,8 @@ def check_plan_outcomes():
                 tp1_val = float(tp1) if tp1 is not None else None
                 tp2_val = float(tp2) if tp2 is not None else None
                 sl_val = float(sl) if sl is not None else None
+                e_low_val = float(e_low) if e_low is not None else None
+                e_high_val = float(e_high) if e_high is not None else None
 
                 # Strip tz from issued_at if present
                 if hasattr(issued_at, 'tzinfo') and issued_at.tzinfo is not None:
@@ -2471,10 +2473,8 @@ def check_plan_outcomes():
                 if plan_hist.empty:
                     continue
 
-                highest = float(plan_hist['High'].max())
-                lowest = float(plan_hist['Low'].min())
-
-                # หาว่า SL/TP hit ก่อน ใครก่อน (by date)
+                # 🛡 Phase 1: Wait for entry zone fill (ถ้าไม่ฟิลล์ = ไม่ได้เข้า trade)
+                entry_filled_date = None
                 sl_hit_date = None
                 tp1_hit_date = None
                 tp2_hit_date = None
@@ -2482,6 +2482,17 @@ def check_plan_outcomes():
                 for date, row_data in plan_hist.iterrows():
                     hi = float(row_data['High'])
                     lo = float(row_data['Low'])
+
+                    # Phase 1: ตรวจ entry fill — รอจนกว่า price จะแตะ entry zone
+                    if entry_filled_date is None:
+                        if e_low_val is not None and e_high_val is not None:
+                            # Entry filled if today's range overlaps [e_low, e_high]
+                            if lo <= e_high_val and hi >= e_low_val:
+                                entry_filled_date = date
+                        if entry_filled_date is None:
+                            continue  # ยังไม่ฟิลล์ ข้าม TP/SL check
+
+                    # Phase 2: หลัง entry filled → check TP/SL
                     if sl_val is not None and lo <= sl_val and sl_hit_date is None:
                         sl_hit_date = date
                     if tp1_val is not None and hi >= tp1_val and tp1_hit_date is None:
@@ -2489,12 +2500,15 @@ def check_plan_outcomes():
                     if tp2_val is not None and hi >= tp2_val and tp2_hit_date is None:
                         tp2_hit_date = date
 
-                # 🛡 Conservative outcome — ป้องกัน optimistic bias
-                # Rule 1: ถ้า SL hit ก่อน TP1 หรือ "วันเดียวกัน" → SL (worst-case)
-                #         เพราะ daily candle ไม่บอก order ของ intraday spike
-                # Rule 2: TP2 ต้อง hit หลัง SL (ถ้ามี SL same-day → ไม่ผ่าน)
-                # Rule 3: TP1 hit ต้อง strictly ก่อน SL (ถ้ามี SL)
-                if sl_hit_date and (tp1_hit_date is None or sl_hit_date <= tp1_hit_date):
+                # 🛡 Decide outcome — entry-filled-first + conservative TP/SL
+                if entry_filled_date is None:
+                    # Entry never filled → mark 'no_entry' ถ้า plan อายุ ≥14 วัน (ส่วนน้อยจะฟิลล์หลังจากนั้น)
+                    plan_age_days = (datetime.now() - issued_at).days
+                    if plan_age_days >= 14:
+                        update_plan_outcome(plan_id, 'no_entry', "Entry zone never reached")
+                        updated += 1
+                    # else: leave open — อาจฟิลล์ทีหลัง
+                elif sl_hit_date and (tp1_hit_date is None or sl_hit_date <= tp1_hit_date):
                     update_plan_outcome(plan_id, 'sl_hit', f"SL {sl_val:.2f} hit on {sl_hit_date.strftime('%Y-%m-%d')}")
                     updated += 1
                 elif tp2_hit_date and (sl_hit_date is None or tp2_hit_date < sl_hit_date):
@@ -2503,7 +2517,7 @@ def check_plan_outcomes():
                 elif tp1_hit_date and (sl_hit_date is None or tp1_hit_date < sl_hit_date):
                     update_plan_outcome(plan_id, 'tp1_hit', f"TP1 {tp1_val:.2f} hit on {tp1_hit_date.strftime('%Y-%m-%d')}")
                     updated += 1
-                # else: ยังเปิดอยู่
+                # else: entry filled แต่ TP/SL ยังไม่แตะ — leave open
         except Exception as e:
             print(f"[PlanOutcome] {symbol} error: {e}", flush=True)
             continue

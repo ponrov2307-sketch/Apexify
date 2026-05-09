@@ -1733,19 +1733,22 @@ def get_track_record_stats(days=30, user_id=None):
     tp2 = counts.get('tp2_hit', 0)
     sl = counts.get('sl_hit', 0)
     expired = counts.get('expired', 0)
+    no_entry = counts.get('no_entry', 0)
     open_count = counts.get('open', 0)
-    closed = tp1 + tp2 + sl + expired
-    total = closed + open_count
+    # 🛡 Hit rate ดู "ที่เข้า trade ได้จริง" — exclude no_entry (ไม่ได้เข้า = ไม่ได้กำไรขาดทุน)
+    closed_with_entry = tp1 + tp2 + sl + expired
+    total = closed_with_entry + no_entry + open_count
     wins = tp1 + tp2
-    hit_rate = (wins / closed * 100) if closed > 0 else 0.0
+    hit_rate = (wins / closed_with_entry * 100) if closed_with_entry > 0 else 0.0
     return {
         "total": total,
-        "closed": closed,
+        "closed": closed_with_entry,
         "open": open_count,
         "tp1_hit": tp1,
         "tp2_hit": tp2,
         "sl_hit": sl,
         "expired": expired,
+        "no_entry": no_entry,
         "wins": wins,
         "hit_rate_pct": hit_rate,
     }
@@ -1780,18 +1783,20 @@ def get_track_record_by_symbol(symbol, days=90):
     tp2 = counts.get('tp2_hit', 0)
     sl = counts.get('sl_hit', 0)
     expired = counts.get('expired', 0)
+    no_entry = counts.get('no_entry', 0)
     open_count = counts.get('open', 0)
-    closed = tp1 + tp2 + sl + expired
+    closed_with_entry = tp1 + tp2 + sl + expired
     wins = tp1 + tp2
-    hit_rate = (wins / closed * 100) if closed > 0 else 0.0
+    hit_rate = (wins / closed_with_entry * 100) if closed_with_entry > 0 else 0.0
     return {
         "symbol": str(symbol).upper(),
-        "closed": closed,
+        "closed": closed_with_entry,
         "open": open_count,
         "tp1_hit": tp1,
         "tp2_hit": tp2,
         "sl_hit": sl,
         "expired": expired,
+        "no_entry": no_entry,
         "wins": wins,
         "hit_rate_pct": hit_rate,
     }
@@ -1853,6 +1858,7 @@ def calculate_hypothetical_return(days=90, risk_per_trade_pct=1.0):
     conn = get_connection()
     c = conn.cursor()
     try:
+        # 🛡 exclude 'no_entry' — ไม่ได้เข้า trade = no return contribution
         c.execute(
             """
             SELECT entry_low, entry_high, tp1, tp2, sl, outcome
