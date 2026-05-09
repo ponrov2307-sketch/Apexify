@@ -357,6 +357,7 @@ def calculate_technical_indicators(symbol, generate_chart=True):
             tech_data = {
                 'symbol': clean_symbol,
                 'price': float(latest['Close']),
+                'prev_close': float(prev['Close']),  # ใช้สำหรับ gap detection ตอนเปิดตลาด
                 'rsi': float(latest['RSI']),
                 'macd': float(latest['MACD']),
                 'macd_signal': float(latest['Signal_Line']),

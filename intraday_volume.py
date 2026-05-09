@@ -126,6 +126,27 @@ def is_market_open(symbol, now_utc=None):
     return market["open"] <= t <= market["close"]
 
 
+def time_since_session_open(symbol, now_utc=None):
+    """คืนวินาทีตั้งแต่ session ของ symbol เปิด หรือ None ถ้าตลาดยังไม่เปิด/ปิดแล้ว
+    ใช้เช็ค "อยู่ในช่วง 30 นาทีแรก" สำหรับ gap detection
+    """
+    market = _resolve_market(symbol)
+    tz = ZoneInfo(market["tz"])
+    now_local = (now_utc or datetime.now(timezone.utc)).astimezone(tz)
+    if now_local.weekday() not in market["weekdays"]:
+        return None
+    t = now_local.time()
+    if t < market["open"] or t > market["close"]:
+        return None
+    open_dt = now_local.replace(
+        hour=market["open"].hour,
+        minute=market["open"].minute,
+        second=0,
+        microsecond=0,
+    )
+    return int((now_local - open_dt).total_seconds())
+
+
 def _fetch_intraday_5m(symbol):
     """ดึง 5m bars 5 วันล่าสุดผ่าน yf — cached 90 วิ
     คืน DataFrame หรือ None ถ้า fetch ไม่ได้
@@ -242,4 +263,160 @@ def detect_volume_spike(symbol, threshold=3.0, lookback_bars=12, min_history=20)
         "candle_time": current.name if hasattr(current, "name") else None,
         "session_open": True,
         "reason": "ok",
+    }
+
+
+def detect_breakout_intraday(symbol, daily_resistance, daily_support, vol_confirm_ratio=1.5):
+    """ตรวจ breakout ด้วย 5m bar — close ทะลุ daily S/R พร้อม volume ยืนยัน
+
+    เปลี่ยนจาก "daily close > daily resistance" (สาย) เป็น "intraday 5m close > daily resistance"
+    เพิ่ม volume confirm เพื่อกัน false breakout ตอน thin liquidity
+
+    Args:
+        daily_resistance: max 20-day high (จาก technical_tools.calculate_technical_indicators)
+        daily_support: min 20-day low
+        vol_confirm_ratio: minimum vol ratio of breakout candle vs prev 12 candles
+
+    Returns: dict {direction: 'up'/'down'/None, ratio, ...} หรือ None ถ้าตลาดปิด/ดึงไม่ได้
+    """
+    if not is_market_open(symbol):
+        return None
+    df = _fetch_intraday_5m(symbol)
+    if df is None or df.empty or len(df) < 14:
+        return None
+
+    completed = df.iloc[:-1] if len(df) > 13 else df
+    if len(completed) < 13:
+        return None
+
+    current = completed.iloc[-1]
+    cur_close = float(current["Close"])
+    cur_vol = float(current["Volume"])
+
+    history = completed.iloc[-13:-1]
+    history_vol = float(history["Volume"].mean()) if len(history) > 0 else 0.0
+    vol_ratio = (cur_vol / history_vol) if history_vol > 0 else 0.0
+
+    direction = None
+    breakout_level = None
+    if daily_resistance and daily_resistance > 0 and cur_close > daily_resistance:
+        direction = "up"
+        breakout_level = daily_resistance
+    elif daily_support and daily_support > 0 and cur_close < daily_support:
+        direction = "down"
+        breakout_level = daily_support
+
+    confirmed = direction is not None and vol_ratio >= vol_confirm_ratio
+
+    return {
+        "direction": direction if confirmed else None,
+        "raw_direction": direction,  # ทะลุแต่ vol ไม่ confirm — บันทึก info
+        "vol_confirmed": confirmed,
+        "vol_ratio": vol_ratio,
+        "current_close": cur_close,
+        "current_open": float(current["Open"]),
+        "breakout_level": breakout_level,
+        "candle_time": current.name if hasattr(current, "name") else None,
+        "session_open": True,
+    }
+
+
+def detect_gap_open(symbol, prev_close, threshold_pct=2.0, window_seconds=1800):
+    """ตรวจ gap ตอนเปิดตลาด — เฉพาะใน 30 นาทีแรกของ session
+
+    Args:
+        prev_close: ราคาปิดเมื่อวาน (จาก daily data)
+        threshold_pct: |gap%| ขั้นต่ำที่จะ alert (default 2%)
+        window_seconds: alert ได้แค่ใน N วินาทีแรก (default 1800 = 30 min)
+
+    Returns: dict {direction, gap_pct, open_price, prev_close} หรือ None
+    """
+    if not prev_close or prev_close <= 0:
+        return None
+    secs = time_since_session_open(symbol)
+    if secs is None or secs > window_seconds:
+        return None
+
+    df = _fetch_intraday_5m(symbol)
+    if df is None or df.empty:
+        return None
+
+    market = _resolve_market(symbol)
+    tz = ZoneInfo(market["tz"])
+    today_local = datetime.now(timezone.utc).astimezone(tz).date()
+    try:
+        index_dates = df.index.tz_convert(tz).date if hasattr(df.index, "tz_convert") else None
+    except Exception:
+        index_dates = None
+    today_bars = df[index_dates == today_local] if index_dates is not None else df.iloc[-min(6, len(df)):]
+    if len(today_bars) == 0:
+        return None
+
+    open_bar = today_bars.iloc[0]
+    open_price = float(open_bar["Open"])
+    if open_price <= 0:
+        return None
+
+    gap_pct = (open_price - prev_close) / prev_close * 100
+    if abs(gap_pct) < threshold_pct:
+        return None
+
+    return {
+        "direction": "up" if gap_pct > 0 else "down",
+        "gap_pct": gap_pct,
+        "open_price": open_price,
+        "prev_close": float(prev_close),
+        "session_seconds": secs,
+    }
+
+
+def detect_price_acceleration(symbol, lookback_bars=6, threshold_pct=3.0, vol_confirm=1.2):
+    """ตรวจ momentum spike — ราคาเคลื่อนเร็วเกินปกติใน 30 นาที (6 candle 5m)
+
+    Args:
+        lookback_bars: candle 5m ใช้คำนวณ (default 6 = 30 นาที)
+        threshold_pct: |%change| ขั้นต่ำที่จะ alert
+        vol_confirm: avg vol ของ window vs avg vol ของ 4x window prior
+
+    Returns: dict {direction, change_pct, ...} หรือ None
+    """
+    if not is_market_open(symbol):
+        return None
+    df = _fetch_intraday_5m(symbol)
+    if df is None or df.empty or len(df) < lookback_bars + 2:
+        return None
+
+    completed = df.iloc[:-1]
+    if len(completed) < lookback_bars + 1:
+        return None
+
+    window = completed.iloc[-lookback_bars:]
+    start_price = float(window.iloc[0]["Open"])
+    end_price = float(window.iloc[-1]["Close"])
+    if start_price <= 0:
+        return None
+
+    change_pct = (end_price - start_price) / start_price * 100
+    if abs(change_pct) < threshold_pct:
+        return None
+
+    avg_vol_window = float(window["Volume"].mean())
+    prior_size = lookback_bars * 4
+    if len(completed) >= prior_size + lookback_bars:
+        prior_vol = float(completed.iloc[-(prior_size + lookback_bars):-lookback_bars]["Volume"].mean())
+    else:
+        prior_vol = avg_vol_window
+    vol_ratio = (avg_vol_window / prior_vol) if prior_vol > 0 else 1.0
+
+    confirmed = vol_ratio >= vol_confirm
+
+    return {
+        "direction": "up" if change_pct > 0 else "down",
+        "change_pct": change_pct,
+        "start_price": start_price,
+        "end_price": end_price,
+        "minutes": lookback_bars * 5,
+        "vol_ratio": vol_ratio,
+        "vol_confirmed": confirmed,
+        "session_open": True,
     }

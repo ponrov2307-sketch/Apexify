@@ -538,7 +538,7 @@ def check_market_conditions():
             avg_volume = tech_data.get('avg_volume', 1)    
             
             if symbol not in last_alert_state:
-                last_alert_state[symbol] = {'rsi': 'normal', 'cross': 'normal', 'breakout': 'normal'}
+                last_alert_state[symbol] = {'rsi': 'normal', 'cross': 'normal', 'breakout': 'normal', 'gap': 'normal', 'accel': 'normal'}
 
             rsi_condition = 'normal'
             if current_rsi < 30:
@@ -568,15 +568,43 @@ def check_market_conditions():
                 log_alert(symbol, f"EMA_{cross_condition.upper()}", price)
                 _set_alert_state(symbol, 'cross', cross_condition)
 
+            # 🚀 Intraday Breakout — เปลี่ยนจาก daily close เป็น 5m close + volume ยืนยัน
+            # เก่า: price (daily) > resistance → จับตอนปลายวัน สาย 5-6 ชม.
+            # ใหม่: 5m close ทะลุ daily S/R + vol > 1.5x of 1hr → จับภายใน 5 นาที + กัน false breakout
             breakout_condition = 'normal'
-            if price > resistance:
-                breakout_condition = 'break_res'
-                msg = f"🚀 **RESISTANCE BREAKOUT**\nราคาทะลุแนวต้านสำคัญที่ {resistance:.2f} ขึ้นไปได้แล้ว! จับตาดู Volume! (ราคาปัจจุบัน: {price:.2f})"
-            elif price < support:
-                breakout_condition = 'break_sup'
-                msg = f"🩸 **SUPPORT BROKEN**\nราคาหลุดแนวรับสำคัญที่ {support:.2f} ลงมาแล้ว! ระวังแรงเทขาย! (ราคาปัจจุบัน: {price:.2f})"
+            msg = None
+            try:
+                br = intraday_volume.detect_breakout_intraday(symbol, resistance, support, vol_confirm_ratio=1.5)
+                if br and br.get("direction"):
+                    cur_close = br["current_close"]
+                    vol_ratio = br["vol_ratio"]
+                    level = br.get("breakout_level") or 0
+                    candle_time = br.get("candle_time")
+                    time_str = (
+                        candle_time.strftime("%H:%M")
+                        if candle_time is not None and hasattr(candle_time, "strftime")
+                        else "ล่าสุด"
+                    )
+                    if br["direction"] == "up":
+                        breakout_condition = 'break_res'
+                        msg = (
+                            f"🚀 **RESISTANCE BREAKOUT (intraday)** 🚀\n"
+                            f"หุ้น **{symbol}** ทะลุแนวต้าน **{level:.2f}** แล้ว!\n"
+                            f"แคนเดิล {time_str}: ปิดที่ {cur_close:.2f} · vol {vol_ratio:.1f}x ของ 1 ชม.\n"
+                            f"(ราคาปัจจุบัน: {price:.2f})"
+                        )
+                    else:
+                        breakout_condition = 'break_sup'
+                        msg = (
+                            f"🩸 **SUPPORT BROKEN (intraday)** 🩸\n"
+                            f"หุ้น **{symbol}** หลุดแนวรับ **{level:.2f}** ลงมาแล้ว ระวังแรงเทขาย!\n"
+                            f"แคนเดิล {time_str}: ปิดที่ {cur_close:.2f} · vol {vol_ratio:.1f}x\n"
+                            f"(ราคาปัจจุบัน: {price:.2f})"
+                        )
+            except Exception as e:
+                print(f"⚠️ [BreakoutIntraday] {symbol}: {type(e).__name__}: {str(e)[:80]}", flush=True)
 
-            if breakout_condition != 'normal' and breakout_condition != last_alert_state[symbol]['breakout']:
+            if breakout_condition != 'normal' and msg and breakout_condition != last_alert_state[symbol].get('breakout', 'normal'):
                 send_alert_to_users(symbol, msg, alert_type="tech")
                 log_alert(symbol, f"BREAKOUT_{breakout_condition.upper()}", price)
                 _set_alert_state(symbol, 'breakout', breakout_condition)
@@ -626,6 +654,81 @@ def check_market_conditions():
                 _set_alert_state(symbol, 'whale', whale_condition)
             elif whale_condition == 'normal':
                 _set_alert_state(symbol, 'whale', 'normal')
+
+            # 📐 Gap Open Alert — ตรวจ gap ใหญ่ตอนเปิดตลาด (เฉพาะ 30 นาทีแรก)
+            # detect ทันทีตอนเปิด ไม่ต้องรอราคาวิ่งสะสมทั้งวัน
+            gap_condition = 'normal'
+            gap_msg = None
+            try:
+                prev_close = tech_data.get('prev_close')
+                gap = intraday_volume.detect_gap_open(symbol, prev_close, threshold_pct=2.0, window_seconds=1800)
+                if gap:
+                    pct = gap['gap_pct']
+                    open_p = gap['open_price']
+                    pc = gap['prev_close']
+                    if gap['direction'] == 'up':
+                        gap_condition = 'gap_up'
+                        gap_msg = (
+                            f"📐 **GAP UP — เปิดสูงกว่าวานนี้** 📐\n"
+                            f"หุ้น **{symbol}** เปิดที่ {open_p:.2f} ({pct:+.2f}%) จากปิดเมื่อวาน {pc:.2f}\n"
+                            f"_จับตา momentum ตอนต้นวัน_"
+                        )
+                    else:
+                        gap_condition = 'gap_down'
+                        gap_msg = (
+                            f"📐 **GAP DOWN — เปิดต่ำกว่าวานนี้** 📐\n"
+                            f"หุ้น **{symbol}** เปิดที่ {open_p:.2f} ({pct:+.2f}%) จากปิดเมื่อวาน {pc:.2f}\n"
+                            f"_ระวังแรงเทขายต่อ_"
+                        )
+            except Exception as e:
+                print(f"⚠️ [GapOpen] {symbol}: {type(e).__name__}: {str(e)[:80]}", flush=True)
+
+            if gap_condition != 'normal' and gap_msg and gap_condition != last_alert_state[symbol].get('gap', 'normal'):
+                send_alert_to_users(symbol, gap_msg, alert_type="tech")
+                log_alert(symbol, f"GAP_{gap_condition.upper()}", price)
+                _set_alert_state(symbol, 'gap', gap_condition)
+            else:
+                # Reset gap state เมื่อพ้นช่วงเปิดตลาด → กันไม่ให้ค้าง state ข้ามวัน
+                # (detect_gap_open คืน None ถ้าพ้น 30 นาทีแรก)
+                if gap_condition == 'normal' and last_alert_state[symbol].get('gap', 'normal') != 'normal':
+                    secs = intraday_volume.time_since_session_open(symbol)
+                    if secs is None or secs > 1800:
+                        _set_alert_state(symbol, 'gap', 'normal')
+
+            # ⚡ Price Acceleration — ตรวจ momentum spike (>3% ใน 30 นาที + vol confirm)
+            # จับ "หุ้นวิ่งเร็ว" ก่อนที่ vol จะถึง 3x (whale threshold)
+            accel_condition = 'normal'
+            accel_msg = None
+            try:
+                accel = intraday_volume.detect_price_acceleration(symbol, lookback_bars=6, threshold_pct=3.0, vol_confirm=1.2)
+                if accel and accel.get("vol_confirmed"):
+                    pct = accel["change_pct"]
+                    sp = accel["start_price"]
+                    ep = accel["end_price"]
+                    vr = accel["vol_ratio"]
+                    if accel["direction"] == "up":
+                        accel_condition = 'accel_up'
+                        accel_msg = (
+                            f"⚡ **PRICE ACCELERATION — วิ่งเร็ว** ⚡\n"
+                            f"หุ้น **{symbol}** {sp:.2f} → {ep:.2f} ({pct:+.2f}%) ใน 30 นาที\n"
+                            f"vol {vr:.1f}x ของช่วงก่อนหน้า · จังหวะ momentum ชัด"
+                        )
+                    else:
+                        accel_condition = 'accel_down'
+                        accel_msg = (
+                            f"⚡ **PRICE ACCELERATION — เทเร็ว** ⚡\n"
+                            f"หุ้น **{symbol}** {sp:.2f} → {ep:.2f} ({pct:+.2f}%) ใน 30 นาที\n"
+                            f"vol {vr:.1f}x ของช่วงก่อนหน้า · ระวังต่อขาลง"
+                        )
+            except Exception as e:
+                print(f"⚠️ [PriceAccel] {symbol}: {type(e).__name__}: {str(e)[:80]}", flush=True)
+
+            if accel_condition != 'normal' and accel_msg and accel_condition != last_alert_state[symbol].get('accel', 'normal'):
+                send_alert_to_users(symbol, accel_msg, alert_type="tech")
+                log_alert(symbol, f"ACCEL_{accel_condition.upper()}", price)
+                _set_alert_state(symbol, 'accel', accel_condition)
+            elif accel_condition == 'normal':
+                _set_alert_state(symbol, 'accel', 'normal')
 
             time.sleep(2)
         except Exception as e:
