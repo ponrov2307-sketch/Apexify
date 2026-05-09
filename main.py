@@ -561,7 +561,7 @@ def handle_ask(message):
     role = check_subscription(user_id)
     if role != 'pro' and user_id != ADMIN_ID:
         bot.reply_to(message,
-            "🔒 **AI Q&A — ฟีเจอร์ PRO เท่านั้น**\n\n"
+            "🔒 **Apexify Q&A — ฟีเจอร์ PRO เท่านั้น**\n\n"
             "ถาม AI คำถามการลงทุน/หุ้น ได้ตลอด 24 ชม.\n\n"
             "👑 อัปเกรดเป็น PRO เพื่อใช้ฟีเจอร์นี้",
             parse_mode="Markdown")
@@ -572,7 +572,7 @@ def handle_ask(message):
     if len(args) < 2 or not args[1].strip():
         example_symbol = _user_last_symbol.get(user_id, "AAPL")
         bot.reply_to(message,
-            "💬 **AI Q&A — วิธีใช้**\n\n"
+            "💬 **Apexify Q&A — วิธีใช้**\n\n"
             "พิมพ์: `/ask <คำถาม>`\n\n"
             "*ตัวอย่าง:*\n"
             f"• `/ask ทำไม RSI {example_symbol} สูง?`\n"
@@ -584,7 +584,7 @@ def handle_ask(message):
         return
 
     question = args[1].strip()[:500]  # cap 500 chars
-    load_msg = bot.reply_to(message, "🤔 AI กำลังคิด...")
+    load_msg = bot.reply_to(message, "🤔 Apexify กำลังคิด...")
 
     try:
         # 🌟 ถ้ามี symbol ล่าสุด → ใส่ context ให้ AI
@@ -640,7 +640,7 @@ def handle_ask(message):
         print(f"[/ask] error: {e}", flush=True)
         err_str = str(e).lower()
         if '503' in err_str or 'unavailable' in err_str:
-            friendly = "✨ AI กำลังมีคนใช้งานเยอะเป็นพิเศษ ขอรบกวนลองอีกครั้งในอีกสักครู่ครับ 🙏"
+            friendly = "✨ Apexify กำลังมีคนใช้งานเยอะเป็นพิเศษ ขอรบกวนลองอีกครั้งในอีกสักครู่ครับ 🙏"
         elif 'safety' in err_str:
             friendly = "📋 AI ขอปฏิเสธตอบคำถามนี้ (ติดฟิลเตอร์ความปลอดภัย)\nรบกวนลองปรับคำถามใหม่ดูครับ"
         else:
@@ -787,7 +787,7 @@ def handle_demo(message):
     msg = (
         "🚀 **Apexify — Full Feature Tour**\n\n"
         "🤖 *บอทวิเคราะห์หุ้นด้วย AI — 3 สิ่งที่ Apexify ทำได้:*\n\n"
-        "**1️⃣ AI วิเคราะห์หุ้นให้ทันที**\n"
+        "**1️⃣ Apexify วิเคราะห์หุ้นให้ทันที**\n"
         "   • พิมพ์ชื่อหุ้น → รายงานครบใน 10 วิ\n"
         "   • Trend Radar 3 timeframes (วัน/สัปดาห์/เดือน)\n"
         "   • Conviction Score 0-100\n"
@@ -836,7 +836,7 @@ def handle_demo(message):
 
 @bot.message_handler(commands=['track', 'trackrecord'])
 def handle_track_record(message):
-    """แสดงสถิติ Track Record ของ AI Plans — hit rate TP1/TP2/SL"""
+    """แสดงสถิติ Track Record ของ Apexify Plans — hit rate TP1/TP2/SL"""
     user_id = str(message.chat.id)
     if not is_allowed(user_id):
         return
@@ -857,7 +857,7 @@ def handle_track_record(message):
 
     msg = (
         "📊 **Apexify Track Record**\n"
-        "_สถิติ AI Plans ที่ออกให้ PRO_\n\n"
+        "_สถิติ Apexify Plans ที่ออกให้ PRO_\n\n"
         f"{fmt(s30, '30 วันที่ผ่านมา')}\n\n"
         f"{fmt(s90, '90 วันที่ผ่านมา')}\n\n"
         "💡 *วิธีนับ:*\n"
@@ -976,7 +976,7 @@ def send_welcome(message):
                 "✨ **รับ VIP 3 วันฟรี** เรียบร้อยแล้ว!\n\n"
                 "💎 ใช้งานได้เต็มรูปแบบ:\n"
                 "• วิเคราะห์ไม่จำกัด + กราฟเทคนิค\n"
-                "• AI Trend Radar 3 ระยะ\n"
+                "• Apexify Trend Radar 3 ระยะ\n"
                 "• Morning Briefing + Digest News\n\n"
                 "_ลองพิมพ์ชื่อหุ้นใดๆ เช่น `AAPL` เพื่อเริ่มทดลองเลยครับ!_",
                 parse_mode="Markdown")
@@ -2266,7 +2266,7 @@ def handle_manual(message):
         "`/breaking_status` — เช็คสถานะ subscription ปัจจุบัน\n\n"
 
         "**📊 Track Record & Streak & Badges**\n"
-        "`/track` — สถิติ AI Plans: hit rate TP1/TP2 ย้อนหลัง 30/90 วัน\n"
+        "`/track` — สถิติ Apexify Plans: hit rate TP1/TP2 ย้อนหลัง 30/90 วัน\n"
         "`/badges` หรือ `/achievements` — ดูเหรียญตราที่ได้รับ\n"
         "🔥 **Daily Streak:** ใช้ทุกวันติดต่อกัน → ครบ 7 วัน รับ VIP 1 วันฟรี!\n\n"
 
@@ -2796,7 +2796,7 @@ def quick_action_callbacks(call):
 
     elif action == 'ask':
         if role != 'pro' and user_id != ADMIN_ID:
-            bot.send_message(user_id, "🔒 AI Q&A = ฟีเจอร์ PRO เท่านั้น")
+            bot.send_message(user_id, "🔒 Apexify Q&A = ฟีเจอร์ PRO เท่านั้น")
             return
         bot.send_message(user_id,
             f"💬 *ถาม AI เกี่ยวกับ {symbol}*\n\n"
@@ -3447,7 +3447,7 @@ def inline_callbacks(call):
                 for i, (_, sym, price, reasons) in enumerate(top_10, 1):
                     reason_text = " + ".join(reasons) if reasons else "📊 น่าจับตา"
                     lines.append(f"**{i}. {sym}** (${price:,.2f})\n   👉 {reason_text}")
-                result_msg = "🔥 **Apexify US Picks — 10 หุ้นเมกาเด่นวันนี้** 🔥\n\n" + "\n\n".join(lines) + "\n\n💡 พิมพ์ชื่อหุ้นเพื่อให้ AI วิเคราะห์เชิงลึก"
+                result_msg = "🔥 **Apexify US Picks — 10 หุ้นเมกาเด่นวันนี้** 🔥\n\n" + "\n\n".join(lines) + "\n\n💡 พิมพ์ชื่อหุ้นเพื่อให้ Apexify วิเคราะห์เชิงลึก"
             else:
                 result_msg = "🔥 **Apexify US Picks** 🔥\n\nขณะนี้ตลาดสหรัฐฯ ยังไม่มีหุ้นเข้าเกณฑ์น่าสะสมชัดเจน\n*(เทรนด์ extended ทั้งกระดาน — แนะนำให้รอจังหวะ pullback)*"
                 
@@ -3706,7 +3706,7 @@ def inline_callbacks(call):
                     "• `/force_weekly` — บรอดแคสต์ Weekly Digest\n"
                     "• `/breaking_test` — ทดสอบ flow Breaking News\n"
                     "• `/mock_alert [symbol] [whale/dump/xd/golden]` — จำลอง alert\n"
-                    "• `/earnings [ticker]` — AI วิเคราะห์งบการเงินล่าสุด"
+                    "• `/earnings [ticker]` — Apexify วิเคราะห์งบการเงินล่าสุด"
                 ),
                 'admin_guide_referral': (
                     "🤝 *คู่มือ Referral Review* (คัดลอกได้เลย)\n\n"
@@ -3750,7 +3750,7 @@ def inline_callbacks(call):
                     "• `/force_weekly` — Weekly Digest\n"
                     "• `/breaking_test` — ทดสอบ Breaking News\n"
                     "• `/mock_alert [symbol] [whale/dump/xd/golden]`\n"
-                    "• `/earnings [ticker]` — AI วิเคราะห์งบ\n\n"
+                    "• `/earnings [ticker]` — Apexify วิเคราะห์งบ\n\n"
                     "*🛠 System:*\n"
                     "• `/maintenance` — toggle\n"
                     "• `/system_health` — status\n"
@@ -3989,7 +3989,7 @@ def handle_compare(message):
     if role != 'pro' and user_id != ADMIN_ID:
         bot.reply_to(message,
             "🔒 **Stock Comparison — ฟีเจอร์ PRO เท่านั้น**\n\n"
-            "เปรียบเทียบ 2-3 หุ้น side-by-side พร้อม AI วิเคราะห์ว่าตัวไหนน่าสะสมกว่า\n\n"
+            "เปรียบเทียบ 2-3 หุ้น side-by-side พร้อม Apexify วิเคราะห์ว่าตัวไหนน่าสะสมกว่า\n\n"
             "👑 อัปเกรดเป็น PRO เพื่อใช้ฟีเจอร์นี้",
             parse_mode="Markdown")
         return
@@ -4525,15 +4525,36 @@ def handle_main(message):
         _quota_btn = _dashboard_cta_button(user_id, "📊 ดูฟีเจอร์ VIP/PRO ใน Dashboard", src="quota_exceeded")
         if _quota_btn:
             upsell_kb.add(_quota_btn)
-        upsell_msg = (
-            f"✨ **ขอบคุณที่ใช้ครบโควต้าประจำวันครับ** ({FREE_DAILY_QUOTA}/{FREE_DAILY_QUOTA})\n\n"
-            f"🕛 ระบบจะรีเซ็ตโควต้าใหม่ในอีก **{_reset_str}**\n\n"
-            f"💎 *สนใจใช้งานไม่จำกัด + ปลดล็อกฟีเจอร์พรีเมียม?*\n"
-            f"• 📊 กราฟเทคนิคเต็มรูปแบบ\n"
-            f"• 🔭 AI Trend Radar 3 ระยะ\n"
-            f"• 🎯 Entry / TP / SL ชัดเจน พร้อมกราฟ (PRO)\n"
-            f"• 🔔 Smart Alerts + สรุปข่าวรายวัน (PRO)"
-        )
+
+        # 🌟 Smart Paywall — preview เฉพาะ ticker ที่ user เพิ่งถาม (ไม่กิน Gemini เพิ่ม)
+        # ทำให้เห็น confidence + bias + จำนวนข่าวก่อน → เชื่อใจมากขึ้น → upgrade
+        preview_block = ""
+        try:
+            from ai_analyzer import build_paywall_preview, render_paywall_preview
+            preview = build_paywall_preview(symbol)
+            if preview:
+                preview_block = "\n\n" + render_paywall_preview(preview)
+        except Exception as _e:
+            print(f"[SmartPaywall] preview err for {symbol}: {type(_e).__name__}: {str(_e)[:80]}", flush=True)
+
+        if preview_block:
+            upsell_msg = (
+                f"✨ **ใช้ครบโควต้าประจำวันแล้วครับ** ({FREE_DAILY_QUOTA}/{FREE_DAILY_QUOTA})\n"
+                f"🕛 รีเซ็ตในอีก **{_reset_str}**"
+                f"{preview_block}\n\n"
+                f"_💡 ทดลอง PRO ฟรี 7 วัน — เห็นทุกอย่างของ {symbol} ทันที_"
+            )
+        else:
+            # fallback ถ้า preview ดึงไม่ได้ (ticker ไม่มีข้อมูล)
+            upsell_msg = (
+                f"✨ **ขอบคุณที่ใช้ครบโควต้าประจำวันครับ** ({FREE_DAILY_QUOTA}/{FREE_DAILY_QUOTA})\n\n"
+                f"🕛 ระบบจะรีเซ็ตโควต้าใหม่ในอีก **{_reset_str}**\n\n"
+                f"💎 *สนใจใช้งานไม่จำกัด + ปลดล็อกฟีเจอร์พรีเมียม?*\n"
+                f"• 📊 กราฟเทคนิคเต็มรูปแบบ\n"
+                f"• 🔭 Apexify Trend Radar 3 ระยะ\n"
+                f"• 🎯 Entry / TP / SL ชัดเจน พร้อมกราฟ (PRO)\n"
+                f"• 🔔 Smart Alerts + สรุปข่าวรายวัน (PRO)"
+            )
         bot.reply_to(message, upsell_msg, parse_mode="Markdown", reply_markup=upsell_kb)
         return
 
@@ -4554,7 +4575,7 @@ def handle_main(message):
         _safe_edit(err)
         return
 
-    _safe_edit(f"🤖 AI กำลังวิเคราะห์ **{symbol}**...")
+    _safe_edit(f"🤖 Apexify กำลังวิเคราะห์ **{symbol}**...")
 
     # 🌟 Wrap AI report generation — กัน Gemini 503/safety crash ทำให้ load_msg ค้าง
     try:
@@ -4804,7 +4825,7 @@ if __name__ == "__main__":
             BotCommand("pnl", "สร้างการ์ด P&L แบบสวยงาม"),
             BotCommand("watch", "เพิ่มหุ้นเข้า Watchlist — /watch AAPL"),
             BotCommand("unwatch", "ลบหุ้นออกจาก Watchlist — /unwatch AAPL"),
-            BotCommand("track", "สถิติ AI Plans — hit rate ย้อนหลัง"),
+            BotCommand("track", "สถิติ Apexify Plans — hit rate ย้อนหลัง"),
             BotCommand("fund", "ข้อมูลพื้นฐาน (P/E, EPS, Dividend) — VIP/PRO"),
             BotCommand("compare", "เปรียบเทียบ 2-3 หุ้น — PRO"),
             BotCommand("ask", "ถาม AI คำถามการลงทุน — PRO"),

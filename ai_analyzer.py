@@ -1353,6 +1353,118 @@ def _generate_free_report(tech_data):
     return report
 
 
+def build_paywall_preview(symbol):
+    """Smart Paywall preview — สร้าง teaser สำหรับ free user ที่หมดโควต้า
+
+    ไม่กิน Gemini เพิ่ม! ใช้ deterministic logic ทั้งหมด:
+    - confidence จาก signal alignment
+    - news headlines (yfinance — มี cache อยู่แล้ว)
+    - bias 3 ระยะ + watch_next default
+
+    คืน dict สำหรับ render ใน main.py paywall block
+    หรือ None ถ้าดึง context ของ symbol ไม่ได้
+    """
+    try:
+        context = build_multitimeframe_trade_context(symbol)
+    except Exception:
+        return None
+    if not context:
+        return None
+
+    trends = _build_trend_summary(context)
+    dominant_bias = _choose_dominant_bias(trends)
+    deterministic_plan = _build_deterministic_plan(context, dominant_bias)
+    defaults = _build_member_defaults(context, trends, deterministic_plan)
+    score, label, factors = _calculate_confidence_score(context, trends)
+
+    news_items = []
+    try:
+        news_items = fetch_ticker_news(symbol, max_items=3)
+    except Exception:
+        news_items = []
+
+    return {
+        "symbol": context.get("symbol", symbol),
+        "price": context.get("price"),
+        "confidence_score": score,
+        "confidence_label": label,
+        "confidence_factors": factors,
+        "dominant_bias": dominant_bias,
+        "watch_next": defaults.get("watch_next", ""),
+        "news_count": len(news_items),
+        "trends_status": {
+            tf: {
+                "emoji": trends[tf].get("status_emoji", "⚪"),
+                "text": trends[tf].get("status_text", "ทรงตัว"),
+            }
+            for tf in ("day", "week", "month")
+        },
+    }
+
+
+def render_paywall_preview(preview):
+    """แปลง preview dict เป็น Markdown text สำหรับ Telegram
+
+    Layout: confidence meter (ตัวเด่นสุด) + 3 ระยะสั้นๆ + จำนวนข่าว + locked bullets
+    """
+    if not preview:
+        return ""
+
+    symbol = preview.get("symbol", "?")
+    price = preview.get("price")
+    score = preview.get("confidence_score", 50)
+    label = preview.get("confidence_label", "ปานกลาง")
+    factors = preview.get("confidence_factors") or []
+    bias = preview.get("dominant_bias", "neutral")
+    news_count = preview.get("news_count", 0)
+    trends_status = preview.get("trends_status") or {}
+
+    # Confidence bar
+    filled = round(score / 10)
+    bar = "▰" * filled + "▱" * (10 - filled)
+    if score >= 65:
+        conf_emoji = "🟢"
+    elif score >= 45:
+        conf_emoji = "🟡"
+    else:
+        conf_emoji = "🔴"
+
+    bias_emoji = {"bullish": "📈", "bearish": "📉", "neutral": "↔️"}.get(bias, "↔️")
+    bias_label = {"bullish": "ภาพรวมขาขึ้น", "bearish": "ภาพรวมขาลง", "neutral": "ภาพรวมเป็นกลาง"}.get(bias, "—")
+
+    price_str = f"@ {_format_price(price)}" if price is not None else ""
+
+    lines = [
+        f"🤖 *Apexify วิเคราะห์ {symbol} {price_str}* (พรีวิว)",
+        "",
+        f"*🎯 Apexify Confidence:* {conf_emoji} `{bar}` *{score}%* — {label}",
+    ]
+    if factors:
+        lines.append(f"  _{' · '.join(factors[:2])}_")
+
+    lines.extend([
+        "",
+        f"{bias_emoji} *{bias_label}* — "
+        f"{trends_status.get('day', {}).get('emoji', '')} วัน · "
+        f"{trends_status.get('week', {}).get('emoji', '')} สัปดาห์ · "
+        f"{trends_status.get('month', {}).get('emoji', '')} เดือน",
+    ])
+
+    if news_count > 0:
+        lines.append(f"📰 *พบข่าวล่าสุด {news_count} ข่าว* — VIP/PRO เห็น Apexify สรุปข่าวต่อราคา")
+
+    lines.extend([
+        "",
+        "🔒 *ที่ VIP/PRO เห็นเต็ม:*",
+        "• 🔭 Apexify Trend Radar 3 ระยะ พร้อมเหตุผล",
+        "• 📰 Apexify สรุปข่าวล่าสุด + ผลกระทบต่อราคา",
+        "• 👀 Watch Next + เงื่อนไข Plan",
+        "• 🎯 Entry / TP / SL ตัวเลขชัด + R:R *(PRO)*",
+        "• 🔔 Smart Alerts intraday + ตั้งเตือนราคา *(PRO)*",
+    ])
+    return "\n".join(lines)
+
+
 def generate_apexify_report(tech_data, role="free"):
     """คืน (report_text, plan_dict_or_none)
     plan_dict = day_plan ของ deterministic_plan สำหรับ PRO เท่านั้น (ใช้วาดบนกราฟ)
