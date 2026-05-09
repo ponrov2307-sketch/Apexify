@@ -2932,7 +2932,10 @@ def inline_callbacks(call):
     if call.data.startswith('tutorial_analyze_'):
         symbol = call.data.replace('tutorial_analyze_', '').upper()
         load_msg = bot.send_message(user_id, f"🔍 กำลังวิเคราะห์ {symbol}...")
-        tech_data, chart, err = _get_cached_analysis(symbol)
+        # 🛡 Tier-aware chart — Free: ไม่มีกราฟ (เหมือน flow ปกติ), VIP: basic chart
+        # PRO ก็ skip basic เพราะปกติจะวาด annotated หลัง plan (แต่ tutorial flow ไม่ทำ → text-only)
+        skip_chart = (role == 'free') or (role == 'pro')
+        tech_data, chart, err = _get_cached_analysis(symbol, generate_chart=not skip_chart)
         if err or not tech_data:
             bot.edit_message_text(f"❌ ไม่สามารถดึงข้อมูล {symbol} ได้", user_id, load_msg.message_id)
             return
