@@ -844,6 +844,79 @@ def handle_demo(message):
     bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
 
 
+@bot.message_handler(commands=['plansdebug', 'tracdebug'])
+def handle_plans_debug(message):
+    """Admin: ตรวจ DB analysis_plans ตรงๆ — ดูว่า log + outcome ทำงานไหม"""
+    user_id = str(message.chat.id)
+    if user_id != ADMIN_ID:
+        return
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+        # 1. นับ outcome
+        c.execute("SELECT outcome, COUNT(*) FROM analysis_plans GROUP BY outcome ORDER BY COUNT(*) DESC")
+        outcome_rows = c.fetchall() or []
+        # 2. ดู 5 rows ล่าสุด
+        c.execute(
+            "SELECT id, user_id, symbol, bias, outcome, issued_at, outcome_at "
+            "FROM analysis_plans ORDER BY issued_at DESC LIMIT 5"
+        )
+        recent_rows = c.fetchall() or []
+        # 3. นับ pending ที่ "พร้อม evaluate" แล้ว (>24h)
+        c.execute(
+            "SELECT COUNT(*) FROM analysis_plans "
+            "WHERE outcome='open' AND issued_at < NOW() - INTERVAL '24 hours'"
+        )
+        ready_count = int((c.fetchone() or [0])[0] or 0)
+        # 4. user สถิติของ admin (คุณเอง)
+        c.execute(
+            "SELECT total_analyses, streak_count, tiers_unlocked FROM users WHERE user_id=%s",
+            (str(ADMIN_ID),),
+        )
+        admin_row = c.fetchone() or (0, 0, '')
+        c.close()
+        conn.close()
+    except Exception as e:
+        bot.reply_to(message, f"❌ DB error: {e}")
+        return
+
+    parts = ["📊 **Plans Debug**", ""]
+
+    parts.append("**Outcome breakdown:**")
+    if not outcome_rows:
+        parts.append("  _(table ว่าง — ยังไม่เคยมี plan ถูก log)_")
+    else:
+        for outcome, cnt in outcome_rows:
+            parts.append(f"  • `{outcome or 'NULL'}`: {cnt}")
+
+    parts.append("")
+    parts.append(f"**Ready to evaluate:** {ready_count} plans (open + อายุ > 24 ชม.)")
+    parts.append("_(cron `check_plan_outcomes` รันที่ 6:00 Thai ทุกวัน)_")
+
+    parts.append("")
+    parts.append("**5 rows ล่าสุด:**")
+    if not recent_rows:
+        parts.append("  _(ไม่มีเลย — log_analysis_plan ไม่ทำงาน)_")
+    else:
+        for rid, uid, sym, bias, outcome, issued_at, outcome_at in recent_rows:
+            issued_str = issued_at.strftime('%m-%d %H:%M') if hasattr(issued_at, 'strftime') else str(issued_at)[:16]
+            parts.append(f"  • #{rid} {sym} ({bias}) `{outcome}` [{issued_str}] uid={uid}")
+
+    parts.append("")
+    parts.append("**Admin (คุณ) stats:**")
+    parts.append(f"  • total_analyses: `{admin_row[0] or 0}`")
+    parts.append(f"  • streak: `{admin_row[1] or 0}`")
+    parts.append(f"  • tiers_unlocked: `{admin_row[2] or '(empty)'}`")
+
+    parts.append("")
+    parts.append("_💡 ถ้า table ว่าง → log_analysis_plan ไม่ทำงาน (ดู error log)_")
+    parts.append("_💡 ถ้ามีแต่ outcome=open ทั้งหมด → รอ 24h+ + cron 6:00_")
+    parts.append("_💡 ถ้า admin total_analyses=0 → restart bot รับ ALTER TABLE migration_")
+
+    bot.reply_to(message, "\n".join(parts), parse_mode="Markdown")
+
+
 @bot.message_handler(commands=['track', 'trackrecord'])
 def handle_track_record(message):
     """แสดงสถิติ Track Record + leaderboard + hypothetical return"""
@@ -5273,22 +5346,21 @@ def handle_main(message):
         except Exception as e:
             print(f"[Analyze] log_plan failed: {e}", flush=True)
 
-    # 📊 Lifetime analysis count + tier badge check (ทุก role — รวม VIP/PRO ด้วย)
+    # 📊 Lifetime analysis count + tier badge check (รวม admin ด้วย — ให้เห็น UI ตอนเทส)
     new_total = 0
     newly_unlocked_tiers = []
-    if user_id != ADMIN_ID:
-        try:
-            new_total = increment_total_analyses(user_id)
-        except Exception as _e:
-            print(f"[total_analyses] err: {_e}", flush=True)
-        # ตรวจ tier badge — ถ้า unlock ใหม่จะ DM แจ้ง user หลัง report
-        try:
-            from database import get_streak_info
-            _streak_data = get_streak_info(user_id) or {}
-            _cur_streak = int(_streak_data.get('current') or 0)
-            newly_unlocked_tiers = check_and_grant_tier_codes(user_id, new_total, _cur_streak) or []
-        except Exception as _e:
-            print(f"[tier] check err: {_e}", flush=True)
+    try:
+        new_total = increment_total_analyses(user_id)
+    except Exception as _e:
+        print(f"[total_analyses] err: {_e}", flush=True)
+    # ตรวจ tier badge — ถ้า unlock ใหม่จะ DM แจ้ง user หลัง report
+    try:
+        from database import get_streak_info
+        _streak_data = get_streak_info(user_id) or {}
+        _cur_streak = int(_streak_data.get('current') or 0)
+        newly_unlocked_tiers = check_and_grant_tier_codes(user_id, new_total, _cur_streak) or []
+    except Exception as _e:
+        print(f"[tier] check err: {_e}", flush=True)
 
     if user_id != ADMIN_ID and role == 'free':
         increment_usage(user_id)
