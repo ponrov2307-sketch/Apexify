@@ -1264,7 +1264,8 @@ TIER_BADGES = [
     ('bronze',   'analyses', 3,   '🥉', 'Bronze Trader',   3,  'vip', 'BRONZE'),
     ('silver',   'analyses', 15,  '🥈', 'Silver Trader',   7,  'vip', 'SILVER'),
     ('gold',     'analyses', 50,  '🥇', 'Gold Analyst',    7,  'pro', 'GOLD'),
-    ('diamond',  'streak',   14,  '💎', 'Diamond Streak',  14, 'pro', 'DIAMOND'),
+    # Diamond = 21 (ห่าง 7-day milestone ที่ 7/14 — กัน user ได้ 2 reward พร้อมกัน)
+    ('diamond',  'streak',   21,  '💎', 'Diamond Streak',  14, 'pro', 'DIAMOND'),
 ]
 
 

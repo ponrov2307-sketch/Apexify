@@ -913,6 +913,134 @@ def handle_backfill_analyses(message):
         bot.reply_to(message, f"❌ Backfill error: {e}")
 
 
+@bot.message_handler(commands=['userdebug'])
+def handle_user_debug(message):
+    """Admin: ตรวจ state ของ user ใดๆ — full row + plans + tier
+    Usage: /userdebug 8410357841
+    """
+    user_id = str(message.chat.id)
+    if user_id != ADMIN_ID:
+        bot.reply_to(
+            message,
+            f"🔒 *Admin only*\nYour chat_id: `{user_id}`\nADMIN_ID: `{ADMIN_ID}`",
+            parse_mode="Markdown",
+        )
+        return
+    args = message.text.split()
+    if len(args) != 2:
+        bot.reply_to(message, "ใช้: `/userdebug <user_id>`\nเช่น `/userdebug 8410357841`", parse_mode="Markdown")
+        return
+    target_id = args[1].strip()
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+        # Full users row
+        c.execute(
+            """
+            SELECT user_id, role, expiry_date, usage_count, total_analyses, streak_count,
+                   longest_streak, free_trial_used, topup_balance, chart_previews_left,
+                   tiers_unlocked, flash_eligible_until, discount_amount_vip, discount_amount_pro,
+                   discount_until, discount_code, last_active, registered_date
+            FROM users WHERE user_id=%s
+            """,
+            (target_id,),
+        )
+        row = c.fetchone()
+        if not row:
+            c.close(); conn.close()
+            bot.reply_to(message, f"❌ ไม่พบ user `{target_id}`", parse_mode="Markdown")
+            return
+        # Count plans + portfolio + watchlist
+        c.execute("SELECT COUNT(*) FROM analysis_plans WHERE user_id=%s", (target_id,))
+        plans_count = int((c.fetchone() or [0])[0] or 0)
+        c.execute("SELECT COUNT(*) FROM portfolios WHERE user_id=%s AND COALESCE(shares,0)>0", (target_id,))
+        port_count = int((c.fetchone() or [0])[0] or 0)
+        c.execute("SELECT COUNT(*) FROM user_watchlist WHERE user_id=%s", (target_id,))
+        wl_count = int((c.fetchone() or [0])[0] or 0)
+        c.close(); conn.close()
+    except Exception as e:
+        bot.reply_to(message, f"❌ DB error: {e}")
+        return
+
+    (uid, role, expiry, usage, total_an, streak_cur, streak_long, ft_used,
+     topup_bal, chart_prev, tiers, flash_until, disc_vip, disc_pro,
+     disc_until, disc_code, last_active, reg_date) = row
+
+    # Compute effective role from check_subscription logic
+    eff_role = role or 'free'
+    if role in ('vip', 'pro') and expiry:
+        try:
+            exp_dt = expiry if isinstance(expiry, datetime) else datetime.fromisoformat(str(expiry).replace('T', ' '))
+            if isinstance(exp_dt, datetime) and exp_dt.replace(tzinfo=None) < datetime.now():
+                eff_role = 'free'
+        except Exception:
+            pass
+    if str(target_id) == str(ADMIN_ID):
+        eff_role = 'pro (admin)'
+
+    parts = [
+        f"👤 **User Debug — `{uid}`**",
+        f"",
+        f"🏷 *role (DB):* `{role or 'free'}`  →  *effective:* `{eff_role}`",
+        f"⏰ *expiry_date:* `{expiry or '—'}`",
+        f"📅 *registered:* `{str(reg_date)[:10] if reg_date else '—'}`",
+        f"⏱ *last_active:* `{str(last_active)[:19] if last_active else '—'}`",
+        f"",
+        f"📈 *Quota:* `{usage or 0}/3` (free reset midnight)",
+        f"📊 *total_analyses:* `{total_an or 0}` (lifetime)",
+        f"🔥 *streak:* current `{streak_cur or 0}` · longest `{streak_long or 0}`",
+        f"🆓 *free_trial_used:* `{ft_used}`",
+        f"",
+        f"🎟 *topup_balance:* `{topup_bal or 0}` ครั้ง",
+        f"🎁 *chart_previews_left:* `{chart_prev if chart_prev is not None else '—'}`",
+        f"🏆 *tiers_unlocked:* `{tiers or '(empty)'}`",
+        f"",
+        f"⚡ *flash_eligible_until:* `{flash_until or '—'}`",
+        f"💰 *discount:* code=`{disc_code or '—'}` vip=`{disc_vip or '—'}` pro=`{disc_pro or '—'}` until=`{disc_until or '—'}`",
+        f"",
+        f"📋 *Holdings:* `{port_count}` · *Watchlist:* `{wl_count}` · *Plans logged:* `{plans_count}`",
+    ]
+    bot.reply_to(message, "\n".join(parts), parse_mode="Markdown")
+
+
+@bot.message_handler(commands=['reset_quota'])
+def handle_reset_quota(message):
+    """Admin: reset quota+counters ของ user (สำหรับ test) — ไม่กระทบ subscription
+    Usage: /reset_quota 8410357841
+    """
+    user_id = str(message.chat.id)
+    if user_id != ADMIN_ID:
+        bot.reply_to(
+            message,
+            f"🔒 *Admin only*\nYour chat_id: `{user_id}`\nADMIN_ID: `{ADMIN_ID}`",
+            parse_mode="Markdown",
+        )
+        return
+    args = message.text.split()
+    if len(args) != 2:
+        bot.reply_to(message, "ใช้: `/reset_quota <user_id>`", parse_mode="Markdown")
+        return
+    target_id = args[1].strip()
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            "UPDATE users SET usage_count=0 WHERE user_id=%s RETURNING user_id",
+            (target_id,),
+        )
+        ok = c.fetchone() is not None
+        conn.commit()
+        c.close(); conn.close()
+        if ok:
+            bot.reply_to(message, f"✅ Reset quota สำเร็จ — user `{target_id}` ใช้ได้อีก 3 ครั้ง", parse_mode="Markdown")
+        else:
+            bot.reply_to(message, f"❌ ไม่พบ user `{target_id}`", parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ DB error: {e}")
+
+
 @bot.message_handler(commands=['whoami'])
 def handle_whoami(message):
     """ตรวจ chat_id + admin status — ใครก็ใช้ได้ ช่วย debug"""
@@ -1991,7 +2119,8 @@ def handle_redeem(message):
             return
         # 🎁 Days mode (existing)
         bot.reply_to(message, f"🎉 **ยินดีด้วย!** เติมโค้ดสำเร็จ\nคุณได้รับการอัปเกรดเป็น **{role_type.upper()} Member** ถึงวันที่: `{expiry}`\n\nสามารถใช้งานฟีเจอร์ใหม่ได้ทันทีครับ 🚀", parse_mode="Markdown")
-        increment_usage(user_id)
+        # 🐛 ลบ increment_usage(user_id) ออก — ไม่ควรนับเป็น quota ตอน redeem code
+        # (legacy code อาจเป็นต้นเหตุที่ usage_count ของ test user สูงผิดปกติ)
     elif days == "already_used_by_you":
         bot.reply_to(message, "⚠️ คุณเคยใช้โค้ดโปรโมชั่นนี้ไปแล้วครับ (1 คน ใช้ได้ 1 ครั้ง)")
     elif days == "fully_used":
