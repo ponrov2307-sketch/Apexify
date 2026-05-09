@@ -1257,12 +1257,14 @@ def increment_total_analyses(user_id):
 
 
 # 🏆 Tier badges system — auto-grant promo codes when user hits milestone
+# ⚠️ Threshold ระยะ launch (test phase) ลดลงให้ user ได้ feedback เร็ว
+# กลับมาเพิ่มได้เมื่อ scale > 100 paying — แค่แก้ตัวเลขในนี้
 TIER_BADGES = [
     # (tier_id, threshold_type, threshold_value, badge, label, days_bonus, role_type, code_prefix)
-    ('bronze',   'analyses', 10,  '🥉', 'Bronze Trader',   3,  'vip', 'BRONZE'),
-    ('silver',   'analyses', 50,  '🥈', 'Silver Trader',   7,  'vip', 'SILVER'),
-    ('gold',     'analyses', 100, '🥇', 'Gold Analyst',    7,  'pro', 'GOLD'),
-    ('diamond',  'streak',   30,  '💎', 'Diamond Streak',  14, 'pro', 'DIAMOND'),
+    ('bronze',   'analyses', 3,   '🥉', 'Bronze Trader',   3,  'vip', 'BRONZE'),
+    ('silver',   'analyses', 15,  '🥈', 'Silver Trader',   7,  'vip', 'SILVER'),
+    ('gold',     'analyses', 50,  '🥇', 'Gold Analyst',    7,  'pro', 'GOLD'),
+    ('diamond',  'streak',   14,  '💎', 'Diamond Streak',  14, 'pro', 'DIAMOND'),
 ]
 
 

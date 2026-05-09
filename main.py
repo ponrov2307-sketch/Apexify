@@ -844,6 +844,70 @@ def handle_demo(message):
     bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=markup)
 
 
+@bot.message_handler(commands=['backfill_analyses'])
+def handle_backfill_analyses(message):
+    """Admin: backfill total_analyses จาก analysis_plans (count plans per user)
+    one-shot script — รันครั้งเดียวหลัง deploy ใหม่
+    เฉพาะ user ที่มี total_analyses=0 (กันเขียนทับคนที่นับจริงแล้ว)
+    """
+    user_id = str(message.chat.id)
+    if user_id != ADMIN_ID:
+        return
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+        # นับ plans per user
+        c.execute(
+            """
+            SELECT user_id, COUNT(*) AS cnt
+            FROM analysis_plans
+            WHERE user_id IS NOT NULL
+            GROUP BY user_id
+            HAVING COUNT(*) > 0
+            """
+        )
+        rows = c.fetchall() or []
+        if not rows:
+            c.close()
+            conn.close()
+            bot.reply_to(message, "ℹ️ ยังไม่มี analysis_plans ใน DB — ไม่มีอะไรให้ backfill")
+            return
+
+        # อัปเดต — เฉพาะ user ที่ปัจจุบัน total=0 (กันทับ data ที่นับ post-deploy)
+        updated = 0
+        skipped = 0
+        for uid, cnt in rows:
+            try:
+                c.execute(
+                    "UPDATE users SET total_analyses=%s "
+                    "WHERE user_id=%s AND COALESCE(total_analyses, 0) = 0 "
+                    "RETURNING user_id",
+                    (int(cnt), str(uid)),
+                )
+                if c.fetchone():
+                    updated += 1
+                else:
+                    skipped += 1
+            except Exception as _e:
+                print(f"[backfill] {uid}: {_e}", flush=True)
+        conn.commit()
+        c.close()
+        conn.close()
+
+        bot.reply_to(
+            message,
+            f"✅ **Backfill สำเร็จ**\n\n"
+            f"📊 พบ {len(rows)} user มี analysis_plans\n"
+            f"✏️ อัปเดต: **{updated}** คน (total=0 → count จาก plans)\n"
+            f"⏭ ข้าม: {skipped} คน (มี total อยู่แล้ว ไม่เขียนทับ)\n\n"
+            f"_หมายเหตุ: backfill เฉพาะ PRO/admin ที่เคยมี plan log อยู่ — Free user ไม่มี history นับ_",
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        bot.reply_to(message, f"❌ Backfill error: {e}")
+
+
 @bot.message_handler(commands=['plansdebug', 'tracdebug'])
 def handle_plans_debug(message):
     """Admin: ตรวจ DB analysis_plans ตรงๆ — ดูว่า log + outcome ทำงานไหม"""
