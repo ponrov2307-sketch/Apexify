@@ -439,12 +439,16 @@ def init_db():
         c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS topup_balance INTEGER DEFAULT 0")
     except Exception as _e:
         print(f"[init_db] users.topup_balance migration: {_e}", flush=True)
-    # 🎁 Chart preview — free user ได้กราฟครั้งแรกครั้งเดียวตลอดชีวิต (wow moment)
-    # ใช้ INTEGER (ไม่ใช่ BOOLEAN) เพื่อให้ปรับเพิ่มเป็น 2-3 ครั้งได้ในอนาคตโดยไม่ต้อง migrate
+    # 🎁 Chart preview — free user ได้กราฟ 3 ครั้งแรกตลอดชีวิต (wow moment + habit)
+    # ALTER COLUMN SET DEFAULT รัน idempotent กัน inconsistency หลัง deploy ที่เคย DEFAULT 1
     try:
-        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chart_previews_left INTEGER DEFAULT 1")
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS chart_previews_left INTEGER DEFAULT 3")
     except Exception as _e:
         print(f"[init_db] users.chart_previews_left migration: {_e}", flush=True)
+    try:
+        c.execute("ALTER TABLE users ALTER COLUMN chart_previews_left SET DEFAULT 3")
+    except Exception as _e:
+        print(f"[init_db] users.chart_previews_left default: {_e}", flush=True)
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes
                  (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '', role_type TEXT DEFAULT 'vip')''')
@@ -1023,7 +1027,9 @@ def consume_topup_balance(user_id, count=1):
     return affected > 0
 
 
-# 🎁 Chart preview — free user ได้กราฟครั้งแรกตลอดชีวิต (default 1)
+# 🎁 Chart preview — free user ได้กราฟ 3 ครั้งแรกตลอดชีวิต (default 3)
+CHART_PREVIEW_TOTAL = 3  # ใช้ใน banner "ครั้งที่ X/3"
+
 def get_chart_previews_left(user_id):
     """คืนจำนวน preview ที่เหลือ (int >= 0)"""
     conn = get_connection()
@@ -1033,7 +1039,7 @@ def get_chart_previews_left(user_id):
     conn.close()
     if not result:
         return 0
-    return int(result[0]) if result[0] is not None else 1
+    return int(result[0]) if result[0] is not None else CHART_PREVIEW_TOTAL
 
 
 def consume_chart_preview(user_id):
