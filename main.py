@@ -24,6 +24,9 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       get_topup_balance, consume_topup_balance,
                       get_chart_previews_left, consume_chart_preview,
                       CHART_PREVIEW_TOTAL,
+                      start_flash_discount_if_eligible, is_flash_active, consume_flash_discount,
+                      FLASH_VIP_AMOUNT, FLASH_PRO_AMOUNT, FLASH_WINDOW_MINUTES,
+                      get_social_proof_stats,
                       ban_user, unban_user, is_user_banned,
                       init_new_features_db, process_referral, get_referral_stats,
                       add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,
@@ -2582,6 +2585,41 @@ def handle_payment_slip_check(message):
             topup_packages = {
                 20: 10,  # 20฿ = 10 credits (= 2฿/ครั้ง)
             }
+            # 🎁 Flash discount — รับเฉพาะ user ที่ยังอยู่ใน 30 นาทีของ flash window
+            if amount in (FLASH_VIP_AMOUNT, FLASH_PRO_AMOUNT):
+                if not is_flash_active(user_id):
+                    bot.edit_message_text(
+                        f"❌ ยอด {amount}฿ ใช้ได้เฉพาะใน {FLASH_WINDOW_MINUTES} นาทีหลังเปิด flash discount\n\n"
+                        f"flash discount หมดเวลาแล้ว กรุณาโอนตามราคาปกติ:\n"
+                        f"• 79฿ = VIP รายเดือน\n"
+                        f"• 109฿ = PRO รายเดือน\n\n"
+                        f"_(หรือติดต่อแอดมินถ้าโอนภายในเวลาแล้วระบบไม่อ่าน)_",
+                        message.chat.id,
+                        progress_msg.message_id,
+                        parse_mode="Markdown",
+                    )
+                    bot.send_message(
+                        ADMIN_ID,
+                        f"⚠️ User `{user_id}` โอน flash {amount}฿ แต่ window หมด — Ref `{ref_no}`",
+                        parse_mode="Markdown",
+                    )
+                    return
+                # รับเป็น VIP/PRO 30 วัน — เพิ่มเข้า slip_packages dynamically
+                if amount == FLASH_VIP_AMOUNT:
+                    slip_packages[FLASH_VIP_AMOUNT] = (
+                        'vip', 30,
+                        "🎉 **Flash 20% สำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายเดือน)** — ประหยัด 16฿\n⏰ หมดอายุ: {expiry}"
+                    )
+                else:
+                    slip_packages[FLASH_PRO_AMOUNT] = (
+                        'pro', 30,
+                        "🎉 **Flash 20% สำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายเดือน)** — ประหยัด 22฿\n⏰ หมดอายุ: {expiry}"
+                    )
+                # consume flash window กันใช้ซ้ำใน window เดียวกัน
+                try:
+                    consume_flash_discount(user_id)
+                except Exception:
+                    pass
 
             if amount in topup_packages:
                 # === Top-up flow ===
@@ -3928,29 +3966,27 @@ def handle_earnings(message):
 
     role = check_subscription(user_id)
     if role not in ('vip', 'pro') and user_id != ADMIN_ID:
-        bot.reply_to(message, "🔒 **ฟีเจอร์ระดับพรีเมียม (VIP+)**\nการวิเคราะห์งบการเงินด้วย AI สงวนสิทธิ์เฉพาะสมาชิก VIP และ PRO ครับ\n\n👉 กด **💎 บัญชี / VIP** เพื่ออัปเกรด", parse_mode="Markdown")
+        bot.reply_to(message, "🔒 **ฟีเจอร์ระดับพรีเมียม (VIP+)**\nการวิเคราะห์งบการเงินด้วย Apexify สงวนสิทธิ์เฉพาะสมาชิก VIP และ PRO ครับ\n\n👉 กด **💎 บัญชี / VIP** เพื่ออัปเกรด", parse_mode="Markdown")
         return
 
     args = message.text.split()
     if len(args) != 2:
-        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: `/earnings [ชื่อหุ้น]`\n(หุ้นไทยเติม .BK ด้วย เช่น `/earnings PTT.BK`)", parse_mode="Markdown")
+        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: `/earnings [ชื่อหุ้น]`\n(หุ้นไทยเติม .BK เช่น `/earnings PTT.BK`)", parse_mode="Markdown")
         return
-        
-    symbol = args[1].upper()
-    load_msg = bot.reply_to(message, f"⏳ กำลังให้ AI แกะงบการเงินล่าสุดของ {symbol}...", parse_mode="Markdown")
-    
-    try:
-        ai_client = gemini_client
 
+    symbol = args[1].upper()
+    load_msg = bot.reply_to(message, f"⏳ Apexify กำลังแกะงบ {symbol} (data + ข่าว + วิเคราะห์)...", parse_mode="Markdown")
+
+    try:
         allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
         clean_symbol = symbol.replace(".", "-") if "." in symbol and not symbol.endswith(allowed_suffixes) else symbol
         ticker = yf.Ticker(clean_symbol)
-        
+
         earnings = ticker.earnings_dates
         if earnings is None or earnings.empty:
-            bot.edit_message_text(f"❌ ไม่พบข้อมูลการประกาศงบการเงินของ {symbol}", message.chat.id, load_msg.message_id)
+            bot.edit_message_text(f"❌ ไม่พบข้อมูลการประกาศงบของ {symbol}", message.chat.id, load_msg.message_id)
             return
-            
+
         latest_earnings = earnings.iloc[0]
         eps_estimate = latest_earnings.get('EPS Estimate')
         eps_actual = latest_earnings.get('Reported EPS')
@@ -3959,7 +3995,7 @@ def handle_earnings(message):
         def _is_nan(v):
             return v is None or (isinstance(v, float) and v != v)
 
-        # ⏳ งบประกาศแล้วแต่ค่าจริงยังไม่ออก (yfinance returns NaN until earnings call ends)
+        # ⏳ งบประกาศแล้วแต่ค่าจริงยังไม่ออก
         if _is_nan(eps_actual):
             earnings_date = latest_earnings.name
             date_str = earnings_date.strftime('%d %b %Y') if hasattr(earnings_date, 'strftime') else 'เร็วๆ นี้'
@@ -3967,37 +4003,163 @@ def handle_earnings(message):
             bot.edit_message_text(
                 f"📅 **{symbol}** — Earnings ประกาศ {date_str}\n\n"
                 f"🎯 EPS คาดการณ์: **{est_str}**\n"
-                f"⏳ ผลจริงยังไม่ออก หรือข้อมูล yfinance ยัง sync ไม่ครบ\n\n"
-                f"💡 _ลองอีกครั้งใน 2-4 ชม. หลังประกาศ หรือใช้ `/ealert {symbol}` รับแจ้งเตือนวัน earnings_",
+                f"⏳ ผลจริงยังไม่ออก หรือ yfinance ยัง sync ไม่ครบ\n\n"
+                f"💡 _ลองอีกครั้งใน 2-4 ชม. หลังประกาศ หรือ `/ealert {symbol}` รับแจ้งเตือน_",
                 message.chat.id, load_msg.message_id, parse_mode="Markdown"
             )
             return
 
+        # 🌟 Deep data — Revenue + YoY + history (ใหม่)
+        revenue_actual = latest_earnings.get('Revenue Actual') or latest_earnings.get('Revenue')
+        revenue_estimate = latest_earnings.get('Revenue Estimate')
+        rev_act_str = f"${revenue_actual/1e9:.2f}B" if (revenue_actual and not _is_nan(revenue_actual)) else "—"
+        rev_est_str = f"${revenue_estimate/1e9:.2f}B" if (revenue_estimate and not _is_nan(revenue_estimate)) else "—"
+
+        # YoY EPS comparison — ดูงบ 4-5 ไตรมาสย้อน
+        yoy_str = "—"
+        history_str = ""
+        try:
+            past_eps = []
+            for i in range(min(5, len(earnings))):
+                e = earnings.iloc[i]
+                e_actual = e.get('Reported EPS')
+                e_date = e.name
+                if not _is_nan(e_actual):
+                    past_eps.append((e_date, float(e_actual)))
+            if len(past_eps) >= 4:
+                yoy_value = (past_eps[0][1] / past_eps[3][1] - 1) * 100 if past_eps[3][1] else 0
+                yoy_str = f"{yoy_value:+.1f}%" if past_eps[3][1] else "—"
+            if len(past_eps) >= 2:
+                last_4 = past_eps[:4]
+                history_str = " → ".join(f"{e[1]:.2f}" for e in reversed(last_4))
+        except Exception:
+            pass
+
+        # Sector + market cap context
+        info = {}
+        try:
+            info = ticker.info or {}
+        except Exception:
+            info = {}
+        sector = info.get('sector') or info.get('industry') or "—"
+        market_cap = info.get('marketCap')
+        cap_str = f"${market_cap/1e9:.1f}B" if market_cap else "—"
+
+        # 📰 News context — inject ข่าว earnings reaction
+        news_block = ""
+        try:
+            from news_context import fetch_ticker_news, format_news_for_prompt
+            news_items = fetch_ticker_news(symbol, max_items=4)
+            if news_items:
+                news_block = "\n\nRecent headlines (post-earnings reactions):\n" + format_news_for_prompt(news_items, max_items=4)
+        except Exception as e:
+            print(f"[earnings_cmd] news fetch err: {e}", flush=True)
+
         est_str = f"{eps_estimate:.2f}" if not _is_nan(eps_estimate) else "—"
         act_str = f"{eps_actual:.2f}"
-        sur_str = f"{surprise * 100:.2f}%" if not _is_nan(surprise) else "—"
+        sur_str = f"{surprise * 100:+.2f}%" if not _is_nan(surprise) else "—"
+        beat_label = "เกินคาด" if (not _is_nan(surprise) and surprise > 0) else ("ต่ำกว่าคาด" if (not _is_nan(surprise) and surprise < 0) else "ตามคาด")
 
         prompt = f"""
-        วิเคราะห์งบการเงินล่าสุดของหุ้น {symbol}
-        คาดการณ์ EPS: {est_str}
-        EPS จริงที่ทำได้: {act_str}
-        Surprise: {sur_str}
+คุณคือนักวิเคราะห์งบของ Apexify ตอบเป็น JSON object เท่านั้น ห้ามมี markdown หรือข้อความนอก JSON
 
-        เขียนสรุปสั้นๆ 3-4 บรรทัดด้วยภาษาเป็นกันเอง ว่างบออกมาดีกว่าหรือแย่กว่าที่คาดการณ์ และส่งผลบวก/ลบกับราคาหุ้นอย่างไร
-        """
+ข้อมูลหุ้น {symbol} ({sector}, market cap {cap_str}):
+- EPS estimate: {est_str}, EPS actual: {act_str}, Surprise: {sur_str} ({beat_label})
+- Revenue estimate: {rev_est_str}, Revenue actual: {rev_act_str}
+- EPS YoY (vs ไตรมาสปีก่อนหน้า): {yoy_str}
+- EPS 4 ไตรมาสล่าสุด (เก่า→ใหม่): {history_str or "ข้อมูลไม่ครบ"}
+{news_block}
 
-        ai_check = ai_client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-        summary = ai_check.text.strip()
+กฎ:
+- ภาษาไทย เป็นกลาง-ระวัง ห้ามชี้นำซื้อขายเด็ดขาด
+- ตอบ JSON ตาม schema ด้านล่าง
 
-        msg = (
-            f"📊 **สรุปงบการเงินฉบับ AI (Earnings Flash)** 📊\n\n"
-            f"📌 **หุ้น:** {symbol}\n"
-            f"🎯 **กำไรต่อหุ้น (EPS) คาดการณ์:** {est_str}\n"
-            f"✅ **กำไรต่อหุ้น (EPS) ทำได้จริง:** {act_str}\n"
-            f"😲 **เซอร์ไพรส์ตลาด:** {sur_str}\n\n"
-            f"🤖 **มุมมอง Apexify:**\n{summary}"
-        )
-        bot.edit_message_text(msg, message.chat.id, load_msg.message_id, parse_mode="Markdown")
+Schema:
+{{
+  "verdict_score": 0-10 ตามคุณภาพงบ (10=ยอดเยี่ยม, 5=กลางๆ, 0=แย่มาก),
+  "verdict_label": "ยอดเยี่ยม | ดี | กลางๆ | อ่อน | แย่",
+  "headline": "1 ประโยคสรุปงบ ห้ามเกิน 80 ตัวอักษร",
+  "highlights": ["จุดเด่น 2-3 ข้อ แต่ละข้อสั้นไม่เกิน 60 ตัวอักษร"],
+  "concerns": ["จุดเสี่ยง 1-2 ข้อ แต่ละข้อสั้นไม่เกิน 60 ตัวอักษร"],
+  "news_reaction": "1-2 ประโยค ตลาดและข่าวมีปฏิกิริยายังไง (ใช้ headline ที่ให้)",
+  "outlook": "1-2 ประโยค แนวโน้มไตรมาสหน้า อ้างอิง guidance/sector หรือ 'ข้อมูลไม่พอ'",
+  "price_impact": "bullish | bearish | neutral"
+}}
+"""
+
+        from google.genai import types as _gtypes
+        config = _gtypes.GenerateContentConfig(temperature=0.3, response_mime_type="application/json")
+        try:
+            response = gemini_client.models.generate_content(
+                model='gemini-2.5-flash', contents=prompt, config=config
+            )
+        except Exception:
+            response = gemini_client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+
+        import json as _json
+        raw = (getattr(response, 'text', '') or '').strip()
+        # extract JSON ถ้า AI ห่อด้วย markdown
+        if '{' in raw:
+            raw = raw[raw.index('{'): raw.rindex('}') + 1]
+        try:
+            parsed = _json.loads(raw)
+        except Exception:
+            parsed = {}
+
+        # Render — ปลอดภัย กรณี AI ไม่ส่ง field ครบ
+        v_score = parsed.get('verdict_score')
+        v_label = parsed.get('verdict_label') or 'ไม่สามารถประเมิน'
+        headline = parsed.get('headline') or 'ไม่มีข้อมูลสรุป'
+        highlights = parsed.get('highlights') or []
+        concerns = parsed.get('concerns') or []
+        news_reaction = parsed.get('news_reaction') or ''
+        outlook = parsed.get('outlook') or ''
+        impact = (parsed.get('price_impact') or 'neutral').lower()
+
+        impact_emoji = {'bullish': '🟢', 'bearish': '🔴', 'neutral': '⚪'}.get(impact, '⚪')
+
+        # Verdict bar
+        if isinstance(v_score, (int, float)):
+            score_int = max(0, min(10, int(v_score)))
+            score_bar = "▰" * score_int + "▱" * (10 - score_int)
+            score_line = f"🎯 *Verdict:* `{score_bar}` *{score_int}/10* — {v_label}"
+        else:
+            score_line = f"🎯 *Verdict:* {v_label}"
+
+        eps_emoji = '🟢' if (not _is_nan(surprise) and surprise > 0) else ('🔴' if (not _is_nan(surprise) and surprise < 0) else '⚪')
+
+        msg_parts = [
+            f"📊 *Apexify Earnings — {symbol}* ({sector})",
+            "─" * 17,
+            score_line,
+            f"_💬 {headline}_",
+            "",
+            f"*📈 EPS:* `{est_str}` → `{act_str}` {eps_emoji} *{sur_str}* ({beat_label})",
+            f"*💵 Revenue:* `{rev_est_str}` → `{rev_act_str}`",
+        ]
+        if yoy_str != "—":
+            msg_parts.append(f"*📅 EPS YoY:* `{yoy_str}`")
+        if history_str:
+            msg_parts.append(f"*🗓 EPS 4 ไตรมาส:* `{history_str}`")
+
+        if highlights:
+            msg_parts.extend(["", "*✅ จุดเด่น:*"])
+            for h in highlights[:3]:
+                msg_parts.append(f"  • {h}")
+        if concerns:
+            msg_parts.extend(["", "*⚠️ ความเสี่ยง:*"])
+            for c in concerns[:2]:
+                msg_parts.append(f"  • {c}")
+
+        if news_reaction:
+            msg_parts.extend(["", f"*📰 ตลาด & ข่าว:* {news_reaction}"])
+        if outlook and outlook != 'ข้อมูลไม่พอ':
+            msg_parts.extend(["", f"*🔮 แนวโน้ม:* {outlook}"])
+
+        msg_parts.extend(["", f"*📊 Price impact:* {impact_emoji} _{impact}_"])
+        msg_parts.extend(["", "_⚠️ ข้อมูลเพื่อประกอบการพิจารณา ไม่ใช่คำแนะนำลงทุน_"])
+
+        bot.edit_message_text("\n".join(msg_parts), message.chat.id, load_msg.message_id, parse_mode="Markdown")
     except Exception as e:
         print(f"[earnings_cmd] {e}", flush=True)
         bot.edit_message_text(friendly_error("ดึงข้อมูลงบการเงินไม่สำเร็จ"), message.chat.id, load_msg.message_id)
@@ -4713,8 +4875,7 @@ def handle_main(message):
         if _quota_btn:
             upsell_kb.add(_quota_btn)
 
-        # 🌟 Smart Paywall — preview เฉพาะ ticker ที่ user เพิ่งถาม (ไม่กิน Gemini เพิ่ม)
-        # ทำให้เห็น confidence + bias + จำนวนข่าวก่อน → เชื่อใจมากขึ้น → upgrade
+        # 🌟 Smart Paywall — preview ของ ticker + flash discount + social proof
         preview_block = ""
         try:
             from ai_analyzer import build_paywall_preview, render_paywall_preview
@@ -4724,11 +4885,51 @@ def handle_main(message):
         except Exception as _e:
             print(f"[SmartPaywall] preview err for {symbol}: {type(_e).__name__}: {str(_e)[:80]}", flush=True)
 
+        # 🎁 Flash discount — เปิด 30 นาทีถ้า eligible (one-shot per cooldown)
+        flash_block = ""
+        try:
+            eligible, expires_at = start_flash_discount_if_eligible(user_id)
+            if eligible and expires_at:
+                mins_left = max(1, int((expires_at - _dt.utcnow() - _td(hours=7)).total_seconds() // 60))
+                # ใช้ Thai time delta ไม่ถูก — fallback to total minutes left from FLASH_WINDOW_MINUTES
+                if mins_left > FLASH_WINDOW_MINUTES + 1:
+                    mins_left = FLASH_WINDOW_MINUTES
+                flash_block = (
+                    f"\n\n🎁 *พิเศษ! ลด 20% ภายใน {mins_left} นาที* 🔥\n"
+                    f"  💎 *VIP* {FLASH_VIP_AMOUNT}฿ (ปกติ 79฿) · ประหยัด 16฿\n"
+                    f"  👑 *PRO* {FLASH_PRO_AMOUNT}฿ (ปกติ 109฿) · ประหยัด 22฿\n"
+                    f"  _โอนยอดส่วนลดได้เลย — บอทจะอัปเกรดอัตโนมัติ_"
+                )
+                upsell_kb.add(
+                    InlineKeyboardButton(f"🎁 VIP {FLASH_VIP_AMOUNT}฿ (ลด 20%)", callback_data=f"qr_pay_{FLASH_VIP_AMOUNT}"),
+                    InlineKeyboardButton(f"🎁 PRO {FLASH_PRO_AMOUNT}฿ (ลด 20%)", callback_data=f"qr_pay_{FLASH_PRO_AMOUNT}"),
+                )
+        except Exception as _e:
+            print(f"[FlashDiscount] err: {type(_e).__name__}: {str(_e)[:80]}", flush=True)
+
+        # 👥 Social proof — ดึง real-time จาก DB
+        social_block = ""
+        try:
+            stats = get_social_proof_stats(symbol)
+            parts = []
+            if stats.get("watching_symbol", 0) > 0:
+                parts.append(f"👥 *{stats['watching_symbol']}* คนติดตาม {symbol}")
+            if stats.get("active_24h", 0) > 5:
+                parts.append(f"🔥 *{stats['active_24h']}* คนใช้ Apexify ใน 24 ชม.")
+            if stats.get("new_paid_7d", 0) > 0:
+                parts.append(f"💎 *{stats['new_paid_7d']}* VIP/PRO active")
+            if parts:
+                social_block = "\n\n" + " · ".join(parts)
+        except Exception as _e:
+            print(f"[SocialProof] err: {type(_e).__name__}: {str(_e)[:80]}", flush=True)
+
         if preview_block:
             upsell_msg = (
                 f"✨ **ใช้ครบโควต้าประจำวันแล้วครับ** ({FREE_DAILY_QUOTA}/{FREE_DAILY_QUOTA})\n"
                 f"🕛 รีเซ็ตในอีก **{_reset_str}**"
-                f"{preview_block}\n\n"
+                f"{preview_block}"
+                f"{flash_block}"
+                f"{social_block}\n\n"
                 f"_💡 ทดลอง PRO ฟรี 7 วัน — เห็นทุกอย่างของ {symbol} ทันที_"
             )
         else:

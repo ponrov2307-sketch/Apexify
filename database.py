@@ -449,6 +449,11 @@ def init_db():
         c.execute("ALTER TABLE users ALTER COLUMN chart_previews_left SET DEFAULT 3")
     except Exception as _e:
         print(f"[init_db] users.chart_previews_left default: {_e}", flush=True)
+    # 🎁 Flash discount — เปิดเมื่อ free โดน paywall ครั้งแรก, valid 30 min, one-shot
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS flash_eligible_until TIMESTAMP")
+    except Exception as _e:
+        print(f"[init_db] users.flash_eligible_until migration: {_e}", flush=True)
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes
                  (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '', role_type TEXT DEFAULT 'vip')''')
@@ -1060,6 +1065,148 @@ def consume_chart_preview(user_id):
     if row is None:
         return False, 0
     return True, int(row[0]) if row[0] is not None else 0
+
+
+# 🎁 Flash discount — เปิดเมื่อ free โดน paywall ครั้งแรก
+# pricing: 63 = VIP 20% off, 87 = PRO 20% off
+FLASH_VIP_AMOUNT = 63
+FLASH_PRO_AMOUNT = 87
+FLASH_WINDOW_MINUTES = 30
+
+
+def start_flash_discount_if_eligible(user_id):
+    """เปิด flash window 30 นาที ถ้า user ยังไม่เคยใช้ (NULL) หรือเปิดเมื่อก่อนแต่หมดแล้ว
+    Cooldown: ห่างกันอย่างน้อย 24 ชม. ก่อนเปิดใหม่ — กันคนเก่ากด /start ทุกวันได้ flash
+
+    Returns: (eligible:bool, expires_at:datetime หรือ None)
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        from datetime import timedelta
+        now = datetime.now()
+        cooldown_cutoff = now - timedelta(hours=24)
+        c.execute(
+            "SELECT flash_eligible_until FROM users WHERE user_id=%s FOR UPDATE",
+            (str(user_id),),
+        )
+        row = c.fetchone()
+        if not row:
+            conn.rollback()
+            return False, None
+        cur = row[0]
+        # eligible if: never used (NULL) OR last offer cooldown passed (>24h before now)
+        if cur is None:
+            should_open = True
+        else:
+            try:
+                cur_dt = cur if isinstance(cur, datetime) else datetime.fromisoformat(str(cur).replace('T', ' '))
+                cur_dt = cur_dt.replace(tzinfo=None) if cur_dt.tzinfo else cur_dt
+                # if cur > now → flash ยัง active อยู่ (คืน eligible+expiry เดิม)
+                if cur_dt > now:
+                    conn.rollback()
+                    return True, cur_dt
+                # cooldown: must be older than 24h ago
+                should_open = cur_dt < cooldown_cutoff
+            except Exception:
+                should_open = True
+
+        if not should_open:
+            conn.rollback()
+            return False, None
+
+        new_expiry = now + timedelta(minutes=FLASH_WINDOW_MINUTES)
+        c.execute(
+            "UPDATE users SET flash_eligible_until=%s WHERE user_id=%s",
+            (new_expiry.strftime('%Y-%m-%d %H:%M:%S'), str(user_id)),
+        )
+        conn.commit()
+        return True, new_expiry
+    except Exception as e:
+        print(f"[flash] start err: {e}", flush=True)
+        conn.rollback()
+        return False, None
+    finally:
+        conn.close()
+
+
+def is_flash_active(user_id):
+    """เช็คว่า flash window ยัง active อยู่ไหม — ใช้ใน slip handler ตอน amount=63/87
+    Returns: bool
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT flash_eligible_until FROM users WHERE user_id=%s", (str(user_id),))
+    row = c.fetchone()
+    conn.close()
+    if not row or not row[0]:
+        return False
+    try:
+        cur_dt = row[0] if isinstance(row[0], datetime) else datetime.fromisoformat(str(row[0]).replace('T', ' '))
+        cur_dt = cur_dt.replace(tzinfo=None) if cur_dt.tzinfo else cur_dt
+        return datetime.now() < cur_dt
+    except Exception:
+        return False
+
+
+def consume_flash_discount(user_id):
+    """ปิด flash window หลังใช้สำเร็จ — กันใช้ซ้ำใน window เดียวกัน"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("UPDATE users SET flash_eligible_until=NULL WHERE user_id=%s", (str(user_id),))
+        conn.commit()
+    except Exception as e:
+        print(f"[flash] consume err: {e}", flush=True)
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+# 👥 Social proof stats — ดึง real-time จาก DB ใส่ paywall
+def get_social_proof_stats(symbol=None):
+    """ดึงสถิติเพื่อแสดง social proof ใน paywall — ทุก count atomic ไม่กิน performance
+    Returns: dict {
+        active_24h: int — user ที่ active ใน 24 ชม.
+        new_paid_7d: int — user ใหม่ที่สมัคร VIP/PRO ใน 7 วัน
+        watching_symbol: int — ติดตาม symbol นี้ (ถ้า symbol given)
+    }
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    stats = {"active_24h": 0, "new_paid_7d": 0, "watching_symbol": 0}
+    try:
+        from datetime import timedelta
+        now = datetime.now()
+        c.execute(
+            "SELECT COUNT(*) FROM users WHERE last_active >= %s",
+            (now - timedelta(hours=24),),
+        )
+        r = c.fetchone()
+        if r:
+            stats["active_24h"] = int(r[0] or 0)
+
+        c.execute(
+            "SELECT COUNT(*) FROM users WHERE role IN ('vip','pro') AND expiry_date >= %s",
+            (now,),
+        )
+        r = c.fetchone()
+        if r:
+            stats["new_paid_7d"] = int(r[0] or 0)
+
+        if symbol:
+            c.execute(
+                "SELECT COUNT(*) FROM user_watchlist WHERE UPPER(ticker)=%s",
+                (str(symbol).upper(),),
+            )
+            r = c.fetchone()
+            if r:
+                stats["watching_symbol"] = int(r[0] or 0)
+    except Exception as e:
+        print(f"[social_proof] err: {e}", flush=True)
+    finally:
+        conn.close()
+    return stats
 
 def get_users_watching(symbol):
     return _get_watchers_for_ticker(symbol)
