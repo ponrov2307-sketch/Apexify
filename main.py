@@ -29,6 +29,7 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       get_social_proof_stats,
                       get_total_analyses, increment_total_analyses,
                       check_and_grant_tier_codes, get_user_tier, TIER_BADGES,
+                      get_user_discount, consume_user_discount,
                       ban_user, unban_user, is_user_banned,
                       init_new_features_db, process_referral, get_referral_stats,
                       add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,
@@ -1658,28 +1659,99 @@ def handle_unban(message):
 
 @bot.message_handler(commands=['gencode'])
 def handle_gencode(message):
+    """Admin: สร้างโค้ด 2 mode
+
+    Mode A — Days (เพิ่มวันฟรี):
+      /gencode <days> <max_uses> <vip|pro> [custom_code_name]
+      เช่น /gencode 7 100 vip          → "VIP7-XXXXXX" 7 วัน VIP, 100 uses
+           /gencode 7 100 vip WELCOME7 → "WELCOME7" 7 วัน VIP, 100 uses
+
+    Mode B — Discount % (ส่วนลด %):
+      /gencode <pct>% <max_uses> <vip|pro> <window_hours> [custom_code_name]
+      เช่น /gencode 20% 100 vip 48          → "VIP20OFF-XXXXXX" ลด 20%, 48 ชม., 100 uses
+           /gencode 30% 50 pro 24 NEWYEAR30 → "NEWYEAR30" ลด 30% PRO, 24 ชม., 50 uses
+    """
     if str(message.chat.id) != ADMIN_ID: return
     args = message.text.split()
-    if len(args) < 3:
-        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: /gencode [จำนวนวัน] [จำนวนคนที่ใช้ได้] [vip/pro]")
+    usage_text = (
+        "❌ รูปแบบผิด!\n\n"
+        "*Days mode:*\n"
+        "  `/gencode <days> <max_uses> <vip|pro> [code_name]`\n"
+        "  เช่น `/gencode 7 100 vip` หรือ `/gencode 7 100 vip WELCOME7`\n\n"
+        "*Discount mode (ลด %):*\n"
+        "  `/gencode <pct>% <max_uses> <vip|pro> <window_hours> [code_name]`\n"
+        "  เช่น `/gencode 20% 100 vip 48` หรือ `/gencode 30% 50 pro 24 NEWYEAR30`"
+    )
+    if len(args) < 4:
+        bot.reply_to(message, usage_text, parse_mode="Markdown")
         return
     try:
-        days = int(args[1])
+        first = args[1].strip()
         max_uses = int(args[2])
-        role_type = args[3].lower() if len(args) > 3 else 'vip'
-        
-        code = f"{role_type.upper()}{days}-" + generate_random_code(6)
+        role_type = args[3].lower()
+        if role_type not in ('vip', 'pro'):
+            bot.reply_to(message, "❌ role ต้องเป็น vip หรือ pro", parse_mode="Markdown")
+            return
+
+        # 🎟 Discount mode — first arg ลงท้าย "%"
+        if first.endswith('%'):
+            try:
+                discount_pct = int(first.rstrip('%'))
+            except ValueError:
+                bot.reply_to(message, usage_text, parse_mode="Markdown")
+                return
+            if discount_pct < 5 or discount_pct > 75:
+                bot.reply_to(message, "❌ ส่วนลดต้องอยู่ระหว่าง 5%-75%", parse_mode="Markdown")
+                return
+            if len(args) < 5:
+                bot.reply_to(message, usage_text, parse_mode="Markdown")
+                return
+            window_hours = int(args[4])
+            custom_name = args[5].strip().upper() if len(args) > 5 else None
+            code = custom_name or f"{role_type.upper()}{discount_pct}OFF-" + generate_random_code(6)
+            # คำนวณยอดเพื่อ preview ใน admin response
+            vip_amt = round(79 * (1 - discount_pct / 100.0))
+            pro_amt = round(109 * (1 - discount_pct / 100.0))
+            preview_amt = vip_amt if role_type == 'vip' else pro_amt
+            ok = add_promo_code(
+                code, days=30, max_uses=max_uses, role_type=role_type,
+                discount_pct=discount_pct, window_hours=window_hours,
+            )
+            if ok:
+                msg = (
+                    f"✅ *สร้างโค้ดส่วนลด {role_type.upper()} สำเร็จ!*\n\n"
+                    f"🎟 *โค้ด:* `{code}`\n"
+                    f"💰 *ส่วนลด:* {discount_pct}% ({role_type.upper()} เหลือ {preview_amt}฿)\n"
+                    f"⏰ *Window:* {window_hours} ชม. หลัง redeem\n"
+                    f"👥 *Max uses:* {max_uses} คน\n\n"
+                    f"*Flow ของ user:*\n"
+                    f"1. พิมพ์ `/redeem {code}`\n"
+                    f"2. bot บอก \"โอน {preview_amt}฿ ภายใน {window_hours} ชม.\"\n"
+                    f"3. user โอน → ได้ {role_type.upper()} 30 วัน"
+                )
+                bot.reply_to(message, msg, parse_mode="Markdown")
+            else:
+                bot.reply_to(message, f"❌ โค้ด `{code}` ซ้ำแล้ว — ลองชื่ออื่น", parse_mode="Markdown")
+            return
+
+        # 🎁 Days mode (existing)
+        days = int(first)
+        custom_name = args[4].strip().upper() if len(args) > 4 else None
+        code = custom_name or f"{role_type.upper()}{days}-" + generate_random_code(6)
         if add_promo_code(code, days, max_uses, role_type):
             msg = (
-                f"✅ **สร้างโค้ด {role_type.upper()} สำเร็จ!**\n\n"
-                f"🎟 **โค้ด:** `{code}`\n"
-                f"⏰ **เพิ่มวัน:** {days} วัน\n"
-                f"👥 **จำนวนสิทธิ์:** ใช้ได้ {max_uses} คน\n\n"
-                f"*(ส่งให้ลูกค้ากด Copy และพิมพ์ /redeem ตามด้วยโค้ดได้เลย)*"
+                f"✅ *สร้างโค้ด {role_type.upper()} สำเร็จ!*\n\n"
+                f"🎟 *โค้ด:* `{code}`\n"
+                f"⏰ *เพิ่มวัน:* {days} วัน\n"
+                f"👥 *Max uses:* {max_uses} คน\n\n"
+                f"*(ส่งให้ลูกค้า — พิมพ์ `/redeem {code}` รับ {role_type.upper()} ทันที)*"
             )
             bot.reply_to(message, msg, parse_mode="Markdown")
+        else:
+            bot.reply_to(message, f"❌ โค้ด `{code}` ซ้ำแล้ว — ลองชื่ออื่น", parse_mode="Markdown")
     except Exception as e:
-        bot.reply_to(message, "❌ รูปแบบผิด! พิมพ์: /gencode [จำนวนวัน] [จำนวนคนที่ใช้ได้] [vip/pro]")
+        print(f"[gencode] err: {e}", flush=True)
+        bot.reply_to(message, usage_text, parse_mode="Markdown")
 
 @bot.message_handler(commands=['redeem'])
 def handle_redeem(message):
@@ -1692,10 +1764,34 @@ def handle_redeem(message):
     
     code = args[1].strip().upper()
     success, days, expiry, role_type = redeem_code(user_id, code)
-    
+
     if success:
+        # 🎟 Discount mode — expiry เป็น dict ของ discount window ไม่ใช่ string วันหมดอายุ
+        if days == "discount" and isinstance(expiry, dict):
+            pct = expiry.get("pct", 0)
+            vip_amt = expiry.get("vip_amount")
+            pro_amt = expiry.get("pro_amount")
+            window_h = expiry.get("window_hours", 24)
+            target_amt = pro_amt if role_type == 'pro' else vip_amt
+            target_role = "PRO" if role_type == 'pro' else "VIP"
+            from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+            kb = InlineKeyboardMarkup()
+            kb.add(InlineKeyboardButton(f"💎 สร้าง QR ยอด {target_amt}฿", callback_data=f"qr_pay_{target_amt}"))
+            msg = (
+                f"🎁 *ส่วนลด {pct}% เปิดให้คุณแล้ว!*\n\n"
+                f"💰 *ราคาพิเศษ:* {target_amt}฿ ({target_role} รายเดือน)\n"
+                f"⏰ *ใช้ได้ภายใน:* {window_h} ชม.\n\n"
+                f"*ขั้นตอน:*\n"
+                f"1. กดปุ่มด้านล่างเพื่อสร้าง QR\n"
+                f"2. โอนยอด {target_amt}฿ ผ่าน PromptPay\n"
+                f"3. ส่งสลิปกลับในแชทนี้ → bot อัปเกรดอัตโนมัติ\n\n"
+                f"_โค้ดนี้ใช้ได้ครั้งเดียว ถ้าไม่โอนใน {window_h} ชม. โค้ดจะหมดอายุ_"
+            )
+            bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=kb)
+            return
+        # 🎁 Days mode (existing)
         bot.reply_to(message, f"🎉 **ยินดีด้วย!** เติมโค้ดสำเร็จ\nคุณได้รับการอัปเกรดเป็น **{role_type.upper()} Member** ถึงวันที่: `{expiry}`\n\nสามารถใช้งานฟีเจอร์ใหม่ได้ทันทีครับ 🚀", parse_mode="Markdown")
-        increment_usage(user_id) 
+        increment_usage(user_id)
     elif days == "already_used_by_you":
         bot.reply_to(message, "⚠️ คุณเคยใช้โค้ดโปรโมชั่นนี้ไปแล้วครับ (1 คน ใช้ได้ 1 ครั้ง)")
     elif days == "fully_used":
@@ -2671,9 +2767,32 @@ def handle_payment_slip_check(message):
                 return
 
             package_info = slip_packages.get(amount)
+
+            # 🎟 Code-based discount — ก่อน reject ตรวจ user's discount window จาก redeemed code
+            # (e.g., user redeem NEWYEAR30 → discount_amount_vip=55 → user โอน 55฿ → match)
+            if not package_info:
+                try:
+                    user_disc = get_user_discount(user_id)
+                except Exception as _e:
+                    print(f"[CodeDiscount] get err: {_e}", flush=True)
+                    user_disc = None
+                if user_disc:
+                    int_amount = int(round(amount))
+                    if user_disc.get("vip_amount") == int_amount:
+                        package_info = ('vip', 30, "🎉 **ส่วนลดจากโค้ดสำเร็จ!** ได้รับ **💎 VIP (รายเดือน)** — โค้ด `" + user_disc.get("code", "?") + "`\n⏰ หมดอายุ: {expiry}")
+                        # ปิด discount window กันใช้ซ้ำ
+                        try: consume_user_discount(user_id)
+                        except Exception: pass
+                    elif user_disc.get("pro_amount") == int_amount:
+                        package_info = ('pro', 30, "🎉 **ส่วนลดจากโค้ดสำเร็จ!** ได้รับ **👑 PRO (รายเดือน)** — โค้ด `" + user_disc.get("code", "?") + "`\n⏰ หมดอายุ: {expiry}")
+                        try: consume_user_discount(user_id)
+                        except Exception: pass
+
             if not package_info:
                 bot.edit_message_text(
-                    f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** ({amount:,.2f} บาท)\nกรุณาโอนให้ตรงราคา (20, 79, 109, 790, 1090)",
+                    f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** ({amount:,.2f} บาท)\n"
+                    f"กรุณาโอนให้ตรงราคา (20, 79, 109, 790, 1090) หรือยอดส่วนลดของคุณ\n"
+                    f"_(ถ้า redeem โค้ดส่วนลดมาแล้ว ตรวจให้แน่ใจว่ายังอยู่ในเวลาที่กำหนด)_",
                     message.chat.id,
                     progress_msg.message_id,
                     parse_mode="Markdown",

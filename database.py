@@ -477,9 +477,36 @@ def init_db():
         c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_lapsed_trial_dm TIMESTAMP")
     except Exception as _e:
         print(f"[init_db] users.last_lapsed_trial_dm migration: {_e}", flush=True)
+    # 🎟 Code-based discount window — เปิดเมื่อ user redeem โค้ดส่วนลด %
+    # ทำงานคล้าย flash discount แต่ trigger ผ่านโค้ดและมีจำนวนโค้ดใช้ได้
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS discount_amount_vip INTEGER")
+    except Exception as _e:
+        print(f"[init_db] users.discount_amount_vip migration: {_e}", flush=True)
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS discount_amount_pro INTEGER")
+    except Exception as _e:
+        print(f"[init_db] users.discount_amount_pro migration: {_e}", flush=True)
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS discount_until TIMESTAMP")
+    except Exception as _e:
+        print(f"[init_db] users.discount_until migration: {_e}", flush=True)
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS discount_code TEXT")
+    except Exception as _e:
+        print(f"[init_db] users.discount_code migration: {_e}", flush=True)
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes
                  (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '', role_type TEXT DEFAULT 'vip')''')
+    # 🎟 Discount mode — โค้ด % off (เปิด discount window แทนเพิ่มวัน)
+    try:
+        c.execute("ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS discount_pct INTEGER")
+    except Exception as _e:
+        print(f"[init_db] promo_codes.discount_pct migration: {_e}", flush=True)
+    try:
+        c.execute("ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS window_hours INTEGER DEFAULT 0")
+    except Exception as _e:
+        print(f"[init_db] promo_codes.window_hours migration: {_e}", flush=True)
 
     # 🌟 ฐานข้อมูลเก็บสลิปที่ใช้แล้ว ป้องกันการส่งซ้ำ
     c.execute('''CREATE TABLE IF NOT EXISTS used_slips
@@ -1681,11 +1708,23 @@ def get_track_record_stats(days=30, user_id=None):
     }
 
 
-def add_promo_code(code, days, max_uses, role_type='vip'):
+def add_promo_code(code, days, max_uses, role_type='vip', discount_pct=None, window_hours=0):
+    """สร้าง promo code — รองรับ 2 mode:
+    1. Days mode (default): discount_pct=None → user redeem ได้ subscription +days ทันที
+    2. Discount mode: discount_pct=10/15/20/.../50 + window_hours > 0
+       → user redeem แล้วเปิด discount window ใน users
+       → user โอนยอดส่วนลด → slip handler เช็ค window + grant
+    """
     conn = get_connection()
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO promo_codes (code, days, max_uses, current_uses, used_by, role_type) VALUES (%s, %s, %s, 0, '', %s)", (code, days, max_uses, role_type))
+        c.execute(
+            "INSERT INTO promo_codes (code, days, max_uses, current_uses, used_by, role_type, discount_pct, window_hours) "
+            "VALUES (%s, %s, %s, 0, '', %s, %s, %s)",
+            (code, days, max_uses, role_type,
+             int(discount_pct) if discount_pct else None,
+             int(window_hours) if window_hours else 0),
+        )
         conn.commit()
         return True
     except psycopg2.IntegrityError:
@@ -1695,6 +1734,13 @@ def add_promo_code(code, days, max_uses, role_type='vip'):
         conn.close()
 
 def redeem_code(user_id, code):
+    """Redeem promo code — รองรับ 2 mode
+
+    Returns: (success:bool, days_or_label, expiry_or_amount, role_type)
+    - Days mode: (True, days, expiry_str, role)
+    - Discount mode: (True, "discount", {"pct":20, "amount":63, "until":...}, role)
+    - Fail: (False, "already_used_by_you" / "fully_used" / None, None, None)
+    """
     conn = get_connection()
     c = conn.cursor()
 
@@ -1711,13 +1757,52 @@ def redeem_code(user_id, code):
     conn.commit()
 
     if rows_updated == 1:
-        # Success — fetch role_type and days to complete subscription
-        c.execute("SELECT days, role_type FROM promo_codes WHERE code=%s", (code,))
+        # Success — เลือก mode ตาม discount_pct
+        c.execute(
+            "SELECT days, role_type, discount_pct, window_hours FROM promo_codes WHERE code=%s",
+            (code,),
+        )
         row = c.fetchone()
-        conn.close()
         if not row:
+            conn.close()
             return False, None, None, None
-        days, role_type = row
+        days, role_type, discount_pct, window_hours = row
+
+        # 🎟 Discount mode — เปิด window แทนการ add subscription
+        if discount_pct and discount_pct > 0:
+            from datetime import timedelta
+            window_h = int(window_hours or 24)
+            until = datetime.now() + timedelta(hours=window_h)
+            # คำนวณยอดส่วนลด: VIP 79 / PRO 109 → discounted
+            vip_amount = round(79 * (1 - discount_pct / 100.0))
+            pro_amount = round(109 * (1 - discount_pct / 100.0))
+            try:
+                c.execute(
+                    "UPDATE users SET discount_amount_vip=%s, discount_amount_pro=%s, "
+                    "discount_until=%s, discount_code=%s WHERE user_id=%s",
+                    (
+                        vip_amount, pro_amount,
+                        until.strftime('%Y-%m-%d %H:%M:%S'),
+                        str(code), str(user_id),
+                    ),
+                )
+                conn.commit()
+            except Exception as e:
+                print(f"[redeem-discount] err: {e}", flush=True)
+                conn.rollback()
+                conn.close()
+                return False, None, None, None
+            conn.close()
+            return True, "discount", {
+                "pct": int(discount_pct),
+                "vip_amount": vip_amount,
+                "pro_amount": pro_amount,
+                "until": until,
+                "window_hours": window_h,
+            }, role_type
+
+        # 🎁 Days mode (existing) — add subscription ทันที
+        conn.close()
         expiry = add_subscription(user_id, role_type, days)
         return True, days, expiry, role_type
 
@@ -1731,6 +1816,58 @@ def redeem_code(user_id, code):
     if used_by and str(user_id) in used_by:
         return False, "already_used_by_you", None, None
     return False, "fully_used", None, None
+
+
+# 🎟 Discount window helpers — ใช้กับ slip handler
+def get_user_discount(user_id):
+    """คืนสถานะ discount ของ user — dict หรือ None ถ้าไม่มี/หมดเวลา
+    {"vip_amount", "pro_amount", "until", "code"}
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT discount_amount_vip, discount_amount_pro, discount_until, discount_code "
+        "FROM users WHERE user_id=%s",
+        (str(user_id),),
+    )
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return None
+    vip_amt, pro_amt, until, code = row
+    if not until:
+        return None
+    try:
+        until_dt = until if isinstance(until, datetime) else datetime.fromisoformat(str(until).replace('T', ' '))
+        until_dt = until_dt.replace(tzinfo=None) if until_dt.tzinfo else until_dt
+        if datetime.now() >= until_dt:
+            return None
+    except Exception:
+        return None
+    return {
+        "vip_amount": int(vip_amt) if vip_amt else None,
+        "pro_amount": int(pro_amt) if pro_amt else None,
+        "until": until_dt,
+        "code": str(code or ""),
+    }
+
+
+def consume_user_discount(user_id):
+    """ปิด discount window หลัง user ใช้สำเร็จ — clear ทุก field"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "UPDATE users SET discount_amount_vip=NULL, discount_amount_pro=NULL, "
+            "discount_until=NULL, discount_code=NULL WHERE user_id=%s",
+            (str(user_id),),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[consume-discount] err: {e}", flush=True)
+        conn.rollback()
+    finally:
+        conn.close()
 
 def get_user_stats():
     conn = get_connection()
