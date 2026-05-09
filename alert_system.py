@@ -2043,6 +2043,210 @@ def send_winback_dms(bot_instance):
         print(f"[winback] ส่ง {sent_total} คน — re-engagement", flush=True)
 
 
+# 🎁 Daily Reset Ping — DM user ที่ใช้เมื่อวาน ตอนเที่ยงคืน reset โควต้าใหม่
+# Habit-building lever: คนใช้ทุกเช้า → DAU เพิ่ม + chance สมัครสูงขึ้น
+def send_daily_reset_pings(bot_instance):
+    conn = get_connection()
+    c = conn.cursor()
+    sent = 0
+    try:
+        # user ที่ใช้วันก่อน (usage_count > 0 ก่อน reset = active เมื่อวาน)
+        # หลัง reset_daily_free_usage รัน usage_count ของ free จะกลับเป็น 0 แล้ว
+        # → ใช้ last_active แทน: active ใน 24-48 ชม.ล่าสุด + ยังไม่เคยส่ง DM นี้ใน 23 ชม.
+        c.execute("""
+            SELECT user_id FROM users
+            WHERE COALESCE(role, 'free') = 'free'
+              AND last_active IS NOT NULL
+              AND last_active::timestamptz > NOW() - INTERVAL '48 hours'
+              AND last_active::timestamptz < NOW() - INTERVAL '6 hours'
+              AND (last_daily_reset_dm IS NULL OR last_daily_reset_dm < NOW() - INTERVAL '23 hours')
+            LIMIT 200
+        """)
+        users = [r[0] for r in c.fetchall()]
+    except Exception as e:
+        print(f"[daily-reset-dm] query err: {e}", flush=True)
+        conn.close()
+        return
+    finally:
+        try: conn.close()
+        except: pass
+
+    for user_id in users:
+        if str(user_id) == str(ADMIN_ID):
+            continue
+        try:
+            from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+            kb = InlineKeyboardMarkup()
+            kb.add(InlineKeyboardButton("🔥 วิเคราะห์หุ้นเลย", callback_data="hub_home"))
+            msg = (
+                "🎁 *โควต้าฟรีใหม่รอคุณ! 3/3 ครั้ง*\n\n"
+                "เช้าวันใหม่ Apexify รีเซ็ตให้แล้ว — เริ่มต้นวันด้วยหุ้นที่คุณสนใจ?\n"
+                "_พิมพ์ชื่อหุ้น (เช่น AAPL) ได้เลย_"
+            )
+            ok = safe_send(bot_instance, user_id, msg, parse_mode="Markdown", reply_markup=kb)
+            if ok:
+                # mark sent
+                conn2 = get_connection()
+                c2 = conn2.cursor()
+                try:
+                    c2.execute(
+                        "UPDATE users SET last_daily_reset_dm=NOW() WHERE user_id=%s",
+                        (str(user_id),),
+                    )
+                    conn2.commit()
+                except Exception:
+                    conn2.rollback()
+                finally:
+                    conn2.close()
+                sent += 1
+                time.sleep(0.05)
+        except Exception as e:
+            print(f"[daily-reset-dm] send err {user_id}: {e}", flush=True)
+    if sent > 0:
+        print(f"[daily-reset-dm] ส่ง {sent} คน — habit building", flush=True)
+
+
+# 🔥 Streak Loss Aversion DM — DM 6 ชม. ก่อนเที่ยงคืน ให้ user ที่ streak > 3 แต่ยังไม่ active วันนี้
+def send_streak_loss_dms(bot_instance):
+    from database import get_streak_info
+    conn = get_connection()
+    c = conn.cursor()
+    sent = 0
+    try:
+        # user ที่ active เมื่อวาน + ยังไม่ active วันนี้ + ไม่ได้ DM นี้ใน 23 ชม.
+        c.execute("""
+            SELECT user_id FROM users
+            WHERE last_active IS NOT NULL
+              AND last_active::timestamptz < NOW() - INTERVAL '6 hours'
+              AND last_active::timestamptz > NOW() - INTERVAL '36 hours'
+              AND COALESCE(status, 'active') = 'active'
+              AND (last_streak_loss_dm IS NULL OR last_streak_loss_dm < NOW() - INTERVAL '23 hours')
+            LIMIT 200
+        """)
+        candidate_users = [r[0] for r in c.fetchall()]
+    except Exception as e:
+        print(f"[streak-loss-dm] query err: {e}", flush=True)
+        conn.close()
+        return
+    finally:
+        try: conn.close()
+        except: pass
+
+    for user_id in candidate_users:
+        if str(user_id) == str(ADMIN_ID):
+            continue
+        try:
+            streak = get_streak_info(user_id) or {}
+            cur = int(streak.get('current') or 0)
+            # เฉพาะ streak > 3 ค่อยน่าเสียใจ
+            if cur < 4:
+                continue
+            longest = int(streak.get('longest') or cur)
+            from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+            kb = InlineKeyboardMarkup()
+            kb.add(InlineKeyboardButton("🔥 รักษา Streak", callback_data="hub_home"))
+            extra = " — *ทำลายสถิติ!*" if cur >= longest else ""
+            msg = (
+                f"🔥 *Streak {cur} วันของคุณกำลังจะหาย!*{extra}\n\n"
+                f"เหลือเวลาอีก ~6 ชม. ก่อนเที่ยงคืน ถ้าไม่วิเคราะห์อย่างน้อย 1 ตัว\n"
+                f"streak จะ reset เป็น 0 — _เสียดายแย่_\n\n"
+                f"พิมพ์ชื่อหุ้นที่คุณสนใจ (free 3 ครั้ง/วัน)"
+            )
+            ok = safe_send(bot_instance, user_id, msg, parse_mode="Markdown", reply_markup=kb)
+            if ok:
+                conn2 = get_connection()
+                c2 = conn2.cursor()
+                try:
+                    c2.execute(
+                        "UPDATE users SET last_streak_loss_dm=NOW() WHERE user_id=%s",
+                        (str(user_id),),
+                    )
+                    conn2.commit()
+                except Exception:
+                    conn2.rollback()
+                finally:
+                    conn2.close()
+                sent += 1
+                time.sleep(0.05)
+        except Exception as e:
+            print(f"[streak-loss-dm] err {user_id}: {e}", flush=True)
+    if sent > 0:
+        print(f"[streak-loss-dm] ส่ง {sent} คน — loss aversion", flush=True)
+
+
+# 🎯 Lapsed Trial DM — user ที่หมด trial PRO + ไม่สมัคร 48 ชม. → personalized offer
+def send_lapsed_trial_dms(bot_instance):
+    conn = get_connection()
+    c = conn.cursor()
+    sent = 0
+    try:
+        # user ที่ free_trial_used=true + role=free + expiry_date เพิ่งหมดใน 24-72 ชม.
+        c.execute("""
+            SELECT user_id FROM users
+            WHERE COALESCE(role, 'free') = 'free'
+              AND COALESCE(free_trial_used, FALSE) = TRUE
+              AND expiry_date IS NOT NULL
+              AND expiry_date::timestamptz < NOW() - INTERVAL '24 hours'
+              AND expiry_date::timestamptz > NOW() - INTERVAL '72 hours'
+              AND (last_lapsed_trial_dm IS NULL OR last_lapsed_trial_dm < NOW() - INTERVAL '7 days')
+            LIMIT 100
+        """)
+        users = [r[0] for r in c.fetchall()]
+    except Exception as e:
+        print(f"[lapsed-trial-dm] query err: {e}", flush=True)
+        conn.close()
+        return
+    finally:
+        try: conn.close()
+        except: pass
+
+    for user_id in users:
+        if str(user_id) == str(ADMIN_ID):
+            continue
+        try:
+            from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+            # Personal lapsed-trial promo: TRIAL30_USERID = ลด 30% (= 30 days VIP at 55฿ effective)
+            # ใช้ flash-style: register slip 55฿ → VIP, but limited to this user only
+            from database import add_promo_code
+            personal_code = f"BACK_{user_id}"
+            try:
+                add_promo_code(personal_code, days=37, max_uses=1, role_type='vip')  # 30+7 bonus = 23% effective off
+            except Exception:
+                pass
+
+            kb = InlineKeyboardMarkup()
+            kb.add(InlineKeyboardButton("🎁 แลกโค้ดเลย", callback_data="menu_code"))
+            kb.add(InlineKeyboardButton("💎 ดูแพ็กเกจทั้งหมด", callback_data="menu_vip"))
+            msg = (
+                "🥲 *trial PRO ของคุณหมดไปแล้ว 2 วัน*\n\n"
+                "อยากให้คุณกลับมา — เลยแอบแถมให้:\n"
+                f"🎁 *โค้ดส่วนตัว:* `{personal_code}`\n"
+                "แลกได้ **VIP 37 วัน** (30 วันจ่าย + 7 วันแถม)\n\n"
+                "พิมพ์: `/redeem " + personal_code + "`\n"
+                "_ใช้ได้ครั้งเดียว · ของคุณคนเดียว · 7 วันก่อนหมดอายุ_"
+            )
+            ok = safe_send(bot_instance, user_id, msg, parse_mode="Markdown", reply_markup=kb)
+            if ok:
+                conn2 = get_connection()
+                c2 = conn2.cursor()
+                try:
+                    c2.execute(
+                        "UPDATE users SET last_lapsed_trial_dm=NOW() WHERE user_id=%s",
+                        (str(user_id),),
+                    )
+                    conn2.commit()
+                except Exception:
+                    conn2.rollback()
+                finally:
+                    conn2.close()
+                sent += 1
+                time.sleep(0.1)
+        except Exception as e:
+            print(f"[lapsed-trial-dm] err {user_id}: {e}", flush=True)
+    if sent > 0:
+        print(f"[lapsed-trial-dm] ส่ง {sent} คน — winback offer", flush=True)
+
+
 def send_watchlist_daily_summary(bot_instance):
     """ส่งสรุป Watchlist รายวันให้ VIP+/PRO ที่มี watchlist (05:00 Thai time, หลังตลาด US ปิด)"""
     from database import get_user_watch
@@ -2384,6 +2588,9 @@ def run_alert_loop(bot_instance=None):
     last_plan_outcome_date = None
     last_weekly_digest_date = None
     last_engagement_date = None
+    last_daily_reset_ping_date = None
+    last_streak_loss_date = None
+    last_lapsed_trial_date = None
 
     while True:
       try:
@@ -2398,6 +2605,30 @@ def run_alert_loop(bot_instance=None):
             send_expiry_warnings(bot_instance)
             last_downgrade_date = current_date_str
             last_expiry_warning_date = current_date_str
+
+        # 🎁 Daily Reset Ping — 7:00 Thai (หลัง quota reset 6 ชม.) DM user ที่ใช้เมื่อวาน
+        if thai_time.hour == 7 and last_daily_reset_ping_date != current_date_str:
+            try:
+                send_daily_reset_pings(bot_instance)
+            except Exception as e:
+                print(f"[AlertLoop] daily_reset_pings failed: {e}", flush=True)
+            last_daily_reset_ping_date = current_date_str
+
+        # 🔥 Streak Loss Aversion — 18:00 Thai (เหลือ 6 ชม. ถึงเที่ยงคืน)
+        if thai_time.hour == 18 and last_streak_loss_date != current_date_str:
+            try:
+                send_streak_loss_dms(bot_instance)
+            except Exception as e:
+                print(f"[AlertLoop] streak_loss_dms failed: {e}", flush=True)
+            last_streak_loss_date = current_date_str
+
+        # 🎯 Lapsed Trial Win-back — 14:00 Thai (gentle window กลางวัน)
+        if thai_time.hour == 14 and last_lapsed_trial_date != current_date_str:
+            try:
+                send_lapsed_trial_dms(bot_instance)
+            except Exception as e:
+                print(f"[AlertLoop] lapsed_trial_dms failed: {e}", flush=True)
+            last_lapsed_trial_date = current_date_str
 
         # 🌟 Track Record — ตรวจ Plan outcome วันละครั้ง ตี 6 (ตลาด US ปิดแล้ว)
         if thai_time.hour == 6 and last_plan_outcome_date != current_date_str:

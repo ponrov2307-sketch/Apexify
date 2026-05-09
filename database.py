@@ -454,6 +454,29 @@ def init_db():
         c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS flash_eligible_until TIMESTAMP")
     except Exception as _e:
         print(f"[init_db] users.flash_eligible_until migration: {_e}", flush=True)
+    # 📊 Lifetime analysis count — สำหรับ sunk cost + tier badges + price anchoring
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS total_analyses INTEGER DEFAULT 0")
+    except Exception as _e:
+        print(f"[init_db] users.total_analyses migration: {_e}", flush=True)
+    # 🏆 Highest tier reached — tier_unlocked_codes เก็บ tier ที่ user ได้ unlock (CSV)
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS tiers_unlocked TEXT DEFAULT ''")
+    except Exception as _e:
+        print(f"[init_db] users.tiers_unlocked migration: {_e}", flush=True)
+    # 🔔 Notification timestamps — กัน DM ซ้ำ (daily reset / streak loss / lapsed trial)
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily_reset_dm TIMESTAMP")
+    except Exception as _e:
+        print(f"[init_db] users.last_daily_reset_dm migration: {_e}", flush=True)
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_streak_loss_dm TIMESTAMP")
+    except Exception as _e:
+        print(f"[init_db] users.last_streak_loss_dm migration: {_e}", flush=True)
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_lapsed_trial_dm TIMESTAMP")
+    except Exception as _e:
+        print(f"[init_db] users.last_lapsed_trial_dm migration: {_e}", flush=True)
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes
                  (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '', role_type TEXT DEFAULT 'vip')''')
@@ -1170,6 +1193,118 @@ def consume_flash_discount(user_id):
         conn.rollback()
     finally:
         conn.close()
+
+
+# 📊 Lifetime analysis tracking — ใช้กับ sunk cost + tier badges
+def get_total_analyses(user_id):
+    """คืน lifetime analysis count ของ user (int >= 0)"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT total_analyses FROM users WHERE user_id=%s", (str(user_id),))
+    row = c.fetchone()
+    conn.close()
+    if not row or row[0] is None:
+        return 0
+    return int(row[0])
+
+
+def increment_total_analyses(user_id):
+    """+1 lifetime — รันทุกครั้งที่ user ทำ analyze (free + paid)"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "UPDATE users SET total_analyses = COALESCE(total_analyses, 0) + 1 WHERE user_id=%s "
+            "RETURNING total_analyses",
+            (str(user_id),),
+        )
+        row = c.fetchone()
+        conn.commit()
+        return int(row[0]) if row else 0
+    except Exception as e:
+        print(f"[total_analyses] inc err: {e}", flush=True)
+        conn.rollback()
+        return 0
+    finally:
+        conn.close()
+
+
+# 🏆 Tier badges system — auto-grant promo codes when user hits milestone
+TIER_BADGES = [
+    # (tier_id, threshold_type, threshold_value, badge, label, days_bonus, role_type, code_prefix)
+    ('bronze',   'analyses', 10,  '🥉', 'Bronze Trader',   3,  'vip', 'BRONZE'),
+    ('silver',   'analyses', 50,  '🥈', 'Silver Trader',   7,  'vip', 'SILVER'),
+    ('gold',     'analyses', 100, '🥇', 'Gold Analyst',    7,  'pro', 'GOLD'),
+    ('diamond',  'streak',   30,  '💎', 'Diamond Streak',  14, 'pro', 'DIAMOND'),
+]
+
+
+def check_and_grant_tier_codes(user_id, total_analyses, current_streak):
+    """ตรวจว่า user ถึง tier ใหม่หรือยัง — ถ้าใช่ auto-create personal promo code
+    Returns: list of dict {tier_id, badge, label, code, days, role_type} ที่ unlock ใหม่
+    Idempotent: ถ้าเคย unlock แล้วจะไม่สร้าง code ซ้ำ
+    """
+    if not user_id:
+        return []
+    conn = get_connection()
+    c = conn.cursor()
+    newly_unlocked = []
+    try:
+        c.execute("SELECT tiers_unlocked FROM users WHERE user_id=%s FOR UPDATE", (str(user_id),))
+        row = c.fetchone()
+        if not row:
+            conn.rollback()
+            return []
+        unlocked_csv = (row[0] or '').strip()
+        already = set(t.strip() for t in unlocked_csv.split(',') if t.strip())
+
+        for tier_id, threshold_type, threshold_value, badge, label, days, role_type, prefix in TIER_BADGES:
+            if tier_id in already:
+                continue
+            value = total_analyses if threshold_type == 'analyses' else current_streak
+            if value < threshold_value:
+                continue
+
+            # 🎁 Generate personal promo code: PREFIX_USERID
+            code = f"{prefix}_{user_id}"
+            try:
+                c.execute(
+                    "INSERT INTO promo_codes (code, days, max_uses, current_uses, used_by, role_type) "
+                    "VALUES (%s, %s, 1, 0, '', %s) ON CONFLICT (code) DO NOTHING",
+                    (code, days, role_type),
+                )
+            except Exception as e:
+                print(f"[tier] insert code {code} err: {e}", flush=True)
+                continue
+            newly_unlocked.append({
+                'tier_id': tier_id, 'badge': badge, 'label': label,
+                'code': code, 'days': days, 'role_type': role_type,
+            })
+            already.add(tier_id)
+
+        if newly_unlocked:
+            new_csv = ','.join(sorted(already))
+            c.execute("UPDATE users SET tiers_unlocked=%s WHERE user_id=%s", (new_csv, str(user_id)))
+        conn.commit()
+        return newly_unlocked
+    except Exception as e:
+        print(f"[tier] err: {e}", flush=True)
+        conn.rollback()
+        return []
+    finally:
+        conn.close()
+
+
+def get_user_tier(total_analyses, current_streak):
+    """หา highest tier ของ user ตอนนี้ ตาม TIER_BADGES (deterministic, no DB)
+    คืน dict {tier_id, badge, label} ของ highest tier ที่ user ผ่าน หรือ None
+    """
+    highest = None
+    for tier_id, threshold_type, threshold_value, badge, label, *_ in TIER_BADGES:
+        value = total_analyses if threshold_type == 'analyses' else current_streak
+        if value >= threshold_value:
+            highest = {'tier_id': tier_id, 'badge': badge, 'label': label}
+    return highest
 
 
 def get_payment_type_breakdown(days_back=30):

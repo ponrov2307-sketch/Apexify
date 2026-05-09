@@ -27,6 +27,8 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       start_flash_discount_if_eligible, is_flash_active, consume_flash_discount,
                       FLASH_VIP_AMOUNT, FLASH_PRO_AMOUNT, FLASH_WINDOW_MINUTES,
                       get_social_proof_stats,
+                      get_total_analyses, increment_total_analyses,
+                      check_and_grant_tier_codes, get_user_tier, TIER_BADGES,
                       ban_user, unban_user, is_user_banned,
                       init_new_features_db, process_referral, get_referral_stats,
                       add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,
@@ -3073,11 +3075,33 @@ def inline_callbacks(call):
                 _topup = 0
             topup_line = f"\n🎟 **Top-up คงเหลือ:** {_topup} ครั้ง\n" if _topup > 0 else ""
 
+            # 🎯 Scarcity — ดึง count ของ paying users เพื่อบอกว่ายังมี early bird seats
+            try:
+                from database import get_user_stats
+                _stats, _ = get_user_stats()
+                _paying_count = _stats.get('vip', 0) + _stats.get('pro', 0)
+            except Exception:
+                _paying_count = 0
+            EARLY_BIRD_CAP = 200  # launch promo limit
+            seats_left = max(0, EARLY_BIRD_CAP - _paying_count)
+            if seats_left > 0 and seats_left <= 100:
+                scarcity_line = (
+                    f"\n⚡ *Early Bird Pricing* — เหลือ **{seats_left}/{EARLY_BIRD_CAP}** ที่นั่ง\n"
+                    f"_(ราคา launch 79฿/ด — จะปรับเป็น 99฿ เมื่อครบ {EARLY_BIRD_CAP} user)_\n"
+                )
+            elif seats_left > 100:
+                scarcity_line = (
+                    f"\n⚡ _Early Bird Pricing 79฿/ด — สำหรับ {EARLY_BIRD_CAP} user แรก_\n"
+                )
+            else:
+                scarcity_line = ""
+
             pay_text = (
                 "🚀 **แพ็กเกจ APEXIFY** 🚀\n"
                 "💳 กสิกรไทย: `135-1-34469-1` (นาย เกียรติศักดิ์ วุฒิจันทร์)\n"
                 "*(โอนแล้วส่งสลิปในแชทนี้ ระบบอัปเกรดอัตโนมัติใน 3 วิ!)*\n"
-                f"{topup_line}\n"
+                f"{topup_line}"
+                f"{scarcity_line}\n"
 
                 "🆓 **BASIC (ฟรี)**\n"
                 f"• สแกน Apexify {FREE_DAILY_QUOTA} ครั้ง/วัน\n"
@@ -3102,7 +3126,10 @@ def inline_callbacks(call):
                 "• Watchlist & พอร์ตเว็บ ไม่จำกัด\n"
                 "• Smart Alerts, Technical Radar\n"
                 "• Flash News, Dividend Hunter, Screener\n"
-                "• Apexify Rebalance, Port Doctor, Sentiment Analysis\n"
+                "• Apexify Rebalance, Port Doctor, Sentiment Analysis\n\n"
+
+                "💡 *เทียบราคา:* Bualuang Premium 1,200฿/ด · efin StockSelect 990฿/ด · "
+                "Apexify เริ่มเพียง **79฿/ด** (ถูกกว่า ~93%)\n"
             )
             qr_markup = InlineKeyboardMarkup(row_width=2)
             qr_markup.add(
@@ -4721,11 +4748,31 @@ def handle_main(message):
         if profile:
             _, expiry, usage, reg_date = profile
             watch_count = len(get_user_watch(user_id))
-            
+
+            # 🏆 Tier badge + lifetime stats
+            try:
+                _total_an = get_total_analyses(user_id)
+            except Exception:
+                _total_an = 0
+            try:
+                from database import get_streak_info as _gsi
+                _streak_info = _gsi(user_id) or {}
+            except Exception:
+                _streak_info = {}
+            _cur_streak = int(_streak_info.get('current') or 0)
+            _user_tier = get_user_tier(_total_an, _cur_streak)
+            tier_line = ""
+            if _user_tier:
+                tier_line = f"🏆 *Badge:* {_user_tier['badge']} *{_user_tier['label']}*\n"
+            else:
+                # Show progress to next tier
+                next_tier = TIER_BADGES[0]  # Bronze
+                tier_line = f"🏆 *Badge:* — _(วิเคราะห์อีก {next_tier[2] - _total_an} ครั้ง = {next_tier[3]} {next_tier[4]})_\n"
+
             if role == 'pro': status_text = "👑 PRO (Platinum)"
             elif role == 'vip': status_text = "💎 VIP (Standard)"
             else: status_text = "🆓 Free"
-            
+
             expiry_text = expiry if expiry else "ไม่มีวันหมดอายุ"
             quota_text = f"ไม่จำกัด" if role in ['vip', 'pro'] else f"{usage}/{FREE_DAILY_QUOTA} ครั้ง"
             reg_text = reg_date[:10] if reg_date else "ไม่ทราบ"
@@ -4746,14 +4793,28 @@ def handle_main(message):
                     f"_(วิเคราะห์หุ้นวันนี้เริ่ม streak ครบ 7 วัน = VIP +1 วันฟรี!)_\n"
                 )
 
+            # 💸 Sunk cost messaging — ถ้า free + ใช้มาเยอะ ตอกย้ำ
+            sunk_cost_block = ""
+            if role == 'free' and _total_an >= 10:
+                # Price anchoring แบบ Claude — เปรียบกับเครื่องมืออื่น
+                # 79฿/ด ÷ 30 ≈ 2.6฿/ครั้งสำหรับ VIP
+                est_value = _total_an * 2.6  # baht equivalent
+                sunk_cost_block = (
+                    f"\n💸 *คุณวิเคราะห์มาแล้ว* `{_total_an}` *ครั้งตลอดชีวิต*\n"
+                    f"_(เทียบมูลค่าใช้บริการ Apexify ฟรีไปประมาณ {est_value:,.0f} บาท · "
+                    f"Bualuang Premium 1,200฿/ด · efin StockSelect 990฿/ด)_\n"
+                )
+
             msg = (
                 f"👤 **ข้อมูลบัญชี (ID: `{user_id}`)**\n\n"
                 f"🏷 **สถานะ:** {status_text}\n"
+                f"{tier_line}"
                 f"📅 **วันที่เริ่มใช้งาน:** {reg_text}\n"
                 f"📈 **โควต้าวิเคราะห์:** {quota_text}\n"
                 f"⏰ **แพ็กเกจหมดอายุ:** {expiry_text}\n"
-                f"📋 **หุ้นใน Watchlist:** {watch_count} ตัว\n"
-                f"{streak_line}\n"
+                f"📋 **หุ้นใน Watchlist:** {watch_count} ตัว · 📊 ตลอดชีวิต {_total_an} ครั้ง\n"
+                f"{streak_line}"
+                f"{sunk_cost_block}\n"
                 f"👇 **จัดการบัญชีและแพ็กเกจของคุณ:**"
             )
             
@@ -5034,17 +5095,41 @@ def handle_main(message):
         except Exception as e:
             print(f"[Analyze] log_plan failed: {e}", flush=True)
 
+    # 📊 Lifetime analysis count + tier badge check (ทุก role — รวม VIP/PRO ด้วย)
+    new_total = 0
+    newly_unlocked_tiers = []
+    if user_id != ADMIN_ID:
+        try:
+            new_total = increment_total_analyses(user_id)
+        except Exception as _e:
+            print(f"[total_analyses] err: {_e}", flush=True)
+        # ตรวจ tier badge — ถ้า unlock ใหม่จะ DM แจ้ง user หลัง report
+        try:
+            from database import get_streak_info
+            _streak_data = get_streak_info(user_id) or {}
+            _cur_streak = int(_streak_data.get('current') or 0)
+            newly_unlocked_tiers = check_and_grant_tier_codes(user_id, new_total, _cur_streak) or []
+        except Exception as _e:
+            print(f"[tier] check err: {_e}", flush=True)
+
     if user_id != ADMIN_ID and role == 'free':
         increment_usage(user_id)
         # 🌟 Quota visibility — show usage explicitly so trial users feel pressure to upgrade
         used = usage + 1
         remaining = FREE_DAILY_QUOTA - used
+        # 💸 Sunk cost messaging — ถ้า user ใช้มาเกิน 10 ครั้ง ใส่ลงไปด้วย
+        sunk_cost_line = ""
+        if new_total >= 10:
+            sunk_cost_line = (
+                f"\n📊 _คุณวิเคราะห์มาแล้ว **{new_total} ครั้ง** ตลอดชีวิต — "
+                f"สมัคร PRO เห็น Plan/Entry/SL ของทุกหุ้นที่คุณเคยถาม_"
+            )
         # Concrete tier teaser — same copy on every free analysis so user sees
         # what they're missing in real numbers, not generic "upgrade" CTAs.
         tier_teaser = (
             "💎 _VIP 79฿/เดือน เห็นเพิ่ม:_ กราฟเทคนิค · Trend Radar 3 TF · Watch Next\n"
             "👑 _PRO 109฿/เดือน เพิ่ม:_ Entry/TP1/TP2/SL · กราฟ annotated · /ask /compare"
-        )
+        ) + sunk_cost_line
         if remaining <= 0:
             report += (
                 f"\n\n📊 **Free Trial:** ใช้ครบ {used}/{FREE_DAILY_QUOTA} วันนี้แล้ว — รีเซ็ตเที่ยงคืน 🌙\n\n"
@@ -5173,6 +5258,22 @@ def handle_main(message):
             bot.send_message(message.chat.id, streak_notification, parse_mode="Markdown")
         except Exception:
             pass
+
+    # 🏆 Tier badge unlock — DM ใหม่ที่ผ่าน threshold เพิ่งเปิดในรอบนี้
+    if newly_unlocked_tiers:
+        for tier in newly_unlocked_tiers:
+            try:
+                role_word = "VIP" if tier['role_type'] == 'vip' else "PRO"
+                msg = (
+                    f"{tier['badge']} *ปลดล็อก Badge ใหม่: {tier['label']}!* 🎉\n\n"
+                    f"🎁 รับโค้ดส่วนตัว: `{tier['code']}`\n"
+                    f"แลกได้ **{role_word} +{tier['days']} วันฟรี**\n\n"
+                    f"พิมพ์: `/redeem {tier['code']}` เพื่อแลกเลย\n"
+                    f"_โค้ดนี้ใช้ได้ครั้งเดียว · ของคุณคนเดียว_"
+                )
+                bot.send_message(message.chat.id, msg, parse_mode="Markdown")
+            except Exception as _e:
+                print(f"[tier-dm] {tier.get('tier_id')}: {_e}", flush=True)
 
 
 if __name__ == "__main__":
