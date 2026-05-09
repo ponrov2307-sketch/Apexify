@@ -1158,6 +1158,29 @@ _NEWS_IMPACT_EMOJI = {"bullish": "🟢", "bearish": "🔴", "neutral": "⚪"}
 _NEWS_IMPACT_LABEL = {"bullish": "หนุนราคา", "bearish": "กดราคา", "neutral": "เป็นกลาง"}
 
 
+def _render_track_record_line(symbol):
+    """แสดง 1 บรรทัด track record ของ symbol ใน analyze report
+    "📊 Track record 90 วัน: 8/12 hit (67%)" หรือ "" ถ้าไม่มีข้อมูลพอ
+    """
+    if not symbol:
+        return ""
+    try:
+        from database import get_track_record_by_symbol
+        s = get_track_record_by_symbol(symbol, days=90)
+        if not s or s.get("closed", 0) < 2:
+            return ""
+        wins = s["wins"]
+        closed = s["closed"]
+        rate = s["hit_rate_pct"]
+        return (
+            f"*📊 Track record {symbol} (90 วัน):* "
+            f"{wins}/{closed} hit (*{rate:.0f}%*)"
+        )
+    except Exception as e:
+        print(f"[track-line] {symbol}: {type(e).__name__}: {str(e)[:80]}", flush=True)
+        return ""
+
+
 def _render_confidence_meter(analysis):
     """Render confidence meter — bar 10 bloks ตาม score
     คืน "" ถ้า analysis ไม่มี confidence (เคสไม่ปกติ)
@@ -1224,6 +1247,10 @@ def _render_vip_report(context, trends, analysis, user_memory=None):
     confidence_line = _render_confidence_meter(analysis)
     if confidence_line:
         sections.extend(["", confidence_line])
+    # 📊 Track record บรรทัดเดียว ใต้ confidence
+    track_line = _render_track_record_line(context.get("symbol"))
+    if track_line:
+        sections.append(track_line)
     sections.extend([
         "",
         "*🔭 Apexify Trend Radar — 3 ระยะ*",
@@ -1270,6 +1297,10 @@ def _render_pro_report(context, trends, deterministic_plan, analysis, user_memor
                     sections.extend(["", holding_line])
         except Exception as _e:
             print(f"[ai_analyzer] holding render err: {type(_e).__name__}", flush=True)
+    # 📊 Track record บรรทัดเดียว ใต้ holding (ก่อน confidence)
+    track_line = _render_track_record_line(context.get("symbol"))
+    if track_line:
+        sections.extend(["", track_line])
     confidence_line = _render_confidence_meter(analysis)
     if confidence_line:
         sections.extend(["", confidence_line])

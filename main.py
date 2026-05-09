@@ -846,14 +846,17 @@ def handle_demo(message):
 
 @bot.message_handler(commands=['track', 'trackrecord'])
 def handle_track_record(message):
-    """แสดงสถิติ Track Record ของ Apexify Plans — hit rate TP1/TP2/SL"""
+    """แสดงสถิติ Track Record + leaderboard + hypothetical return"""
     user_id = str(message.chat.id)
     if not is_allowed(user_id):
         return
-    from database import get_track_record_stats
-    # Global stats (ทั้งระบบ) — สร้างความน่าเชื่อถือ + ตัวอย่างให้ free ดูด้วย
+    from database import (
+        get_track_record_stats, get_top_performing_symbols, calculate_hypothetical_return,
+    )
     s30 = get_track_record_stats(days=30)
     s90 = get_track_record_stats(days=90)
+    top_symbols = get_top_performing_symbols(days=90, limit=5, min_plans=3)
+    hypo = calculate_hypothetical_return(days=90, risk_per_trade_pct=1.0)
 
     def fmt(s, label):
         if s["closed"] == 0:
@@ -865,19 +868,52 @@ def handle_track_record(message):
             f"  🛑 SL hit: {s['sl_hit']} | ⏱ Expired: {s['expired']}"
         )
 
-    msg = (
-        "📊 **Apexify Track Record**\n"
-        "_สถิติ Apexify Plans ที่ออกให้ PRO_\n\n"
-        f"{fmt(s30, '30 วันที่ผ่านมา')}\n\n"
-        f"{fmt(s90, '90 วันที่ผ่านมา')}\n\n"
-        "💡 *วิธีนับ:*\n"
-        "• TP1/TP2 hit = ราคาไปถึงเป้าหมาย (ได้กำไร)\n"
-        "• SL hit = ราคาหลุดจุดตัดขาดทุน\n"
-        "• Expired = เกิน 45 วันยังไม่ถึงเป้า\n"
-        "• คำนวณจาก high/low รายวันของราคาหุ้น\n\n"
-        "_📘 สถิติย้อนหลังเพื่ออ้างอิง • ผลในอนาคตอาจแตกต่างได้_"
-    )
-    bot.reply_to(message, msg, parse_mode="Markdown")
+    parts = [
+        "📊 **Apexify Track Record**",
+        "_สถิติ Plans ที่ออกให้ PRO ตลอด 30/90 วัน_",
+        "",
+        fmt(s30, '30 วันที่ผ่านมา'),
+        "",
+        fmt(s90, '90 วันที่ผ่านมา'),
+    ]
+
+    # 🏆 Leaderboard — top 5 symbols
+    if top_symbols:
+        parts.extend(["", "🏆 *Top 5 หุ้นที่ Apexify ทำได้ดีสุด (90 วัน)*"])
+        rank_emoji = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+        for i, item in enumerate(top_symbols):
+            emo = rank_emoji[i] if i < len(rank_emoji) else "•"
+            parts.append(
+                f"  {emo} *{item['symbol']}*: {item['wins']}/{item['closed']} hit "
+                f"(*{item['hit_rate_pct']:.0f}%*)"
+            )
+
+    # 📈 Hypothetical return — simulated portfolio
+    if hypo and hypo["total_plans"] >= 5:
+        wins = hypo["win_count"]
+        losses = hypo["loss_count"]
+        total = hypo["total_plans"]
+        ret = hypo["total_return_pct"]
+        emoji = "🟢" if ret > 0 else "🔴" if ret < 0 else "⚪"
+        parts.extend([
+            "",
+            "📈 *Hypothetical Return (90 วัน)*",
+            f"  ถ้าตามทุก plan เสี่ยง 1% ต่อไม้:",
+            f"  {emoji} รวม **{ret:+.1f}%** ใน {total} plans (ชนะ {wins} · แพ้ {losses})",
+            f"  _หาก start 100,000฿ → ประมาณ {100000 * (1 + ret/100):,.0f}฿_",
+        ])
+
+    parts.extend([
+        "",
+        "💡 *วิธีนับ:*",
+        "• TP1/TP2 hit = ราคาไปถึงเป้าหมาย (ได้กำไร)",
+        "• SL hit = หลุด stop loss",
+        "• Expired = เกิน 45 วันยังไม่ถึง",
+        "• คำนวณจาก high/low รายวันจริง",
+        "",
+        "_📘 สถิติย้อนหลังเพื่ออ้างอิง · ผลอนาคตอาจแตกต่าง · ข้อมูลไม่ใช่คำแนะนำลงทุน_",
+    ])
+    bot.reply_to(message, "\n".join(parts), parse_mode="Markdown")
 
 
 # ==========================================
@@ -5115,11 +5151,34 @@ def handle_main(message):
         except Exception as _e:
             print(f"[SocialProof] err: {type(_e).__name__}: {str(_e)[:80]}", flush=True)
 
+        # 📊 Track Record booster — ใส่ hit rate ของ symbol + global ใน paywall
+        track_block = ""
+        try:
+            from database import get_track_record_by_symbol, get_track_record_stats
+            sym_track = get_track_record_by_symbol(symbol, days=90)
+            global_track = get_track_record_stats(days=90)
+            track_parts = []
+            if sym_track and sym_track.get("closed", 0) >= 2:
+                track_parts.append(
+                    f"📊 *{symbol}* ใน Apexify: {sym_track['wins']}/{sym_track['closed']} hit "
+                    f"*({sym_track['hit_rate_pct']:.0f}%)*"
+                )
+            if global_track and global_track.get("closed", 0) >= 10:
+                track_parts.append(
+                    f"🏆 รวม 90 วัน: hit rate *{global_track['hit_rate_pct']:.0f}%* "
+                    f"({global_track['closed']} plans)"
+                )
+            if track_parts:
+                track_block = "\n\n" + "\n".join(track_parts)
+        except Exception as _e:
+            print(f"[TrackRecord] paywall err: {type(_e).__name__}: {str(_e)[:80]}", flush=True)
+
         if preview_block:
             upsell_msg = (
                 f"✨ **ใช้ครบโควต้าประจำวันแล้วครับ** ({FREE_DAILY_QUOTA}/{FREE_DAILY_QUOTA})\n"
                 f"🕛 รีเซ็ตในอีก **{_reset_str}**"
                 f"{preview_block}"
+                f"{track_block}"
                 f"{flash_block}"
                 f"{social_block}\n\n"
                 f"_💡 ทดลอง PRO ฟรี 7 วัน — เห็นทุกอย่างของ {symbol} ทันที_"

@@ -1708,6 +1708,167 @@ def get_track_record_stats(days=30, user_id=None):
     }
 
 
+def get_track_record_by_symbol(symbol, days=90):
+    """สถิติ track record ของ symbol นี้โดยเฉพาะ ใน N วันล่าสุด
+    คืน dict เดียวกับ get_track_record_stats — ใช้แสดงใน per-symbol footer
+    """
+    if not symbol:
+        return None
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            SELECT outcome, COUNT(*)
+            FROM analysis_plans
+            WHERE UPPER(symbol) = %s
+              AND issued_at > NOW() - INTERVAL %s
+            GROUP BY outcome
+            """,
+            (str(symbol).upper(), f"{int(days)} days"),
+        )
+        counts = {row[0]: int(row[1]) for row in c.fetchall()}
+    except Exception as e:
+        print(f"[track-by-symbol] err: {e}", flush=True)
+        counts = {}
+    finally:
+        conn.close()
+    tp1 = counts.get('tp1_hit', 0)
+    tp2 = counts.get('tp2_hit', 0)
+    sl = counts.get('sl_hit', 0)
+    expired = counts.get('expired', 0)
+    open_count = counts.get('open', 0)
+    closed = tp1 + tp2 + sl + expired
+    wins = tp1 + tp2
+    hit_rate = (wins / closed * 100) if closed > 0 else 0.0
+    return {
+        "symbol": str(symbol).upper(),
+        "closed": closed,
+        "open": open_count,
+        "tp1_hit": tp1,
+        "tp2_hit": tp2,
+        "sl_hit": sl,
+        "expired": expired,
+        "wins": wins,
+        "hit_rate_pct": hit_rate,
+    }
+
+
+def get_top_performing_symbols(days=90, limit=5, min_plans=3):
+    """ดึง top N symbols ตาม hit rate ใน N วัน (กรอง min_plans กันเลขเล็กน้อยมา bias)
+    คืน list of dict {symbol, closed, wins, hit_rate_pct}
+    เรียงตาม hit_rate_pct desc, ตาม closed desc สำหรับ tie-break
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            f"""
+            SELECT
+              UPPER(symbol) AS sym,
+              SUM(CASE WHEN outcome IN ('tp1_hit','tp2_hit','sl_hit','expired') THEN 1 ELSE 0 END) AS closed,
+              SUM(CASE WHEN outcome IN ('tp1_hit','tp2_hit') THEN 1 ELSE 0 END) AS wins
+            FROM analysis_plans
+            WHERE issued_at > NOW() - INTERVAL %s
+            GROUP BY UPPER(symbol)
+            HAVING SUM(CASE WHEN outcome IN ('tp1_hit','tp2_hit','sl_hit','expired') THEN 1 ELSE 0 END) >= %s
+            """,
+            (f"{int(days)} days", int(min_plans)),
+        )
+        rows = c.fetchall() or []
+    except Exception as e:
+        print(f"[top-symbols] err: {e}", flush=True)
+        rows = []
+    finally:
+        conn.close()
+
+    items = []
+    for row in rows:
+        sym, closed, wins = row[0], int(row[1] or 0), int(row[2] or 0)
+        if closed == 0:
+            continue
+        items.append({
+            "symbol": sym,
+            "closed": closed,
+            "wins": wins,
+            "hit_rate_pct": (wins / closed * 100),
+        })
+    items.sort(key=lambda x: (-x["hit_rate_pct"], -x["closed"]))
+    return items[:int(limit)]
+
+
+def calculate_hypothetical_return(days=90, risk_per_trade_pct=1.0):
+    """คำนวณ return ทฤษฎีถ้า follow ทุก plan ตามจำนวน % risk/trade
+    Assumptions:
+      - tp1_hit  → return = (tp1 - entry_mid) / entry_mid * (target_R / risk) * risk_per_trade
+        คำนวณ R:R จาก |tp1-entry| / |entry-sl|
+      - tp2_hit  → ใช้ tp2
+      - sl_hit   → return = -risk_per_trade (เสีย 1R)
+      - expired  → return = 0 (เกินกรอบเวลา ไม่นับ)
+    คืน dict {total_plans, total_return_pct, win_count, loss_count, expired_count}
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            SELECT entry_low, entry_high, tp1, tp2, sl, outcome
+            FROM analysis_plans
+            WHERE issued_at > NOW() - INTERVAL %s
+              AND outcome IN ('tp1_hit', 'tp2_hit', 'sl_hit', 'expired')
+            """,
+            (f"{int(days)} days",),
+        )
+        rows = c.fetchall() or []
+    except Exception as e:
+        print(f"[hypothetical] err: {e}", flush=True)
+        rows = []
+    finally:
+        conn.close()
+
+    total_return = 0.0
+    win_count = 0
+    loss_count = 0
+    expired_count = 0
+    for row in rows:
+        entry_low, entry_high, tp1, tp2, sl, outcome = row
+        try:
+            entry = (float(entry_low or 0) + float(entry_high or 0)) / 2.0
+            tp1_v = float(tp1 or 0)
+            tp2_v = float(tp2 or 0)
+            sl_v = float(sl or 0)
+        except (TypeError, ValueError):
+            continue
+        if entry <= 0 or sl_v <= 0:
+            continue
+        risk_distance = abs(entry - sl_v)
+        if risk_distance <= 0:
+            continue
+
+        if outcome == 'tp1_hit':
+            r_multiple = abs(tp1_v - entry) / risk_distance if tp1_v > 0 else 1.0
+            total_return += risk_per_trade_pct * r_multiple
+            win_count += 1
+        elif outcome == 'tp2_hit':
+            r_multiple = abs(tp2_v - entry) / risk_distance if tp2_v > 0 else 2.0
+            total_return += risk_per_trade_pct * r_multiple
+            win_count += 1
+        elif outcome == 'sl_hit':
+            total_return -= risk_per_trade_pct
+            loss_count += 1
+        else:  # expired
+            expired_count += 1
+
+    return {
+        "total_plans": len(rows),
+        "total_return_pct": total_return,
+        "win_count": win_count,
+        "loss_count": loss_count,
+        "expired_count": expired_count,
+        "risk_per_trade_pct": risk_per_trade_pct,
+    }
+
+
 def add_promo_code(code, days, max_uses, role_type='vip', discount_pct=None, window_hours=0):
     """สร้าง promo code — รองรับ 2 mode:
     1. Days mode (default): discount_pct=None → user redeem ได้ subscription +days ทันที
