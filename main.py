@@ -852,6 +852,11 @@ def handle_backfill_analyses(message):
     """
     user_id = str(message.chat.id)
     if user_id != ADMIN_ID:
+        bot.reply_to(
+            message,
+            f"🔒 *Admin only*\n\nYour chat_id: `{user_id}`\nADMIN_ID: `{ADMIN_ID}`",
+            parse_mode="Markdown",
+        )
         return
     try:
         from database import get_connection
@@ -908,11 +913,33 @@ def handle_backfill_analyses(message):
         bot.reply_to(message, f"❌ Backfill error: {e}")
 
 
+@bot.message_handler(commands=['whoami'])
+def handle_whoami(message):
+    """ตรวจ chat_id + admin status — ใครก็ใช้ได้ ช่วย debug"""
+    user_id = str(message.chat.id)
+    is_admin = user_id == str(ADMIN_ID)
+    msg = (
+        f"🆔 **Your chat_id:** `{user_id}`\n"
+        f"👑 **Admin status:** {'✅ YES' if is_admin else '❌ NO (admin only commands จะไม่ทำงาน)'}\n"
+        f"🔧 **ADMIN_ID configured:** `{ADMIN_ID}`"
+    )
+    bot.reply_to(message, msg, parse_mode="Markdown")
+
+
 @bot.message_handler(commands=['plansdebug', 'tracdebug'])
 def handle_plans_debug(message):
     """Admin: ตรวจ DB analysis_plans ตรงๆ — ดูว่า log + outcome ทำงานไหม"""
     user_id = str(message.chat.id)
     if user_id != ADMIN_ID:
+        # ACK กลับไป กัน user งงว่าทำไมไม่ตอบ
+        bot.reply_to(
+            message,
+            f"🔒 *คำสั่งนี้สำหรับ admin เท่านั้น*\n\n"
+            f"Your chat_id: `{user_id}`\n"
+            f"ADMIN_ID required: `{ADMIN_ID}`\n\n"
+            f"_(ใช้ /whoami ดู info ตัวเอง)_",
+            parse_mode="Markdown",
+        )
         return
     try:
         from database import get_connection
