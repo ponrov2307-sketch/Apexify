@@ -913,6 +913,41 @@ def handle_backfill_analyses(message):
         bot.reply_to(message, f"❌ Backfill error: {e}")
 
 
+@bot.message_handler(commands=['reset_outcomes'])
+def handle_reset_outcomes(message):
+    """Admin: reset evaluated plans กลับเป็น open เพื่อ re-evaluate ด้วย logic ใหม่
+    ใช้หลังแก้ logic เพื่อ recompute statistics
+    """
+    user_id = str(message.chat.id)
+    if user_id != ADMIN_ID:
+        bot.reply_to(
+            message,
+            f"🔒 *Admin only*\nYour chat_id: `{user_id}`\nADMIN_ID: `{ADMIN_ID}`",
+            parse_mode="Markdown",
+        )
+        return
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            "UPDATE analysis_plans SET outcome='open', outcome_at=NULL, outcome_note=NULL "
+            "WHERE outcome IN ('tp1_hit','tp2_hit','sl_hit','expired') "
+            "RETURNING id"
+        )
+        affected = len(c.fetchall())
+        conn.commit()
+        c.close(); conn.close()
+        bot.reply_to(
+            message,
+            f"✅ Reset {affected} plans กลับเป็น `open`\n\n"
+            f"ขั้นตอนถัดไป: `/run_outcomes` เพื่อ re-evaluate ด้วย logic ใหม่",
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error: {e}")
+
+
 @bot.message_handler(commands=['run_outcomes', 'evaluate_plans'])
 def handle_run_outcomes(message):
     """Admin: verbose version — รายงานทุกขั้นตอน เพื่อ debug หา bug ตัวจริง"""
@@ -1000,13 +1035,14 @@ def handle_run_outcomes(message):
                         if tp2_v is not None and hi >= tp2_v and tp2_dt is None:
                             tp2_dt = date
 
-                    if sl_dt and (tp1_dt is None or sl_dt < tp1_dt):
+                    # 🛡 Conservative — same-day SL+TP → SL wins (kill optimistic bias)
+                    if sl_dt and (tp1_dt is None or sl_dt <= tp1_dt):
                         update_plan_outcome(plan_id, 'sl_hit', f"SL {sl_v:.2f}")
                         sym_updated += 1
-                    elif tp2_dt:
+                    elif tp2_dt and (sl_dt is None or tp2_dt < sl_dt):
                         update_plan_outcome(plan_id, 'tp2_hit', f"TP2 {tp2_v:.2f}")
                         sym_updated += 1
-                    elif tp1_dt:
+                    elif tp1_dt and (sl_dt is None or tp1_dt < sl_dt):
                         update_plan_outcome(plan_id, 'tp1_hit', f"TP1 {tp1_v:.2f}")
                         sym_updated += 1
                     else:
@@ -1346,11 +1382,11 @@ def handle_track_record(message):
 
     parts.extend([
         "",
-        "💡 *วิธีนับ:*",
-        "• TP1/TP2 hit = ราคาไปถึงเป้าหมาย (ได้กำไร)",
-        "• SL hit = หลุด stop loss",
-        "• Expired = เกิน 45 วันยังไม่ถึง",
-        "• คำนวณจาก high/low รายวันจริง",
+        "💡 *วิธีนับ (Conservative):*",
+        "• TP1/TP2 hit = ราคา intraday แตะเป้า + เกิดก่อน SL (strict)",
+        "• SL hit = ราคาแตะ SL หรือ same-day กับ TP → SL ชนะ (worst-case)",
+        "• Expired = เกิน 45 วันยังไม่ถึงเป้า",
+        "• คำนวณจาก high/low รายวันจริง — ไม่รู้ลำดับ intraday → assume SL ก่อน",
         "",
         "_📘 สถิติย้อนหลังเพื่ออ้างอิง · ผลอนาคตอาจแตกต่าง · ข้อมูลไม่ใช่คำแนะนำลงทุน_",
     ])

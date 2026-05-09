@@ -2489,14 +2489,18 @@ def check_plan_outcomes():
                     if tp2_val is not None and hi >= tp2_val and tp2_hit_date is None:
                         tp2_hit_date = date
 
-                # ตัดสิน outcome ตามลำดับเวลา
-                if sl_hit_date and (tp1_hit_date is None or sl_hit_date < tp1_hit_date):
+                # 🛡 Conservative outcome — ป้องกัน optimistic bias
+                # Rule 1: ถ้า SL hit ก่อน TP1 หรือ "วันเดียวกัน" → SL (worst-case)
+                #         เพราะ daily candle ไม่บอก order ของ intraday spike
+                # Rule 2: TP2 ต้อง hit หลัง SL (ถ้ามี SL same-day → ไม่ผ่าน)
+                # Rule 3: TP1 hit ต้อง strictly ก่อน SL (ถ้ามี SL)
+                if sl_hit_date and (tp1_hit_date is None or sl_hit_date <= tp1_hit_date):
                     update_plan_outcome(plan_id, 'sl_hit', f"SL {sl_val:.2f} hit on {sl_hit_date.strftime('%Y-%m-%d')}")
                     updated += 1
-                elif tp2_hit_date:
+                elif tp2_hit_date and (sl_hit_date is None or tp2_hit_date < sl_hit_date):
                     update_plan_outcome(plan_id, 'tp2_hit', f"TP2 {tp2_val:.2f} hit on {tp2_hit_date.strftime('%Y-%m-%d')}")
                     updated += 1
-                elif tp1_hit_date:
+                elif tp1_hit_date and (sl_hit_date is None or tp1_hit_date < sl_hit_date):
                     update_plan_outcome(plan_id, 'tp1_hit', f"TP1 {tp1_val:.2f} hit on {tp1_hit_date.strftime('%Y-%m-%d')}")
                     updated += 1
                 # else: ยังเปิดอยู่
