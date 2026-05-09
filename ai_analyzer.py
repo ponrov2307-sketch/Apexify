@@ -803,6 +803,81 @@ def _merge_member_payload(defaults, payload, context):
     return merged
 
 
+def _calculate_confidence_score(context, trends):
+    """คำนวณ confidence 0-100 แบบ deterministic — ไม่เรียก Gemini
+
+    Logic:
+    - Bias alignment ใน 3 timeframe (สำคัญสุด ±25)
+    - Data availability (±12)
+    - Extreme volatility (-18)
+    - RSI สุดขั้ว = late signal (-6)
+    - Volume confirmation (±5)
+
+    คืน (score:int 0-100, label:str, factors:list[str])
+    """
+    score = 50  # baseline
+    factors = []
+
+    biases = [trends.get(tf, {}).get("bias", "neutral") for tf in ("day", "week", "month")]
+    directional = [b for b in biases if b in ("bullish", "bearish")]
+    unique_dirs = set(directional)
+
+    if len(directional) == 3 and len(unique_dirs) == 1:
+        score += 25
+        factors.append("3 ระยะตรงทาง")
+    elif len(directional) >= 2 and len(unique_dirs) == 1:
+        score += 12
+        factors.append("2 ระยะตรงทาง")
+    elif len(unique_dirs) >= 2:
+        score -= 15
+        factors.append("ระยะขัดทาง")
+    else:
+        score -= 5
+
+    available_count = sum(1 for tf in ("day", "week", "month") if context.get(tf, {}).get("available"))
+    if available_count == 3:
+        score += 8
+    elif available_count == 2:
+        score += 3
+    elif available_count <= 1:
+        score -= 12
+        factors.append("ข้อมูลย้อนหลังน้อย")
+
+    if context.get("is_extreme_volatility"):
+        score -= 18
+        factors.append("ความผันผวนสูง")
+
+    day = context.get("day", {}) or {}
+    rsi = day.get("rsi")
+    if isinstance(rsi, (int, float)):
+        if rsi > 75 or rsi < 25:
+            score -= 6
+            factors.append("RSI สุดขั้ว")
+
+    vol_ratio = day.get("volume_ratio")
+    if isinstance(vol_ratio, (int, float)):
+        if vol_ratio >= 1.3:
+            score += 5
+            factors.append("Vol สนับสนุน")
+        elif vol_ratio < 0.7:
+            score -= 3
+
+    score = max(0, min(100, score))
+
+    if score >= 80:
+        label = "สูงมาก"
+    elif score >= 65:
+        label = "สูง"
+    elif score >= 45:
+        label = "ปานกลาง"
+    elif score >= 25:
+        label = "ต่ำ"
+    else:
+        label = "ต่ำมาก"
+
+    return score, label, factors
+
+
 def _build_member_analysis(context, tier):
     trends = _build_trend_summary(context)
     dominant_bias = _choose_dominant_bias(trends)
@@ -828,6 +903,13 @@ def _build_member_analysis(context, tier):
     payload = _request_member_payload(prompt, defaults, cache_key=cache_key)
     analysis = _merge_member_payload(defaults, payload, context)
     analysis["news_items"] = news_items  # raw headlines สำหรับ render
+
+    # 🎯 Confidence score — deterministic, ไม่กิน Gemini
+    score, label, factors = _calculate_confidence_score(context, trends)
+    analysis["confidence_score"] = score
+    analysis["confidence_label"] = label
+    analysis["confidence_factors"] = factors
+
     return trends, deterministic_plan, analysis
 
 
@@ -989,7 +1071,7 @@ def _build_member_snapshot(context, trends, tier):
     lines = [
         f"{'━' * 17}",
         f"{tier_badge}",
-        f"*🤖 Apexify AI — {symbol}*",
+        f"*🤖 Apexify — {symbol}*",
     ]
 
     # 🥇 Commodity/crypto description — บอกชัดเจนว่า ETF/coin ตัวนี้คืออะไร
@@ -1066,6 +1148,34 @@ _NEWS_IMPACT_EMOJI = {"bullish": "🟢", "bearish": "🔴", "neutral": "⚪"}
 _NEWS_IMPACT_LABEL = {"bullish": "หนุนราคา", "bearish": "กดราคา", "neutral": "เป็นกลาง"}
 
 
+def _render_confidence_meter(analysis):
+    """Render confidence meter — bar 10 bloks ตาม score
+    คืน "" ถ้า analysis ไม่มี confidence (เคสไม่ปกติ)
+    """
+    score = analysis.get("confidence_score")
+    if not isinstance(score, int):
+        return ""
+    label = analysis.get("confidence_label") or ""
+    factors = analysis.get("confidence_factors") or []
+
+    filled = round(score / 10)
+    bar = "▰" * filled + "▱" * (10 - filled)
+
+    if score >= 65:
+        emoji = "🟢"
+    elif score >= 45:
+        emoji = "🟡"
+    else:
+        emoji = "🔴"
+
+    line = f"*🎯 Apexify Confidence:* {emoji} `{bar}` *{score}%* — {label}"
+    if factors:
+        # show top 2 factors เพื่อให้ user รู้ว่าทำไม
+        factor_str = " · ".join(factors[:2])
+        line += f"\n  _เหตุผล: {factor_str}_"
+    return line
+
+
 def _render_news_block(analysis, max_headlines=3):
     """สร้าง section ข่าวสำหรับ VIP/PRO — คืน "" ถ้าไม่มีข่าว/ข้อมูล"""
     items = analysis.get("news_items") or []
@@ -1076,7 +1186,7 @@ def _render_news_block(analysis, max_headlines=3):
 
     emoji = _NEWS_IMPACT_EMOJI.get(impact, "⚪")
     label = _NEWS_IMPACT_LABEL.get(impact, "เป็นกลาง")
-    lines = [f"*📰 ข่าวล่าสุด — AI ว่ายังไง* {emoji} _{label}_"]
+    lines = [f"*📰 ข่าวล่าสุด — Apexify ว่ายังไง* {emoji} _{label}_"]
     if summary:
         lines.append(f"  💬 {summary}")
     headlines = format_news_for_display(items, max_items=max_headlines)
@@ -1089,16 +1199,21 @@ def _render_vip_report(context, trends, analysis):
     """VIP: ภาพรวม + Trend Radar + Watch Next + Insight (ไม่มี entry/TP/SL ตัวเลข — นั่นคือ PRO)"""
     sections = [
         _build_member_snapshot(context, trends, "vip"),
+    ]
+    confidence_line = _render_confidence_meter(analysis)
+    if confidence_line:
+        sections.extend(["", confidence_line])
+    sections.extend([
         "",
-        "*🔭 AI Trend Radar — 3 ระยะ*",
+        "*🔭 Apexify Trend Radar — 3 ระยะ*",
         f"• ⏱ *วัน:* {trends['day']['status_emoji']} {trends['day']['status_text']} — {analysis['trend_radar']['day']['reason']}",
         f"• 📅 *สัปดาห์:* {trends['week']['status_emoji']} {trends['week']['status_text']} — {analysis['trend_radar']['week']['reason']}",
         f"• 🔭 *เดือน:* {trends['month']['status_emoji']} {trends['month']['status_text']} — {analysis['trend_radar']['month']['reason']}",
         "",
         f"*👀 Watch Next:* {analysis['watch_next']}",
         "",
-        f"*🧠 AI Insight:* {analysis['ai_insight']}",
-    ]
+        f"*🧠 Apexify Insight:* {analysis['ai_insight']}",
+    ])
     news_block = _render_news_block(analysis, max_headlines=3)
     if news_block:
         sections.extend(["", news_block])
@@ -1123,8 +1238,13 @@ def _render_pro_report(context, trends, deterministic_plan, analysis):
 
     sections = [
         _build_member_snapshot(context, trends, "pro"),
+    ]
+    confidence_line = _render_confidence_meter(analysis)
+    if confidence_line:
+        sections.extend(["", confidence_line])
+    sections.extend([
         "",
-        "*🔭 AI Trend Radar — 3 ระยะ*",
+        "*🔭 Apexify Trend Radar — 3 ระยะ*",
         f"• ⏱ *วัน:* {trends['day']['status_emoji']} {trends['day']['status_text']} — {analysis['trend_radar']['day']['reason']}",
         f"• 📅 *สัปดาห์:* {trends['week']['status_emoji']} {trends['week']['status_text']} — {analysis['trend_radar']['week']['reason']}",
         f"• 🔭 *เดือน:* {trends['month']['status_emoji']} {trends['month']['status_text']} — {analysis['trend_radar']['month']['reason']}",
@@ -1150,8 +1270,8 @@ def _render_pro_report(context, trends, deterministic_plan, analysis):
         f"  ❌ *ยกเลิก Plan:* {analysis['invalidation']}",
         f"  👀 *Watch Next:* {analysis['watch_next']}",
         "",
-        f"*🧠 AI Insight:* {analysis['ai_insight']}",
-    ]
+        f"*🧠 Apexify Insight:* {analysis['ai_insight']}",
+    ])
     news_block = _render_news_block(analysis, max_headlines=5)
     if news_block:
         sections.extend(["", news_block])
@@ -1225,8 +1345,8 @@ def _generate_free_report(tech_data):
 
     report += "\n💎 *อัปเกรด VIP/PRO เพื่อดู:*\n"
     report += "• 📈 กราฟเทคนิคพร้อม EMA + S/R + POC\n"
-    report += "• 🔭 AI Trend Radar 3 ระยะ (วัน/สัปดาห์/เดือน)\n"
-    report += "• 📰 ข่าวล่าสุดของหุ้น + AI สรุปผลกระทบต่อราคา\n"
+    report += "• 🔭 Apexify Trend Radar 3 ระยะ (วัน/สัปดาห์/เดือน)\n"
+    report += "• 📰 ข่าวล่าสุดของหุ้น + Apexify สรุปผลกระทบต่อราคา\n"
     report += "• 🎯 Entry/TP/SL ตัวเลขชัด + กราฟแสดง zone (PRO)\n"
     report += "• 🔔 Smart Alerts + ตั้งเตือนราคา (PRO)\n"
     report += f"\n{DISCLAIMER_TEXT}"
