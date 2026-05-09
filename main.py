@@ -20,7 +20,9 @@ from dashboard_login import (
 from database import (get_all_users, init_db, register_user, check_subscription, add_subscription,
                       get_usage, increment_usage, add_watch, get_user_watch, get_user_profile,
                       remove_watch_db, add_promo_code, redeem_code, get_user_stats,
-                      claim_slip_and_add_subscription, ban_user, unban_user, is_user_banned,
+                      claim_slip_and_add_subscription, claim_slip_and_add_topup,
+                      get_topup_balance, consume_topup_balance,
+                      ban_user, unban_user, is_user_banned,
                       init_new_features_db, process_referral, get_referral_stats,
                       add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,
                       get_connection, add_portfolio_stock, get_user_portfolio,
@@ -2567,16 +2569,69 @@ def handle_payment_slip_check(message):
                 )
                 return
 
+            # Subscription packages (role + expiry)
             slip_packages = {
                 1090: ('pro', 365, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายปี)**\n⏰ หมดอายุ: {expiry}"),
                 790: ('vip', 365, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายปี)**\n⏰ หมดอายุ: {expiry}"),
                 109: ('pro', 30, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **👑 PRO (รายเดือน)**\n⏰ หมดอายุ: {expiry}"),
                 79: ('vip', 30, "🎉 **ชำระเงินสำเร็จ!** ได้รับสิทธิ์ **💎 VIP (รายเดือน)**\n⏰ หมดอายุ: {expiry}"),
             }
+            # 🎟 Top-up packages (เติม credits ไม่เปลี่ยน role)
+            topup_packages = {
+                20: 10,  # 20฿ = 10 credits (= 2฿/ครั้ง)
+            }
+
+            if amount in topup_packages:
+                # === Top-up flow ===
+                credits = topup_packages[amount]
+                claim_status, new_balance = claim_slip_and_add_topup(user_id, ref_no, credits)
+                if claim_status == "duplicate":
+                    bot.edit_message_text(
+                        "❌ **สลิปนี้ถูกใช้งานไปแล้ว!**\nไม่อนุญาตให้ใช้สลิปซ้ำครับ",
+                        message.chat.id,
+                        progress_msg.message_id,
+                        parse_mode="Markdown",
+                    )
+                    bot.send_message(
+                        ADMIN_ID,
+                        f"🚨 **ทุจริต!** User `{user_id}` ส่งสลิปซ้ำ Top-up (Ref: `{ref_no}`)",
+                        parse_mode="Markdown",
+                    )
+                    return
+                if claim_status != "success":
+                    bot.edit_message_text(
+                        "⚠️ Apexify ตรวจสอบสลิปได้แล้ว แต่ยังไม่สามารถเติม Top-up ได้ กรุณาลองใหม่อีกครั้ง",
+                        message.chat.id,
+                        progress_msg.message_id,
+                    )
+                    bot.send_message(
+                        ADMIN_ID,
+                        f"⚠️ **Top-up ล้มเหลวหลัง SlipOK ผ่าน** User `{user_id}` Ref `{ref_no}`",
+                        parse_mode="Markdown",
+                    )
+                    return
+                bot.edit_message_text(
+                    (
+                        f"🎉 **เติม Top-up สำเร็จ!**\n"
+                        f"🎟 ได้รับเพิ่ม **+{credits} ครั้ง**\n"
+                        f"💼 ยอดคงเหลือ: **{new_balance} ครั้ง**\n\n"
+                        f"_ระบบจะหัก top-up หลังคุณใช้ครบโควต้าฟรีรายวัน_"
+                    ),
+                    message.chat.id,
+                    progress_msg.message_id,
+                    parse_mode="Markdown",
+                )
+                bot.send_message(
+                    ADMIN_ID,
+                    f"🎟 **Top-up:** User `{user_id}` +{credits} ครั้ง (ยอด: {new_balance}) Ref `{ref_no}`",
+                    parse_mode="Markdown",
+                )
+                return
+
             package_info = slip_packages.get(amount)
             if not package_info:
                 bot.edit_message_text(
-                    f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** ({amount:,.2f} บาท)\nกรุณาโอนให้ตรงราคา (79, 109, 790, 1090)",
+                    f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** ({amount:,.2f} บาท)\nกรุณาโอนให้ตรงราคา (20, 79, 109, 790, 1090)",
                     message.chat.id,
                     progress_msg.message_id,
                     parse_mode="Markdown",
@@ -2887,40 +2942,55 @@ def inline_callbacks(call):
     
     if call.data == 'menu_vip':
         try:
+            # 🎟 แสดง top-up balance ถ้ามี — ลูกค้าจะรู้ว่าเหลือกี่ครั้ง
+            try:
+                _topup = get_topup_balance(user_id)
+            except Exception:
+                _topup = 0
+            topup_line = f"\n🎟 **Top-up คงเหลือ:** {_topup} ครั้ง\n" if _topup > 0 else ""
+
             pay_text = (
                 "🚀 **แพ็กเกจ APEXIFY** 🚀\n"
                 "💳 กสิกรไทย: `135-1-34469-1` (นาย เกียรติศักดิ์ วุฒิจันทร์)\n"
-                "*(โอนแล้วส่งสลิปในแชทนี้ ระบบอัปเกรดอัตโนมัติใน 3 วิ!)*\n\n"
+                "*(โอนแล้วส่งสลิปในแชทนี้ ระบบอัปเกรดอัตโนมัติใน 3 วิ!)*\n"
+                f"{topup_line}\n"
 
                 "🆓 **BASIC (ฟรี)**\n"
-                f"• สแกน AI {FREE_DAILY_QUOTA} ครั้ง/วัน\n"
+                f"• สแกน Apexify {FREE_DAILY_QUOTA} ครั้ง/วัน\n"
                 "• Watchlist 3 ตัว\n"
                 "• Fear & Greed, PnL Card\n"
                 "• พอร์ตเว็บ 3 ตัว, DRIP/Simulator\n\n"
 
-                "💎 **VIP — 79.-/เดือน หรือ 790.-/ปี**\n"
-                "• สแกน AI ไม่จำกัด\n"
+                "🎟 **TOP-UP — 20.-/10 ครั้ง** (เติมเฉพาะกิจ)\n"
+                "• เพิ่มจากโควต้าฟรี เพียง 2฿/ครั้ง\n"
+                "• ใช้ได้กับ Free tier — ไม่หมดอายุ\n"
+                "• เหมาะ: ใช้ไม่บ่อย ไม่อยากผูก subscription\n\n"
+
+                "💎 **VIP — 79.-/เดือน หรือ 790.-/ปี** _(ประหยัด 158฿ · ฟรี 2 เดือน)_\n"
+                "• สแกน Apexify ไม่จำกัด\n"
                 "• Watchlist 10 ตัว + Scan all\n"
-                "• Morning Briefing, AI Podcast, News Digest\n"
+                "• Morning Briefing, Apexify Podcast, News Digest\n"
                 "• Daily Portfolio Summary\n"
                 "• พอร์ตเว็บ 10 ตัว, Trade Plan, Health Score, Heatmap, Matchmaker\n\n"
 
-                "👑 **PRO — 109.-/เดือน หรือ 1,090.-/ปี** 🔥\n"
+                "👑 **PRO — 109.-/เดือน หรือ 1,090.-/ปี** _(ประหยัด 218฿ · ฟรี 2 เดือน)_ 🔥\n"
                 "• ทุกอย่างของ VIP +\n"
                 "• Watchlist & พอร์ตเว็บ ไม่จำกัด\n"
                 "• Smart Alerts, Technical Radar\n"
                 "• Flash News, Dividend Hunter, Screener\n"
-                "• AI Rebalance, Port Doctor, Sentiment Analysis\n"
+                "• Apexify Rebalance, Port Doctor, Sentiment Analysis\n"
             )
-            # เพิ่มปุ่มเลือกแพ็กเกจ + สร้าง QR
             qr_markup = InlineKeyboardMarkup(row_width=2)
+            qr_markup.add(
+                InlineKeyboardButton("🎟 Top-up 20.-/10 ครั้ง", callback_data="qr_pay_20"),
+            )
             qr_markup.add(
                 InlineKeyboardButton("💎 VIP 79.-/เดือน", callback_data="qr_pay_79"),
                 InlineKeyboardButton("👑 PRO 109.-/เดือน", callback_data="qr_pay_109"),
             )
             qr_markup.add(
-                InlineKeyboardButton("💎 VIP 790.-/ปี", callback_data="qr_pay_790"),
-                InlineKeyboardButton("👑 PRO 1,090.-/ปี", callback_data="qr_pay_1090"),
+                InlineKeyboardButton("💎 VIP 790.-/ปี (ฟรี 2 เดือน)", callback_data="qr_pay_790"),
+                InlineKeyboardButton("👑 PRO 1,090.-/ปี (ฟรี 2 เดือน)", callback_data="qr_pay_1090"),
             )
             bot.send_message(user_id, pay_text, parse_mode="Markdown", reply_markup=qr_markup)
         except Exception as e:
@@ -2933,7 +3003,13 @@ def inline_callbacks(call):
             from config import PROMPTPAY_ID
             amount_str = call.data.replace('qr_pay_', '')
             amount = int(amount_str)
-            pkg_names = {79: "💎 VIP รายเดือน", 109: "👑 PRO รายเดือน", 790: "💎 VIP รายปี", 1090: "👑 PRO รายปี"}
+            pkg_names = {
+                20: "🎟 Top-up 10 ครั้ง",
+                79: "💎 VIP รายเดือน",
+                109: "👑 PRO รายเดือน",
+                790: "💎 VIP รายปี (ฟรี 2 เดือน)",
+                1090: "👑 PRO รายปี (ฟรี 2 เดือน)",
+            }
             pkg_name = pkg_names.get(amount, f"แพ็กเกจ {amount} บาท")
 
             if not PROMPTPAY_ID:
@@ -4507,6 +4583,23 @@ def handle_main(message):
 
     usage = get_usage(user_id)
     if user_id != ADMIN_ID and role == 'free' and usage >= FREE_DAILY_QUOTA:
+        # 🎟 Try Top-up first — atomic consume; ถ้า balance > 0 หัก 1 + ให้ผ่าน
+        topup_consumed = False
+        try:
+            if consume_topup_balance(user_id, count=1):
+                topup_consumed = True
+                _remaining = get_topup_balance(user_id)
+                bot.reply_to(
+                    message,
+                    f"🎟 หัก Top-up 1 ครั้ง · เหลือ **{_remaining} ครั้ง**",
+                    parse_mode="Markdown",
+                )
+        except Exception as _e:
+            print(f"[Topup] consume err: {type(_e).__name__}: {str(_e)[:80]}", flush=True)
+            topup_consumed = False
+
+    # paywall block: ทำงานเฉพาะเมื่อ topup ไม่ได้หัก
+    if user_id != ADMIN_ID and role == 'free' and usage >= FREE_DAILY_QUOTA and not locals().get('topup_consumed', False):
         from datetime import datetime as _dt, timedelta as _td
         _now_thai = _dt.utcnow() + _td(hours=7)
         _midnight = _now_thai.replace(hour=0, minute=0, second=0, microsecond=0) + _td(days=1)
@@ -4515,6 +4608,9 @@ def handle_main(message):
         _reset_str = f"{_h} ชม. {_m} นาที" if _h else f"{_m} นาที"
         # 🌟 Inline upsell — ให้ user กดสมัครได้ทันทีไม่ต้อง dig menu
         upsell_kb = InlineKeyboardMarkup(row_width=2)
+        upsell_kb.add(
+            InlineKeyboardButton("🎟 Top-up 20฿ (10 ครั้ง)", callback_data="qr_pay_20"),
+        )
         upsell_kb.add(
             InlineKeyboardButton("💎 สมัคร VIP 79฿/เดือน", callback_data="menu_vip"),
             InlineKeyboardButton("👑 สมัคร PRO 109฿/เดือน", callback_data="menu_vip"),

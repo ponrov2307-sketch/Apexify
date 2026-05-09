@@ -427,12 +427,18 @@ def init_db():
                   free_trial_used BOOLEAN DEFAULT FALSE,
                   free_trial_vip_given BOOLEAN DEFAULT FALSE,
                   first_audit_done BOOLEAN DEFAULT FALSE,
+                  topup_balance INTEGER DEFAULT 0,
                   last_active TIMESTAMP)''')
     # idempotent migration for existing deployments — column may not exist yet
     try:
         c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS first_audit_done BOOLEAN DEFAULT FALSE")
     except Exception as _e:
         print(f"[init_db] users.first_audit_done migration: {_e}", flush=True)
+    # 🎟 Top-up balance — pay-per-use สำหรับคนที่ไม่อยากผูก subscription
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS topup_balance INTEGER DEFAULT 0")
+    except Exception as _e:
+        print(f"[init_db] users.topup_balance migration: {_e}", flush=True)
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes
                  (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '', role_type TEXT DEFAULT 'vip')''')
@@ -962,6 +968,54 @@ def reset_daily_free_usage():
     conn.close()
     print(f"🔄 รีเซ็ตโควต้าฟรีรายวัน: {rows} คน")
 
+
+# 🎟 Top-up balance — pay-per-use สำหรับ user ที่ไม่อยากผูก subscription รายเดือน
+# ใช้คู่กับ free quota: เมื่อใช้ครบ 3/วัน ระบบจะหักจาก top-up ก่อนปฏิเสธ
+def get_topup_balance(user_id):
+    """คืนยอด top-up คงเหลือของ user (int >= 0)"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT topup_balance FROM users WHERE user_id=%s", (str(user_id),))
+    result = c.fetchone()
+    conn.close()
+    return int(result[0]) if result and result[0] else 0
+
+
+def add_topup_balance(user_id, count):
+    """เพิ่มยอด top-up — คืนยอดรวมหลังเพิ่ม"""
+    if count <= 0:
+        return get_topup_balance(user_id)
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE users SET topup_balance = COALESCE(topup_balance, 0) + %s WHERE user_id=%s",
+        (int(count), str(user_id)),
+    )
+    c.execute("SELECT topup_balance FROM users WHERE user_id=%s", (str(user_id),))
+    result = c.fetchone()
+    conn.commit()
+    conn.close()
+    return int(result[0]) if result and result[0] else 0
+
+
+def consume_topup_balance(user_id, count=1):
+    """หัก top-up — คืน True ถ้าหักสำเร็จ (มียอดพอ), False ถ้ายอดไม่พอ
+    ใช้ atomic UPDATE WHERE topup_balance >= count กัน race condition
+    """
+    if count <= 0:
+        return True
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE users SET topup_balance = topup_balance - %s "
+        "WHERE user_id=%s AND COALESCE(topup_balance, 0) >= %s",
+        (int(count), str(user_id), int(count)),
+    )
+    affected = c.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
+
 def get_users_watching(symbol):
     return _get_watchers_for_ticker(symbol)
 
@@ -1422,6 +1476,53 @@ def claim_slip_and_add_subscription(user_id: str, ref_no: str, role: str, days: 
         return "error", None
     finally:
         conn.close()
+
+
+def claim_slip_and_add_topup(user_id: str, ref_no: str, count: int) -> tuple[str, int | None]:
+    """ใช้สลิปเติม top-up balance — ไม่เปลี่ยน role/expiry แค่บวก credits
+
+    Returns: (status, new_balance_or_None)
+    status:
+      - "duplicate" — สลิป ref_no นี้เคยใช้แล้ว
+      - "success" — เติมสำเร็จ คืน balance ใหม่
+      - "error" — DB error
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        c.execute(
+            """
+            INSERT INTO used_slips (ref_no, user_id, date_used)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (ref_no) DO NOTHING
+            RETURNING ref_no
+            """,
+            (str(ref_no), str(user_id), now_str),
+        )
+        if c.fetchone() is None:
+            return "duplicate", None
+
+        c.execute(
+            "UPDATE users SET topup_balance = COALESCE(topup_balance, 0) + %s "
+            "WHERE user_id=%s "
+            "RETURNING topup_balance",
+            (int(count), str(user_id)),
+        )
+        row = c.fetchone()
+        if not row:
+            conn.rollback()
+            return "error", None
+        new_balance = int(row[0]) if row[0] is not None else int(count)
+        conn.commit()
+        return "success", new_balance
+    except Exception as e:
+        print(f"Topup Claim Error: {e}")
+        conn.rollback()
+        return "error", None
+    finally:
+        conn.close()
+
 
 # ==========================================
 def get_due_pending_alert_logs(limit=200):
