@@ -11,6 +11,7 @@ from cachetools import TTLCache
 
 from config import GEMINI_API_KEY, gemini_client
 from technical_tools import build_multitimeframe_trade_context
+from news_context import fetch_ticker_news, format_news_for_prompt, format_news_for_display
 
 client = gemini_client
 
@@ -639,6 +640,8 @@ def _build_member_defaults(context, trends, deterministic_plan):
         "confirmation_signal": confirmation_default,
         "invalidation": invalidation_default,
         "ai_insight": _default_ai_insight(context, bias),
+        "news_summary": "ไม่มีข่าวสำคัญใน 7 วัน",
+        "news_impact": "neutral",
     }
 
 
@@ -655,6 +658,9 @@ _MEMBER_SYSTEM_INSTRUCTION = """
 - ข้อมูลไม่พอ→ใช้คำว่า "ข้อมูลไม่เพียงพอ"
 - ทุกฟิลด์ "สั้น" = ห้ามเกิน 80 ตัวอักษร และต้อง actionable ไม่ใช่ขยายความซ้ำ
 - ฟิลด์ watch_next/confirmation_signal/invalidation = ห้ามเกิน 120 ตัวอักษร
+- ฟิลด์ news_summary = ห้ามเกิน 180 ตัวอักษร อ้างอิงเฉพาะ headline ที่ให้มา ห้ามแต่งข่าวเอง
+- ถ้าไม่มี headline หรือ headline ไม่เกี่ยว = news_summary="ไม่มีข่าวสำคัญใน 7 วัน" และ news_impact="neutral"
+- ห้ามคัดลอก headline ตรงๆ — ต้องสรุปเป็นภาษาไทยเชื่อมโยงต่อราคา
 
 Output schema (ตอบเฉพาะ JSON object ตามนี้):
 {
@@ -668,12 +674,14 @@ Output schema (ตอบเฉพาะ JSON object ตามนี้):
   "watch_next": "จุด/เงื่อนไขที่ต้องเฝ้าในไม่กี่วันข้างหน้า",
   "confirmation_signal": "เงื่อนไขที่ทำให้ Plan ใช้ได้จริง",
   "invalidation": "เงื่อนไขที่ทำให้ Plan ใช้ไม่ได้ ต้องยกเลิก",
-  "ai_insight": "สรุป actionable 1-2 ประโยค ห้ามซ้ำ trend_radar"
+  "ai_insight": "สรุป actionable 1-2 ประโยค ห้ามซ้ำ trend_radar",
+  "news_summary": "สรุปข่าวที่กระทบราคา 1-2 ประโยค (ไทย)",
+  "news_impact": "bullish | bearish | neutral"
 }
 """.strip()
 
 
-def _build_member_prompt(context, trends, defaults, tier):
+def _build_member_prompt(context, trends, defaults, tier, news_block=""):
     """Dynamic content per-symbol — prepend to contents (system_instruction มี rules แล้ว)"""
     def trend_snapshot(label, snapshot):
         if not snapshot.get("available"):
@@ -688,13 +696,21 @@ def _build_member_prompt(context, trends, defaults, tier):
         )
 
     tier_label = "VIP" if tier == "vip" else "PRO"
-    return f"""
+
+    base = f"""
 tier={tier_label} | {context.get('symbol')} @ {_format_price(context.get('price'))} | bias: D={trends['day']['bias']} W={trends['week']['bias']} M={trends['month']['bias']} | extreme_vol={str(bool(context.get('is_extreme_volatility'))).lower()}
 
 {trend_snapshot('D', context.get('day', {}))}
 {trend_snapshot('W', context.get('week', {}))}
 {trend_snapshot('M', context.get('month', {}))}
 """.strip()
+
+    if news_block:
+        base += "\n\nRecent headlines (newest first, [age]):\n" + news_block
+    else:
+        base += "\n\nRecent headlines: (ไม่มีข่าว — ตอบ news_summary=\"ไม่มีข่าวสำคัญใน 7 วัน\" news_impact=\"neutral\")"
+
+    return base
 
 
 def _request_member_payload(prompt, defaults, cache_key=None):
@@ -776,6 +792,11 @@ def _merge_member_payload(defaults, payload, context):
     merged["invalidation"] = _clean_ai_text(payload.get("invalidation"), merged["invalidation"])
     merged["ai_insight"] = _clean_ai_text(payload.get("ai_insight"), merged["ai_insight"])
 
+    # 📰 News fields — sanitize + clamp
+    merged["news_summary"] = _clean_ai_text(payload.get("news_summary"), merged["news_summary"])
+    raw_impact = (payload.get("news_impact") or "").strip().lower()
+    merged["news_impact"] = raw_impact if raw_impact in ("bullish", "bearish", "neutral") else merged["news_impact"]
+
     if context.get("is_extreme_volatility") and "indicator อาจเชื่อถือได้น้อยลง" not in merged["ai_insight"]:
         merged["ai_insight"] = f"{merged['ai_insight']} ช่วงนี้ความผันผวนค่อนข้างสูง จึงควรเผื่อใจว่า indicator อาจเชื่อถือได้น้อยลง"
 
@@ -787,10 +808,26 @@ def _build_member_analysis(context, tier):
     dominant_bias = _choose_dominant_bias(trends)
     deterministic_plan = _build_deterministic_plan(context, dominant_bias)
     defaults = _build_member_defaults(context, trends, deterministic_plan)
-    prompt = _build_member_prompt(context, trends, defaults, tier)
-    cache_key = _ai_cache_key(context.get("symbol"), dominant_bias, context.get("price"))
+
+    # 📰 ดึงข่าวรายหุ้น (เฉพาะ VIP/PRO) — ใส่เข้า prompt + แนบกลับใน analysis
+    news_items = []
+    news_block = ""
+    try:
+        symbol = context.get("symbol")
+        if symbol and tier in ("vip", "pro"):
+            news_items = fetch_ticker_news(symbol, max_items=5)
+            news_block = format_news_for_prompt(news_items, max_items=5)
+    except Exception as e:
+        print(f"[news] fetch err {context.get('symbol')}: {type(e).__name__}: {str(e)[:80]}", flush=True)
+        news_items = []
+        news_block = ""
+
+    prompt = _build_member_prompt(context, trends, defaults, tier, news_block=news_block)
+    # cache key รวม news_count เพื่อให้ cache miss เมื่อข่าวเปลี่ยน (ไม่งั้น AI summary ค้าง)
+    cache_key = _ai_cache_key(context.get("symbol"), dominant_bias, context.get("price")) + (len(news_items),)
     payload = _request_member_payload(prompt, defaults, cache_key=cache_key)
     analysis = _merge_member_payload(defaults, payload, context)
+    analysis["news_items"] = news_items  # raw headlines สำหรับ render
     return trends, deterministic_plan, analysis
 
 
@@ -1025,26 +1062,53 @@ def _fallback_context_from_tech_data(tech_data):
     }
 
 
+_NEWS_IMPACT_EMOJI = {"bullish": "🟢", "bearish": "🔴", "neutral": "⚪"}
+_NEWS_IMPACT_LABEL = {"bullish": "หนุนราคา", "bearish": "กดราคา", "neutral": "เป็นกลาง"}
+
+
+def _render_news_block(analysis, max_headlines=3):
+    """สร้าง section ข่าวสำหรับ VIP/PRO — คืน "" ถ้าไม่มีข่าว/ข้อมูล"""
+    items = analysis.get("news_items") or []
+    summary = (analysis.get("news_summary") or "").strip()
+    impact = (analysis.get("news_impact") or "neutral").strip().lower()
+    if not items and (not summary or summary == "ไม่มีข่าวสำคัญใน 7 วัน"):
+        return ""
+
+    emoji = _NEWS_IMPACT_EMOJI.get(impact, "⚪")
+    label = _NEWS_IMPACT_LABEL.get(impact, "เป็นกลาง")
+    lines = [f"*📰 ข่าวล่าสุด — AI ว่ายังไง* {emoji} _{label}_"]
+    if summary:
+        lines.append(f"  💬 {summary}")
+    headlines = format_news_for_display(items, max_items=max_headlines)
+    if headlines:
+        lines.append(headlines)
+    return "\n".join(lines)
+
+
 def _render_vip_report(context, trends, analysis):
     """VIP: ภาพรวม + Trend Radar + Watch Next + Insight (ไม่มี entry/TP/SL ตัวเลข — นั่นคือ PRO)"""
-    return "\n".join(
-        [
-            _build_member_snapshot(context, trends, "vip"),
-            "",
-            "*🔭 AI Trend Radar — 3 ระยะ*",
-            f"• ⏱ *วัน:* {trends['day']['status_emoji']} {trends['day']['status_text']} — {analysis['trend_radar']['day']['reason']}",
-            f"• 📅 *สัปดาห์:* {trends['week']['status_emoji']} {trends['week']['status_text']} — {analysis['trend_radar']['week']['reason']}",
-            f"• 🔭 *เดือน:* {trends['month']['status_emoji']} {trends['month']['status_text']} — {analysis['trend_radar']['month']['reason']}",
-            "",
-            f"*👀 Watch Next:* {analysis['watch_next']}",
-            "",
-            f"*🧠 AI Insight:* {analysis['ai_insight']}",
-            "",
-            "_💎 อัปเกรดเป็น PRO เพื่อดู Entry/TP/SL ตัวเลข + R:R + Smart Alerts_",
-            "",
-            DISCLAIMER_TEXT,
-        ]
-    )
+    sections = [
+        _build_member_snapshot(context, trends, "vip"),
+        "",
+        "*🔭 AI Trend Radar — 3 ระยะ*",
+        f"• ⏱ *วัน:* {trends['day']['status_emoji']} {trends['day']['status_text']} — {analysis['trend_radar']['day']['reason']}",
+        f"• 📅 *สัปดาห์:* {trends['week']['status_emoji']} {trends['week']['status_text']} — {analysis['trend_radar']['week']['reason']}",
+        f"• 🔭 *เดือน:* {trends['month']['status_emoji']} {trends['month']['status_text']} — {analysis['trend_radar']['month']['reason']}",
+        "",
+        f"*👀 Watch Next:* {analysis['watch_next']}",
+        "",
+        f"*🧠 AI Insight:* {analysis['ai_insight']}",
+    ]
+    news_block = _render_news_block(analysis, max_headlines=3)
+    if news_block:
+        sections.extend(["", news_block])
+    sections.extend([
+        "",
+        "_💎 อัปเกรดเป็น PRO เพื่อดู Entry/TP/SL ตัวเลข + R:R + Smart Alerts_",
+        "",
+        DISCLAIMER_TEXT,
+    ])
+    return "\n".join(sections)
 
 
 def _render_pro_report(context, trends, deterministic_plan, analysis):
@@ -1057,43 +1121,47 @@ def _render_pro_report(context, trends, deterministic_plan, analysis):
         context.get("day", {}).get("price"),
     )
 
-    return "\n".join(
-        [
-            _build_member_snapshot(context, trends, "pro"),
-            "",
-            "*🔭 AI Trend Radar — 3 ระยะ*",
-            f"• ⏱ *วัน:* {trends['day']['status_emoji']} {trends['day']['status_text']} — {analysis['trend_radar']['day']['reason']}",
-            f"• 📅 *สัปดาห์:* {trends['week']['status_emoji']} {trends['week']['status_text']} — {analysis['trend_radar']['week']['reason']}",
-            f"• 🔭 *เดือน:* {trends['month']['status_emoji']} {trends['month']['status_text']} — {analysis['trend_radar']['month']['reason']}",
-            "",
-            f"*🎯 Actionable Plan — {bias_label}*",
-            "",
-            f"*🏃 สายสั้น {'(รอจังหวะ)' if plan_bias == 'bearish' else '(Swing)'} — กรอบ 1-4 สัปดาห์*",
-            f"  💡 {analysis['day_plan']['strategy_name']} — {analysis['day_plan']['strategy_line']}",
-            f"  📍 *เข้าซื้อ:* {_format_range_with_pct(day_plan['entry_low'], day_plan['entry_high'], current_price)}",
-            f"  🎯 *TP1:* {_format_price_with_pct(day_plan['tp1'], current_price)}",
-            f"  🎯 *TP2:* {_format_price_with_pct(day_plan['tp2'], current_price)}",
-            f"  🛑 *SL:* {_format_price_with_pct(day_plan['sl'], current_price)}",
-            f"  ⚖️ *R:R:* {day_plan['rr_note']}",
-            "",
-            "*🧘 สายยาว (Position) — กรอบ 3-12 เดือน*",
-            f"  💡 {analysis['position_plan']['strategy_name']} — {analysis['position_plan']['strategy_line']}",
-            f"  📍 *สะสมเพิ่ม:* {_format_range_with_pct(position_plan['add_low'], position_plan['add_high'], current_price)}",
-            f"  🎯 *เป้าระยะยาว:* {_format_price_with_pct(position_plan['tp_long'], current_price)}",
-            f"  🛡 *Trailing Stop:* {_format_price_with_pct(position_plan['trailing_stop'], current_price)}",
-            "",
-            "*🧭 เงื่อนไข Plan*",
-            f"  ✅ *ยืนยันเข้า:* {analysis['confirmation_signal']}",
-            f"  ❌ *ยกเลิก Plan:* {analysis['invalidation']}",
-            f"  👀 *Watch Next:* {analysis['watch_next']}",
-            "",
-            f"*🧠 AI Insight:* {analysis['ai_insight']}",
-            "",
-            "_💡 Position Sizing: เสี่ยงไม่เกิน 1-2% ของพอร์ตต่อไม้ — คำนวณจาก SL ด้านบน_",
-            "",
-            DISCLAIMER_TEXT,
-        ]
-    )
+    sections = [
+        _build_member_snapshot(context, trends, "pro"),
+        "",
+        "*🔭 AI Trend Radar — 3 ระยะ*",
+        f"• ⏱ *วัน:* {trends['day']['status_emoji']} {trends['day']['status_text']} — {analysis['trend_radar']['day']['reason']}",
+        f"• 📅 *สัปดาห์:* {trends['week']['status_emoji']} {trends['week']['status_text']} — {analysis['trend_radar']['week']['reason']}",
+        f"• 🔭 *เดือน:* {trends['month']['status_emoji']} {trends['month']['status_text']} — {analysis['trend_radar']['month']['reason']}",
+        "",
+        f"*🎯 Actionable Plan — {bias_label}*",
+        "",
+        f"*🏃 สายสั้น {'(รอจังหวะ)' if plan_bias == 'bearish' else '(Swing)'} — กรอบ 1-4 สัปดาห์*",
+        f"  💡 {analysis['day_plan']['strategy_name']} — {analysis['day_plan']['strategy_line']}",
+        f"  📍 *เข้าซื้อ:* {_format_range_with_pct(day_plan['entry_low'], day_plan['entry_high'], current_price)}",
+        f"  🎯 *TP1:* {_format_price_with_pct(day_plan['tp1'], current_price)}",
+        f"  🎯 *TP2:* {_format_price_with_pct(day_plan['tp2'], current_price)}",
+        f"  🛑 *SL:* {_format_price_with_pct(day_plan['sl'], current_price)}",
+        f"  ⚖️ *R:R:* {day_plan['rr_note']}",
+        "",
+        "*🧘 สายยาว (Position) — กรอบ 3-12 เดือน*",
+        f"  💡 {analysis['position_plan']['strategy_name']} — {analysis['position_plan']['strategy_line']}",
+        f"  📍 *สะสมเพิ่ม:* {_format_range_with_pct(position_plan['add_low'], position_plan['add_high'], current_price)}",
+        f"  🎯 *เป้าระยะยาว:* {_format_price_with_pct(position_plan['tp_long'], current_price)}",
+        f"  🛡 *Trailing Stop:* {_format_price_with_pct(position_plan['trailing_stop'], current_price)}",
+        "",
+        "*🧭 เงื่อนไข Plan*",
+        f"  ✅ *ยืนยันเข้า:* {analysis['confirmation_signal']}",
+        f"  ❌ *ยกเลิก Plan:* {analysis['invalidation']}",
+        f"  👀 *Watch Next:* {analysis['watch_next']}",
+        "",
+        f"*🧠 AI Insight:* {analysis['ai_insight']}",
+    ]
+    news_block = _render_news_block(analysis, max_headlines=5)
+    if news_block:
+        sections.extend(["", news_block])
+    sections.extend([
+        "",
+        "_💡 Position Sizing: เสี่ยงไม่เกิน 1-2% ของพอร์ตต่อไม้ — คำนวณจาก SL ด้านบน_",
+        "",
+        DISCLAIMER_TEXT,
+    ])
+    return "\n".join(sections)
 
 
 def _generate_free_report(tech_data):
@@ -1158,6 +1226,7 @@ def _generate_free_report(tech_data):
     report += "\n💎 *อัปเกรด VIP/PRO เพื่อดู:*\n"
     report += "• 📈 กราฟเทคนิคพร้อม EMA + S/R + POC\n"
     report += "• 🔭 AI Trend Radar 3 ระยะ (วัน/สัปดาห์/เดือน)\n"
+    report += "• 📰 ข่าวล่าสุดของหุ้น + AI สรุปผลกระทบต่อราคา\n"
     report += "• 🎯 Entry/TP/SL ตัวเลขชัด + กราฟแสดง zone (PRO)\n"
     report += "• 🔔 Smart Alerts + ตั้งเตือนราคา (PRO)\n"
     report += f"\n{DISCLAIMER_TEXT}"
