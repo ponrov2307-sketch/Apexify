@@ -915,9 +915,7 @@ def handle_backfill_analyses(message):
 
 @bot.message_handler(commands=['run_outcomes', 'evaluate_plans'])
 def handle_run_outcomes(message):
-    """Admin: trigger check_plan_outcomes ทันที (ไม่ต้องรอ cron 6:00)
-    ใช้หลังแก้ bug เพื่อ backfill outcomes ของ plans ที่ค้างอยู่
-    """
+    """Admin: verbose version — รายงานทุกขั้นตอน เพื่อ debug หา bug ตัวจริง"""
     user_id = str(message.chat.id)
     if user_id != ADMIN_ID:
         bot.reply_to(
@@ -926,41 +924,131 @@ def handle_run_outcomes(message):
             parse_mode="Markdown",
         )
         return
-    bot.reply_to(message, "⏳ กำลังรัน check_plan_outcomes — ใช้เวลาตามจำนวน symbols (ดึง yfinance)...")
+
+    progress_msg = bot.reply_to(message, "⏳ กำลังตรวจ pending plans...")
     try:
-        from alert_system import check_plan_outcomes
+        from database import get_pending_plans, update_plan_outcome, expire_stale_plans
+        import yfinance as _yf
+        pending = get_pending_plans(min_age_hours=24, max_age_days=45)
+        if not pending:
+            bot.edit_message_text(
+                "❌ *get_pending_plans คืน 0 plans*\n\n"
+                "ทั้งที่ DB มี plans อายุ >24 ชม. → SQL fix อาจยังไม่ deploy หรือ has bug\n\n"
+                "Verify: `git log --oneline -1` บน DO ควรเห็น `1c806ba` หรือใหม่กว่า",
+                message.chat.id, progress_msg.message_id, parse_mode="Markdown",
+            )
+            return
+
+        # Group by symbol
+        symbols = {}
+        for row in pending:
+            symbols.setdefault(row[1], []).append(row)
+
+        total_plans = len(pending)
+        total_symbols = len(symbols)
+
+        bot.edit_message_text(
+            f"⏳ พบ {total_plans} plans จาก {total_symbols} symbols — กำลัง check yfinance...",
+            message.chat.id, progress_msg.message_id,
+        )
+
+        updated = 0
+        sym_log: list[str] = []
+        yf_failed = 0
+        no_hit = 0
+
+        for symbol, plans in symbols.items():
+            try:
+                earliest_issued = min(p[9] for p in plans)
+                ticker = _yf.Ticker(symbol)
+                hist = ticker.history(start=earliest_issued.date(), interval="1d")
+                if hist.empty:
+                    yf_failed += 1
+                    sym_log.append(f"❌ {symbol}: yf empty")
+                    continue
+
+                sym_updated = 0
+                for plan in plans:
+                    plan_id, _, bias, e_low, e_high, tp1, tp2, sl, _, issued_at = plan
+                    tp1_v = float(tp1) if tp1 is not None else None
+                    tp2_v = float(tp2) if tp2 is not None else None
+                    sl_v = float(sl) if sl is not None else None
+
+                    plan_hist = hist[hist.index >= issued_at]
+                    if plan_hist.empty:
+                        continue
+
+                    sl_dt = tp1_dt = tp2_dt = None
+                    for date, row_data in plan_hist.iterrows():
+                        hi = float(row_data['High'])
+                        lo = float(row_data['Low'])
+                        if sl_v is not None and lo <= sl_v and sl_dt is None:
+                            sl_dt = date
+                        if tp1_v is not None and hi >= tp1_v and tp1_dt is None:
+                            tp1_dt = date
+                        if tp2_v is not None and hi >= tp2_v and tp2_dt is None:
+                            tp2_dt = date
+
+                    if sl_dt and (tp1_dt is None or sl_dt < tp1_dt):
+                        update_plan_outcome(plan_id, 'sl_hit', f"SL {sl_v:.2f}")
+                        sym_updated += 1
+                    elif tp2_dt:
+                        update_plan_outcome(plan_id, 'tp2_hit', f"TP2 {tp2_v:.2f}")
+                        sym_updated += 1
+                    elif tp1_dt:
+                        update_plan_outcome(plan_id, 'tp1_hit', f"TP1 {tp1_v:.2f}")
+                        sym_updated += 1
+                    else:
+                        no_hit += 1
+
+                if sym_updated > 0:
+                    sym_log.append(f"✅ {symbol}: +{sym_updated}")
+                updated += sym_updated
+            except Exception as e:
+                sym_log.append(f"⚠️ {symbol}: {type(e).__name__}: {str(e)[:40]}")
+
+        try:
+            expire_stale_plans(max_age_days=45)
+        except Exception:
+            pass
+
+        # Final report
         from database import get_connection
-
-        # นับก่อน-หลัง เพื่อรายงาน
-        conn = get_connection()
-        c = conn.cursor()
+        conn = get_connection(); c = conn.cursor()
         c.execute("SELECT outcome, COUNT(*) FROM analysis_plans GROUP BY outcome")
-        before = {row[0]: int(row[1]) for row in c.fetchall()}
+        breakdown = {row[0]: int(row[1]) for row in c.fetchall()}
         c.close(); conn.close()
 
-        check_plan_outcomes()
+        msg_parts = [
+            f"✅ *evaluation เสร็จ*",
+            f"",
+            f"📊 *Stats:*",
+            f"  • pending: {total_plans} plans / {total_symbols} symbols",
+            f"  • updated: **{updated}**",
+            f"  • yfinance fail: {yf_failed}",
+            f"  • no hit (TP/SL ยังไม่แตะ): {no_hit}",
+            f"",
+            f"📈 *Outcome breakdown:*",
+        ]
+        for outcome in ['open', 'tp1_hit', 'tp2_hit', 'sl_hit', 'expired']:
+            cnt = breakdown.get(outcome, 0)
+            msg_parts.append(f"  • `{outcome}`: {cnt}")
 
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("SELECT outcome, COUNT(*) FROM analysis_plans GROUP BY outcome")
-        after = {row[0]: int(row[1]) for row in c.fetchall()}
-        c.close(); conn.close()
+        # Sample log (top 15 — กัน Telegram limit)
+        if sym_log:
+            msg_parts.extend(["", "*Sample symbols:*"])
+            msg_parts.extend(sym_log[:15])
+            if len(sym_log) > 15:
+                msg_parts.append(f"... และอีก {len(sym_log) - 15}")
 
-        diff_lines = []
-        for outcome in set(list(before.keys()) + list(after.keys())):
-            b = before.get(outcome, 0)
-            a = after.get(outcome, 0)
-            delta = a - b
-            arrow = "↑" if delta > 0 else ("↓" if delta < 0 else "=")
-            diff_lines.append(f"  • `{outcome}`: {b} → {a} {arrow}{abs(delta) if delta else ''}")
-
-        bot.reply_to(
-            message,
-            "✅ *check_plan_outcomes เสร็จ*\n\n" + "\n".join(diff_lines),
-            parse_mode="Markdown",
+        bot.edit_message_text(
+            "\n".join(msg_parts), message.chat.id, progress_msg.message_id, parse_mode="Markdown",
         )
     except Exception as e:
-        bot.reply_to(message, f"❌ Error: {e}")
+        bot.edit_message_text(
+            f"❌ Error: `{type(e).__name__}: {str(e)[:200]}`",
+            message.chat.id, progress_msg.message_id, parse_mode="Markdown",
+        )
 
 
 @bot.message_handler(commands=['userdebug'])
