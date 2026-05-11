@@ -1656,10 +1656,14 @@ def handle_del_stock(message):
     try:
         parts = message.text.split()
         if len(parts) != 2:
+            kb = InlineKeyboardMarkup()
+            _dash_btn = _dashboard_cta_button(user_id, "🌐 ลบหุ้นบน Dashboard (ง่ายกว่า)", src="del_err", next_path="/portfolio")
+            if _dash_btn:
+                kb.add(_dash_btn)
             bot.reply_to(
                 message,
-                "❌ รูปแบบผิด! พิมพ์: `/del [ชื่อหุ้น]`\nเช่น: `/del AAPL`",
-                parse_mode='Markdown',
+                "❌ รูปแบบผิด! พิมพ์: `/del [ชื่อหุ้น]`\nเช่น: `/del AAPL`\n\n💡 หรือทำผ่าน Dashboard ↓",
+                parse_mode='Markdown', reply_markup=kb if _dash_btn else None,
             )
             return
 
@@ -1692,10 +1696,14 @@ def handle_edit_stock(message):
     try:
         parts = message.text.split()
         if len(parts) != 4:
+            kb = InlineKeyboardMarkup()
+            _dash_btn = _dashboard_cta_button(user_id, "🌐 แก้พอร์ตบน Dashboard (ง่ายกว่า)", src="edit_err", next_path="/portfolio")
+            if _dash_btn:
+                kb.add(_dash_btn)
             bot.reply_to(
                 message,
-                "❌ รูปแบบผิด! พิมพ์: `/edit [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]`\nเช่น: `/edit AAPL 15 165`",
-                parse_mode='Markdown',
+                "❌ รูปแบบผิด! พิมพ์: `/edit [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]`\nเช่น: `/edit AAPL 15 165`\n\n💡 หรือทำผ่าน Dashboard ↓",
+                parse_mode='Markdown', reply_markup=kb if _dash_btn else None,
             )
             return
 
@@ -1733,10 +1741,14 @@ def handle_watch(message):
     try:
         parts = message.text.split()
         if len(parts) != 2:
+            kb = InlineKeyboardMarkup()
+            _dash_btn = _dashboard_cta_button(user_id, "🌐 จัดการ Watchlist บน Dashboard", src="watch_err", next_path="/watchlist")
+            if _dash_btn:
+                kb.add(_dash_btn)
             bot.reply_to(
                 message,
-                "❌ รูปแบบผิด! พิมพ์: `/watch [ชื่อหุ้น]`\nเช่น: `/watch AAPL`",
-                parse_mode='Markdown',
+                "❌ รูปแบบผิด! พิมพ์: `/watch [ชื่อหุ้น]`\nเช่น: `/watch AAPL`\n\n💡 หรือทำผ่าน Dashboard ↓",
+                parse_mode='Markdown', reply_markup=kb if _dash_btn else None,
             )
             return
 
