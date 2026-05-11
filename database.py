@@ -3775,12 +3775,14 @@ def evaluate_achievements(user_id: str, *, context: str | None = None) -> list[s
 # 📬 Auto-DM Cron — candidates queries
 # ==========================================
 def query_activation_candidates(cooldown_days: int = 30, limit: int = 200):
-    """หาก users ที่ "สมัครแล้วยังไม่ activate"
+    """หาก users ที่ "สมัครแล้วยังไม่ activate" — 1-query (รวม dispatch_log dedupe)
+
     Criteria:
-      - registered_date > 24h ago AND < 14 days ago (กัน DM คนสมัครนานมาก)
+      - registered_date 1-14 days ago
       - free_trial_used = FALSE
-      - total_analyses = 0 OR 1-2 (still warm — เคยลองแต่ไม่กด /freetrial)
-      - ไม่อยู่ใน dispatch_log category='auto_dm_activation' ใน cooldown_days ที่ผ่านมา
+      - total_analyses ≤ 2 (warm: เคยลอง 0-2 ครั้งแต่ไม่ /freetrial)
+      - role = free
+      - NOT IN dispatch_log category=auto_dm_activation ใน cooldown_days
 
     Returns: list ของ dict { user_id, username, total_analyses }
     """
@@ -3797,15 +3799,16 @@ def query_activation_candidates(cooldown_days: int = 30, limit: int = 200):
               AND COALESCE(u.free_trial_used, FALSE) = FALSE
               AND COALESCE(u.total_analyses, 0) <= 2
               AND COALESCE(u.role, 'free') = 'free'
-              AND NOT EXISTS (
-                  SELECT 1 FROM dispatch_log d
-                  WHERE d.dispatch_key = %s
-                    AND d.created_at > NOW() - %s::INTERVAL
+              AND u.user_id NOT IN (
+                  SELECT raw_key FROM dispatch_log
+                  WHERE category = 'auto_dm_activation'
+                    AND created_at > NOW() - %s::INTERVAL
+                    AND raw_key IS NOT NULL
               )
             ORDER BY u.registered_date::timestamp DESC
             LIMIT %s
             """,
-            ("auto_dm:activation:" + "{user_id}", f"{int(cooldown_days)} days", int(limit)),
+            (f"{int(cooldown_days)} days", int(limit)),
         )
         rows = c.fetchall()
     except Exception as e:
@@ -3814,31 +3817,20 @@ def query_activation_candidates(cooldown_days: int = 30, limit: int = 200):
     finally:
         conn.close()
 
-    # filter ทีหลังด้วย dispatch_key per-user — query ข้างบนใช้ placeholder ไม่ได้ตรง ๆ
-    # ⇒ ทำ second pass: dedupe ผ่าน Python loop
-    candidates = []
-    skip_keys = _fetch_dispatched_users("auto_dm_activation", cooldown_days)
-    for row in rows:
-        uid = str(row[0])
-        if uid in skip_keys:
-            continue
-        candidates.append({
-            "user_id": uid,
-            "username": row[1] or "",
-            "total_analyses": int(row[2] or 0),
-        })
-        if len(candidates) >= limit:
-            break
-    return candidates
+    return [
+        {"user_id": str(row[0]), "username": row[1] or "", "total_analyses": int(row[2] or 0)}
+        for row in rows
+    ]
 
 
 def query_winback_candidates(cooldown_days: int = 30, limit: int = 200):
-    """หาก users ที่ "เคยจ่าย VIP/PRO แล้วเพิ่งหมดอายุ"
+    """หาก users ที่ "เคยจ่าย VIP/PRO เพิ่งหมดอายุ" — 1-query (รวม dedupe)
+
     Criteria:
-      - role IN ('vip', 'pro')
-      - expiry_date BETWEEN NOW() - 7 days AND NOW() (เพิ่งหมดใน 7 วัน — warm)
-      - total_analyses >= 3 (กรอง trial-only ที่ไม่จ่ายจริง)
-      - ไม่อยู่ใน dispatch_log category='auto_dm_winback' ใน cooldown_days ที่ผ่านมา
+      - role ∈ vip/pro
+      - expiry_date หมดใน 7 วันที่ผ่านมา
+      - total_analyses ≥ 3 (กรอง trial-only)
+      - NOT IN dispatch_log category=auto_dm_winback ใน cooldown_days
 
     Returns: list ของ dict { user_id, username, total_analyses, days_lapsed }
     """
@@ -3854,10 +3846,16 @@ def query_winback_candidates(cooldown_days: int = 30, limit: int = 200):
               AND u.role IN ('vip', 'pro')
               AND u.expiry_date::timestamp BETWEEN NOW() - INTERVAL '7 days' AND NOW()
               AND COALESCE(u.total_analyses, 0) >= 3
+              AND u.user_id NOT IN (
+                  SELECT raw_key FROM dispatch_log
+                  WHERE category = 'auto_dm_winback'
+                    AND created_at > NOW() - %s::INTERVAL
+                    AND raw_key IS NOT NULL
+              )
             ORDER BY u.expiry_date::timestamp DESC
             LIMIT %s
             """,
-            (int(limit),),
+            (f"{int(cooldown_days)} days", int(limit)),
         )
         rows = c.fetchall()
     except Exception as e:
@@ -3866,23 +3864,13 @@ def query_winback_candidates(cooldown_days: int = 30, limit: int = 200):
     finally:
         conn.close()
 
-    candidates = []
-    skip_keys = _fetch_dispatched_users("auto_dm_winback", cooldown_days)
-    for row in rows:
-        uid = str(row[0])
-        if uid in skip_keys:
-            continue
-        candidates.append({
-            "user_id": uid,
-            "username": row[1] or "",
-            "total_analyses": int(row[2] or 0),
-            "days_lapsed": int(row[3] or 1),
-        })
-        if len(candidates) >= limit:
-            break
-    return candidates
+    return [
+        {"user_id": str(row[0]), "username": row[1] or "", "total_analyses": int(row[2] or 0), "days_lapsed": int(row[3] or 1)}
+        for row in rows
+    ]
 
 
+# Legacy helper — kept for backward compat แต่ไม่ใช้ใน query ใหม่แล้ว
 def _fetch_dispatched_users(category: str, cooldown_days: int) -> set:
     """Return set ของ user_ids ที่ถูก DM ใน category นี้ภายใน cooldown_days"""
     conn = get_connection()

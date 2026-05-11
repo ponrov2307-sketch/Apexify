@@ -2106,6 +2106,58 @@ def handle_set_alert(message):
         
     try:
         args = message.text.split()
+
+        # 🎯 Guided UX — ถ้าพิมพ์ /setalert ไม่มี args หรือ args เดียว (symbol only)
+        # → แสดงปุ่มเลือกหุ้น/เปอร์เซ็นต์ แทน error message
+        # User feedback: 3 users/30 วันใช้ feature → guided form กัน drop-off จาก syntax error
+        if len(args) == 1:
+            kb = InlineKeyboardMarkup(row_width=3)
+            popular = ["NVDA", "AAPL", "TSLA", "MSFT", "AMZN", "META", "GOOGL", "AMD", "PLTR"]
+            for i in range(0, len(popular), 3):
+                kb.add(*[InlineKeyboardButton(sym, callback_data=f"setalert_pick_{sym}") for sym in popular[i:i+3]])
+            thai_stocks = ["PTT.BK", "KBANK.BK", "AOT.BK"]
+            kb.add(*[InlineKeyboardButton(sym, callback_data=f"setalert_pick_{sym}") for sym in thai_stocks])
+            bot.reply_to(
+                message,
+                "🔔 *ตั้งเตือนราคา — เลือกหุ้น*\n\n"
+                "กดปุ่มข้างล่าง หรือพิมพ์เอง:\n"
+                "• `/setalert AAPL 180` — ระบุราคาเป้าหมาย\n"
+                "• `/setalert AAPL +5%` — เพิ่มขึ้น 5%\n"
+                "• `/setalert AAPL -3%` — ลดลง 3%",
+                parse_mode="Markdown",
+                reply_markup=kb,
+            )
+            return
+
+        if len(args) == 2:
+            # /setalert SYMBOL → show pct picker
+            symbol_guess = args[1].upper()
+            tech_data, _, _ = _get_cached_analysis(symbol_guess, generate_chart=False)
+            if not tech_data:
+                bot.reply_to(message, f"❌ ไม่พบ **{symbol_guess}** — ลองพิมพ์ symbol ใหม่หรือเติม `.BK` สำหรับหุ้นไทย", parse_mode="Markdown")
+                return
+            current_price = tech_data['price']
+            kb = InlineKeyboardMarkup(row_width=3)
+            kb.add(
+                InlineKeyboardButton("📈 +5%", callback_data=f"setalert_pct_{symbol_guess}_5"),
+                InlineKeyboardButton("📈 +10%", callback_data=f"setalert_pct_{symbol_guess}_10"),
+                InlineKeyboardButton("📈 +20%", callback_data=f"setalert_pct_{symbol_guess}_20"),
+            )
+            kb.add(
+                InlineKeyboardButton("📉 -5%", callback_data=f"setalert_pct_{symbol_guess}_-5"),
+                InlineKeyboardButton("📉 -10%", callback_data=f"setalert_pct_{symbol_guess}_-10"),
+                InlineKeyboardButton("📉 -20%", callback_data=f"setalert_pct_{symbol_guess}_-20"),
+            )
+            bot.reply_to(
+                message,
+                f"🔔 *{symbol_guess}* — ราคาปัจจุบัน **${current_price:,.2f}**\n\n"
+                f"เลือกเปอร์เซ็นต์เพื่อตั้งเตือน:\n"
+                f"หรือพิมพ์ราคาเอง: `/setalert {symbol_guess} 180`",
+                parse_mode="Markdown",
+                reply_markup=kb,
+            )
+            return
+
         if len(args) != 3:
             bot.reply_to(message, "❌ รูปแบบผิด!\n**วิธีใช้:**\n• `/setalert AAPL 180` — ระบุราคาเป้าหมาย\n• `/setalert AAPL +5%` — เพิ่มขึ้น 5% จากราคาปัจจุบัน\n• `/setalert AAPL -3%` — ลดลง 3% จากราคาปัจจุบัน", parse_mode="Markdown")
             return
@@ -3648,7 +3700,7 @@ def quick_action_callbacks(call):
             parse_mode="Markdown")
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('delalert_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_') or call.data.startswith('tutorial_') or call.data.startswith('qr_pay_') or call.data == 'breaking_toggle' or call.data.startswith('referral_'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('delalert_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_') or call.data.startswith('tutorial_') or call.data.startswith('qr_pay_') or call.data == 'breaking_toggle' or call.data.startswith('referral_') or call.data.startswith('setalert_'))
 def inline_callbacks(call):
     user_id = str(call.message.chat.id)
     if not is_allowed(user_id): return
@@ -3869,6 +3921,71 @@ def inline_callbacks(call):
 
     elif call.data == 'menu_code':
         bot.send_message(user_id, "🎟 **พิมพ์คำสั่ง:** `/redeem [โค้ดของคุณ]`", parse_mode="Markdown")
+
+    elif call.data.startswith('setalert_pick_'):
+        # Guided UX step 2 — เลือก symbol แล้ว → แสดง pct picker
+        if role != 'pro' and user_id != ADMIN_ID:
+            bot.send_message(user_id, "🔒 ตั้งเตือนราคา = PRO เท่านั้น", parse_mode="Markdown")
+            return
+        sym = call.data.replace('setalert_pick_', '')
+        try:
+            tech_data, _, _ = _get_cached_analysis(sym, generate_chart=False)
+            if not tech_data:
+                bot.send_message(user_id, f"❌ ไม่พบ {sym}")
+                return
+            current_price = tech_data['price']
+            kb = InlineKeyboardMarkup(row_width=3)
+            kb.add(
+                InlineKeyboardButton("📈 +5%", callback_data=f"setalert_pct_{sym}_5"),
+                InlineKeyboardButton("📈 +10%", callback_data=f"setalert_pct_{sym}_10"),
+                InlineKeyboardButton("📈 +20%", callback_data=f"setalert_pct_{sym}_20"),
+            )
+            kb.add(
+                InlineKeyboardButton("📉 -5%", callback_data=f"setalert_pct_{sym}_-5"),
+                InlineKeyboardButton("📉 -10%", callback_data=f"setalert_pct_{sym}_-10"),
+                InlineKeyboardButton("📉 -20%", callback_data=f"setalert_pct_{sym}_-20"),
+            )
+            bot.send_message(
+                user_id,
+                f"🔔 *{sym}* — ราคาปัจจุบัน **${current_price:,.2f}**\n\n"
+                f"เลือกเปอร์เซ็นต์เพื่อตั้งเตือน:\n"
+                f"หรือพิมพ์ราคาเอง: `/setalert {sym} 180`",
+                parse_mode="Markdown",
+                reply_markup=kb,
+            )
+        except Exception as e:
+            print(f"[setalert_pick] {e}", flush=True)
+            bot.send_message(user_id, "❌ ระบบขัดข้อง ลองพิมพ์ /setalert ใหม่")
+
+    elif call.data.startswith('setalert_pct_'):
+        # Guided UX step 3 — เลือก % แล้ว → ตั้งเตือนทันที
+        if role != 'pro' and user_id != ADMIN_ID:
+            bot.send_message(user_id, "🔒 ตั้งเตือนราคา = PRO เท่านั้น", parse_mode="Markdown")
+            return
+        try:
+            payload = call.data.replace('setalert_pct_', '')
+            sym, pct_str = payload.rsplit('_', 1)
+            pct = float(pct_str)
+            tech_data, _, _ = _get_cached_analysis(sym, generate_chart=False)
+            if not tech_data:
+                bot.send_message(user_id, f"❌ ไม่พบ {sym}")
+                return
+            current_price = tech_data['price']
+            target_price = round(current_price * (1 + pct / 100), 4)
+            condition = 'above' if pct > 0 else 'below'
+            cond_text = "ขึ้นไปแตะ" if condition == 'above' else "ร่วงลงมาแตะ"
+            add_price_alert_db(user_id, sym, target_price, condition)
+            bot.send_message(
+                user_id,
+                f"✅ *ตั้งเตือนสำเร็จ* 🔔\n\n"
+                f"📌 **{sym}** ราคาปัจจุบัน ${current_price:,.2f}\n"
+                f"🎯 แจ้งเตือนเมื่อ **{cond_text} ${target_price:,.2f}** ({pct:+.0f}%)\n\n"
+                f"_ระบบเช็คทุก 5 นาทีตลอด 24 ชม._",
+                parse_mode="Markdown",
+            )
+        except Exception as e:
+            print(f"[setalert_pct] {e}", flush=True)
+            bot.send_message(user_id, "❌ ระบบขัดข้อง ลองพิมพ์ /setalert ใหม่")
 
     elif call.data == 'trigger_freetrial':
         # 🎁 Trigger /freetrial flow from /start inline button (fix 96% activation gap)
@@ -6047,6 +6164,21 @@ if __name__ == "__main__":
         threading.Thread(target=run_plan_evaluator_cron, args=(bot,), daemon=True).start()
     except Exception as _e:
         print(f"[main] plan_evaluator_cron failed to start: {_e}", flush=True)
+
+    # 💓 Heartbeat — เขียน timestamp ไป /tmp/apexify_heartbeat.txt ทุก 60s
+    # ใช้คู่กับ heartbeat_watchdog.py (cron */5 min) ที่ DM admin ถ้า stale > 5 min
+    def _heartbeat_loop():
+        from pathlib import Path
+        hb_file = Path("/tmp/apexify_heartbeat.txt")
+        while True:
+            try:
+                hb_file.write_text(str(time.time()), encoding="utf-8")
+            except Exception as e:
+                print(f"[heartbeat] write err: {e}", flush=True)
+            time.sleep(60)
+
+    threading.Thread(target=_heartbeat_loop, daemon=True).start()
+    print("[heartbeat] writer started — /tmp/apexify_heartbeat.txt every 60s", flush=True)
 
     # 🌟 Pre-warm yfinance cache — popular tickers refresh ทุก 5 นาที
     # ทำให้ user ที่ขอหุ้นเหล่านี้ได้รายงานเกือบทันที (cache hit)
