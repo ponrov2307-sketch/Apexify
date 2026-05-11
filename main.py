@@ -1526,6 +1526,10 @@ def send_welcome(message):
 
     # Tutorial card with inline keyboard
     tutorial_markup = InlineKeyboardMarkup(row_width=2)
+    # 🎁 Surface /freetrial as primary CTA — fix 96% activation gap
+    tutorial_markup.add(
+        InlineKeyboardButton("🎁 ทดลอง PRO ฟรี 7 วัน — เริ่มเลย!", callback_data="trigger_freetrial")
+    )
     tutorial_markup.add(
         InlineKeyboardButton("📊 ลอง AAPL", callback_data="tutorial_analyze_AAPL"),
         InlineKeyboardButton("⚡ ลอง NVDA", callback_data="tutorial_analyze_NVDA"),
@@ -3853,7 +3857,16 @@ def inline_callbacks(call):
 
     elif call.data == 'menu_code':
         bot.send_message(user_id, "🎟 **พิมพ์คำสั่ง:** `/redeem [โค้ดของคุณ]`", parse_mode="Markdown")
-        
+
+    elif call.data == 'trigger_freetrial':
+        # 🎁 Trigger /freetrial flow from /start inline button (fix 96% activation gap)
+        try:
+            handle_free_trial(call.message)
+        except Exception as e:
+            print(f"[trigger_freetrial] {e}", flush=True)
+            bot.send_message(user_id, "📡 ระบบขัดข้องชั่วคราว ลอง /freetrial ในแชทอีกครั้งครับ")
+        bot.answer_callback_query(call.id)
+
     elif call.data == 'menu_referral':
         try:
             ref_count = get_referral_stats(user_id)

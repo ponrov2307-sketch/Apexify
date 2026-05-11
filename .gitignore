@@ -10,3 +10,16 @@ apexify.db
 
 # ซ่อน worktrees ของ Claude Code
 .claude/worktrees/
+
+# ซ่อน marketing assets (ไม่ต้องขึ้น production)
+marketing/
+capcut_assets/
+
+# ซ่อน DM scripts (มี user IDs จริง)
+winback_send.py
+activation_send.py
+winback_log.txt
+activation_log.txt
+
+# ซ่อน voiceover generator (one-off marketing tool)
+generate_voiceover.py
