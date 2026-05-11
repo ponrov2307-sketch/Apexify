@@ -3165,7 +3165,8 @@ def handle_manual(message):
             "`/stats` — สถิติ user/รายได้\n"
             "`/performance` — ผลกำไร/ขาดทุนของ AI plans\n"
             "`/perf_stats` — สรุป latency/throughput ของระบบ\n"
-            "`/streak_debug [uid]` — ตรวจ streak counter ของ user\n\n"
+            "`/streak_debug [uid]` — ตรวจ streak counter ของ user\n"
+            "`/dm_stats [days=7]` — Auto-DM Cron performance (activation/winback conversion)\n\n"
 
             "*🤝 Referral Review*\n"
             "`/pending_refs` — list (พร้อม candidate match auto)\n"
