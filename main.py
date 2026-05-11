@@ -1572,7 +1572,7 @@ def handle_add_stock(message):
         if len(parts) != 4:
             # Push dashboard — easier than typing syntax
             kb = InlineKeyboardMarkup()
-            _dash_btn = _dashboard_cta_button(user_id, "🌐 เพิ่มหุ้นบน Dashboard (ง่ายกว่า)", src="add_err", next_path="/portfolio")
+            _dash_btn = _dashboard_cta_button(user_id, "🌐 เพิ่มหุ้นบน Dashboard (ง่ายกว่า)", src="add_err", next_path="/")
             if _dash_btn:
                 kb.add(_dash_btn)
             bot.reply_to(message,
@@ -1657,7 +1657,7 @@ def handle_del_stock(message):
         parts = message.text.split()
         if len(parts) != 2:
             kb = InlineKeyboardMarkup()
-            _dash_btn = _dashboard_cta_button(user_id, "🌐 ลบหุ้นบน Dashboard (ง่ายกว่า)", src="del_err", next_path="/portfolio")
+            _dash_btn = _dashboard_cta_button(user_id, "🌐 ลบหุ้นบน Dashboard (ง่ายกว่า)", src="del_err", next_path="/")
             if _dash_btn:
                 kb.add(_dash_btn)
             bot.reply_to(
@@ -1697,7 +1697,7 @@ def handle_edit_stock(message):
         parts = message.text.split()
         if len(parts) != 4:
             kb = InlineKeyboardMarkup()
-            _dash_btn = _dashboard_cta_button(user_id, "🌐 แก้พอร์ตบน Dashboard (ง่ายกว่า)", src="edit_err", next_path="/portfolio")
+            _dash_btn = _dashboard_cta_button(user_id, "🌐 แก้พอร์ตบน Dashboard (ง่ายกว่า)", src="edit_err", next_path="/")
             if _dash_btn:
                 kb.add(_dash_btn)
             bot.reply_to(
@@ -1878,7 +1878,7 @@ def handle_portfolio(message):
 
         msg = "\n".join(lines)
         port_markup = InlineKeyboardMarkup()
-        _port_btn = _dashboard_cta_button(user_id, "📊 ดูพอร์ต + chart บน Dashboard", src="portfolio_cmd", next_path="/portfolio")
+        _port_btn = _dashboard_cta_button(user_id, "📊 ดูพอร์ต + chart บน Dashboard", src="portfolio_cmd", next_path="/")
         if _port_btn:
             port_markup.add(_port_btn)
         bot.edit_message_text(msg, chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='HTML', reply_markup=port_markup)
@@ -5272,7 +5272,7 @@ def handle_compare(message):
     args = message.text.split()
     if len(args) < 3 or len(args) > 4:
         kb = InlineKeyboardMarkup()
-        _dash_btn = _dashboard_cta_button(user_id, "🌐 เปรียบเทียบหุ้นบน Dashboard", src="compare_err", next_path="/compare")
+        _dash_btn = _dashboard_cta_button(user_id, "🌐 เปรียบเทียบ S&P500 บน Dashboard", src="compare_err", next_path="/sp500")
         if _dash_btn:
             kb.add(_dash_btn)
         bot.reply_to(message,
