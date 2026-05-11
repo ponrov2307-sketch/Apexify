@@ -6020,6 +6020,13 @@ if __name__ == "__main__":
 
     threading.Thread(target=_bg_init, daemon=True).start()
 
+    # 📬 Auto-DM Cron — daily 11:00 ICT (activation + win-back)
+    try:
+        from auto_dm_cron import run_auto_dm_cron
+        threading.Thread(target=run_auto_dm_cron, args=(bot,), daemon=True).start()
+    except Exception as _e:
+        print(f"[main] auto_dm_cron failed to start: {_e}", flush=True)
+
     # 🌟 Pre-warm yfinance cache — popular tickers refresh ทุก 5 นาที
     # ทำให้ user ที่ขอหุ้นเหล่านี้ได้รายงานเกือบทันที (cache hit)
     POPULAR_TICKERS = [

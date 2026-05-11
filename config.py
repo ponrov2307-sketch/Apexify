@@ -89,3 +89,24 @@ if not TELEGRAM_TOKEN or not GEMINI_API_KEY:
 
 from google import genai as _genai
 gemini_client = _genai.Client(api_key=GEMINI_API_KEY)
+
+# ============ Auto-DM Cron (P1 #2 — Activation + Win-back) ============
+# Defaults sensible — ถ้าไม่มี .env override ก็ work ทันที
+AUTO_DM_ENABLED = _to_bool("AUTO_DM_ENABLED", True)
+AUTO_DM_HOUR_ICT = _to_int("AUTO_DM_HOUR_ICT", 11)
+AUTO_DM_DAILY_LIMIT = _to_int("AUTO_DM_DAILY_LIMIT", 50)
+AUTO_DM_DRY_RUN = _to_bool("AUTO_DM_DRY_RUN", False)
+AUTO_DM_REPEAT_COOLDOWN_DAYS = _to_int("AUTO_DM_REPEAT_COOLDOWN_DAYS", 30)
+
+
+# ============ Thai timezone helpers ============
+from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+
+def thai_now():
+    """datetime ปัจจุบันใน Asia/Bangkok (UTC+7)"""
+    return _dt.now(_tz.utc) + _td(hours=7)
+
+
+def thai_today():
+    """date วันนี้ใน Asia/Bangkok"""
+    return thai_now().date()
