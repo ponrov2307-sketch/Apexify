@@ -1345,10 +1345,12 @@ def handle_track_record(message):
         return
     from database import (
         get_track_record_stats, get_top_performing_symbols, calculate_hypothetical_return,
+        get_recent_wins,
     )
     s30 = get_track_record_stats(days=30)
     s90 = get_track_record_stats(days=90)
     top_symbols = get_top_performing_symbols(days=90, limit=5, min_plans=3)
+    recent_wins = get_recent_wins(days=30, limit=5)
     hypo = calculate_hypothetical_return(days=90, risk_per_trade_pct=1.0)
 
     def fmt(s, label):
@@ -1381,6 +1383,16 @@ def handle_track_record(message):
                 f"  {emo} *{item['symbol']}*: {item['wins']}/{item['closed']} hit "
                 f"(*{item['hit_rate_pct']:.0f}%*)"
             )
+
+    # 🔥 Recent Wins — 5 TP hits ล่าสุด (social proof + trust signal)
+    if recent_wins:
+        parts.extend(["", "🔥 *Recent Wins (30 วัน)*"])
+        for w in recent_wins:
+            tp_label = "TP2" if w["outcome"] == "tp2_hit" else "TP1"
+            tp_emoji = "🎯🎯" if w["outcome"] == "tp2_hit" else "🎯"
+            hold_str = f" · {w['hold_days']}d" if w.get("hold_days") is not None else ""
+            gain_str = f"+{w['gain_pct']:.1f}%" if w.get("gain_pct") else ""
+            parts.append(f"  {tp_emoji} *{w['symbol']}* {tp_label} hit {gain_str}{hold_str}")
 
     # 📈 Hypothetical return — simulated portfolio
     if hypo and hypo["total_plans"] >= 5:
@@ -3799,11 +3811,11 @@ def inline_callbacks(call):
             )
             qr_markup = InlineKeyboardMarkup(row_width=2)
             qr_markup.add(
-                InlineKeyboardButton("🎟 Top-up 20.-/10 ครั้ง", callback_data="qr_pay_20"),
+                InlineKeyboardButton("🎟 เติม 20฿ → 10 ครั้ง (2฿/ครั้ง)", callback_data="qr_pay_20"),
             )
             qr_markup.add(
-                InlineKeyboardButton("💎 VIP 79.-/เดือน", callback_data="qr_pay_79"),
-                InlineKeyboardButton("👑 PRO 109.-/เดือน", callback_data="qr_pay_109"),
+                InlineKeyboardButton("💎 VIP 79฿/เดือน", callback_data="qr_pay_79"),
+                InlineKeyboardButton("👑 PRO 109฿/เดือน", callback_data="qr_pay_109"),
             )
             qr_markup.add(
                 InlineKeyboardButton("💎 VIP 790.-/ปี (ฟรี 2 เดือน)", callback_data="qr_pay_790"),
@@ -5628,13 +5640,14 @@ def handle_main(message):
         _h, _m = divmod(_mins_left, 60)
         _reset_str = f"{_h} ชม. {_m} นาที" if _h else f"{_m} นาที"
         # 🌟 Inline upsell — ให้ user กดสมัครได้ทันทีไม่ต้อง dig menu
+        # Top-up = ทางเลือกที่ commit ต่ำสุด สำหรับคนยังไม่อยากผูก subscription
         upsell_kb = InlineKeyboardMarkup(row_width=2)
         upsell_kb.add(
-            InlineKeyboardButton("🎟 Top-up 20฿ (10 ครั้ง)", callback_data="qr_pay_20"),
+            InlineKeyboardButton("🎟 เติม 20฿ → ใช้ได้ 10 ครั้ง (2฿/ครั้ง)", callback_data="qr_pay_20"),
         )
         upsell_kb.add(
-            InlineKeyboardButton("💎 สมัคร VIP 79฿/เดือน", callback_data="menu_vip"),
-            InlineKeyboardButton("👑 สมัคร PRO 109฿/เดือน", callback_data="menu_vip"),
+            InlineKeyboardButton("💎 VIP 79฿ · ไม่จำกัด", callback_data="menu_vip"),
+            InlineKeyboardButton("👑 PRO 109฿ · ทุกฟีเจอร์", callback_data="menu_vip"),
         )
         if not has_used_free_trial(user_id):
             upsell_kb.add(InlineKeyboardButton("🆓 ทดลองใช้ PRO 7 วันฟรี!", callback_data="menu_freetrial"))

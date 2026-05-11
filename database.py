@@ -1802,6 +1802,60 @@ def get_track_record_by_symbol(symbol, days=90):
     }
 
 
+def get_recent_wins(days: int = 30, limit: int = 5) -> list[dict]:
+    """ดึง trades ล่าสุดที่ "ชนะ" (tp1_hit / tp2_hit) — เรียงตาม outcome_at desc
+
+    ใช้ใน /track section "Recent Wins" — social proof + trust signal
+    Returns: list of dict { symbol, outcome, bias, tp1, tp2, entry_low, entry_high,
+                            outcome_note, issued_at, outcome_at, gain_pct (estimated) }
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            SELECT UPPER(symbol), outcome, bias, tp1, tp2, entry_low, entry_high,
+                   outcome_note, issued_at, outcome_at, price_at_issue
+            FROM analysis_plans
+            WHERE outcome IN ('tp1_hit', 'tp2_hit')
+              AND outcome_at IS NOT NULL
+              AND outcome_at > NOW() - %s::INTERVAL
+            ORDER BY outcome_at DESC
+            LIMIT %s
+            """,
+            (f"{int(days)} days", int(limit)),
+        )
+        rows = c.fetchall() or []
+    except Exception as e:
+        print(f"[recent-wins] err: {e}", flush=True)
+        rows = []
+    finally:
+        conn.close()
+
+    items = []
+    for row in rows:
+        sym, outcome, bias, tp1, tp2, e_low, e_high, note, issued_at, outcome_at, price_at_issue = row
+        try:
+            entry_mid = (float(e_low) + float(e_high)) / 2 if e_low and e_high else float(price_at_issue or 0)
+            target = float(tp2) if outcome == 'tp2_hit' else float(tp1) if tp1 else 0
+            gain_pct = ((target - entry_mid) / entry_mid * 100) if entry_mid else 0
+            hold_days = (outcome_at - issued_at).days if (outcome_at and issued_at) else None
+        except Exception:
+            gain_pct = 0
+            hold_days = None
+        items.append({
+            "symbol": sym,
+            "outcome": outcome,
+            "bias": bias,
+            "gain_pct": gain_pct,
+            "hold_days": hold_days,
+            "outcome_at": outcome_at,
+            "target": target if 'target' in dir() else None,
+            "note": note or "",
+        })
+    return items
+
+
 def get_top_performing_symbols(days=90, limit=5, min_plans=3):
     """ดึง top N symbols ตาม hit rate ใน N วัน (กรอง min_plans กันเลขเล็กน้อยมา bias)
     คืน list of dict {symbol, closed, wins, hit_rate_pct}
