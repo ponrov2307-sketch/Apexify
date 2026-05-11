@@ -707,21 +707,19 @@ def check_market_conditions():
                         whale_condition = 'normal'
                         # ไม่ต้อง set msg — flow ข้างล่างจะ skip alert
                         pass
-                    elif cur_close >= cur_open:
+                    elif price >= cur_open:
                         whale_condition = 'buy_spike'
                         msg = (
                             f"🐳 **WHALE ALERT (มีวาฬเข้า!)** 🐳\n"
-                            f"หุ้น **{symbol}** วอลุ่ม 5 นาทีพุ่ง **{ratio:.1f}x** ของ 1 ชม. ผ่านมา\n"
-                            f"แคนเดิล {time_str}: {cur_open:.2f} → {cur_close:.2f} (เขียว)\n"
-                            f"(ราคาปัจจุบัน: {price:.2f})"
+                            f"หุ้น **{symbol}** vol 5 นาที **{ratio:.1f}x** · ราคา **+{move_from_open:.2f}%** 📈\n"
+                            f"เปิด candle {time_str}: **${cur_open:.2f}** → ตอนนี้ **${price:.2f}**"
                         )
                     else:
                         whale_condition = 'sell_spike'
                         msg = (
                             f"🩸 **WHALE DUMP (วาฬเทขาย!)** 🩸\n"
-                            f"หุ้น **{symbol}** วอลุ่ม 5 นาทีพุ่ง **{ratio:.1f}x** ของ 1 ชม. ผ่านมา\n"
-                            f"แคนเดิล {time_str}: {cur_open:.2f} → {cur_close:.2f} (แดง)\n"
-                            f"(ราคาปัจจุบัน: {price:.2f})"
+                            f"หุ้น **{symbol}** vol 5 นาที **{ratio:.1f}x** · ราคา **-{move_from_open:.2f}%** 📉\n"
+                            f"เปิด candle {time_str}: **${cur_open:.2f}** → ตอนนี้ **${price:.2f}**"
                         )
             except Exception as e:
                 print(f"⚠️ [WhaleIntraday] {symbol}: {type(e).__name__}: {str(e)[:80]}", flush=True)

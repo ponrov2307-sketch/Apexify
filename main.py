@@ -1570,7 +1570,17 @@ def handle_add_stock(message):
     try:
         parts = message.text.split()
         if len(parts) != 4:
-            bot.reply_to(message, "❌ รูปแบบผิด! กรุณาพิมพ์: `/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]`\nเช่น: `/add AAPL 10 150`", parse_mode='Markdown')
+            # Push dashboard — easier than typing syntax
+            kb = InlineKeyboardMarkup()
+            _dash_btn = _dashboard_cta_button(user_id, "🌐 เพิ่มหุ้นบน Dashboard (ง่ายกว่า)", src="add_err", next_path="/portfolio")
+            if _dash_btn:
+                kb.add(_dash_btn)
+            bot.reply_to(message,
+                "❌ รูปแบบผิด!\n"
+                "• พิมพ์: `/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]`\n"
+                "  เช่น: `/add AAPL 10 150`\n\n"
+                "💡 หรือทำผ่าน Dashboard ง่ายกว่า ↓",
+                parse_mode='Markdown', reply_markup=kb if _dash_btn else None)
             return
         
         ticker = parts[1].upper()
@@ -2117,6 +2127,10 @@ def handle_set_alert(message):
                 kb.add(*[InlineKeyboardButton(sym, callback_data=f"setalert_pick_{sym}") for sym in popular[i:i+3]])
             thai_stocks = ["PTT.BK", "KBANK.BK", "AOT.BK"]
             kb.add(*[InlineKeyboardButton(sym, callback_data=f"setalert_pick_{sym}") for sym in thai_stocks])
+            # เพิ่ม dashboard CTA — push คนไปทำผ่านเว็บ
+            _dash_btn = _dashboard_cta_button(user_id, "🌐 จัดการ Alerts บน Dashboard", src="setalert_guided", next_path="/alerts")
+            if _dash_btn:
+                kb.add(_dash_btn)
             bot.reply_to(
                 message,
                 "🔔 *ตั้งเตือนราคา — เลือกหุ้น*\n\n"
