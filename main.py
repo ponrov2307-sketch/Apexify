@@ -6027,6 +6027,14 @@ if __name__ == "__main__":
     except Exception as _e:
         print(f"[main] auto_dm_cron failed to start: {_e}", flush=True)
 
+    # 📊 Plan Evaluator Cron — auto /run_outcomes ทุก 6 ชม.
+    # แก้ปัญหา: admin run มือ 5/30 วัน → 365 pending plans ค้าง → track record stale
+    try:
+        from plan_evaluator_cron import run_plan_evaluator_cron
+        threading.Thread(target=run_plan_evaluator_cron, args=(bot,), daemon=True).start()
+    except Exception as _e:
+        print(f"[main] plan_evaluator_cron failed to start: {_e}", flush=True)
+
     # 🌟 Pre-warm yfinance cache — popular tickers refresh ทุก 5 นาที
     # ทำให้ user ที่ขอหุ้นเหล่านี้ได้รายงานเกือบทันที (cache hit)
     POPULAR_TICKERS = [
