@@ -696,7 +696,18 @@ def check_market_conditions():
                         if candle_time is not None and hasattr(candle_time, "strftime")
                         else "ล่าสุด"
                     )
-                    if cur_close >= cur_open:
+
+                    # Fix C: Price confirmation — ใช้ current price (ไม่ใช่ candle close ที่ stale)
+                    # กัน 2 noise patterns:
+                    #   1. GOOGL — vol 11.2x แต่ candle move 0.06% (price ไม่ไป → accumulation)
+                    #   2. ASTS — vol 9.9x candle move 0.44% แต่ price rejected กลับ open (false signal)
+                    move_from_open = abs((price - cur_open) / cur_open * 100) if cur_open else 0
+                    if move_from_open < 0.3:
+                        # vol สูง แต่ราคา ณ ปัจจุบันไม่ขยับมีนัยสำคัญ → skip
+                        whale_condition = 'normal'
+                        # ไม่ต้อง set msg — flow ข้างล่างจะ skip alert
+                        pass
+                    elif cur_close >= cur_open:
                         whale_condition = 'buy_spike'
                         msg = (
                             f"🐳 **WHALE ALERT (มีวาฬเข้า!)** 🐳\n"
