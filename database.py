@@ -1833,16 +1833,27 @@ def get_recent_wins(days: int = 30, limit: int = 5) -> list[dict]:
         conn.close()
 
     items = []
+    seen_symbols = set()    # dedup — 1 win per symbol max ใน showcase
     for row in rows:
         sym, outcome, bias, tp1, tp2, e_low, e_high, note, issued_at, outcome_at, price_at_issue = row
+        if sym in seen_symbols:
+            continue
         try:
             entry_mid = (float(e_low) + float(e_high)) / 2 if e_low and e_high else float(price_at_issue or 0)
-            target = float(tp2) if outcome == 'tp2_hit' else float(tp1) if tp1 else 0
-            gain_pct = ((target - entry_mid) / entry_mid * 100) if entry_mid else 0
+            target_val = float(tp2) if outcome == 'tp2_hit' else float(tp1) if tp1 else 0
+            gain_pct = ((target_val - entry_mid) / entry_mid * 100) if entry_mid else 0
             hold_days = (outcome_at - issued_at).days if (outcome_at and issued_at) else None
         except Exception:
             gain_pct = 0
             hold_days = None
+            target_val = 0
+
+        # Skip outlier — gain > 100% น่าจะ data corruption (split, bad TP, wrong entry)
+        # User เห็น "RPGL +130%" จะคิดว่า unrealistic → trust signal ลด
+        if abs(gain_pct) > 100:
+            continue
+
+        seen_symbols.add(sym)
         items.append({
             "symbol": sym,
             "outcome": outcome,
@@ -1850,7 +1861,7 @@ def get_recent_wins(days: int = 30, limit: int = 5) -> list[dict]:
             "gain_pct": gain_pct,
             "hold_days": hold_days,
             "outcome_at": outcome_at,
-            "target": target if 'target' in dir() else None,
+            "target": target_val,
             "note": note or "",
         })
     return items
@@ -3868,6 +3879,133 @@ def query_winback_candidates(cooldown_days: int = 30, limit: int = 200):
         {"user_id": str(row[0]), "username": row[1] or "", "total_analyses": int(row[2] or 0), "days_lapsed": int(row[3] or 1)}
         for row in rows
     ]
+
+
+def query_dm_stats(days: int = 7) -> dict:
+    """Stats สำหรับ /dm_stats admin command — ดู auto_dm performance
+
+    Returns: dict {
+        days, total_activation, total_winback,
+        activation_users_who_freetrial,    # converted by /freetrial after DM
+        winback_users_who_redeem,          # converted by /redeem after DM
+        activation_conversion_pct,
+        winback_conversion_pct,
+        recent_activations: [{user_id, username, sent_at, converted}, ...],
+        recent_winbacks: [...],
+    }
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    out = {
+        "days": days,
+        "total_activation": 0,
+        "total_winback": 0,
+        "activation_users_who_freetrial": 0,
+        "winback_users_who_redeem": 0,
+        "activation_conversion_pct": 0.0,
+        "winback_conversion_pct": 0.0,
+        "recent_activations": [],
+        "recent_winbacks": [],
+    }
+    try:
+        # Total DM sent per category
+        c.execute(
+            """
+            SELECT category, COUNT(DISTINCT raw_key) AS cnt
+            FROM dispatch_log
+            WHERE category IN ('auto_dm_activation', 'auto_dm_winback')
+              AND created_at > NOW() - %s::INTERVAL
+              AND raw_key IS NOT NULL
+            GROUP BY category
+            """,
+            (f"{int(days)} days",),
+        )
+        for row in c.fetchall():
+            cat, cnt = row[0], int(row[1] or 0)
+            if cat == "auto_dm_activation":
+                out["total_activation"] = cnt
+            elif cat == "auto_dm_winback":
+                out["total_winback"] = cnt
+
+        # Activation conversion — user ที่ใช้ /freetrial หลัง DM
+        c.execute(
+            """
+            SELECT COUNT(DISTINCT d.raw_key)
+            FROM dispatch_log d
+            JOIN users u ON u.user_id = d.raw_key
+            WHERE d.category = 'auto_dm_activation'
+              AND d.created_at > NOW() - %s::INTERVAL
+              AND COALESCE(u.free_trial_used, FALSE) = TRUE
+            """,
+            (f"{int(days)} days",),
+        )
+        row = c.fetchone()
+        out["activation_users_who_freetrial"] = int(row[0] or 0) if row else 0
+
+        # Win-back conversion — user ที่ role IN (vip/pro) หลัง DM (renewed)
+        c.execute(
+            """
+            SELECT COUNT(DISTINCT d.raw_key)
+            FROM dispatch_log d
+            JOIN users u ON u.user_id = d.raw_key
+            WHERE d.category = 'auto_dm_winback'
+              AND d.created_at > NOW() - %s::INTERVAL
+              AND u.role IN ('vip', 'pro')
+              AND u.expiry_date::timestamp > NOW()
+            """,
+            (f"{int(days)} days",),
+        )
+        row = c.fetchone()
+        out["winback_users_who_redeem"] = int(row[0] or 0) if row else 0
+
+        # Recent activations (last 10)
+        c.execute(
+            """
+            SELECT d.raw_key, u.username, d.created_at, COALESCE(u.free_trial_used, FALSE)
+            FROM dispatch_log d
+            LEFT JOIN users u ON u.user_id = d.raw_key
+            WHERE d.category = 'auto_dm_activation'
+              AND d.created_at > NOW() - %s::INTERVAL
+            ORDER BY d.created_at DESC
+            LIMIT 10
+            """,
+            (f"{int(days)} days",),
+        )
+        for row in c.fetchall():
+            out["recent_activations"].append({
+                "user_id": row[0], "username": row[1] or "Unknown",
+                "sent_at": row[2], "converted": bool(row[3]),
+            })
+
+        # Recent winbacks (last 10)
+        c.execute(
+            """
+            SELECT d.raw_key, u.username, d.created_at,
+                   (u.role IN ('vip','pro') AND u.expiry_date::timestamp > NOW()) AS renewed
+            FROM dispatch_log d
+            LEFT JOIN users u ON u.user_id = d.raw_key
+            WHERE d.category = 'auto_dm_winback'
+              AND d.created_at > NOW() - %s::INTERVAL
+            ORDER BY d.created_at DESC
+            LIMIT 10
+            """,
+            (f"{int(days)} days",),
+        )
+        for row in c.fetchall():
+            out["recent_winbacks"].append({
+                "user_id": row[0], "username": row[1] or "Unknown",
+                "sent_at": row[2], "converted": bool(row[3]),
+            })
+
+        if out["total_activation"] > 0:
+            out["activation_conversion_pct"] = out["activation_users_who_freetrial"] / out["total_activation"] * 100
+        if out["total_winback"] > 0:
+            out["winback_conversion_pct"] = out["winback_users_who_redeem"] / out["total_winback"] * 100
+    except Exception as e:
+        print(f"[query_dm_stats] err: {e}", flush=True)
+    finally:
+        conn.close()
+    return out
 
 
 # Legacy helper — kept for backward compat แต่ไม่ใช้ใน query ใหม่แล้ว

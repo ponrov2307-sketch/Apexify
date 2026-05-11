@@ -2266,6 +2266,62 @@ def handle_del_alert(message):
 # ==========================================
 # 🌟 ระบบคำสั่งแอดมิน 
 # ==========================================
+@bot.message_handler(commands=['dm_stats', 'dmstats'])
+def handle_dm_stats(message):
+    """Admin: Auto-DM Cron performance — ดู DM sent + conversion rate"""
+    user_id = str(message.chat.id)
+    if user_id != ADMIN_ID:
+        return
+    try:
+        from database import query_dm_stats
+        args = message.text.split()
+        days = 7
+        if len(args) > 1:
+            try:
+                days = max(1, min(90, int(args[1])))
+            except ValueError:
+                pass
+
+        stats = query_dm_stats(days=days)
+        lines = [
+            f"📬 *Auto-DM Stats ({stats['days']} วัน)*",
+            f"━━━━━━━━━━━━━━",
+            "",
+            f"*🎯 Activation (สมัครแล้วไม่ activate):*",
+            f"  ส่ง DM: **{stats['total_activation']}** คน",
+            f"  ใช้ /freetrial แล้ว: {stats['activation_users_who_freetrial']} คน "
+            f"({stats['activation_conversion_pct']:.1f}%)",
+            "",
+            f"*💎 Win-back (paying user หมดอายุ):*",
+            f"  ส่ง DM: **{stats['total_winback']}** คน",
+            f"  Renew กลับมา: {stats['winback_users_who_redeem']} คน "
+            f"({stats['winback_conversion_pct']:.1f}%)",
+        ]
+
+        if stats['recent_activations']:
+            lines.extend(["", "*📝 Recent Activation DMs:*"])
+            for r in stats['recent_activations'][:8]:
+                check = "✅" if r['converted'] else "⏳"
+                uname = (r['username'] or 'Unknown')[:20]
+                lines.append(f"  {check} `{r['user_id']}` {uname}")
+
+        if stats['recent_winbacks']:
+            lines.extend(["", "*📝 Recent Win-back DMs:*"])
+            for r in stats['recent_winbacks'][:8]:
+                check = "✅" if r['converted'] else "⏳"
+                uname = (r['username'] or 'Unknown')[:20]
+                lines.append(f"  {check} `{r['user_id']}` {uname}")
+
+        lines.extend([
+            "",
+            f"_ปรับช่วงเวลา: /dm_stats 30 (default 7 วัน)_",
+        ])
+        bot.reply_to(message, "\n".join(lines), parse_mode="Markdown")
+    except Exception as e:
+        print(f"[dm_stats] {e}", flush=True)
+        bot.reply_to(message, f"❌ Error: {e}")
+
+
 @bot.message_handler(commands=['ban'])
 def handle_ban(message):
     if str(message.chat.id) != ADMIN_ID: return
@@ -3133,11 +3189,17 @@ def handle_manual(message):
             "`/cleanup_logs [days=90]` — ลบ log เก่าใน DB\n"
         )
 
+    # Dashboard CTA — push คนที่อ่าน manual ลึก → ลอง dashboard
+    _manual_kb = InlineKeyboardMarkup()
+    _manual_btn = _dashboard_cta_button(user_id, "🌐 เปิด Dashboard (ใช้ฟีเจอร์ง่ายกว่า)", src="manual_cmd", next_path="/")
+    if _manual_btn:
+        _manual_kb.add(_manual_btn)
+
     # 🌟 ถ้ายาวเกิน Telegram limit → แบ่งเป็น 2-3 messages
     # เริ่มที่ 4096 limit แต่ใช้ 3900 เป็น margin กัน parse_mode overhead
     TG_LIMIT = 3900
     if len(msg) <= TG_LIMIT:
-        bot.reply_to(message, msg, parse_mode="Markdown")
+        bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=_manual_kb if _manual_btn else None)
     else:
         workflow_marker = "━━━━━━━━━━━━━━━━━━━━━\n**🌟 Workflow"
         admin_marker = "━━━━━━━━━━━━━━━━━━━━━\n**👑 Admin Commands**"
