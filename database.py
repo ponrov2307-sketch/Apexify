@@ -947,7 +947,11 @@ def get_dashboard_stats():
     return stats
 
 
+_ROLE_RANK = {'free': 0, 'vip': 1, 'pro': 2}
+
+
 def _calculate_subscription_expiry(role, days, current_role=None, current_expiry=None, now=None):
+    """คำนวณ expiry ใหม่ — stack ถ้า active + same/higher tier, reset ถ้า expired"""
     now = now or datetime.now()
     new_expiry = now + timedelta(days=days)
 
@@ -958,31 +962,60 @@ def _calculate_subscription_expiry(role, days, current_role=None, current_expiry
             else:
                 raw = str(current_expiry).strip().replace('T', ' ')
                 parsed_expiry = datetime.fromisoformat(raw).replace(tzinfo=None)
-            if parsed_expiry > now and (current_role == role or role == 'pro'):
+            if parsed_expiry > now:
+                # Stack expiry ถ้า:
+                # 1. Same tier — VIP + VIP, PRO + PRO
+                # 2. Upgrade — VIP + PRO (upgrade)
+                # 3. **Downgrade case (PRO + VIP)** — stack เช่นกัน (กัน user เสีย days)
+                # ทุก case ที่ current active → stack เสมอ
                 new_expiry = parsed_expiry + timedelta(days=days)
         except (TypeError, ValueError):
             pass
 
     return new_expiry
 
+
 def add_subscription(user_id, role='vip', days=30):
+    """Add subscription — **ห้าม downgrade** higher tier
+    ถ้า user เป็น PRO อยู่ + redeem VIP code → keep PRO, stack days
+    """
     conn = get_connection()
     c = conn.cursor()
-    
+
     c.execute("SELECT role, expiry_date FROM users WHERE user_id=%s", (str(user_id),))
     result = c.fetchone()
-    
+
     current_role = result[0] if result else None
     current_expiry = result[1] if result else None
+
+    # 🛡 Role hierarchy guard — กัน downgrade (เคสจริง: PRO + redeem VIP welcome code → เสีย PRO)
+    is_active = False
+    if current_role in ('vip', 'pro') and current_expiry:
+        try:
+            if isinstance(current_expiry, datetime):
+                parsed = current_expiry.replace(tzinfo=None)
+            else:
+                raw = str(current_expiry).strip().replace('T', ' ')
+                parsed = datetime.fromisoformat(raw).replace(tzinfo=None)
+            is_active = parsed > datetime.now()
+        except Exception:
+            pass
+
+    effective_role = role
+    if is_active and _ROLE_RANK.get(current_role, 0) > _ROLE_RANK.get(role, 0):
+        # Current higher tier (PRO) + new lower (VIP) → keep current tier, just extend
+        effective_role = current_role
+        print(f"[add_subscription] guard: keep {current_role} (no downgrade to {role}) for user {user_id}", flush=True)
+
     new_expiry = _calculate_subscription_expiry(
-        role,
+        effective_role,
         days,
         current_role=current_role,
         current_expiry=current_expiry,
     )
-            
+
     expiry_str = new_expiry.strftime('%Y-%m-%d %H:%M:%S')
-    c.execute("UPDATE users SET role=%s, expiry_date=%s WHERE user_id=%s", (role, expiry_str, str(user_id)))
+    c.execute("UPDATE users SET role=%s, expiry_date=%s WHERE user_id=%s", (effective_role, expiry_str, str(user_id)))
     conn.commit()
     conn.close()
     return expiry_str
