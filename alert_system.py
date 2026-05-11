@@ -43,6 +43,72 @@ sent_pro_news = set()
 _sent_news_lock = _threading.Lock()
 _rss_cache_lock = _threading.Lock()
 
+# ========================================
+# 🔧 Adaptive alert filtering (added 2026-05-11)
+#   - Fix A: raise threshold ตอน first 30 min Mon/Tue US open (chaos hour)
+#   - Fix B: whipsaw suppression — opposite direction ใน 45 min → block
+# ========================================
+_recent_alert_direction = {}    # {(symbol, "buy"|"sell"): timestamp}
+_alert_direction_lock = _threading.Lock()
+
+# ตอน US open (Mon-Tue 20:30-21:00 ICT) ปกติ volume spike 4-5x = noise
+# เกณฑ์ปกติ = 3x, เกณฑ์ chaos hour = 6x → ลด alert ~70%
+WHALE_THRESHOLD_NORMAL = 3.0
+WHALE_THRESHOLD_CHAOS = 6.0
+ACCEL_THRESHOLD_NORMAL = 3.0
+ACCEL_THRESHOLD_CHAOS = 5.0
+WHIPSAW_SUPPRESS_MIN = 45       # นาที — ห้าม opposite alert ใน window นี้
+
+
+def _is_chaos_hour():
+    """Mon/Tue first 30 min of US market open (20:30-21:00 ICT) = chaos
+    Logic: weekday() = 0 Mon, 1 Tue; ICT now hour=20 minute=30-59
+    """
+    try:
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        now = _dt.now(_tz.utc) + _td(hours=7)
+        if now.weekday() not in (0, 1):
+            return False
+        # 20:30-21:00 ICT
+        if now.hour == 20 and now.minute >= 30:
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def _whale_threshold():
+    return WHALE_THRESHOLD_CHAOS if _is_chaos_hour() else WHALE_THRESHOLD_NORMAL
+
+
+def _accel_threshold():
+    return ACCEL_THRESHOLD_CHAOS if _is_chaos_hour() else ACCEL_THRESHOLD_NORMAL
+
+
+def _whipsaw_block(symbol, direction):
+    """Return True ถ้า opposite direction ส่งใน WHIPSAW_SUPPRESS_MIN min → block alert
+    Direction: "buy" หรือ "sell"
+
+    ตัวอย่าง:
+      - เพิ่งส่ง WHALE pump (buy) → ห้ามส่ง WHALE DUMP (sell) ใน 45 นาที
+      - เพิ่งส่ง ACCEL up → ห้ามส่ง ACCEL down ใน 45 นาที
+      - cross-category: pump whale → block dump accel ด้วย (same direction = sell)
+    """
+    opposite = "sell" if direction == "buy" else "buy"
+    with _alert_direction_lock:
+        last_opp = _recent_alert_direction.get((symbol, opposite))
+        now = time.time()
+        if last_opp and (now - last_opp) < WHIPSAW_SUPPRESS_MIN * 60:
+            return True
+        # mark this direction
+        _recent_alert_direction[(symbol, direction)] = now
+        # cleanup entries เก่ากว่า 2 ชม. กัน memory leak
+        cutoff = now - 7200
+        stale = [k for k, ts in _recent_alert_direction.items() if ts < cutoff]
+        for k in stale:
+            _recent_alert_direction.pop(k, None)
+    return False
+
 
 def _set_alert_state(symbol, kind, new_state):
     """Update in-memory + persist DB. Save เฉพาะตอน state เปลี่ยน — ไม่ flood DB"""
@@ -617,7 +683,8 @@ def check_market_conditions():
             whale_condition = 'normal'
             msg = None
             try:
-                spike = intraday_volume.detect_volume_spike(symbol, threshold=3.0, lookback_bars=12)
+                # Fix A: adaptive threshold — Mon/Tue first 30 min ใช้ 6.0 แทน 3.0 (กัน chaos hour spam)
+                spike = intraday_volume.detect_volume_spike(symbol, threshold=_whale_threshold(), lookback_bars=12)
                 # spike=None = fetch ล้มเหลว / session_open=False = ตลาดปิด → ทั้งคู่ skip
                 if spike and spike.get("session_open") and spike.get("spike"):
                     ratio = spike["ratio"]
@@ -649,9 +716,14 @@ def check_market_conditions():
                 print(f"⚠️ [WhaleIntraday] {symbol}: {type(e).__name__}: {str(e)[:80]}", flush=True)
 
             if whale_condition != 'normal' and msg and whale_condition != last_alert_state[symbol].get('whale', 'normal'):
-                send_alert_to_users(symbol, msg, alert_type="whale")
-                log_alert(symbol, f"WHALE_{whale_condition.upper()}", price)
-                _set_alert_state(symbol, 'whale', whale_condition)
+                # Fix B: whipsaw — ห้ามส่ง opposite direction ใน 45 นาที (กัน "pump → dump" ใน window สั้นๆ)
+                direction = "buy" if whale_condition == "buy_spike" else "sell"
+                if _whipsaw_block(symbol, direction):
+                    print(f"[whipsaw] suppress whale {whale_condition} for {symbol} — opposite in last 45 min", flush=True)
+                else:
+                    send_alert_to_users(symbol, msg, alert_type="whale")
+                    log_alert(symbol, f"WHALE_{whale_condition.upper()}", price)
+                    _set_alert_state(symbol, 'whale', whale_condition)
             elif whale_condition == 'normal':
                 _set_alert_state(symbol, 'whale', 'normal')
 
@@ -700,7 +772,8 @@ def check_market_conditions():
             accel_condition = 'normal'
             accel_msg = None
             try:
-                accel = intraday_volume.detect_price_acceleration(symbol, lookback_bars=6, threshold_pct=3.0, vol_confirm=1.2)
+                # Fix A: adaptive threshold — Mon/Tue first 30 min ใช้ 5.0% แทน 3.0%
+                accel = intraday_volume.detect_price_acceleration(symbol, lookback_bars=6, threshold_pct=_accel_threshold(), vol_confirm=1.2)
                 if accel and accel.get("vol_confirmed"):
                     pct = accel["change_pct"]
                     sp = accel["start_price"]
@@ -724,9 +797,14 @@ def check_market_conditions():
                 print(f"⚠️ [PriceAccel] {symbol}: {type(e).__name__}: {str(e)[:80]}", flush=True)
 
             if accel_condition != 'normal' and accel_msg and accel_condition != last_alert_state[symbol].get('accel', 'normal'):
-                send_alert_to_users(symbol, accel_msg, alert_type="tech")
-                log_alert(symbol, f"ACCEL_{accel_condition.upper()}", price)
-                _set_alert_state(symbol, 'accel', accel_condition)
+                # Fix B: whipsaw — accel direction ใช้ whipsaw window เดียวกับ whale (cross-category)
+                direction = "buy" if accel_condition == "accel_up" else "sell"
+                if _whipsaw_block(symbol, direction):
+                    print(f"[whipsaw] suppress accel {accel_condition} for {symbol} — opposite in last 45 min", flush=True)
+                else:
+                    send_alert_to_users(symbol, accel_msg, alert_type="tech")
+                    log_alert(symbol, f"ACCEL_{accel_condition.upper()}", price)
+                    _set_alert_state(symbol, 'accel', accel_condition)
             elif accel_condition == 'normal':
                 _set_alert_state(symbol, 'accel', 'normal')
 
