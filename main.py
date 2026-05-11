@@ -1786,10 +1786,14 @@ def handle_unwatch(message):
     try:
         parts = message.text.split()
         if len(parts) != 2:
+            kb = InlineKeyboardMarkup()
+            _dash_btn = _dashboard_cta_button(user_id, "🌐 จัดการ Watchlist บน Dashboard", src="unwatch_err", next_path="/watchlist")
+            if _dash_btn:
+                kb.add(_dash_btn)
             bot.reply_to(
                 message,
-                "❌ รูปแบบผิด! พิมพ์: `/unwatch [ชื่อหุ้น]`\nเช่น: `/unwatch AAPL`",
-                parse_mode='Markdown',
+                "❌ รูปแบบผิด! พิมพ์: `/unwatch [ชื่อหุ้น]`\nเช่น: `/unwatch AAPL`\n\n💡 หรือทำผ่าน Dashboard ↓",
+                parse_mode='Markdown', reply_markup=kb if _dash_btn else None,
             )
             return
 
@@ -1874,7 +1878,7 @@ def handle_portfolio(message):
 
         msg = "\n".join(lines)
         port_markup = InlineKeyboardMarkup()
-        _port_btn = _dashboard_cta_button(user_id, "📊 จัดการพอร์ตใน Dashboard", src="portfolio_cmd", next_path="/")
+        _port_btn = _dashboard_cta_button(user_id, "📊 ดูพอร์ต + chart บน Dashboard", src="portfolio_cmd", next_path="/portfolio")
         if _port_btn:
             port_markup.add(_port_btn)
         bot.edit_message_text(msg, chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='HTML', reply_markup=port_markup)
@@ -2243,7 +2247,15 @@ def handle_del_alert(message):
     try:
         args = message.text.split()
         if len(args) != 2:
-            bot.reply_to(message, "❌ วิธีใช้: `/delalert [รหัสการตั้งเตือน]`\n(ดูรหัสได้จากเมนู 🔔 ตั้งเตือนราคา)", parse_mode="Markdown")
+            kb = InlineKeyboardMarkup()
+            _dash_btn = _dashboard_cta_button(user_id, "🌐 จัดการ Alerts บน Dashboard", src="delalert_err", next_path="/alerts")
+            if _dash_btn:
+                kb.add(_dash_btn)
+            bot.reply_to(
+                message,
+                "❌ วิธีใช้: `/delalert [รหัสการตั้งเตือน]`\n(ดูรหัสได้จากเมนู 🔔 ตั้งเตือนราคา)\n\n💡 หรือลบผ่าน Dashboard ↓",
+                parse_mode="Markdown", reply_markup=kb if _dash_btn else None,
+            )
             return
         alert_id = int(args[1])
         remove_price_alert_db(user_id, alert_id)
@@ -5197,10 +5209,15 @@ def handle_compare(message):
 
     args = message.text.split()
     if len(args) < 3 or len(args) > 4:
+        kb = InlineKeyboardMarkup()
+        _dash_btn = _dashboard_cta_button(user_id, "🌐 เปรียบเทียบหุ้นบน Dashboard", src="compare_err", next_path="/compare")
+        if _dash_btn:
+            kb.add(_dash_btn)
         bot.reply_to(message,
             "❌ รูปแบบผิด! พิมพ์: `/compare <หุ้น1> <หุ้น2> [หุ้น3]`\n"
-            "ตัวอย่าง: `/compare AAPL MSFT` หรือ `/compare NVDA AMD TSM`",
-            parse_mode="Markdown")
+            "ตัวอย่าง: `/compare AAPL MSFT` หรือ `/compare NVDA AMD TSM`\n\n"
+            "💡 หรือเปรียบเทียบบน Dashboard ↓",
+            parse_mode="Markdown", reply_markup=kb if _dash_btn else None)
         return
 
     raw_symbols = [s.upper() for s in args[1:]]
