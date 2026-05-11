@@ -3174,7 +3174,7 @@ def handle_manual(message):
             "`/del_pending [pending_id]` — ลบ submission ผิด/spam\n"
             "`/finduser [ชื่อ]` — ค้นหา user_id จากชื่อ\n"
             "`/reset_trial [uid]` — รีเซ็ต free_trial flag (refund/support)\n"
-            "_💡 ลูกค้าใส่ user_id ตัวเลข → auto-credit ทันที (ไม่เข้า pending)_\n\n"
+            "_💡 ลูกค้าใส่ user\\_id ตัวเลข → auto-credit ทันที (ไม่เข้า pending)_\n\n"
 
             "*📢 Broadcast & Force*\n"
             "`/broadcast [msg]` — ส่งข้อความทุก active user\n"
@@ -3225,13 +3225,30 @@ def handle_manual(message):
         else:
             parts = [msg[:TG_LIMIT]]
 
-        bot.reply_to(message, parts[0], parse_mode="Markdown")
+        def _safe_send_part(chat_id, content, is_first=False):
+            """Send + fallback to plain text ถ้า markdown break (กัน admin section หายเงียบๆ)"""
+            try:
+                if is_first:
+                    bot.reply_to(message, content, parse_mode="Markdown")
+                else:
+                    bot.send_message(chat_id, content, parse_mode="Markdown")
+            except Exception as _err:
+                print(f"[manual] markdown send failed, retrying plain: {_err}", flush=True)
+                try:
+                    if is_first:
+                        bot.reply_to(message, content)
+                    else:
+                        bot.send_message(chat_id, content)
+                except Exception as _err2:
+                    print(f"[manual] plain retry failed: {_err2}", flush=True)
+
+        _safe_send_part(message.chat.id, parts[0], is_first=True)
         for extra in parts[1:]:
             # ถ้ายัง > limit → ตัด chunk แบบไม่หาย
             while len(extra) > TG_LIMIT:
-                bot.send_message(message.chat.id, extra[:TG_LIMIT], parse_mode="Markdown")
+                _safe_send_part(message.chat.id, extra[:TG_LIMIT])
                 extra = extra[TG_LIMIT:]
-            bot.send_message(message.chat.id, extra, parse_mode="Markdown")
+            _safe_send_part(message.chat.id, extra)
 
 
 @bot.message_handler(commands=['addrole'])
