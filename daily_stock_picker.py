@@ -2,16 +2,13 @@
 daily_stock_picker.py — ทุกเช้า 7:30 ICT DM admin: 3 หุ้นน่าโพสต์วันนี้
 
 User feedback: ไม่อยาก pool แคบ (Mag 7 เดิม) — ต้อง mix Mag 7 + S&P 500 + story stocks
-+ ต้องมีภาพแคปจาก Apexify analysis (auto chart)
+Admin จะเอา hook ไปต่อยอดเอง (ChatGPT/Gemini + สร้าง chart เอง) → ที่นี่แค่ text DM พอ
 
 Workflow:
   1. Combine 3 pools: Mag 7 + S&P 500 + story stocks (~70 ตัว)
   2. Score by composite (move% + vol + conviction + news + variety)
   3. Pick top 3 with sector diversity (ไม่ซ้ำ category เดียว)
-  4. For each pick:
-     - Fetch chart (auto annotated)
-     - Build DM text: symbol + reasons + suggested hook
-  5. DM ADMIN_ID with images + text
+  4. DM ADMIN_ID — symbol + reasons + suggested hook (no chart image)
 """
 
 import time
@@ -234,19 +231,6 @@ def pick_top_3(pool: list = None) -> list[dict]:
     return picks[:3]
 
 
-def _render_chart_image(symbol: str):
-    """Generate quick chart for symbol — reuse bot's chart generator
-    Returns: BytesIO buffer of PNG (for bot.send_photo)
-    """
-    try:
-        from technical_tools import calculate_technical_indicators
-        _, chart_buf, _ = calculate_technical_indicators(symbol, generate_chart=True)
-        return chart_buf
-    except Exception as e:
-        print(f"[daily-picker] chart err {symbol}: {e}", flush=True)
-        return None
-
-
 def build_daily_picks_message(picks: list[dict]) -> str:
     """Build DM text — ส่งให้ admin"""
     today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
@@ -287,8 +271,8 @@ def build_daily_picks_message(picks: list[dict]) -> str:
 
     lines.extend([
         "━━━━━━━━━━━━━━",
-        "_พิมพ์ symbol ใน bot เพื่อ deep analysis_",
-        "_หรือเอา hook ไปต่อยอด ChatGPT/Gemini สำหรับ FB content_",
+        "_พิมพ์ symbol ใน bot เพื่อ deep analysis + chart_",
+        "_เอา hook + chart ไปต่อยอด ChatGPT/Gemini สำหรับ FB content_",
     ])
     return "\n".join(lines)
 
@@ -316,7 +300,7 @@ def run_once(bot, dry_run: bool = False):
         print(msg)
         return
 
-    # Send text DM first
+    # Send text DM (admin จะเอาไปต่อยอด ChatGPT/Gemini สร้างเนื้อหา + chart เอง)
     try:
         bot.send_message(config.ADMIN_ID, msg, parse_mode="Markdown", disable_web_page_preview=True)
     except Exception as e:
@@ -326,16 +310,6 @@ def run_once(bot, dry_run: bool = False):
             bot.send_message(config.ADMIN_ID, msg.replace("*", "").replace("_", ""))
         except Exception:
             pass
-
-    # Send chart image for each pick (separate messages)
-    for p in picks:
-        try:
-            chart = _render_chart_image(p["symbol"])
-            if chart:
-                bot.send_photo(config.ADMIN_ID, chart, caption=f"📊 {p['symbol']} chart — Apexify")
-                time.sleep(1.5)  # rate-limit Telegram
-        except Exception as e:
-            print(f"[daily-picker] chart send err {p['symbol']}: {e}", flush=True)
 
 
 def _today_dispatch_key():
