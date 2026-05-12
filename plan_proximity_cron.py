@@ -94,12 +94,12 @@ def _is_above(current: float, target: float) -> bool:
 
 # ============ Message format ============
 # Tone: แจ้งให้รู้ — ไม่บังคับขาย/ซื้อ
-# Context: เน้นว่าเป็น Plan ที่ AI ออก + user ถือหุ้นใน port
+# Context: เน้นว่าเป็น Plan ที่ Apexify ออก + user ถือหุ้นใน port
 # Decision: ให้ option (ขายตามแผน · ถือยาว · adjust SL · DCA)
 
 _HOLDING_NOTE = (
     "📌 *ทำไมเตือน?*\n"
-    "_คุณถือหุ้นนี้ในพอร์ต + AI เคยออก Plan ตอนวิเคราะห์_\n"
+    "_คุณถือหุ้นนี้ในพอร์ต + Apexify เคยออก Plan ตอนวิเคราะห์_\n"
     "_ราคาเริ่มใกล้ระดับสำคัญ — แจ้งให้รู้ ไม่บังคับ_"
 )
 
@@ -151,7 +151,7 @@ def _format_tp_warning(plan: dict, current: float, dist_pct: float, tp_num: int,
         + (f"💼 พอร์ตคุณ: {shares:.0f} หุ้น @ ${avg_cost:.2f} · {pnl_str}\n" if avg_cost else "")
         + f"\n{_HOLDING_NOTE}\n\n"
         f"*ตัวเลือกของคุณ:*\n"
-        f"🎯 ขายตามแผน → AI แนะนำ {sizing_hint}\n"
+        f"🎯 ขายตามแผน → Apexify แนะนำ {sizing_hint}\n"
         f"💪 ถือยาว → ถ้า thesis ยังไม่จบ (long-term hold)\n"
         f"⚖️ ขายบางส่วน + ถือบางส่วน → balanced approach\n"
         f"📊 พิมพ์ `{sym}` ใหม่ → ขอ analyze update"
@@ -174,7 +174,7 @@ def _format_entry_warning(plan: dict, current: float, dist_pct: float) -> str:
         + (f"💼 พอร์ตคุณ: {shares:.0f} หุ้น @ ${avg_cost:.2f}\n" if avg_cost else "")
         + f"\n{_HOLDING_NOTE}\n\n"
         f"*ตัวเลือกของคุณ:*\n"
-        f"➕ DCA เพิ่ม → ราคากลับมา zone ที่ AI แนะนำเข้า\n"
+        f"➕ DCA เพิ่ม → ราคากลับมา zone ที่ Apexify แนะนำเข้า\n"
         f"💪 ถือไว้เฉยๆ → ไม่เพิ่ม\n"
         f"📊 พิมพ์ `{sym}` ใหม่ → ขอ analyze update"
     )
