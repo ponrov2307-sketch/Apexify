@@ -1,14 +1,16 @@
 """
 daily_stock_picker.py — ทุกเช้า 7:30 ICT DM admin: 3 หุ้นน่าโพสต์วันนี้
 
-User feedback: ไม่อยาก pool แคบ (Mag 7 เดิม) — ต้อง mix Mag 7 + S&P 500 + story stocks
-Admin จะเอา hook ไปต่อยอดเอง (ChatGPT/Gemini + สร้าง chart เอง) → ที่นี่แค่ text DM พอ
+User feedback:
+  - mix Mag 7 + S&P 500 + story stocks (ไม่ใช่แค่หุ้นใหญ่ๆ)
+  - chart image แนบให้ (chart เดียวกับ Apexify วิเคราะห์ปกติ)
+  - ข่าว = "ข่าวล่าสุดสดๆ" (≤48h) เพื่อให้ admin เอาไปทำ content คนติดตามได้
 
 Workflow:
   1. Combine 3 pools: Mag 7 + S&P 500 + story stocks (~70 ตัว)
-  2. Score by composite (move% + vol + conviction + news + variety)
+  2. Score by composite (move% + vol + conviction + fresh news + variety)
   3. Pick top 3 with sector diversity (ไม่ซ้ำ category เดียว)
-  4. DM ADMIN_ID — symbol + reasons + suggested hook (no chart image)
+  4. DM ADMIN_ID — text (symbol + reasons + hook + fresh news) + chart image แต่ละ pick
 """
 
 import time
@@ -132,9 +134,15 @@ def _score_pick(tech_data: dict, news_item: dict = None) -> float:
         score += 5
     elif rsi > 80 or rsi < 20:
         score -= 5
-    # News recency
+    # Fresh news bonus — ข่าวสด = คน FB engagement สูงกว่า
     if news_item:
-        score += 8
+        age_h = news_item.get("age_hours", 999)
+        if age_h <= 6:
+            score += 15   # very fresh (เช้านี้ / breaking)
+        elif age_h <= 24:
+            score += 10
+        elif age_h <= 48:
+            score += 5
     return score
 
 
@@ -164,21 +172,65 @@ def _fetch_tech(symbol: str) -> dict:
         return None
 
 
-def _fetch_news_for_symbol(symbol: str) -> dict:
-    """ดึง 1 news ที่ matching symbol — ใช้ breaking_news ของ bot"""
+def _fetch_news_for_symbol(symbol: str, max_age_hours: int = 48) -> dict:
+    """ดึง news ล่าสุด ≤ max_age_hours — เน้นสด (admin เอาไปทำ content คนติดตามได้)
+
+    รองรับ yfinance news format ทั้ง legacy (providerPublishTime epoch) + ใหม่ (content.pubDate ISO)
+    Returns: dict { headline, url, published_at, age_hours } หรือ None ถ้าไม่มีข่าวสด
+    """
     try:
         import yfinance as yf
-        items = yf.Ticker(symbol).news
-        if items:
-            n = items[0]
+        items = yf.Ticker(symbol).news or []
+        if not items:
+            return None
+
+        now = datetime.now(timezone.utc)
+        parsed = []
+        for n in items[:10]:  # scan 10 ล่าสุด แล้วเลือกตัวสดสุด
             content = n.get("content") if isinstance(n.get("content"), dict) else n
-            return {
-                "headline": content.get("title") or n.get("title", ""),
-                "url": (content.get("canonicalUrl", {}).get("url") if isinstance(content.get("canonicalUrl"), dict) else n.get("link", "")) or "",
-            }
+
+            # Parse pub time — รองรับ ISO + epoch
+            pub_dt = None
+            pub_str = content.get("pubDate") or content.get("displayTime")
+            if pub_str:
+                try:
+                    pub_dt = datetime.fromisoformat(str(pub_str).replace("Z", "+00:00"))
+                except Exception:
+                    pass
+            if pub_dt is None:
+                epoch = n.get("providerPublishTime") or content.get("providerPublishTime")
+                if epoch:
+                    try:
+                        pub_dt = datetime.fromtimestamp(float(epoch), tz=timezone.utc)
+                    except Exception:
+                        pass
+            if pub_dt is None:
+                continue   # ข่าวไม่มี timestamp = ทิ้ง (ไม่รู้ว่าสดไหม)
+
+            age_hours = (now - pub_dt).total_seconds() / 3600
+            if age_hours < 0 or age_hours > max_age_hours:
+                continue   # อนาคต/เก่าเกินไป = ทิ้ง
+
+            headline = content.get("title") or n.get("title", "")
+            url = ""
+            cu = content.get("canonicalUrl")
+            if isinstance(cu, dict):
+                url = cu.get("url", "") or ""
+            url = url or n.get("link", "") or ""
+
+            parsed.append({
+                "headline": headline,
+                "url": url,
+                "published_at": pub_dt,
+                "age_hours": age_hours,
+            })
+
+        if not parsed:
+            return None
+        parsed.sort(key=lambda x: x["age_hours"])   # ล่าสุดสุดอันแรก
+        return parsed[0]
     except Exception:
-        pass
-    return None
+        return None
 
 
 def pick_top_3(pool: list = None) -> list[dict]:
@@ -231,6 +283,19 @@ def pick_top_3(pool: list = None) -> list[dict]:
     return picks[:3]
 
 
+def _render_chart_image(symbol: str):
+    """Generate chart for symbol — chart เดียวกับที่ bot ส่งให้ user ตอนวิเคราะห์
+    Returns: BytesIO buffer of PNG (สำหรับ bot.send_photo)
+    """
+    try:
+        from technical_tools import calculate_technical_indicators
+        _, chart_buf, _ = calculate_technical_indicators(symbol, generate_chart=True)
+        return chart_buf
+    except Exception as e:
+        print(f"[daily-picker] chart err {symbol}: {e}", flush=True)
+        return None
+
+
 def build_daily_picks_message(picks: list[dict]) -> str:
     """Build DM text — ส่งให้ admin"""
     today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
@@ -266,13 +331,20 @@ def build_daily_picks_message(picks: list[dict]) -> str:
         hook = _build_hook(sym, move, news.get("headline", "") if news else "")
         lines.append(f"   💡 _{hook}_")
         if news and news.get("url"):
-            lines.append(f"   🔗 [ข่าวอ้างอิง]({news['url'][:80]})")
+            age_h = news.get("age_hours") or 0
+            if age_h < 1:
+                age_str = f"{int(age_h * 60)} นาทีที่แล้ว"
+            elif age_h < 24:
+                age_str = f"{age_h:.1f} ชม.ที่แล้ว"
+            else:
+                age_str = f"{age_h/24:.1f} วันที่แล้ว"
+            lines.append(f"   🔗 [ข่าวล่าสุด]({news['url'][:120]}) · {age_str}")
         lines.append("")
 
     lines.extend([
         "━━━━━━━━━━━━━━",
-        "_พิมพ์ symbol ใน bot เพื่อ deep analysis + chart_",
-        "_เอา hook + chart ไปต่อยอด ChatGPT/Gemini สำหรับ FB content_",
+        "_chart แต่ละตัวส่งมาเป็นภาพแยก (Apexify analysis)_",
+        "_เอา hook + ข่าวสด + chart ไปต่อยอด ChatGPT/Gemini สำหรับ FB content_",
     ])
     return "\n".join(lines)
 
@@ -300,7 +372,7 @@ def run_once(bot, dry_run: bool = False):
         print(msg)
         return
 
-    # Send text DM (admin จะเอาไปต่อยอด ChatGPT/Gemini สร้างเนื้อหา + chart เอง)
+    # Send text DM first
     try:
         bot.send_message(config.ADMIN_ID, msg, parse_mode="Markdown", disable_web_page_preview=True)
     except Exception as e:
@@ -310,6 +382,16 @@ def run_once(bot, dry_run: bool = False):
             bot.send_message(config.ADMIN_ID, msg.replace("*", "").replace("_", ""))
         except Exception:
             pass
+
+    # Send chart image for each pick — chart เดียวกับที่ bot วิเคราะห์ปกติ
+    for p in picks:
+        try:
+            chart = _render_chart_image(p["symbol"])
+            if chart:
+                bot.send_photo(config.ADMIN_ID, chart, caption=f"📊 {p['symbol']} chart — Apexify")
+                time.sleep(1.5)   # rate-limit Telegram
+        except Exception as e:
+            print(f"[daily-picker] chart send err {p['symbol']}: {e}", flush=True)
 
 
 def _today_dispatch_key():
