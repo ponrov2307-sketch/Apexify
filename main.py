@@ -6428,6 +6428,13 @@ if __name__ == "__main__":
     except Exception as _e:
         print(f"[main] daily_picker failed to start: {_e}", flush=True)
 
+    # 📅 Earnings Prep — DM admin 1 วันก่อนหุ้นใหญ่รายงานผล (16:00 ICT)
+    try:
+        from earnings_prep_cron import run_earnings_prep_cron
+        threading.Thread(target=run_earnings_prep_cron, args=(bot,), daemon=True).start()
+    except Exception as _e:
+        print(f"[main] earnings_prep failed to start: {_e}", flush=True)
+
     # 💓 Heartbeat — เขียน timestamp ไป /tmp/apexify_heartbeat.txt ทุก 60s
     # ใช้คู่กับ heartbeat_watchdog.py (cron */5 min) ที่ DM admin ถ้า stale > 5 min
     def _heartbeat_loop():

@@ -103,6 +103,11 @@ DAILY_PICKER_ENABLED = _to_bool("DAILY_PICKER_ENABLED", True)
 DAILY_PICKER_HOUR_ICT = _to_int("DAILY_PICKER_HOUR_ICT", 7)
 DAILY_PICKER_MINUTE_ICT = _to_int("DAILY_PICKER_MINUTE_ICT", 30)
 
+# ============ Earnings Prep (B — DM admin 1 day before big earnings, 16:00 ICT) ============
+EARNINGS_PREP_ENABLED = _to_bool("EARNINGS_PREP_ENABLED", True)
+EARNINGS_PREP_HOUR_ICT = _to_int("EARNINGS_PREP_HOUR_ICT", 16)
+EARNINGS_PREP_MINUTE_ICT = _to_int("EARNINGS_PREP_MINUTE_ICT", 0)
+
 
 # ============ Thai timezone helpers ============
 from datetime import datetime as _dt, timedelta as _td, timezone as _tz
