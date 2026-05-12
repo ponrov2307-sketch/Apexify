@@ -2266,6 +2266,63 @@ def handle_del_alert(message):
 # ==========================================
 # 🌟 ระบบคำสั่งแอดมิน 
 # ==========================================
+@bot.message_handler(commands=['user_log', 'sublog'])
+def handle_user_log(message):
+    """Admin: Subscription history timeline ของ user (audit trail)
+    /user_log <user_id> [limit=30]
+
+    ใช้ debug บั๊กแบบ Neil/Nattanon — ดู role/expiry changes ตามเวลา
+    """
+    user_id_admin = str(message.chat.id)
+    if user_id_admin != ADMIN_ID:
+        return
+    try:
+        from database import get_user_subscription_history
+        args = message.text.split()
+        if len(args) < 2:
+            bot.reply_to(message, "❌ รูปแบบ: `/user_log <user_id> [limit=30]`", parse_mode="Markdown")
+            return
+        target_uid = args[1]
+        limit = 30
+        if len(args) > 2:
+            try:
+                limit = max(1, min(100, int(args[2])))
+            except ValueError:
+                pass
+
+        events = get_user_subscription_history(target_uid, limit=limit)
+        if not events:
+            bot.reply_to(message, f"📜 *User Log — `{target_uid}`*\n\n_ยังไม่มี events_ (table อาจเพิ่งสร้าง)", parse_mode="Markdown")
+            return
+
+        lines = [f"📜 *User Log — `{target_uid}`* ({len(events)} events)", "━━━━━━━━━━━━━━━━━━"]
+        for e in events:
+            ts = e['created_at']
+            ts_str = ts.strftime('%Y-%m-%d %H:%M') if hasattr(ts, 'strftime') else str(ts)[:16]
+            action = e['action_type']
+            rb = e['role_before'] or '?'
+            ra = e['role_after'] or '?'
+            days = f" +{e['days_granted']}d" if e['days_granted'] else ""
+            arrow = "→"
+            # flag suspicious downgrade
+            warn = ""
+            _RR = {'free': 0, 'vip': 1, 'pro': 2}
+            if _RR.get(rb, 0) > _RR.get(ra, 0):
+                warn = " ⚠️ DOWNGRADE"
+
+            detail = e.get('source_detail') or e.get('source') or ''
+            detail = str(detail)[:40]
+            lines.append(f"`{ts_str}`  *{action}*  {rb} {arrow} {ra}{days}  _{detail}_{warn}")
+
+        msg = "\n".join(lines)
+        if len(msg) > 3800:
+            msg = msg[:3800] + "\n\n_(truncated)_"
+        bot.reply_to(message, msg, parse_mode="Markdown")
+    except Exception as e:
+        print(f"[user_log] {e}", flush=True)
+        bot.reply_to(message, f"❌ Error: {e}")
+
+
 @bot.message_handler(commands=['dm_stats', 'dmstats'])
 def handle_dm_stats(message):
     """Admin: Auto-DM Cron performance — ดู DM sent + conversion rate"""
@@ -3166,7 +3223,8 @@ def handle_manual(message):
             "`/performance` — ผลกำไร/ขาดทุนของ AI plans\n"
             "`/perf_stats` — สรุป latency/throughput ของระบบ\n"
             "`/streak_debug [uid]` — ตรวจ streak counter ของ user\n"
-            "`/dm_stats [days=7]` — Auto-DM Cron performance (activation/winback conversion)\n\n"
+            "`/dm_stats [days=7]` — Auto-DM Cron performance (activation/winback conversion)\n"
+            "`/user_log [uid]` — Subscription history timeline (audit trail)\n\n"
 
             "*🤝 Referral Review*\n"
             "`/pending_refs` — list (พร้อม candidate match auto)\n"
@@ -3259,7 +3317,12 @@ def handle_add_role(message):
             target_user = args[1]
             role = args[2].lower()
             days = int(args[3]) if len(args) > 3 else 30
-            expiry = add_subscription(target_user, role, days)
+            expiry = add_subscription(
+                target_user, role, days,
+                source="admin",
+                source_detail=f"/addrole by {message.chat.id}",
+                meta={"admin_id": str(message.chat.id), "days": days},
+            )
             bot.reply_to(message, f"✅ อัปเกรด `{target_user}` เป็น {role.upper()} แล้ว\nหมดอายุ: {expiry}")
         except Exception:
             bot.reply_to(message, "❌ รูปแบบ: /addrole [user_id] [vip/pro] [days]")

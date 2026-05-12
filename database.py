@@ -635,6 +635,27 @@ def init_db():
         )
     """)
 
+    # 📜 Subscription History — audit trail (added 2026-05-12)
+    # ใช้ debug bug แบบเคส Neil/Nattanon ที่จ่าย PRO แต่ downgrade → ดู history แทนการเดา
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS subscription_history (
+            id BIGSERIAL PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            action_type TEXT NOT NULL,
+            role_before TEXT,
+            role_after TEXT,
+            expiry_before TEXT,
+            expiry_after TEXT,
+            days_granted INTEGER,
+            source TEXT,
+            source_detail TEXT,
+            meta JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_sub_history_user ON subscription_history(user_id, created_at DESC)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_sub_history_action ON subscription_history(action_type)")
+
     conn.commit()
     conn.close()
     init_watchlist_db()
@@ -950,6 +971,115 @@ def get_dashboard_stats():
 _ROLE_RANK = {'free': 0, 'vip': 1, 'pro': 2}
 
 
+# ==========================================
+# 📜 Subscription History — audit trail (added 2026-05-12)
+# ==========================================
+def log_subscription_event(
+    user_id: str,
+    action_type: str,
+    role_before: str = None,
+    role_after: str = None,
+    expiry_before=None,
+    expiry_after=None,
+    days_granted: int = None,
+    source: str = None,
+    source_detail: str = None,
+    meta: dict = None,
+):
+    """Append-only log สำหรับ subscription events.
+
+    ⚠️ Defensive: ห้าม raise — ถ้า log fail ห้าม block main logic
+    (logging shouldn't break feature). Wrap ใน try/except + flush ERR
+
+    action_type:
+      - 'paid'           — ลูกค้าจ่าย slip
+      - 'redeem'         — ใส่ promo code (discount/days)
+      - 'admin_grant'    — admin /addrole
+      - 'tier_reward'    — redeem badge code (BRONZE/SILVER)
+      - 'expire'         — auto downgrade ตอนหมดอายุ
+      - 'auto_downgrade' — ระบบ downgrade (bug-triggered, ที่ต้อง investigate)
+      - 'topup'          — ซื้อ top-up balance
+      - 'referral_bonus' — ได้ vip จาก referral
+
+    source: 'slip' | 'code' | 'admin' | 'cron' | 'system'
+    """
+    import json
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            """
+            INSERT INTO subscription_history
+            (user_id, action_type, role_before, role_after,
+             expiry_before, expiry_after, days_granted,
+             source, source_detail, meta)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                str(user_id),
+                str(action_type),
+                role_before, role_after,
+                str(expiry_before) if expiry_before else None,
+                str(expiry_after) if expiry_after else None,
+                int(days_granted) if days_granted is not None else None,
+                source, source_detail,
+                json.dumps(meta, ensure_ascii=False) if meta else None,
+            ),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[sub_history] log err (user={user_id} action={action_type}): {e}", flush=True)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def get_user_subscription_history(user_id: str, limit: int = 30) -> list[dict]:
+    """Return timeline ของ user — เรียงตาม created_at DESC (ล่าสุดก่อน)"""
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            """
+            SELECT id, action_type, role_before, role_after,
+                   expiry_before, expiry_after, days_granted,
+                   source, source_detail, meta, created_at
+            FROM subscription_history
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+            LIMIT %s
+            """,
+            (str(user_id), int(limit)),
+        )
+        rows = c.fetchall() or []
+        out = []
+        for r in rows:
+            out.append({
+                "id": r[0],
+                "action_type": r[1],
+                "role_before": r[2],
+                "role_after": r[3],
+                "expiry_before": r[4],
+                "expiry_after": r[5],
+                "days_granted": r[6],
+                "source": r[7],
+                "source_detail": r[8],
+                "meta": r[9],
+                "created_at": r[10],
+            })
+        return out
+    except Exception as e:
+        print(f"[sub_history] read err: {e}", flush=True)
+        return []
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def _calculate_subscription_expiry(role, days, current_role=None, current_expiry=None, now=None):
     """คำนวณ expiry ใหม่ — stack ถ้า active + same/higher tier, reset ถ้า expired"""
     now = now or datetime.now()
@@ -975,9 +1105,14 @@ def _calculate_subscription_expiry(role, days, current_role=None, current_expiry
     return new_expiry
 
 
-def add_subscription(user_id, role='vip', days=30):
+def add_subscription(user_id, role='vip', days=30, source=None, source_detail=None, meta=None):
     """Add subscription — **ห้าม downgrade** higher tier
     ถ้า user เป็น PRO อยู่ + redeem VIP code → keep PRO, stack days
+
+    Args:
+      source: 'slip' | 'code' | 'admin' | 'cron' | 'system' (สำหรับ log)
+      source_detail: e.g. 'WINBACK30' | 'slip 109฿' | 'admin /addrole'
+      meta: optional dict สำหรับ context เพิ่ม
     """
     conn = get_connection()
     c = conn.cursor()
@@ -1002,9 +1137,11 @@ def add_subscription(user_id, role='vip', days=30):
             pass
 
     effective_role = role
+    guarded_downgrade = False
     if is_active and _ROLE_RANK.get(current_role, 0) > _ROLE_RANK.get(role, 0):
         # Current higher tier (PRO) + new lower (VIP) → keep current tier, just extend
         effective_role = current_role
+        guarded_downgrade = True
         print(f"[add_subscription] guard: keep {current_role} (no downgrade to {role}) for user {user_id}", flush=True)
 
     new_expiry = _calculate_subscription_expiry(
@@ -1018,6 +1155,23 @@ def add_subscription(user_id, role='vip', days=30):
     c.execute("UPDATE users SET role=%s, expiry_date=%s WHERE user_id=%s", (effective_role, expiry_str, str(user_id)))
     conn.commit()
     conn.close()
+
+    # 📜 Log to subscription_history (defensive — never block)
+    log_meta = dict(meta or {})
+    if guarded_downgrade:
+        log_meta["downgrade_prevented_to"] = role   # log ว่า user พยายาม downgrade เป็น role อะไร
+    log_subscription_event(
+        user_id=user_id,
+        action_type=source or "system_grant",       # default 'system_grant' ถ้า caller ไม่ระบุ
+        role_before=current_role,
+        role_after=effective_role,
+        expiry_before=current_expiry,
+        expiry_after=expiry_str,
+        days_granted=days,
+        source=source,
+        source_detail=source_detail,
+        meta=log_meta if log_meta else None,
+    )
     return expiry_str
 
 def check_subscription(user_id):
@@ -2111,7 +2265,17 @@ def redeem_code(user_id, code):
 
         # 🎁 Days mode (existing) — add subscription ทันที
         conn.close()
-        expiry = add_subscription(user_id, role_type, days)
+        # Detect tier reward code (BRONZE_xxx / SILVER_xxx / GOLD_xxx) → log as tier_reward
+        # ปกติ redeem code → log as redeem
+        upper_code = str(code).upper()
+        is_tier_reward = upper_code.startswith(("BRONZE_", "SILVER_", "GOLD_"))
+        action_type = "tier_reward" if is_tier_reward else "redeem"
+        expiry = add_subscription(
+            user_id, role_type, days,
+            source=action_type,
+            source_detail=str(code),
+            meta={"days": days, "role_type": role_type},
+        )
         return True, days, expiry, role_type
 
     # Update didn't go through — find out why
@@ -2285,6 +2449,24 @@ def claim_slip_and_add_subscription(user_id: str, ref_no: str, role: str, days: 
             return "error", None
 
         conn.commit()
+
+        # 📜 Log subscription history (defensive — outside transaction)
+        try:
+            log_subscription_event(
+                user_id=user_id,
+                action_type="paid",
+                role_before=current_role,
+                role_after=role,
+                expiry_before=current_expiry,
+                expiry_after=expiry_str,
+                days_granted=days,
+                source="slip",
+                source_detail=f"slip {amount:.0f}฿" if amount else f"slip ({payment_type})",
+                meta={"ref_no": str(ref_no), "payment_type": payment_type, "amount": amount},
+            )
+        except Exception as _e:
+            print(f"[slip-claim] log err: {_e}", flush=True)
+
         return "success", expiry_str
     except Exception as e:
         print(f"Slip Claim Error: {e}")
@@ -3105,10 +3287,18 @@ def mark_first_audit_done(user_id) -> None:
 
 
 def auto_downgrade_expired_users():
-    """ปรับสถานะคนที่หมดอายุให้กลับเป็น free อัตโนมัติ"""
+    """ปรับสถานะคนที่หมดอายุให้กลับเป็น free อัตโนมัติ + log history"""
     conn = get_connection()
     c = conn.cursor()
     try:
+        # หา users ที่ต้อง downgrade (เพื่อ log ก่อน update)
+        c.execute("""
+            SELECT user_id, role, expiry_date FROM users
+            WHERE role IN ('vip', 'pro')
+              AND expiry_date < NOW()
+        """)
+        expired = c.fetchall() or []
+
         # หมดอายุทั้งหมด (PRO, VIP, free trial) → free ทันที
         c.execute("""
             UPDATE users SET role = 'free'
@@ -3119,8 +3309,26 @@ def auto_downgrade_expired_users():
     except Exception as e:
         print(f"❌ Auto-Downgrade Error: {e}")
         conn.rollback()
+        expired = []
     finally:
         conn.close()
+
+    # 📜 Log expire events (defensive — outside transaction)
+    for row in expired:
+        try:
+            uid, old_role, old_expiry = row[0], row[1], row[2]
+            log_subscription_event(
+                user_id=uid,
+                action_type="expire",
+                role_before=old_role,
+                role_after="free",
+                expiry_before=old_expiry,
+                expiry_after=None,
+                source="cron",
+                source_detail="auto_downgrade_expired_users",
+            )
+        except Exception as _e:
+            print(f"[auto_downgrade] log err: {_e}", flush=True)
 # ==========================================
 # 🌟 [เพิ่มใหม่] ระบบจัดการพอร์ตลงทุน (Apex Wealth Master)
 # ==========================================
