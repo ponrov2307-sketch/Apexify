@@ -4122,6 +4122,48 @@ def query_winback_candidates(cooldown_days: int = 30, limit: int = 200):
     ]
 
 
+def query_pro_users_with_watchlist(limit: int = 500) -> list:
+    """หา PRO users ที่ยังไม่หมดอายุ + มี watchlist อย่างน้อย 1 ตัว
+
+    ใช้สำหรับ Daily P&L Recap cron — DM ทุกเช้าให้ user PRO สรุป watchlist
+
+    Returns: list ของ dict { user_id, username, watchlist: [ticker, ...] }
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            SELECT u.user_id, u.username
+            FROM users u
+            WHERE COALESCE(u.role, 'free') = 'pro'
+              AND u.expiry_date IS NOT NULL
+              AND u.expiry_date::timestamp > NOW()
+              AND EXISTS (
+                  SELECT 1 FROM user_watchlist w
+                  WHERE TRIM(w.user_id) = TRIM(u.user_id)
+              )
+            ORDER BY u.user_id
+            LIMIT %s
+            """,
+            (int(limit),),
+        )
+        rows = c.fetchall()
+    except Exception as e:
+        print(f"[query_pro_users_with_watchlist] err: {e}", flush=True)
+        return []
+    finally:
+        conn.close()
+
+    out = []
+    for row in rows:
+        uid = str(row[0])
+        tickers = _get_user_watchlist_items(uid) or []
+        if tickers:
+            out.append({"user_id": uid, "username": row[1] or "", "watchlist": tickers})
+    return out
+
+
 def query_dm_stats(days: int = 7) -> dict:
     """Stats สำหรับ /dm_stats admin command — ดู auto_dm performance
 
