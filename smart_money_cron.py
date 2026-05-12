@@ -39,6 +39,7 @@ _USER_AGENT = "Apexify Trading Bot (apexify@example.com)"
 # ============ Filters ============
 MIN_VALUE_USD = 500_000        # ตัด small buys (<$500K)
 MIN_PRICE_USD = 5.0            # ตัด penny stock
+MAX_TRADE_AGE_DAYS = 14        # 🆕 เฉพาะ trade ≤ 14 วันที่ผ่านมา (กัน signal เก่าหลายเดือน)
 TOP_N_ADMIN = 8                # admin DM แสดง top N
 
 # Industries ที่ส่วนใหญ่เป็น OTC/penny → ตัดออก
@@ -104,6 +105,24 @@ def _parse_ins_count(s: str) -> int:
         return int(_clean(s))
     except (ValueError, TypeError):
         return 0
+
+
+def _parse_trade_date(date_str: str):
+    """'2026-05-11' → datetime.date หรือ None"""
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
+
+def _is_fresh_trade(item: dict, max_days: int = MAX_TRADE_AGE_DAYS) -> bool:
+    """เช็คว่า trade_date ใหม่พอ (≤ max_days)"""
+    d = _parse_trade_date(item.get("trade_date", ""))
+    if d is None:
+        return False
+    today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
+    age = (today - d).days
+    return 0 <= age <= max_days
 
 
 # ============ Scraper ============
@@ -183,6 +202,9 @@ def filter_quality(items: list[dict]) -> list[dict]:
         if it["industry"].lower() in _SKIP_INDUSTRIES:
             continue
         if not it["ticker"]:
+            continue
+        # 🆕 fresh trade filter — เฉพาะ ≤ 14 วันที่ผ่านมา
+        if not _is_fresh_trade(it):
             continue
         out.append(it)
     return out
@@ -271,6 +293,12 @@ def format_pro_message(matched: list[dict]) -> str:
 
 
 # ============ Dedup ============
+# 2 layer:
+#   - Daily-rerun guard: smart_money:YYYY-MM-DD (block manual rerun cron in same day)
+#   - Per-signal dedup: smart_money_admin:{ticker}:{trade_date}
+#                       smart_money_pro:{ticker}:{trade_date}:{user_id}
+#     (ใช้ทั้ง 2 ฝั่งเพื่อกัน DM cluster เดียวกัน 2 ครั้ง สับสน user)
+
 def _today_key() -> str:
     today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
     return f"smart_money:{today.isoformat()}"
@@ -311,28 +339,103 @@ def _mark_today_done():
             pass
 
 
+# ---- Per-signal dedup ----
+
+def _admin_sig_key(ticker: str, trade_date: str) -> str:
+    return f"smart_money_admin:{ticker}:{trade_date}"
+
+
+def _pro_sig_key(user_id: str, ticker: str, trade_date: str) -> str:
+    return f"smart_money_pro:{ticker}:{trade_date}:{user_id}"
+
+
+def _signal_already_sent(key: str) -> bool:
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT 1 FROM dispatch_log WHERE dispatch_key=%s LIMIT 1", (key,))
+        return c.fetchone() is not None
+    except Exception:
+        return False
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _mark_signal_sent(key: str, category: str, raw_key: str):
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO dispatch_log (dispatch_key, category, raw_key) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+            (key, category, raw_key),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[smart-money] mark sig err: {e}", flush=True)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _filter_new_for_admin(items: list[dict]) -> list[dict]:
+    """กรอง items ที่ admin ยังไม่เคยได้รับ DM (per ticker × trade_date)"""
+    return [it for it in items if not _signal_already_sent(_admin_sig_key(it["ticker"], it["trade_date"]))]
+
+
+def _filter_new_for_user(items: list[dict], user_id: str) -> list[dict]:
+    """กรอง items ที่ user คนนี้ยังไม่เคยได้รับ DM"""
+    return [it for it in items if not _signal_already_sent(_pro_sig_key(user_id, it["ticker"], it["trade_date"]))]
+
+
 # ============ Send ============
-def _send_admin(bot, msg: str, dry_run: bool = False):
+def _send_admin(bot, items_admin: list[dict], dry_run: bool = False):
+    """DM admin top 8 — กรอง signals ที่เคยส่งให้ admin แล้ว"""
     if not config.ADMIN_ID:
         print("[smart-money] no ADMIN_ID — skip", flush=True)
         return
+
+    # กรอง signal ใหม่ที่ admin ยังไม่ได้รับ
+    fresh = _filter_new_for_admin(items_admin)
+    if not fresh:
+        print("[smart-money] no new signals for admin (all duplicates) — skip admin DM", flush=True)
+        return
+
+    # sort + top N
+    top = sorted(fresh, key=lambda x: -x["value_usd"])[:TOP_N_ADMIN]
+    msg = format_admin_message(top, top_n=TOP_N_ADMIN)
+
     if dry_run:
-        print("==== DRY ADMIN ====")
+        print(f"==== DRY ADMIN ({len(top)} new signals out of {len(fresh)} total fresh) ====")
         print(msg)
         return
+
     try:
         bot.send_message(config.ADMIN_ID, msg, parse_mode="Markdown", disable_web_page_preview=True)
+        # mark sent — เฉพาะ items ใน top N ที่ส่งจริง
+        for it in top:
+            _mark_signal_sent(_admin_sig_key(it["ticker"], it["trade_date"]),
+                              "smart_money_admin", it["ticker"])
     except Exception as e:
         print(f"[smart-money] admin DM err: {e}", flush=True)
         # fallback no markdown
         try:
             bot.send_message(config.ADMIN_ID, msg.replace("*", "").replace("_", ""))
+            for it in top:
+                _mark_signal_sent(_admin_sig_key(it["ticker"], it["trade_date"]),
+                                  "smart_money_admin", it["ticker"])
         except Exception:
             pass
 
 
 def _send_pro_watchlists(bot, items: list[dict], dry_run: bool = False) -> int:
-    """DM ทุก PRO user ที่ watchlist ติด ticker ใน items"""
+    """DM ทุก PRO user ที่ watchlist ติด ticker ใน items — กรอง signal ที่ user เคยรับแล้ว"""
     try:
         from database import query_pro_users_with_watchlist
     except Exception as e:
@@ -353,15 +456,24 @@ def _send_pro_watchlists(bot, items: list[dict], dry_run: bool = False) -> int:
         if not matched:
             continue
 
-        msg = format_pro_message(matched)
+        # กรอง signal ที่ user คนนี้เคยรับแล้ว
+        fresh_for_user = _filter_new_for_user(matched, uid)
+        if not fresh_for_user:
+            continue   # user เคยได้ทั้งหมดแล้ว skip
+
+        msg = format_pro_message(fresh_for_user)
         if dry_run:
-            print(f"==== DRY PRO user={uid} ({len(matched)} matched) ====")
+            print(f"==== DRY PRO user={uid} ({len(fresh_for_user)} new of {len(matched)} matched) ====")
             print(msg)
             continue
 
         try:
             bot.send_message(uid, msg, parse_mode="Markdown", disable_web_page_preview=True)
             sent_count += 1
+            # mark sent — items ที่ส่งจริง
+            for it in fresh_for_user:
+                _mark_signal_sent(_pro_sig_key(uid, it["ticker"], it["trade_date"]),
+                                  "smart_money_pro", uid)
             time.sleep(0.8)   # rate-limit Telegram
         except Exception as e:
             print(f"[smart-money] PRO DM err {uid}: {e}", flush=True)
@@ -393,11 +505,10 @@ def run_once(bot, dry_run: bool = False):
                 pass
         return
 
-    # Admin DM (top N)
-    admin_msg = format_admin_message(filtered)
-    _send_admin(bot, admin_msg, dry_run=dry_run)
+    # Admin DM — _send_admin จะ filter เฉพาะ signal ที่ admin ยังไม่เคยได้
+    _send_admin(bot, filtered, dry_run=dry_run)
 
-    # PRO matched
+    # PRO matched — _send_pro filter per-user signal dedup ในตัว
     pro_sent = _send_pro_watchlists(bot, filtered, dry_run=dry_run)
     print(f"[smart-money] sent to {pro_sent} PRO users", flush=True)
 
