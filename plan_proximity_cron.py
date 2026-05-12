@@ -1,16 +1,17 @@
 """
 plan_proximity_cron.py — เตือน PRO user ก่อนราคาใกล้ SL/TP/Entry zone
+                         (เฉพาะหุ้นที่ user ถือจริงในพอร์ต)
 
 User pain: alert_system เตือนตอน SL/TP "ถูกแตะ" แล้ว — สายไป.
-ที่ user ขอ E1: warn ก่อนใกล้ levels (proximity warning) — มีเวลาตัดสินใจ
+User feedback: ห้ามเตือนทุกตัวที่ scan (research) — เฉพาะตัวที่ถือจริงในพอร์ต
 
 Workflow:
   1. Poll ทุก 5 นาที (ใน background thread)
-  2. ดึง active plans (outcome='open', age ≤ 45d, มี tp1/sl)
+  2. ดึง active plans JOIN portfolios (user ถือจริง shares > 0)
   3. Group by symbol → ลด yfinance call
   4. For each plan:
      - คำนวณ % distance to SL, TP1, TP2, Entry zone
-     - ถ้า ≤ threshold → DM user
+     - ถ้า ≤ threshold → DM user (soft tone, ให้ option ไม่บังคับ)
   5. Dedup: in-memory cooldown 1 ชม. per (plan, level)
 """
 
@@ -92,31 +93,68 @@ def _is_above(current: float, target: float) -> bool:
 
 
 # ============ Message format ============
+# Tone: แจ้งให้รู้ — ไม่บังคับขาย/ซื้อ
+# Context: เน้นว่าเป็น Plan ที่ AI ออก + user ถือหุ้นใน port
+# Decision: ให้ option (ขายตามแผน · ถือยาว · adjust SL · DCA)
+
+_HOLDING_NOTE = (
+    "📌 *ทำไมเตือน?*\n"
+    "_คุณถือหุ้นนี้ในพอร์ต + AI เคยออก Plan ตอนวิเคราะห์_\n"
+    "_ราคาเริ่มใกล้ระดับสำคัญ — แจ้งให้รู้ ไม่บังคับ_"
+)
+
+
 def _format_sl_warning(plan: dict, current: float, dist_pct: float) -> str:
     sym = plan["symbol"]
     bias = (plan["bias"] or "").upper()
     sl = plan["sl"]
+    shares = plan.get("shares") or 0
+    avg_cost = plan.get("avg_cost") or 0
     direction_emoji = "📉" if bias.startswith("BULL") else "📈"
     direction_text = "ลง" if bias.startswith("BULL") else "ขึ้น"
+
+    # Position context
+    pnl_pct = ((current - avg_cost) / avg_cost * 100) if avg_cost else 0
+    pnl_str = f"P&L ปัจจุบัน {pnl_pct:+.1f}%" if avg_cost else ""
+
     return (
-        f"⚠️ *{sym} ราคาใกล้ SL ของคุณ*\n"
+        f"⚠️ *{sym} ราคาเริ่มใกล้ SL ของแผน*\n"
         f"━━━━━━━━━━━━━━\n"
         f"📊 ราคาปัจจุบัน: ${current:.2f}\n"
-        f"🛑 SL: ${sl:.2f}\n"
-        f"{direction_emoji} ห่าง {dist_pct:.2f}% (กำลัง{direction_text})\n\n"
-        f"_ตัดสินใจ: ออก trade หรือ adjust SL_"
+        f"🛑 SL จากแผน: ${sl:.2f}\n"
+        f"{direction_emoji} ห่าง {dist_pct:.2f}% (กำลัง{direction_text})\n"
+        + (f"💼 พอร์ตคุณ: {shares:.0f} หุ้น @ ${avg_cost:.2f} · {pnl_str}\n" if avg_cost else "")
+        + f"\n{_HOLDING_NOTE}\n\n"
+        f"*ตัวเลือกของคุณ:*\n"
+        f"✂️ ขายตามแผน → ตัดขาดทุนตาม Plan\n"
+        f"💪 ถือยาว → ถ้าเชื่อ thesis ของหุ้น\n"
+        f"🔧 Adjust SL → `/setalert {sym} <ราคา>`\n"
+        f"📊 พิมพ์ `{sym}` ใหม่ → ขอ analyze update"
     )
 
 
 def _format_tp_warning(plan: dict, current: float, dist_pct: float, tp_num: int, tp_val: float) -> str:
     sym = plan["symbol"]
+    shares = plan.get("shares") or 0
+    avg_cost = plan.get("avg_cost") or 0
+    pnl_pct = ((current - avg_cost) / avg_cost * 100) if avg_cost else 0
+    pnl_str = f"P&L ปัจจุบัน {pnl_pct:+.1f}%" if avg_cost else ""
+
+    sizing_hint = "ขาย 33-50% ที่ TP1" if tp_num == 1 else "ขายส่วนที่เหลือ"
+
     return (
-        f"🎯 *{sym} ราคาใกล้ TP{tp_num} ของคุณ*\n"
+        f"🎯 *{sym} ราคาเริ่มใกล้ TP{tp_num} ของแผน*\n"
         f"━━━━━━━━━━━━━━\n"
         f"📊 ราคาปัจจุบัน: ${current:.2f}\n"
-        f"💰 TP{tp_num}: ${tp_val:.2f}\n"
-        f"📈 ห่าง {dist_pct:.2f}%\n\n"
-        f"_เตรียมขายตามแผน — Position sizing แนะนำ: ขาย 33-50% ที่ TP1_"
+        f"💰 TP{tp_num} จากแผน: ${tp_val:.2f}\n"
+        f"📈 ห่าง {dist_pct:.2f}%\n"
+        + (f"💼 พอร์ตคุณ: {shares:.0f} หุ้น @ ${avg_cost:.2f} · {pnl_str}\n" if avg_cost else "")
+        + f"\n{_HOLDING_NOTE}\n\n"
+        f"*ตัวเลือกของคุณ:*\n"
+        f"🎯 ขายตามแผน → AI แนะนำ {sizing_hint}\n"
+        f"💪 ถือยาว → ถ้า thesis ยังไม่จบ (long-term hold)\n"
+        f"⚖️ ขายบางส่วน + ถือบางส่วน → balanced approach\n"
+        f"📊 พิมพ์ `{sym}` ใหม่ → ขอ analyze update"
     )
 
 
@@ -124,13 +162,21 @@ def _format_entry_warning(plan: dict, current: float, dist_pct: float) -> str:
     sym = plan["symbol"]
     e_low = plan["entry_low"]
     e_high = plan["entry_high"]
+    shares = plan.get("shares") or 0
+    avg_cost = plan.get("avg_cost") or 0
+
     return (
-        f"🎯 *{sym} ราคาใกล้ Entry zone*\n"
+        f"🎯 *{sym} ราคาวกกลับมา Entry zone ของแผน*\n"
         f"━━━━━━━━━━━━━━\n"
         f"📊 ราคาปัจจุบัน: ${current:.2f}\n"
-        f"🎯 Entry zone: ${e_low:.2f} - ${e_high:.2f}\n"
-        f"📈 ห่าง {dist_pct:.2f}%\n\n"
-        f"_เตรียมเข้าตามแผน_"
+        f"🎯 Entry zone จากแผน: ${e_low:.2f} - ${e_high:.2f}\n"
+        f"📈 ห่าง {dist_pct:.2f}%\n"
+        + (f"💼 พอร์ตคุณ: {shares:.0f} หุ้น @ ${avg_cost:.2f}\n" if avg_cost else "")
+        + f"\n{_HOLDING_NOTE}\n\n"
+        f"*ตัวเลือกของคุณ:*\n"
+        f"➕ DCA เพิ่ม → ราคากลับมา zone ที่ AI แนะนำเข้า\n"
+        f"💪 ถือไว้เฉยๆ → ไม่เพิ่ม\n"
+        f"📊 พิมพ์ `{sym}` ใหม่ → ขอ analyze update"
     )
 
 
@@ -249,8 +295,8 @@ def run_once(bot, dry_run: bool = False) -> dict:
     """1 cycle: query plans + check proximity + DM"""
     stats = {"plans": 0, "symbols": 0, "alerts_sent": 0}
     try:
-        from database import get_active_plans_for_proximity
-        plans = get_active_plans_for_proximity(max_age_days=45)
+        from database import get_active_plans_in_portfolio
+        plans = get_active_plans_in_portfolio(max_age_days=45)
     except Exception as e:
         print(f"[proximity] DB err: {e}", flush=True)
         return stats

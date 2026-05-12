@@ -1734,29 +1734,37 @@ def get_pending_plans(min_age_hours=24, max_age_days=45):
     return rows
 
 
-def get_active_plans_for_proximity(max_age_days: int = 45):
-    """ดึง Plan ที่ยัง open + มี tp1/sl ครบ — สำหรับ proximity warning cron
-    ต่างจาก get_pending_plans: ไม่มี min_age — ให้ check ตั้งแต่นาทีแรกที่ออก Plan
+def get_active_plans_in_portfolio(max_age_days: int = 45):
+    """ดึง Plan ที่ symbol นั้น user ถือจริงในพอร์ต (JOIN portfolios) — สำหรับ proximity warning
+
+    เปลี่ยนจาก "wait for all open plans" → "เฉพาะ plan ของหุ้นที่ user ถือจริง"
+    เหตุผล: user scan หุ้น 10 ตัวเพื่อ research ≠ ต้องการ alert ทุกตัว
+    Plans ของหุ้นใน portfolio = user มี skin in the game = alert ตรงประเด็น
     """
     conn = get_connection()
     c = conn.cursor()
     try:
         c.execute(
             """
-            SELECT id, user_id, symbol, bias, entry_low, entry_high,
-                   tp1, tp2, sl, price_at_issue, issued_at
-            FROM analysis_plans
-            WHERE outcome = 'open'
-              AND issued_at > NOW() - %s::INTERVAL
-              AND tp1 IS NOT NULL
-              AND sl IS NOT NULL
-            ORDER BY symbol, issued_at DESC
+            SELECT ap.id, ap.user_id, ap.symbol, ap.bias, ap.entry_low, ap.entry_high,
+                   ap.tp1, ap.tp2, ap.sl, ap.price_at_issue, ap.issued_at,
+                   p.shares, p.avg_cost
+            FROM analysis_plans ap
+            INNER JOIN portfolios p
+              ON TRIM(ap.user_id) = TRIM(p.user_id)
+             AND UPPER(ap.symbol) = UPPER(p.ticker)
+            WHERE ap.outcome = 'open'
+              AND ap.issued_at > NOW() - %s::INTERVAL
+              AND ap.tp1 IS NOT NULL
+              AND ap.sl IS NOT NULL
+              AND COALESCE(p.shares, 0) > 0
+            ORDER BY ap.symbol, ap.issued_at DESC
             """,
             (f"{int(max_age_days)} days",),
         )
         rows = c.fetchall()
     except Exception as e:
-        print(f"[get_active_plans_for_proximity] err: {e}", flush=True)
+        print(f"[get_active_plans_in_portfolio] err: {e}", flush=True)
         return []
     finally:
         conn.close()
@@ -1770,9 +1778,16 @@ def get_active_plans_for_proximity(max_age_days: int = 45):
             "sl": float(r[8]) if r[8] is not None else None,
             "price_at_issue": float(r[9]) if r[9] is not None else None,
             "issued_at": r[10],
+            "shares": float(r[11]) if r[11] is not None else 0,
+            "avg_cost": float(r[12]) if r[12] is not None else 0,
         }
         for r in rows
     ]
+
+
+# Backward-compat alias (deprecated — ใช้ get_active_plans_in_portfolio แทน)
+def get_active_plans_for_proximity(max_age_days: int = 45):
+    return get_active_plans_in_portfolio(max_age_days)
 
 
 def update_plan_outcome(plan_id, outcome, outcome_note=""):
