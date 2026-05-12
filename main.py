@@ -6449,6 +6449,14 @@ if __name__ == "__main__":
     except Exception as _e:
         print(f"[main] daily_pnl failed to start: {_e}", flush=True)
 
+    # 🐳 Smart Money — DM admin + PRO watchlist หุ้นที่ insider ซื้อใหญ่ (16:00 ICT)
+    # Source: OpenInsider cluster-buys (SEC Form 4, T+2 day filing rule, official)
+    try:
+        from smart_money_cron import run_smart_money_cron
+        threading.Thread(target=run_smart_money_cron, args=(bot,), daemon=True).start()
+    except Exception as _e:
+        print(f"[main] smart_money failed to start: {_e}", flush=True)
+
     # 💓 Heartbeat — เขียน timestamp ไป /tmp/apexify_heartbeat.txt ทุก 60s
     # ใช้คู่กับ heartbeat_watchdog.py (cron */5 min) ที่ DM admin ถ้า stale > 5 min
     def _heartbeat_loop():

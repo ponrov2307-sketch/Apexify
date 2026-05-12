@@ -113,6 +113,12 @@ DAILY_PNL_ENABLED = _to_bool("DAILY_PNL_ENABLED", True)
 DAILY_PNL_HOUR_ICT = _to_int("DAILY_PNL_HOUR_ICT", 8)
 DAILY_PNL_MINUTE_ICT = _to_int("DAILY_PNL_MINUTE_ICT", 0)
 
+# ============ Smart Money Tracker — DM admin + PRO watchlist 16:00 ICT ============
+# Source: OpenInsider Form 4 cluster buys (SEC official, T+2 day filing rule)
+SMART_MONEY_ENABLED = _to_bool("SMART_MONEY_ENABLED", True)
+SMART_MONEY_HOUR_ICT = _to_int("SMART_MONEY_HOUR_ICT", 16)
+SMART_MONEY_MINUTE_ICT = _to_int("SMART_MONEY_MINUTE_ICT", 0)
+
 
 # ============ Thai timezone helpers ============
 from datetime import datetime as _dt, timedelta as _td, timezone as _tz
