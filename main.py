@@ -348,7 +348,7 @@ def handle_force_news(message):
     args = message.text.split()
     news_type = args[1].lower() if len(args) > 1 else 'flash'
     
-    load_msg = bot.reply_to(message, f"🚨 กำลังสั่งให้ AI ดึงข่าวด่วนแบบ `{news_type.upper()}` และบรอดแคสต์ทันที...")
+    load_msg = bot.reply_to(message, f"🚨 กำลังให้ Apexify ดึงข่าวด่วนแบบ `{news_type.upper()}` และบรอดแคสต์ทันที...")
     try:
         if news_type == 'flash':
             broadcast_hourly_urgent_news(bot, force=True)
@@ -652,7 +652,7 @@ def handle_ask(message):
         if '503' in err_str or 'unavailable' in err_str:
             friendly = "✨ Apexify กำลังมีคนใช้งานเยอะเป็นพิเศษ ขอรบกวนลองอีกครั้งในอีกสักครู่ครับ 🙏"
         elif 'safety' in err_str:
-            friendly = "📋 AI ขอปฏิเสธตอบคำถามนี้ (ติดฟิลเตอร์ความปลอดภัย)\nรบกวนลองปรับคำถามใหม่ดูครับ"
+            friendly = "📋 Apexify ขอปฏิเสธตอบคำถามนี้ (ติดฟิลเตอร์ความปลอดภัย)\nรบกวนลองปรับคำถามใหม่ดูครับ"
         else:
             friendly = "📡 ขณะนี้ระบบตอบสนองช้ากว่าปกติ\nรบกวนลองอีกครั้งในอีกสักครู่ครับ"
         bot.edit_message_text(friendly, message.chat.id, load_msg.message_id)
@@ -2978,7 +2978,7 @@ def handle_breaking(message):
             "🔒 *ข่าวด่วนตลาด US — ฟีเจอร์ PRO เท่านั้น*\n\n"
             "🚨 ระบบจะแจ้งเตือนเฉพาะข่าวที่กระทบ S&P 500/Nasdaq จริง\n"
             "เช่น CPI, NFP, FOMC, สงคราม, OPEC cut\n\n"
-            "AI Gemini คัดเฉพาะระดับ HIGH ส่งให้ — ไม่สแปม",
+            "Apexify คัดเฉพาะระดับ HIGH ส่งให้ — ไม่สแปม",
             parse_mode="Markdown",
             reply_markup=markup,
         )
@@ -3111,10 +3111,10 @@ def handle_manual(message):
         "`/ealert AAPL` — สมัครแจ้งเตือนวัน Earnings\n"
         "`/ealert list` — ดูรายการที่สมัครไว้\n"
         "`/ealert remove AAPL` — ยกเลิก\n"
-        "`/earnings AAPL` — วิเคราะห์งบการเงิน AI _(VIP/PRO)_\n"
+        "`/earnings AAPL` — Apexify วิเคราะห์งบการเงิน _(VIP/PRO)_\n"
         "`/fund AAPL` — P/E, EPS, Dividend, Market Cap _(VIP/PRO)_\n"
         "`/compare AAPL MSFT` — เปรียบเทียบ 2-3 หุ้น + AI verdict _(PRO)_\n"
-        "`/ask <คำถาม>` — ถาม AI อะไรก็ได้ _(PRO)_\n\n"
+        "`/ask <คำถาม>` — ถาม Apexify อะไรก็ได้ _(PRO)_\n\n"
 
         "**📰 Breaking News** _(PRO)_\n"
         "`/breaking_on` — เปิดรับข่าว flash ทันทีเมื่อมีข่าวใหญ่\n"
@@ -3161,7 +3161,7 @@ def handle_manual(message):
         "1️⃣ `/compare` หาหุ้นที่ setup ดีที่สุด\n"
         "2️⃣ ใช้ Entry zone / TP / SL ที่บอทคำนวณ\n"
         "3️⃣ `/setalert` ตั้งเตือนราคาเป้าหมาย\n"
-        "4️⃣ `/ask` ถาม AI เพิ่มเติมเมื่อไม่มั่นใจ\n"
+        "4️⃣ `/ask` ถาม Apexify เพิ่มเติมเมื่อไม่มั่นใจ\n"
         "5️⃣ รับ Smart Alerts (RSI/MACD/Volume spike) อัตโนมัติ\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━━\n"
@@ -3175,7 +3175,7 @@ def handle_manual(message):
         "*Q: ทำไมใช้เวลา 10-20 วินาที?*\n"
         "A: ระบบดึงข้อมูล 3 timeframes + วิเคราะห์ด้วย AI + วาดกราฟ\n\n"
 
-        "*Q: ถ้า AI ผิดจะฟ้องได้ไหม?*\n"
+        "*Q: ถ้า Apexify วิเคราะห์ผิดจะฟ้องได้ไหม?*\n"
         "A: รายงานทั้งหมดจัดทำขึ้นเพื่อประกอบการพิจารณาเท่านั้น มิใช่คำแนะนำการลงทุน การเสนอขาย หรือการชักชวนให้ซื้อขายหลักทรัพย์ใด ๆ การลงทุนมีความเสี่ยง ผู้ลงทุนควรศึกษาข้อมูลและใช้ดุลยพินิจของตนเองก่อนตัดสินใจลงทุน\n\n"
 
         "*Q: ต่ออายุ VIP/PRO ยังไง?*\n"
@@ -3902,7 +3902,7 @@ def quick_action_callbacks(call):
             bot.send_message(user_id, "🔒 Apexify Q&A = ฟีเจอร์ PRO เท่านั้น")
             return
         bot.send_message(user_id,
-            f"💬 *ถาม AI เกี่ยวกับ {symbol}*\n\n"
+            f"💬 *ถาม Apexify เกี่ยวกับ {symbol}*\n\n"
             f"พิมพ์คำสั่ง: `/ask <คำถาม>`\n"
             f"ตัวอย่าง:\n"
             f"• `/ask ทำไม RSI {symbol} สูง?`\n"
@@ -4776,7 +4776,7 @@ def inline_callbacks(call):
             "• `/ealert AAPL` — สมัครแจ้งเตือนวัน Earnings\n"
             "• `/ealert list` — ดูรายการที่สมัครไว้\n"
             "• `/ealert remove AAPL` — ยกเลิก\n"
-            "• `/earnings AAPL` — วิเคราะห์งบล่าสุดด้วย AI",
+            "• `/earnings AAPL` — Apexify วิเคราะห์งบล่าสุด",
             parse_mode="Markdown")
 
     elif call.data == 'hub_badges':
@@ -4814,7 +4814,7 @@ def inline_callbacks(call):
                 "🔒 *ข่าวด่วนตลาด US — ฟีเจอร์ PRO เท่านั้น*\n\n"
                 "🚨 ระบบจะแจ้งเตือนเฉพาะข่าวที่กระทบ S&P 500/Nasdaq จริง\n"
                 "เช่น CPI, NFP, FOMC, สงคราม, OPEC cut\n\n"
-                "AI Gemini คัดเฉพาะระดับ HIGH ส่งให้ — ไม่สแปม",
+                "Apexify คัดเฉพาะระดับ HIGH ส่งให้ — ไม่สแปม",
                 parse_mode="Markdown", reply_markup=markup)
             return
         from database import is_subscribed_breaking_news
@@ -6180,7 +6180,7 @@ def handle_main(message):
         if '503' in err_str or 'unavailable' in err_str or 'overloaded' in err_str or 'high demand' in err_str:
             friendly = "✨ ขณะนี้มีผู้ใช้งาน AI จำนวนมาก ขอรบกวนลองพิมพ์อีกครั้งในอีกสักครู่นะครับ 🙏"
         elif 'safety' in err_str or 'blocked' in err_str:
-            friendly = "📋 ระบบความปลอดภัยของ AI ขอปฏิเสธหุ้นตัวนี้ชั่วคราว\nลองวิเคราะห์หุ้นตัวอื่นดูก่อนนะครับ"
+            friendly = "📋 ระบบความปลอดภัยของ Apexify ขอปฏิเสธหุ้นตัวนี้ชั่วคราว\nลองวิเคราะห์หุ้นตัวอื่นดูก่อนนะครับ"
         else:
             friendly = "📡 ขณะนี้ข้อมูลยังไม่พร้อมให้บริการ\nรบกวนลองอีกครั้งในอีกสักครู่ครับ"
             # Sentry-lite: ping admin only on the unknown-error branch (503 + safety filter is expected noise)
@@ -6338,7 +6338,7 @@ def handle_main(message):
     if role == 'pro':
         markup.add(
             InlineKeyboardButton(f"⚖️ เปรียบเทียบหุ้นอื่น", callback_data=f"quick_compare_{correct_symbol}"),
-            InlineKeyboardButton(f"💬 ถาม AI เพิ่ม", callback_data=f"quick_ask_{correct_symbol}"),
+            InlineKeyboardButton(f"💬 ถาม Apexify เพิ่ม", callback_data=f"quick_ask_{correct_symbol}"),
         )
         markup.add(
             InlineKeyboardButton(f"🔔 ตั้งเตือนราคา", callback_data="hub_price_alert"),
@@ -6531,8 +6531,8 @@ if __name__ == "__main__":
             BotCommand("track", "สถิติ Apexify Plans — hit rate ย้อนหลัง"),
             BotCommand("fund", "ข้อมูลพื้นฐาน (P/E, EPS, Dividend) — VIP/PRO"),
             BotCommand("compare", "เปรียบเทียบ 2-3 หุ้น — PRO"),
-            BotCommand("ask", "ถาม AI คำถามการลงทุน — PRO"),
-            BotCommand("earnings", "วิเคราะห์งบการเงินด้วย AI — VIP/PRO"),
+            BotCommand("ask", "ถาม Apexify คำถามการลงทุน — PRO"),
+            BotCommand("earnings", "Apexify วิเคราะห์งบการเงิน — VIP/PRO"),
             BotCommand("ealert", "แจ้งเตือนวัน Earnings — VIP/PRO"),
             BotCommand("setalert", "ตั้งเตือนราคา — PRO"),
             BotCommand("myalerts", "ดู price alerts ที่ตั้งไว้"),
