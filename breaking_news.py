@@ -32,7 +32,7 @@ from config import gemini_client
 
 
 # ========== Sources ==========
-# All free, no registration. Tier-1 official US macro releases.
+# All free, no registration. Tier-1 official US macro releases + market/company news mix.
 _RSS_SOURCES = [
     # Fed press releases — every FOMC + speeches
     ("Fed",        "https://www.federalreserve.gov/feeds/press_all.xml"),
@@ -40,24 +40,35 @@ _RSS_SOURCES = [
     ("BLS",        "https://www.bls.gov/feed/news_release.rss"),
     # Treasury press
     ("Treasury",   "https://home.treasury.gov/rss/press-releases"),
-    # Reuters US business via Google News (no Reuters direct RSS)
-    ("Reuters",    "https://news.google.com/rss/search?q=site:reuters.com+(Fed+OR+CPI+OR+jobs+OR+inflation+OR+rate)+when:1h&hl=en-US&gl=US&ceid=US:en"),
+    # Reuters US business via Google News — broaden ครอบคลุม macro + tech + earnings + tariff (กัน war dominance)
+    ("Reuters",    "https://news.google.com/rss/search?q=site:reuters.com+(Fed+OR+CPI+OR+jobs+OR+inflation+OR+rate+OR+tech+OR+earnings+OR+tariff+OR+chip+OR+AI)+when:2h&hl=en-US&gl=US&ceid=US:en"),
     # CNBC markets
     ("CNBC",       "https://www.cnbc.com/id/100003114/device/rss/rss.html"),
+    # CNBC tech (เพิ่มความ diversity ไปทาง company/tech)
+    ("CNBC-Tech",  "https://www.cnbc.com/id/19854910/device/rss/rss.html"),
     # MarketWatch top stories
     ("MarketWatch","http://feeds.marketwatch.com/marketwatch/topstories/"),
     # WSJ markets main
     ("WSJ",        "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"),
+    # Yahoo Finance top stories (company news heavy — earnings, M&A, guidance)
+    ("Yahoo",      "https://finance.yahoo.com/news/rssindex"),
+    # Investing.com news (broad market news)
+    ("Investing",  "https://www.investing.com/rss/news.rss"),
+    # Seeking Alpha breaking (analyst calls, company news)
+    ("SeekingAlpha","https://seekingalpha.com/market_currents.xml"),
 ]
 
 # ========== Keyword pre-filter ==========
 # Tier 1: high-confidence breaking — almost always market-moving.
 # Notes:
-# - Avoid generic "Federal Reserve" alone (matches every Fed admin press release).
-#   Require it to be paired with action verbs.
-# - "war/attack/missile" wrapped in word boundary to avoid matching unrelated text.
+# - Macro releases (CPI/NFP/FOMC) + true emergencies (recession/default/OPEC tariff)
+# - **WAR keywords moved to T2** — Gemini contextual judgment ดีกว่า
+#   (Russia/Ukraine + Israel/Iran news cycle ครอบคลุม headlines ทุกวัน — T1 auto-include
+#    ทำให้ข่าวอื่นถูก crowd out. Gemini ตัดสินใจว่า war headline ไหน new/breaking)
+# - **Company news (mega cap moves, earnings, guidance, M&A, IPO) ดึงขึ้น T1**
 _TIER1_KEYWORDS = re.compile(
     r"\b("
+    # Macro releases (high-conviction market movers)
     r"CPI|core CPI|PPI|PCE|core PCE|"
     r"non[- ]?farm|nonfarm|NFP|jobs report|payrolls?|"
     r"FOMC|"
@@ -65,19 +76,32 @@ _TIER1_KEYWORDS = re.compile(
     r"rate (?:cuts?|hikes?|decision)|interest rate (?:cuts?|hikes?|decision)|"
     r"GDP (?:growth|grew|contracted|expansion|fell|dropped)|"
     r"gross domestic product|"
+    # True emergencies (specific scenarios — not generic war)
     r"recession|default|debt ceiling|government shutdown|"
-    r"OPEC[+]?|"
-    r"tariffs?|sanctions?|trade war|"
-    r"war|invasion|attack|missile|"
-    r"emergency|crisis|crash|"
-    r"Powell"
+    r"OPEC[+]? (?:cuts?|production)|"
+    r"trade war|tariff (?:announced|imposed|raised)|"
+    r"market crash|stocks? crash|"
+    r"Powell|"
+    # Company-specific big news — drives single-ticker moves
+    r"guidance (?:raised|cut|slashed)|earnings (?:beat|miss|crushed)|"
+    r"stock split|share buyback|dividend (?:raised|cut|suspended)|"
+    r"acquisition (?:announced|deal)|merger (?:announced)|"
+    r"IPO (?:filed|priced)|spin[- ]?off|"
+    r"Tesla (?:recalls?|production cut)|Apple (?:recalls?|launches?)|"
+    r"Boeing (?:grounded|crash|halts?)|"
+    # Mega cap individual movers
+    r"(?:NVDA|Nvidia) (?:surges?|plunges?|crashes?|beats?)|"
+    r"(?:TSLA|Tesla) (?:surges?|plunges?|crashes?)|"
+    r"(?:AAPL|Apple) (?:surges?|plunges?)"
     r")\b",
     re.IGNORECASE,
 )
 
-# Tier 2: candidates — Gemini decides
+# Tier 2: candidates — Gemini decides if HIGH/MEDIUM/LOW
+# Includes contextual war news (Gemini judges if new/escalation/already-priced-in)
 _TIER2_KEYWORDS = re.compile(
     r"\b("
+    # Macro 2nd tier
     r"inflation|deflation|stagflation|"
     r"jobless|unemployment|labor market|"
     r"retail sales|consumer confidence|consumer sentiment|"
@@ -88,7 +112,22 @@ _TIER2_KEYWORDS = re.compile(
     r"oil (?:surges?|plunges?|spikes?)|"
     r"gold (?:surges?|plunges?|spikes?)|"
     r"S&P 500|Nasdaq|Dow Jones|"
-    r"earnings (?:beat|miss|surprise)|guidance (?:cut|raised)"
+    r"earnings (?:beat|miss|surprise)|guidance (?:cut|raised)|"
+    # War / geopolitical (Gemini decides if breaking/escalation)
+    r"war|invasion|attack|missile|strike|conflict|"
+    r"sanctions?|embargo|"
+    r"emergency|crisis|"
+    # AI / Tech / Semi — story stocks ส่วนใหญ่อยู่กลุ่มนี้
+    r"AI chip|semiconductor|chip (?:demand|shortage|export)|"
+    r"GPU|datacenter|cloud computing|"
+    r"ChatGPT|OpenAI|Anthropic|Google DeepMind|"
+    r"iPhone|MacBook|Tesla|EV (?:sales|demand)|"
+    # International macro
+    r"China (?:GDP|exports|stimulus|tariff)|"
+    r"yuan|yen|BoJ|Bank of Japan|ECB|European Central Bank|"
+    r"oil prices?|crude oil|natural gas|"
+    # Crypto (high-beta correlation)
+    r"Bitcoin|BTC|Ethereum|crypto (?:rally|crash)"
     r")\b",
     re.IGNORECASE,
 )
