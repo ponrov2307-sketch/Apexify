@@ -4588,9 +4588,9 @@ def inline_callbacks(call):
                 bot.send_message(user_id, "🔒 **ฟีเจอร์ระดับพรีเมียม (PRO Exclusive)**\nสแกนหุ้นเด่นอัตโนมัติสงวนสิทธิ์ให้ลูกค้าระดับ PRO เท่านั้นครับ 👑", parse_mode="Markdown")
                 return
             
-            scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหุ้นเมกาเด่น...**\n*(สแกน 150 ตัว US large/mid-cap แบบขนาน — คัด 10 อันดับน่าสะสมที่สุด)*", parse_mode="Markdown")
+            scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหุ้นเมกาเด่น...**\n*(สแกน ~180 ตัว US — Mag 7 + S&P 500 + story stocks ผสมกัน คัด 10 อันดับ)*", parse_mode="Markdown")
 
-            # 🇺🇸 US large/mid-cap universe — 150 ตัว ครอบคลุม 13 sectors
+            # 🇺🇸 US universe — 180 ตัว ผสม blue-chip + story stocks
             scan_list = [
                 # Mega Tech & Internet (15)
                 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NFLX', 'CRM', 'ORCL',
@@ -4627,6 +4627,15 @@ def inline_callbacks(call):
                 'UBER', 'ABNB', 'HLT', 'DAL', 'AAL', 'LUV', 'CCL', 'RCL',
                 # Telecom / Retail (5)
                 'T', 'VZ', 'TMUS', 'CMCSA', 'TGT',
+                # 🚀 Story / High-Beta Stocks (30) — คนไทยชอบหุ้นซิ่ง สตอรี่ดี
+                'RKLB', 'ASTS', 'IRDM', 'PL',           # Space
+                'IONQ', 'RGTI', 'QBTS', 'ARQQ',         # Quantum
+                'AI', 'SOUN', 'BBAI', 'NBIS',           # AI plays
+                'RIVN', 'LCID', 'NIO', 'XPEV',          # EV
+                'COIN', 'MSTR', 'MARA', 'RIOT', 'HOOD', # Crypto-linked
+                'RXRX', 'EXAS', 'SAVA',                 # Biotech
+                'GME', 'SOFI', 'UPST', 'AFRM', 'NU',    # Meme / Fintech
+                'SMCI',                                 # AI hardware
             ]
 
             from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -4641,6 +4650,8 @@ def inline_callbacks(call):
                     ema50 = tech_data['ema50']
                     ema200 = tech_data['ema200']
                     price = tech_data['price']
+                    vol_ratio = tech_data.get('volume_ratio', 1) or 1
+                    close_vs_ema20 = tech_data.get('close_vs_ema20_pct', 0) or 0
 
                     score = 0
                     reasons = []
@@ -4665,6 +4676,24 @@ def inline_callbacks(call):
                     elif 40 <= rsi <= 55:
                         score += 30
                         reasons.append(f"⚖️ โมเมนตัมเป็นกลาง (RSI {rsi:.1f})")
+
+                    # 🚀 Momentum bonus — ใช้ close vs EMA20 (proxy หุ้นกำลังวิ่ง)
+                    # > 3% above EMA20 = วิ่งแรงเหนือ trend / < -3% = oversold-stretch
+                    if abs(close_vs_ema20) >= 5:
+                        score += 80
+                        reasons.append(f"⚡ โมเมนตัมแรง ({close_vs_ema20:+.1f}% vs EMA20)")
+                    elif abs(close_vs_ema20) >= 3:
+                        score += 40
+                        reasons.append(f"📊 ขยับชัด ({close_vs_ema20:+.1f}% vs EMA20)")
+                    elif abs(close_vs_ema20) >= 1.5:
+                        score += 15
+
+                    # 🔊 Volume bonus — vol สูงเหนือค่าเฉลี่ย = institutional interest
+                    if vol_ratio >= 3:
+                        score += 50
+                        reasons.append(f"🔊 vol {vol_ratio:.1f}x")
+                    elif vol_ratio >= 1.8:
+                        score += 25
 
                     if score > 0:
                         return (score, sym, price, reasons)
