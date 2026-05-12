@@ -108,6 +108,11 @@ EARNINGS_PREP_ENABLED = _to_bool("EARNINGS_PREP_ENABLED", True)
 EARNINGS_PREP_HOUR_ICT = _to_int("EARNINGS_PREP_HOUR_ICT", 16)
 EARNINGS_PREP_MINUTE_ICT = _to_int("EARNINGS_PREP_MINUTE_ICT", 0)
 
+# ============ Daily P&L Recap (C — DM PRO users watchlist summary 08:00 ICT) ============
+DAILY_PNL_ENABLED = _to_bool("DAILY_PNL_ENABLED", True)
+DAILY_PNL_HOUR_ICT = _to_int("DAILY_PNL_HOUR_ICT", 8)
+DAILY_PNL_MINUTE_ICT = _to_int("DAILY_PNL_MINUTE_ICT", 0)
+
 
 # ============ Thai timezone helpers ============
 from datetime import datetime as _dt, timedelta as _td, timezone as _tz
