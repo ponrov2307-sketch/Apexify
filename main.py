@@ -4588,9 +4588,9 @@ def inline_callbacks(call):
                 bot.send_message(user_id, "🔒 **ฟีเจอร์ระดับพรีเมียม (PRO Exclusive)**\nสแกนหุ้นเด่นอัตโนมัติสงวนสิทธิ์ให้ลูกค้าระดับ PRO เท่านั้นครับ 👑", parse_mode="Markdown")
                 return
             
-            scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหุ้นเมกาเด่น...**\n*(สแกน ~180 ตัว US — Mag 7 + S&P 500 + story stocks ผสมกัน คัด 10 อันดับ)*", parse_mode="Markdown")
+            scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหุ้นเมกาเด่น...**\n*(สแกน ~200 ตัว US — Mag 7 + S&P 500 + story stocks + hot movers คัด 10 อันดับ)*", parse_mode="Markdown")
 
-            # 🇺🇸 US universe — 180 ตัว ผสม blue-chip + story stocks
+            # 🇺🇸 US universe — ~200 ตัว ผสม blue-chip + story stocks + hot movers
             scan_list = [
                 # Mega Tech & Internet (15)
                 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NFLX', 'CRM', 'ORCL',
@@ -4636,6 +4636,15 @@ def inline_callbacks(call):
                 'RXRX', 'EXAS', 'SAVA',                 # Biotech
                 'GME', 'SOFI', 'UPST', 'AFRM', 'NU',    # Meme / Fintech
                 'SMCI',                                 # AI hardware
+                # 🔥 Hot Movers (25) — กลุ่มที่กำลังร้อนแรงตอนนี้
+                'VST', 'CEG', 'TLN',                            # AI Power / Nuclear
+                'VRT', 'ALAB', 'DELL', 'CRWV',                  # AI infrastructure
+                'SE', 'MELI', 'SPOT', 'DUOL',                   # International consumer
+                'HIMS', 'RDDT', 'DASH', 'TOST',                 # Consumer tech / DTC
+                'ENPH', 'FSLR', 'BE',                           # Clean Energy
+                'LDOS', 'TDG',                                  # Defense
+                'CLSK', 'CIFR',                                 # Crypto mining
+                'TEM',                                          # Genomics / AI healthcare
             ]
 
             from concurrent.futures import ThreadPoolExecutor, as_completed
