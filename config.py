@@ -119,6 +119,9 @@ SMART_MONEY_ENABLED = _to_bool("SMART_MONEY_ENABLED", True)
 SMART_MONEY_HOUR_ICT = _to_int("SMART_MONEY_HOUR_ICT", 16)
 SMART_MONEY_MINUTE_ICT = _to_int("SMART_MONEY_MINUTE_ICT", 0)
 
+# ============ Plan Proximity Warning (E1 — warn PRO before SL/TP/Entry) ============
+PROXIMITY_ENABLED = _to_bool("PROXIMITY_ENABLED", True)
+
 
 # ============ Thai timezone helpers ============
 from datetime import datetime as _dt, timedelta as _td, timezone as _tz

@@ -1734,6 +1734,47 @@ def get_pending_plans(min_age_hours=24, max_age_days=45):
     return rows
 
 
+def get_active_plans_for_proximity(max_age_days: int = 45):
+    """ดึง Plan ที่ยัง open + มี tp1/sl ครบ — สำหรับ proximity warning cron
+    ต่างจาก get_pending_plans: ไม่มี min_age — ให้ check ตั้งแต่นาทีแรกที่ออก Plan
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            SELECT id, user_id, symbol, bias, entry_low, entry_high,
+                   tp1, tp2, sl, price_at_issue, issued_at
+            FROM analysis_plans
+            WHERE outcome = 'open'
+              AND issued_at > NOW() - %s::INTERVAL
+              AND tp1 IS NOT NULL
+              AND sl IS NOT NULL
+            ORDER BY symbol, issued_at DESC
+            """,
+            (f"{int(max_age_days)} days",),
+        )
+        rows = c.fetchall()
+    except Exception as e:
+        print(f"[get_active_plans_for_proximity] err: {e}", flush=True)
+        return []
+    finally:
+        conn.close()
+    return [
+        {
+            "id": r[0], "user_id": str(r[1]), "symbol": r[2], "bias": r[3],
+            "entry_low": float(r[4]) if r[4] is not None else None,
+            "entry_high": float(r[5]) if r[5] is not None else None,
+            "tp1": float(r[6]) if r[6] is not None else None,
+            "tp2": float(r[7]) if r[7] is not None else None,
+            "sl": float(r[8]) if r[8] is not None else None,
+            "price_at_issue": float(r[9]) if r[9] is not None else None,
+            "issued_at": r[10],
+        }
+        for r in rows
+    ]
+
+
 def update_plan_outcome(plan_id, outcome, outcome_note=""):
     conn = get_connection()
     c = conn.cursor()

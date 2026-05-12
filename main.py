@@ -6457,6 +6457,14 @@ if __name__ == "__main__":
     except Exception as _e:
         print(f"[main] smart_money failed to start: {_e}", flush=True)
 
+    # ⚠️ Plan Proximity Warning — เตือน PRO ก่อนราคาใกล้ SL/TP/Entry (poll ทุก 5 นาที)
+    # SL ±1.5% · TP ±1% · Entry zone ±1% · cooldown 1 ชม./plan/level
+    try:
+        from plan_proximity_cron import run_proximity_cron
+        threading.Thread(target=run_proximity_cron, args=(bot,), daemon=True).start()
+    except Exception as _e:
+        print(f"[main] plan_proximity failed to start: {_e}", flush=True)
+
     # 💓 Heartbeat — เขียน timestamp ไป /tmp/apexify_heartbeat.txt ทุก 60s
     # ใช้คู่กับ heartbeat_watchdog.py (cron */5 min) ที่ DM admin ถ้า stale > 5 min
     def _heartbeat_loop():
