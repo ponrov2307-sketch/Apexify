@@ -382,7 +382,114 @@ _QUIET_HOUR_START = 2   # 02:00 Thai
 _QUIET_HOUR_END = 8     # 08:00 Thai
 
 # Throttle per user — minimum gap between push to same subscriber (in seconds)
-_PER_USER_THROTTLE_SEC = 30 * 60  # 30 min
+_PER_USER_THROTTLE_SEC = 60 * 60  # 60 min (เพิ่มจาก 30 → 60 เพราะ event day เช่น CPI/FOMC spam ได้)
+
+# Topic dedup — ถ้าข่าวใหม่ similar กับที่เพิ่งส่ง → skip
+_TOPIC_SIMILARITY_THRESHOLD = 0.45   # Jaccard token overlap ≥ 45% = ถือเป็น topic เดียวกัน
+_TOPIC_DEDUP_WINDOW_SEC = 6 * 60 * 60   # 6 ชม. window
+_MAX_PER_TOPIC_PER_DAY = 2   # ส่งสูงสุด 2 ครั้ง/topic/วัน (เช่น CPI report ส่งแค่ 2 อันแรก)
+
+# In-memory state — reset เมื่อ process restart (OK เพราะ daily reset)
+_user_last_sent_at: dict = {}                  # uid → unix ts
+_recent_topics: list[tuple[float, set]] = []   # (timestamp, token_set) recent titles
+_daily_topic_count: dict = {}                  # date_str → {topic_key: count}
+
+
+def _title_tokens(title: str) -> set:
+    """Normalize title to lowercased set of meaningful tokens"""
+    import re as _re
+    # ตัด non-alphanumeric เป็น space
+    cleaned = _re.sub(r"[^a-zA-Z0-9\s]", " ", title.lower())
+    tokens = cleaned.split()
+    # ตัด stop words ที่ไม่มี discriminative power
+    _STOP = {"the", "a", "an", "in", "on", "of", "to", "for", "is", "are", "was", "were",
+             "and", "or", "but", "as", "at", "by", "from", "with", "us", "u", "s"}
+    return {t for t in tokens if len(t) >= 2 and t not in _STOP}
+
+
+def _title_topic_key(tokens: set) -> str:
+    """ดึง keyword สำคัญสุดจาก title สำหรับ daily count
+
+    Priority: macro release > company > generic
+    """
+    macro_keys = {"cpi", "ppi", "pce", "nfp", "fomc", "fed", "powell", "gdp",
+                   "jobless", "inflation", "recession", "ism", "pmi"}
+    geo_keys = {"iran", "russia", "ukraine", "china", "israel", "war", "missile",
+                 "tariff", "sanction", "opec"}
+    for k in macro_keys:
+        if k in tokens:
+            return f"macro:{k}"
+    for k in geo_keys:
+        if k in tokens:
+            return f"geo:{k}"
+    # fallback: use top 3 tokens as topic
+    return "other:" + "_".join(sorted(tokens)[:3])
+
+
+def _jaccard_similarity(a: set, b: set) -> float:
+    """Jaccard index — |A∩B| / |A∪B|"""
+    if not a or not b:
+        return 0.0
+    intersection = len(a & b)
+    union = len(a | b)
+    return intersection / union if union else 0.0
+
+
+def _prune_recent_topics(now_ts: float):
+    """ลบ topic ที่เก่ากว่า window"""
+    global _recent_topics
+    cutoff = now_ts - _TOPIC_DEDUP_WINDOW_SEC
+    _recent_topics = [(ts, toks) for ts, toks in _recent_topics if ts > cutoff]
+
+
+def _is_topic_duplicate(title: str, now_ts: float) -> bool:
+    """เช็คว่า title นี้คล้ายกับที่ส่งไปแล้วใน 6 ชม.ที่ผ่านมาหรือไม่"""
+    new_tokens = _title_tokens(title)
+    if not new_tokens:
+        return False
+    _prune_recent_topics(now_ts)
+    for _ts, old_tokens in _recent_topics:
+        if _jaccard_similarity(new_tokens, old_tokens) >= _TOPIC_SIMILARITY_THRESHOLD:
+            return True
+    return False
+
+
+def _topic_daily_count_exceeded(title: str, now_dt: datetime) -> bool:
+    """เช็คว่า topic นี้ถึงโควต้าวันนี้แล้วหรือไม่ (max 2/topic/day)"""
+    tokens = _title_tokens(title)
+    if not tokens:
+        return False
+    topic_key = _title_topic_key(tokens)
+    date_str = now_dt.date().isoformat()
+    day_counts = _daily_topic_count.setdefault(date_str, {})
+    return day_counts.get(topic_key, 0) >= _MAX_PER_TOPIC_PER_DAY
+
+
+def _mark_topic_sent(title: str, now_ts: float, now_dt: datetime):
+    """บันทึก topic ที่ส่งไปแล้ว"""
+    tokens = _title_tokens(title)
+    if not tokens:
+        return
+    _recent_topics.append((now_ts, tokens))
+    topic_key = _title_topic_key(tokens)
+    date_str = now_dt.date().isoformat()
+    day_counts = _daily_topic_count.setdefault(date_str, {})
+    day_counts[topic_key] = day_counts.get(topic_key, 0) + 1
+    # cleanup old dates (keep last 2 days)
+    if len(_daily_topic_count) > 3:
+        oldest = min(_daily_topic_count.keys())
+        if oldest != date_str:
+            _daily_topic_count.pop(oldest, None)
+
+
+def _can_send_to_user(uid: str, now_ts: float) -> bool:
+    """เช็ค per-user throttle (60 นาที)"""
+    last = _user_last_sent_at.get(str(uid), 0)
+    return (now_ts - last) >= _PER_USER_THROTTLE_SEC
+
+
+def _mark_user_sent(uid: str, now_ts: float):
+    _user_last_sent_at[str(uid)] = now_ts
 
 
 def is_quiet_hour(now: datetime | None = None) -> bool:
@@ -411,7 +518,8 @@ def process_breaking_news(bot_instance, *, dry_run: bool = False) -> dict:
     )
 
     stats = {"fetched": 0, "shortlisted": 0, "classified": 0,
-             "high": 0, "pushed_users": 0, "skipped_dup": 0, "skipped_quiet": False}
+             "high": 0, "pushed_users": 0, "skipped_dup": 0, "skipped_quiet": False,
+             "skipped_topic_dup": 0, "skipped_topic_cap": 0, "skipped_user_throttle": 0}
 
     candidates = fetch_news_candidates()
     stats["fetched"] = len(candidates)
@@ -470,6 +578,20 @@ def process_breaking_news(bot_instance, *, dry_run: bool = False) -> dict:
         if dry_run or quiet or not subscribers:
             continue
 
+        # 🆕 Topic dedup — ถ้าข่าวนี้คล้ายเรื่องที่เพิ่งส่งใน 6 ชม. → skip
+        _now_ts = time.time()
+        _now_dt = datetime.utcnow() + timedelta(hours=7)
+        if _is_topic_duplicate(record["title"], _now_ts):
+            print(f"[BreakingNews] skipped topic dup: {record['title'][:60]}", flush=True)
+            stats["skipped_topic_dup"] += 1
+            continue
+
+        # 🆕 Per-topic daily cap — เรื่องเดียวกัน max 2/วัน (กัน CPI/FOMC spam)
+        if _topic_daily_count_exceeded(record["title"], _now_dt):
+            print(f"[BreakingNews] skipped topic daily cap: {record['title'][:60]}", flush=True)
+            stats["skipped_topic_cap"] += 1
+            continue
+
         msg = format_breaking_message(record)
 
         # Personalization: macro news → broadcast all; company-specific → only
@@ -498,10 +620,15 @@ def process_breaking_news(bot_instance, *, dry_run: bool = False) -> dict:
 
         sent_count = 0
         for uid in target_subs:
+            # 🆕 Per-user throttle 60 นาที — กันข่าว spam หลายเรื่อง/ชม.
+            if not _can_send_to_user(uid, _now_ts):
+                stats["skipped_user_throttle"] += 1
+                continue
             try:
                 bot_instance.send_message(uid, msg, parse_mode="Markdown",
                                           disable_web_page_preview=False)
                 sent_count += 1
+                _mark_user_sent(uid, _now_ts)
                 # Voice follows text — best-effort
                 if audio_path:
                     try:
@@ -514,6 +641,10 @@ def process_breaking_news(bot_instance, *, dry_run: bool = False) -> dict:
                 time.sleep(0.05)
             except Exception as e:
                 print(f"[BreakingNews] push to {uid} failed: {e}", flush=True)
+
+        # บันทึก topic ที่ส่งสำเร็จไปแล้ว (ใช้ใน dedup รอบหน้า)
+        if sent_count > 0:
+            _mark_topic_sent(record["title"], _now_ts, _now_dt)
 
         # Cleanup audio file after push round
         if audio_path and os.path.exists(audio_path):
