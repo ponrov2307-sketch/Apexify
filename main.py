@@ -3570,20 +3570,51 @@ def handle_payment_slip_check(message):
                         except Exception: pass
 
             if not package_info:
+                # 📜 Log abnormal slip to subscription_history (audit trail)
+                try:
+                    from database import log_subscription_event
+                    log_subscription_event(
+                        user_id=user_id,
+                        action_type="abnormal_slip",
+                        source="slip",
+                        source_detail=f"unmatched amount {amount:.2f}฿",
+                        meta={
+                            "ref_no": str(ref_no),
+                            "amount": float(amount),
+                            "sender": slip_result.get('sender_display_name', '-'),
+                        },
+                    )
+                except Exception as _e:
+                    print(f"[abnormal_slip] log err: {_e}", flush=True)
+
+                # Better error message — list packages + Dashboard CTA + admin contact
+                err_kb = InlineKeyboardMarkup()
+                _dash_btn = _dashboard_cta_button(user_id, "🌐 ดู Package ใน Dashboard", src="abnormal_slip", next_path="/")
+                if _dash_btn:
+                    err_kb.add(_dash_btn)
+                err_kb.add(InlineKeyboardButton("💬 ติดต่อ Admin", url=f"tg://user?id={ADMIN_ID}"))
+
                 bot.edit_message_text(
-                    f"❌ **ยอดเงินไม่ตรงกับแพ็กเกจ** ({amount:,.2f} บาท)\n"
-                    f"กรุณาโอนให้ตรงราคา (20, 79, 109, 790, 1090) หรือยอดส่วนลดของคุณ\n"
-                    f"_(ถ้า redeem โค้ดส่วนลดมาแล้ว ตรวจให้แน่ใจว่ายังอยู่ในเวลาที่กำหนด)_",
+                    (
+                        f"❌ **ยอด {amount:,.2f}฿ ไม่ตรงกับ package ที่เปิดอยู่**\n\n"
+                        f"💎 *VIP* = 79฿/เดือน · 790฿/ปี (ฟรี 2 เดือน)\n"
+                        f"👑 *PRO* = 109฿/เดือน · 1,090฿/ปี (ฟรี 2 เดือน)\n"
+                        f"🎟 *Top-up* = 20฿ (10 ครั้ง)\n\n"
+                        f"_ถ้า redeem โค้ดส่วนลดมาแล้ว ตรวจให้แน่ใจว่ายังอยู่ในเวลาที่กำหนด_\n"
+                        f"_หรือกดติดต่อ admin ถ้าโอนแล้วระบบไม่อ่าน_"
+                    ),
                     message.chat.id,
                     progress_msg.message_id,
                     parse_mode="Markdown",
+                    reply_markup=err_kb if _dash_btn else None,
                 )
                 bot.send_message(
                     ADMIN_ID,
                     (
                         f"⚠️ **ยอดผิดปกติจาก SlipOK** User `{user_id}` โอน `{amount:,.2f}` บาท\n"
                         f"Ref: `{ref_no}`\n"
-                        f"ผู้โอน: `{slip_result.get('sender_display_name') or '-'}`"
+                        f"ผู้โอน: `{slip_result.get('sender_display_name') or '-'}`\n"
+                        f"_log แล้วใน `/user_log {user_id}`_"
                     ),
                     parse_mode="Markdown",
                 )
