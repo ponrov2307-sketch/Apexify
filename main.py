@@ -6382,6 +6382,14 @@ if __name__ == "__main__":
     except Exception as _e:
         print(f"[main] plan_evaluator_cron failed to start: {_e}", flush=True)
 
+    # ☀️ Daily Stock Picker — DM admin 3 หุ้นน่าโพสต์วันนี้ (7:30 ICT)
+    # Mix Mag 7 + S&P 500 + story stocks + chart image + suggested FB hook
+    try:
+        from daily_stock_picker import run_daily_picker_cron
+        threading.Thread(target=run_daily_picker_cron, args=(bot,), daemon=True).start()
+    except Exception as _e:
+        print(f"[main] daily_picker failed to start: {_e}", flush=True)
+
     # 💓 Heartbeat — เขียน timestamp ไป /tmp/apexify_heartbeat.txt ทุก 60s
     # ใช้คู่กับ heartbeat_watchdog.py (cron */5 min) ที่ DM admin ถ้า stale > 5 min
     def _heartbeat_loop():

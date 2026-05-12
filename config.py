@@ -98,6 +98,11 @@ AUTO_DM_DAILY_LIMIT = _to_int("AUTO_DM_DAILY_LIMIT", 50)
 AUTO_DM_DRY_RUN = _to_bool("AUTO_DM_DRY_RUN", False)
 AUTO_DM_REPEAT_COOLDOWN_DAYS = _to_int("AUTO_DM_REPEAT_COOLDOWN_DAYS", 30)
 
+# ============ Daily Stock Picker (A — admin DM 7:30 ICT) ============
+DAILY_PICKER_ENABLED = _to_bool("DAILY_PICKER_ENABLED", True)
+DAILY_PICKER_HOUR_ICT = _to_int("DAILY_PICKER_HOUR_ICT", 7)
+DAILY_PICKER_MINUTE_ICT = _to_int("DAILY_PICKER_MINUTE_ICT", 30)
+
 
 # ============ Thai timezone helpers ============
 from datetime import datetime as _dt, timedelta as _td, timezone as _tz

@@ -1,0 +1,412 @@
+"""
+daily_stock_picker.py — ทุกเช้า 7:30 ICT DM admin: 3 หุ้นน่าโพสต์วันนี้
+
+User feedback: ไม่อยาก pool แคบ (Mag 7 เดิม) — ต้อง mix Mag 7 + S&P 500 + story stocks
++ ต้องมีภาพแคปจาก Apexify analysis (auto chart)
+
+Workflow:
+  1. Combine 3 pools: Mag 7 + S&P 500 + story stocks (~70 ตัว)
+  2. Score by composite (move% + vol + conviction + news + variety)
+  3. Pick top 3 with sector diversity (ไม่ซ้ำ category เดียว)
+  4. For each pick:
+     - Fetch chart (auto annotated)
+     - Build DM text: symbol + reasons + suggested hook
+  5. DM ADMIN_ID with images + text
+"""
+
+import time
+import threading
+import random
+from datetime import datetime, timedelta, timezone
+
+
+import config
+
+
+# ============ Pool — 3 tiers mixed ============
+
+MAG_7 = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"]
+
+# Story stocks — ซิ่ง + สตอรี่ + คนไทยชอบ
+STORY_STOCKS = [
+    # Space
+    "RKLB", "ASTS", "IRDM", "PL",
+    # Quantum
+    "IONQ", "RGTI", "QBTS", "ARQQ",
+    # AI plays
+    "PLTR", "AI", "SOUN", "BBAI", "BIG", "NBIS",
+    # EV / Auto
+    "RIVN", "LCID", "NIO", "XPEV",
+    # Crypto-linked
+    "COIN", "MSTR", "MARA", "RIOT", "HOOD",
+    # Biotech / Genomics
+    "RXRX", "RGNX", "EXAS", "SAVA",
+    # Meme / Retail
+    "GME", "BB", "SOFI", "KOSS",
+    # High-beta momentum
+    "SMCI", "ARM", "AVGO", "MU", "AMD",
+    # Fintech
+    "NU", "UPST", "AFRM", "PYPL",
+    # Defense AI
+    "KTOS", "AVAV",
+]
+
+# S&P 500 large/mid cap (subset — variety)
+SP500_VARIETY = [
+    "NFLX", "DIS", "BA", "JPM", "V", "MA", "WMT", "PG", "JNJ", "UNH",
+    "LLY", "XOM", "CVX", "HD", "COST", "ABBV", "MRK", "PFE", "BAC", "CRM",
+    "ORCL", "ADBE", "INTC", "QCOM", "T", "VZ", "TMUS", "GS", "MS", "C",
+]
+
+# Sector tag — เพื่อ variety enforce (ไม่ pick 3 ตัวจาก sector เดียวกัน)
+SECTOR_TAG = {
+    # Mag 7
+    **{s: "tech_mega" for s in MAG_7},
+    # Sector tags for story stocks
+    "RKLB": "space", "ASTS": "space", "IRDM": "space", "PL": "space",
+    "IONQ": "quantum", "RGTI": "quantum", "QBTS": "quantum", "ARQQ": "quantum",
+    "PLTR": "ai", "AI": "ai", "SOUN": "ai", "BBAI": "ai", "BIG": "ai", "NBIS": "ai",
+    "RIVN": "ev", "LCID": "ev", "NIO": "ev", "XPEV": "ev",
+    "COIN": "crypto", "MSTR": "crypto", "MARA": "crypto", "RIOT": "crypto", "HOOD": "crypto",
+    "RXRX": "biotech", "RGNX": "biotech", "EXAS": "biotech", "SAVA": "biotech",
+    "GME": "meme", "BB": "meme", "SOFI": "meme", "KOSS": "meme",
+    "SMCI": "semi", "ARM": "semi", "AVGO": "semi", "MU": "semi", "AMD": "semi",
+    "NU": "fintech", "UPST": "fintech", "AFRM": "fintech", "PYPL": "fintech",
+    "KTOS": "defense", "AVAV": "defense",
+    # S&P 500 misc
+    "NFLX": "tech", "DIS": "media", "BA": "industrial", "JPM": "finance", "V": "finance",
+    "MA": "finance", "WMT": "retail", "PG": "consumer", "JNJ": "healthcare", "UNH": "healthcare",
+    "LLY": "healthcare", "XOM": "energy", "CVX": "energy", "HD": "retail", "COST": "retail",
+    "ABBV": "healthcare", "MRK": "healthcare", "PFE": "healthcare", "BAC": "finance", "CRM": "tech",
+    "ORCL": "tech", "ADBE": "tech", "INTC": "semi", "QCOM": "semi",
+    "T": "telecom", "VZ": "telecom", "TMUS": "telecom",
+    "GS": "finance", "MS": "finance", "C": "finance",
+}
+
+ALL_POOL = list(set(MAG_7 + STORY_STOCKS + SP500_VARIETY))
+
+
+# ============ Suggested hook templates ============
+HOOK_TEMPLATES = {
+    "tech_mega":  ["{sym} {move:+.1f}% วันนี้ — ตลาดเริ่มเทใส่ Mag 7 อีกครั้ง?", "{sym} หลังตลาด {move:+.1f}% — เทรนด์ระยะยาวยังเขียวอยู่?"],
+    "story":      ["{sym} +{move:.1f}% — สตอรี่นี้ตื่นแล้วใช่ไหม?", "ทำไม {sym} วิ่ง {move:+.1f}% เมื่อคืน?"],
+    "quantum":    ["{sym} +{move:.1f}% — Quantum Computing ตื่นจริงหรือ pump?", "{sym} วิ่งทะลุแนวต้าน — quantum hype ยังไม่จบ"],
+    "space":      ["{sym} +{move:.1f}% — Space stocks กลับมามีคนสนใจ", "{sym} หุ้นดาวเทียมที่นักลงทุนเริ่มจับตา"],
+    "ai":         ["{sym} +{move:.1f}% — AI hype play ที่ยังไม่ peak?", "{sym} — AI software ที่อาจ underrated"],
+    "ev":         ["{sym} +{move:.1f}% — EV recovery หรือ trap?"],
+    "crypto":     ["{sym} +{move:.1f}% — crypto correlation play"],
+    "biotech":    ["{sym} +{move:.1f}% — biotech catalyst ที่ห้ามพลาด?"],
+    "semi":       ["{sym} +{move:.1f}% — chip cycle ยังไม่จบ"],
+    "fintech":    ["{sym} +{move:.1f}% — fintech ที่ Apexify เห็น setup ดี"],
+}
+
+
+def _build_hook(symbol: str, move_pct: float, news_headline: str = "") -> str:
+    """Pick hook template สำหรับ symbol category"""
+    sector = SECTOR_TAG.get(symbol, "story")
+    # Map specific sectors → template key
+    if sector in ("space", "quantum", "ai", "ev", "crypto", "biotech", "semi", "fintech"):
+        key = sector
+    elif sector == "tech_mega":
+        key = "tech_mega"
+    else:
+        key = "story"
+    templates = HOOK_TEMPLATES.get(key, HOOK_TEMPLATES["story"])
+    template = random.choice(templates)
+    hook = template.format(sym=symbol, move=move_pct)
+    if news_headline:
+        hook += f"\n   📰 {news_headline[:80]}"
+    return hook
+
+
+def _score_pick(tech_data: dict, news_item: dict = None) -> float:
+    """Composite score — เน้น 'ซิ่ง + สตอรี่' มากกว่า technical"""
+    move = abs(tech_data.get("price_move_pct", 0) or 0)
+    vol_ratio = tech_data.get("volume_ratio", 1) or 1
+    # Conviction = ของ ai_analyzer (port ที่นี่ ใช้ rsi/ema estimate)
+    rsi = tech_data.get("rsi", 50) or 50
+
+    # Big move = priority
+    score = move * 2.0
+    # Vol confirm
+    score += min(vol_ratio, 5) * 1.5
+    # RSI sweet spot (40-65) = healthy momentum
+    if 40 <= rsi <= 65:
+        score += 5
+    elif rsi > 80 or rsi < 20:
+        score -= 5
+    # News recency
+    if news_item:
+        score += 8
+    return score
+
+
+def _fetch_tech(symbol: str) -> dict:
+    """Fetch quick tech snapshot — return dict ที่ scoring + display ใช้ได้"""
+    try:
+        from technical_tools import calculate_technical_indicators
+        td, _, err = calculate_technical_indicators(symbol, generate_chart=False)
+        if err or not td:
+            return None
+        # Add price_move_pct
+        try:
+            import yfinance as yf
+            hist = yf.Ticker(symbol).history(period="2d")
+            if len(hist) >= 2:
+                last = float(hist["Close"].iloc[-1])
+                prev = float(hist["Close"].iloc[-2])
+                td["price_move_pct"] = (last - prev) / prev * 100
+            else:
+                td["price_move_pct"] = 0
+        except Exception:
+            td["price_move_pct"] = 0
+        td["volume_ratio"] = float(td.get("volume", 1)) / max(1, float(td.get("avg_volume", 1)))
+        return td
+    except Exception as e:
+        print(f"[daily-picker] tech err {symbol}: {e}", flush=True)
+        return None
+
+
+def _fetch_news_for_symbol(symbol: str) -> dict:
+    """ดึง 1 news ที่ matching symbol — ใช้ breaking_news ของ bot"""
+    try:
+        import yfinance as yf
+        items = yf.Ticker(symbol).news
+        if items:
+            n = items[0]
+            content = n.get("content") if isinstance(n.get("content"), dict) else n
+            return {
+                "headline": content.get("title") or n.get("title", ""),
+                "url": (content.get("canonicalUrl", {}).get("url") if isinstance(content.get("canonicalUrl"), dict) else n.get("link", "")) or "",
+            }
+    except Exception:
+        pass
+    return None
+
+
+def pick_top_3(pool: list = None) -> list[dict]:
+    """Pick 3 stocks with sector diversity
+
+    Returns: list of dict { symbol, tech_data, news, score, sector }
+    """
+    pool = pool or ALL_POOL
+    candidates = []
+
+    # Score ทุก symbol ใน pool (cap 40 ตัวเพื่อเร็ว)
+    sample = random.sample(pool, min(40, len(pool)))
+    for sym in sample:
+        td = _fetch_tech(sym)
+        if td is None:
+            continue
+        news = _fetch_news_for_symbol(sym)
+        score = _score_pick(td, news)
+        candidates.append({
+            "symbol": sym,
+            "tech_data": td,
+            "news": news,
+            "score": score,
+            "sector": SECTOR_TAG.get(sym, "misc"),
+        })
+        time.sleep(0.5)   # rate-limit yfinance
+
+    # Sort by score desc
+    candidates.sort(key=lambda x: -x["score"])
+
+    # Pick top 3 with sector variety
+    picks = []
+    used_sectors = set()
+    for c in candidates:
+        if c["sector"] in used_sectors:
+            continue
+        picks.append(c)
+        used_sectors.add(c["sector"])
+        if len(picks) >= 3:
+            break
+
+    # ถ้าได้ < 3 (sector variety strict) → fill ตามคะแนน
+    if len(picks) < 3:
+        for c in candidates:
+            if c not in picks:
+                picks.append(c)
+                if len(picks) >= 3:
+                    break
+
+    return picks[:3]
+
+
+def _render_chart_image(symbol: str):
+    """Generate quick chart for symbol — reuse bot's chart generator
+    Returns: BytesIO buffer of PNG (for bot.send_photo)
+    """
+    try:
+        from technical_tools import calculate_technical_indicators
+        _, chart_buf, _ = calculate_technical_indicators(symbol, generate_chart=True)
+        return chart_buf
+    except Exception as e:
+        print(f"[daily-picker] chart err {symbol}: {e}", flush=True)
+        return None
+
+
+def build_daily_picks_message(picks: list[dict]) -> str:
+    """Build DM text — ส่งให้ admin"""
+    today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
+    rank_emoji = ["🥇", "🥈", "🥉"]
+    lines = [
+        f"☀️ *Daily Picks — {today.strftime('%d %b %Y')}*",
+        "━━━━━━━━━━━━━━",
+        "",
+    ]
+    for i, p in enumerate(picks):
+        td = p["tech_data"]
+        sym = p["symbol"]
+        sector = p["sector"]
+        move = td.get("price_move_pct", 0) or 0
+        price = td.get("price", 0)
+        vol_ratio = td.get("volume_ratio", 1)
+        rsi = td.get("rsi", 50)
+        news = p.get("news") or {}
+
+        sector_emoji_map = {
+            "tech_mega": "🏛️", "space": "🚀", "quantum": "⚛️", "ai": "🤖",
+            "ev": "🚗", "crypto": "₿", "biotech": "🧬", "meme": "🎮",
+            "semi": "💾", "fintech": "💳", "defense": "🪖",
+            "tech": "💻", "media": "🎬", "industrial": "🏭", "finance": "🏦",
+            "retail": "🛒", "consumer": "🛍️", "healthcare": "🏥", "energy": "⚡",
+            "telecom": "📡", "misc": "📊",
+        }
+        emoji = sector_emoji_map.get(sector, "📊")
+
+        emo = rank_emoji[i] if i < len(rank_emoji) else "•"
+        lines.append(f"{emo} *{sym}* {emoji} — ${price:.2f} ({move:+.2f}%)")
+        lines.append(f"   📊 vol {vol_ratio:.1f}x · RSI {rsi:.1f} · {sector}")
+        hook = _build_hook(sym, move, news.get("headline", "") if news else "")
+        lines.append(f"   💡 _{hook}_")
+        if news and news.get("url"):
+            lines.append(f"   🔗 [ข่าวอ้างอิง]({news['url'][:80]})")
+        lines.append("")
+
+    lines.extend([
+        "━━━━━━━━━━━━━━",
+        "_พิมพ์ symbol ใน bot เพื่อ deep analysis_",
+        "_หรือเอา hook ไปต่อยอด ChatGPT/Gemini สำหรับ FB content_",
+    ])
+    return "\n".join(lines)
+
+
+def run_once(bot, dry_run: bool = False):
+    """รัน 1 cycle: pick + DM admin"""
+    if not config.ADMIN_ID:
+        print("[daily-picker] no ADMIN_ID set, skip", flush=True)
+        return
+    print(f"[daily-picker] running (dry={dry_run})...", flush=True)
+    picks = pick_top_3()
+    if not picks:
+        print("[daily-picker] no candidates found", flush=True)
+        if not dry_run:
+            try:
+                bot.send_message(config.ADMIN_ID, "⚠️ Daily Picker: ไม่เจอ candidate วันนี้ (ตลาดอาจปิด/network err)")
+            except Exception:
+                pass
+        return
+
+    msg = build_daily_picks_message(picks)
+
+    if dry_run:
+        print("==== DRY RUN ====")
+        print(msg)
+        return
+
+    # Send text DM first
+    try:
+        bot.send_message(config.ADMIN_ID, msg, parse_mode="Markdown", disable_web_page_preview=True)
+    except Exception as e:
+        print(f"[daily-picker] DM text err: {e}", flush=True)
+        # fallback: no markdown
+        try:
+            bot.send_message(config.ADMIN_ID, msg.replace("*", "").replace("_", ""))
+        except Exception:
+            pass
+
+    # Send chart image for each pick (separate messages)
+    for p in picks:
+        try:
+            chart = _render_chart_image(p["symbol"])
+            if chart:
+                bot.send_photo(config.ADMIN_ID, chart, caption=f"📊 {p['symbol']} chart — Apexify")
+                time.sleep(1.5)  # rate-limit Telegram
+        except Exception as e:
+            print(f"[daily-picker] chart send err {p['symbol']}: {e}", flush=True)
+
+
+def _today_dispatch_key():
+    today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
+    return f"daily_picker:daily:{today.isoformat()}"
+
+
+def _already_ran_today():
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT 1 FROM dispatch_log WHERE dispatch_key=%s LIMIT 1", (_today_dispatch_key(),))
+        return c.fetchone() is not None
+    except Exception:
+        return False
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _mark_today_done():
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO dispatch_log (dispatch_key, category, raw_key) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+            (_today_dispatch_key(), "daily_picker", "admin"),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[daily-picker] mark err: {e}", flush=True)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def run_daily_picker_cron(bot):
+    """Daemon thread — DM admin ทุกเช้า 7:30 ICT"""
+    if not config.DAILY_PICKER_ENABLED:
+        print("[daily-picker] disabled — thread exiting", flush=True)
+        return
+
+    target_h = config.DAILY_PICKER_HOUR_ICT
+    target_m = config.DAILY_PICKER_MINUTE_ICT
+    print(f"[daily-picker] cron started — daily at {target_h:02d}:{target_m:02d} ICT", flush=True)
+
+    time.sleep(2 * 60)   # warm-up
+
+    while True:
+        try:
+            now = (datetime.now(timezone.utc) + timedelta(hours=7))
+            if now.hour == target_h and now.minute >= target_m and now.minute < target_m + 30:
+                if not _already_ran_today():
+                    _mark_today_done()
+                    run_once(bot)
+        except Exception as e:
+            print(f"[daily-picker] loop err: {e}", flush=True)
+        time.sleep(20 * 60)  # poll ทุก 20 นาที
+
+
+if __name__ == "__main__":
+    # smoke test (DRY)
+    import telebot
+    if not config.TELEGRAM_TOKEN:
+        print("❌ TELEGRAM_TOKEN missing")
+        exit(1)
+    bot = telebot.TeleBot(config.TELEGRAM_TOKEN)
+    run_once(bot, dry_run=True)
