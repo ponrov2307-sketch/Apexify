@@ -6024,7 +6024,12 @@ def handle_main(message):
         if not has_used_free_trial(user_id):
             upsell_kb.add(InlineKeyboardButton("🆓 ทดลองใช้ PRO 7 วันฟรี!", callback_data="menu_freetrial"))
         upsell_kb.add(InlineKeyboardButton("🎁 เติมโค้ดส่วนลด", callback_data="menu_code"))
-        _quota_btn = _dashboard_cta_button(user_id, "📊 ดูฟีเจอร์ VIP/PRO ใน Dashboard", src="quota_exceeded")
+        # 🎯 quota_exceeded = high-intent moment — ส่งไป /payment โดยตรง (เดิมไป / ทำให้ CTR 0%)
+        _quota_btn = _dashboard_cta_button(
+            user_id, "💎 อัปเกรดในเว็บ → เห็นทุกราคา + ส่วนลด",
+            src="quota_exceeded",
+            next_path="/payment?tier=vip",
+        )
         if _quota_btn:
             upsell_kb.add(_quota_btn)
 
@@ -6343,8 +6348,10 @@ def handle_main(message):
         InlineKeyboardButton("💼 พอร์ต", callback_data="hub_portfolio"),
         InlineKeyboardButton("📱 เมนูหลัก", callback_data="hub_home"),
     )
+    # 🎯 analysis_result CTA — label specific to action (CTR ก่อนหน้านี้ 3.7%)
+    # เปลี่ยน "ดู Dashboard" generic → "ติดตาม {SYM}" ที่ user รู้ว่า click แล้วได้อะไร
     _analysis_btn = _dashboard_cta_button(
-        user_id, "📂 ดู Dashboard", src="analysis_result",
+        user_id, f"🔔 ติดตาม {correct_symbol} ในเว็บ", src="analysis_result",
         next_path=f"/watchlist?symbol={correct_symbol}",
     )
     if _analysis_btn:
