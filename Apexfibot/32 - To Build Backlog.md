@@ -21,7 +21,7 @@ updated: 2026-05-13
 - Trigger: PP P. (paying PRO) feedback
 
 ### ~~Pre-Market Movers Cron~~ ✅ **DONE** (commit 32d93bf)
-- New `premarket_cron.py`, VIP+PRO, 20:30 ICT daily Mon-Fri
+- New `premarket_cron.py`, VIP+PRO, 19:30 ICT daily Mon-Fri (DST · winter 20:30 ICT)
 - Hybrid: watchlist matches + top 3 discovery
 - Dry-run verified 18:30 ICT
 

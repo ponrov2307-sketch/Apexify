@@ -5,7 +5,10 @@ User feedback: PP P. (2026-05-13) — day trader ส่วนใหญ่เล�
 อยากเห็น setup ก่อน US เปิด (gap up/down) เพื่อเตรียมเทรด
 
 Workflow:
-  1. Daily cron 20:30 ICT (= 06:30 ET — 1 ชม. ก่อน market open 09:30 ET)
+  1. Daily cron — 1 ชม. ก่อน US เปิด (08:30 ET = 09:30 ET market open - 1h)
+     - DST (Mar-Oct): EDT = UTC-4, ICT = UTC+7, diff = 11h → 19:30 ICT
+     - Non-DST (Nov-Mar): EST = UTC-5, ICT = UTC+7, diff = 12h → 20:30 ICT
+     - ⚠️ TODO: refactor to ET-aware logic (zoneinfo) for auto DST handling
   2. Scan ~80 tickers (Morning Movers + small cap pool) parallel — fetch
      premarket price + volume + prev close → gap%
   3. Filter: |gap| ≥ 3%, premarket vol ≥ 10K
@@ -69,6 +72,16 @@ def _is_small_cap(symbol: str) -> bool:
 
 
 # ============ Fetch logic ============
+def _is_valid_price(value) -> bool:
+    """True ถ้า value เป็น float ที่ > 0 และไม่ใช่ NaN"""
+    try:
+        import math
+        v = float(value)
+        return v > 0 and not math.isnan(v) and not math.isinf(v)
+    except (TypeError, ValueError):
+        return False
+
+
 def _fetch_premarket(symbol: str) -> dict:
     """ดึง premarket price + gap vs prev close
 
@@ -76,6 +89,7 @@ def _fetch_premarket(symbol: str) -> dict:
     """
     try:
         import yfinance as yf
+        import pandas as pd
         t = yf.Ticker(symbol)
 
         # 1-min bars including pre/post-market (today)
@@ -86,24 +100,47 @@ def _fetch_premarket(symbol: str) -> dict:
 
         # Last bar = most recent premarket price
         last_bar = hist.iloc[-1]
-        last_price = float(last_bar["Close"])
-        if last_price <= 0:
+        last_price_raw = last_bar.get("Close") if hasattr(last_bar, "get") else last_bar["Close"]
+        if not _is_valid_price(last_price_raw):
+            return None
+        last_price = float(last_price_raw)
+
+        # Previous close (regular session) — ใช้ period=10d + filter exclude today
+        # ✋ Bug fix 2026-05-13: เคยใช้ iloc[-1] ตรงๆ อาจดึง "ราคาวันนี้ partial" ตอน
+        # pre-market → gap calc ผิด (ราคาวันนี้ vs ตัวเอง)
+        hist_daily = t.history(period="10d", interval="1d", prepost=False)
+        if hist_daily is None or hist_daily.empty:
             return None
 
-        # Previous close (regular session) — period=5d เผื่อหาวันก่อน
-        hist_daily = t.history(period="5d", interval="1d", prepost=False)
-        if hist_daily is None or hist_daily.empty or len(hist_daily) < 1:
+        # Find the last completed trading day (exclude today's partial bar if exists)
+        from datetime import datetime, timezone, timedelta
+        # Get today's ET date (approximate via UTC -5 hours = covers EST + safe for EDT)
+        now_utc = datetime.now(timezone.utc)
+        et_offset_hours = -5   # use conservative EST offset (works for both EST/EDT)
+        today_et_date = (now_utc + timedelta(hours=et_offset_hours)).date()
+
+        # Filter bars where date < today_et_date (strictly prior trading days)
+        try:
+            prior_mask = hist_daily.index.date < today_et_date
+            prior_bars = hist_daily[prior_mask]
+        except Exception:
+            # Fallback: use iloc[-2] if can't filter by date
+            prior_bars = hist_daily.iloc[:-1] if len(hist_daily) >= 2 else hist_daily
+
+        if prior_bars.empty:
             return None
-        prev_close = float(hist_daily["Close"].iloc[-1])
-        if prev_close <= 0:
+
+        prev_close_raw = prior_bars["Close"].iloc[-1]
+        if pd.isna(prev_close_raw) or not _is_valid_price(prev_close_raw):
             return None
+        prev_close = float(prev_close_raw)
 
         gap_pct = (last_price - prev_close) / prev_close * 100
 
         # Premarket volume = sum ของ bars ที่ "extended hours" ตั้งแต่ prev close
         # ใช้ total ของ history ที่ดึงมา (period=2d, prepost=True รวมทุก session)
-        # ในชั่วโมง 06:30 ET premarket, ส่วนใหญ่ vol ที่ได้คือ premarket จริงๆ
-        total_pm_vol = float(hist["Volume"].sum())
+        # ตอน pre-market session (08:30 ET) ส่วนใหญ่ vol คือ premarket จริงๆ
+        total_pm_vol = float(hist["Volume"].sum(skipna=True))
 
         return {
             "symbol": symbol,
@@ -178,8 +215,8 @@ def build_premarket_message(in_watchlist: list, outside_watchlist: list, watchli
     today = config.thai_today() if hasattr(config, "thai_today") else config.thai_now().date()
 
     lines = [
-        f"🔔 *Pre-Market Movers — {today.strftime('%d %b')} (06:30 ET)*",
-        "_1 ชม.ก่อน US เปิด · gap ≥ 3%_",
+        f"🔔 *Pre-Market Movers — {today.strftime('%d %b')}*",
+        "_Premarket session · 1 ชม.ก่อน US เปิด · gap ≥ 3%_",
         "━━━━━━━━━━━━━━",
         "",
     ]
@@ -328,7 +365,11 @@ def run_once(bot, dry_run: bool = False):
 
 
 def run_premarket_cron(bot):
-    """Daemon thread — daily 20:30 ICT (= 06:30 ET — 1 hr before US open)"""
+    """Daemon thread — daily 19:30 ICT in DST (= 08:30 EDT, 1 hr before US open)
+
+    Set via env: PREMARKET_HOUR_ICT (default 19) + PREMARKET_MINUTE_ICT (default 30)
+    ⚠️ Winter (Nov-Mar EST): set PREMARKET_HOUR_ICT=20 (= 08:30 EST)
+    """
     if not getattr(config, "PREMARKET_ENABLED", True):
         print("[premarket] disabled — thread exiting", flush=True)
         return

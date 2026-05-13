@@ -29,7 +29,7 @@ tags: [architecture, code]
 | `earnings_prep_cron.py` | DM tomorrow's earnings list | 16:00 ICT | Admin |
 | `smart_money_cron.py` | OpenInsider cluster buys | 16:00 ICT | Admin + PRO watchlist |
 | `plan_proximity_cron.py` | Warn SL/TP/Entry near (portfolio only) | poll 5 min | PRO |
-| `premarket_cron.py` | **NEW 2026-05-13** Gap movers pre-market | 20:30 ICT | VIP+PRO |
+| `premarket_cron.py` | **NEW 2026-05-13** Gap movers pre-market | 19:30 ICT (DST) / 20:30 (winter) | VIP+PRO |
 | `auto_dm_cron.py` | Activation + win-back DMs | 11:00 ICT | All |
 | `breaking_news.py` | 3-layer anti-spam news alerts | poll 5 min | PRO subscribers |
 | `intraday_volume.py` | Whale/breakout/gap/acceleration alerts | poll 5 min | PRO |

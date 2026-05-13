@@ -6595,7 +6595,8 @@ if __name__ == "__main__":
     except Exception as _e:
         print(f"[main] plan_proximity failed to start: {_e}", flush=True)
 
-    # 🔔 Pre-Market Movers — DM VIP+PRO 1 ชม.ก่อน US เปิด (20:30 ICT = 06:30 ET)
+    # 🔔 Pre-Market Movers — DM VIP+PRO 1 ชม.ก่อน US เปิด (19:30 ICT = 08:30 EDT in summer)
+    # ⚠️ Winter (EST): set env PREMARKET_HOUR_ICT=20
     # gap ≥3% · hybrid: watchlist matches + top 3 discovery · PP P. request 2026-05-13
     try:
         from premarket_cron import run_premarket_cron

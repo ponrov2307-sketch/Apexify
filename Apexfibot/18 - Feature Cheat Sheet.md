@@ -84,7 +84,7 @@ tags: [cheatsheet, reference]
 - New sectors: mining ⛏️ · power ⚛️ · evtol 🛩️ · materials 💎 · retech 🏠
 
 ### 🆕 2026-05-13 — Pre-Market Movers Cron (VIP+PRO, 20:30 ICT)
-- DM VIP+PRO ตอน 1 ชม.ก่อน US เปิด (20:30 ICT = 06:30 ET)
+- DM VIP+PRO ตอน 1 ชม.ก่อน US เปิด (19:30 ICT = 08:30 EDT in summer · winter EST: 20:30 ICT)
 - Gap ≥3% (premarket vs prev close)
 - Hybrid: watchlist matches (personalized) + top 3 outside (discovery)
 - Universe: ~80 ตัว (Morning Movers + small cap)

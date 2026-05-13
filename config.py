@@ -123,10 +123,13 @@ SMART_MONEY_MINUTE_ICT = _to_int("SMART_MONEY_MINUTE_ICT", 0)
 PROXIMITY_ENABLED = _to_bool("PROXIMITY_ENABLED", True)
 
 # ============ Pre-Market Movers — DM VIP+PRO 1 hr before US open ============
-# 20:30 ICT = 06:30 ET (1 hr before market open at 09:30 ET)
+# Target: 08:30 ET (= 09:30 ET market open - 1 hour)
+#  - DST (Mar-Oct, EDT UTC-4): 08:30 ET = 19:30 ICT (default below)
+#  - Non-DST (Nov-Mar, EST UTC-5): 08:30 ET = 20:30 ICT (set env PREMARKET_HOUR_ICT=20)
+# ⚠️ TODO: refactor to ET-aware (zoneinfo) for auto DST handling
 # PP P. feedback: day trader want pre-market visibility into US small/mid cap gaps
 PREMARKET_ENABLED = _to_bool("PREMARKET_ENABLED", True)
-PREMARKET_HOUR_ICT = _to_int("PREMARKET_HOUR_ICT", 20)
+PREMARKET_HOUR_ICT = _to_int("PREMARKET_HOUR_ICT", 19)
 PREMARKET_MINUTE_ICT = _to_int("PREMARKET_MINUTE_ICT", 30)
 PREMARKET_MIN_GAP_PCT = float(os.getenv("PREMARKET_MIN_GAP_PCT", "3.0"))
 

@@ -10,7 +10,7 @@ tags: [changelog]
 
 ### 🔔 Pre-Market Movers Cron (NEW · VIP+PRO · 20:30 ICT)
 - ไฟล์ใหม่ `premarket_cron.py` (~250 บรรทัด)
-- Time: 20:30 ICT (= 06:30 ET — 1 ชม. ก่อน US เปิด)
+- Time: 19:30 ICT (= 08:30 EDT in summer — 1 ชม. ก่อน US เปิด · winter EST: set env PREMARKET_HOUR_ICT=20)
 - Universe: ~80 tickers (Morning Movers + small cap)
 - Filter: gap ≥3%, premarket vol ≥10K
 - Hybrid format: 📌 watchlist match + 🌐 top 3 discovery
