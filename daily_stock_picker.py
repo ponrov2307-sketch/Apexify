@@ -521,7 +521,7 @@ def _render_chart_image(symbol: str, tech_data: dict = None):
 
 def build_daily_picks_message(picks: list[dict]) -> str:
     """Build DM text — ส่งให้ admin"""
-    today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
+    today = config.thai_today() if hasattr(config, "thai_today") else config.thai_now().date()
     rank_emoji = ["🥇", "🥈", "🥉"]
     lines = [
         f"☀️ *Daily Picks — {today.strftime('%d %b %Y')}*",
@@ -618,7 +618,7 @@ def run_once(bot, dry_run: bool = False):
 
 
 def _today_dispatch_key():
-    today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
+    today = config.thai_today() if hasattr(config, "thai_today") else config.thai_now().date()
     return f"daily_picker:daily:{today.isoformat()}"
 
 

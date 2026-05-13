@@ -124,7 +124,7 @@ def _is_fresh_trade(item: dict, max_days: int = MAX_TRADE_AGE_DAYS) -> bool:
         if raw_date:
             print(f"[smart-money] trade_date parse fail: {raw_date!r} (ticker={item.get('ticker', '?')})", flush=True)
         return False
-    today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
+    today = config.thai_today() if hasattr(config, "thai_today") else config.thai_now().date()
     age = (today - d).days
     return 0 <= age <= max_days
 
@@ -241,7 +241,7 @@ def _fmt_usd(v: int) -> str:
 
 def format_admin_message(items: list[dict], top_n: int = TOP_N_ADMIN) -> str:
     """Build admin DM Markdown"""
-    today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
+    today = config.thai_today() if hasattr(config, "thai_today") else config.thai_now().date()
     # sort by value desc
     items = sorted(items, key=lambda x: -x["value_usd"])[:top_n]
 
@@ -304,7 +304,7 @@ def format_pro_message(matched: list[dict]) -> str:
 #     (ใช้ทั้ง 2 ฝั่งเพื่อกัน DM cluster เดียวกัน 2 ครั้ง สับสน user)
 
 def _today_key() -> str:
-    today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
+    today = config.thai_today() if hasattr(config, "thai_today") else config.thai_now().date()
     return f"smart_money:{today.isoformat()}"
 
 

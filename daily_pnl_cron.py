@@ -125,7 +125,7 @@ def _move_emoji(pct: float) -> str:
 
 
 def _build_user_message(snapshots: list) -> str:
-    today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
+    today = config.thai_today() if hasattr(config, "thai_today") else config.thai_now().date()
     # sort by abs move desc — ตัวที่วิ่งแรงสุดอยู่บน
     snapshots = sorted(snapshots, key=lambda s: -abs(s.get("move_pct", 0) or 0))
 
@@ -161,7 +161,7 @@ def _build_user_message(snapshots: list) -> str:
 
 
 def _today_key(user_id: str) -> str:
-    today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
+    today = config.thai_today() if hasattr(config, "thai_today") else config.thai_now().date()
     return f"daily_pnl:{today.isoformat()}:{user_id}"
 
 

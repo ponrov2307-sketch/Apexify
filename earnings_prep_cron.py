@@ -131,7 +131,7 @@ def _build_hook(symbol: str, move_7d: float) -> str:
 
 
 def _today_key() -> str:
-    today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
+    today = config.thai_today() if hasattr(config, "thai_today") else config.thai_now().date()
     return f"earnings_prep:{today.isoformat()}"
 
 
@@ -173,7 +173,7 @@ def _mark_today_done():
 
 def find_tomorrow_earnings() -> list:
     """Scan EARNINGS_POOL — return list ของ {symbol, eta, eps_est, move_7d, hook}"""
-    today_ict = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
+    today_ict = config.thai_today() if hasattr(config, "thai_today") else config.thai_now().date()
     tomorrow_ict = today_ict + timedelta(days=1)
 
     found = []
@@ -199,7 +199,7 @@ def find_tomorrow_earnings() -> list:
 
 
 def _build_message(items: list) -> str:
-    today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
+    today = config.thai_today() if hasattr(config, "thai_today") else config.thai_now().date()
     tomorrow = today + timedelta(days=1)
 
     lines = [
