@@ -122,6 +122,14 @@ SMART_MONEY_MINUTE_ICT = _to_int("SMART_MONEY_MINUTE_ICT", 0)
 # ============ Plan Proximity Warning (E1 — warn PRO before SL/TP/Entry) ============
 PROXIMITY_ENABLED = _to_bool("PROXIMITY_ENABLED", True)
 
+# ============ Pre-Market Movers — DM VIP+PRO 1 hr before US open ============
+# 20:30 ICT = 06:30 ET (1 hr before market open at 09:30 ET)
+# PP P. feedback: day trader want pre-market visibility into US small/mid cap gaps
+PREMARKET_ENABLED = _to_bool("PREMARKET_ENABLED", True)
+PREMARKET_HOUR_ICT = _to_int("PREMARKET_HOUR_ICT", 20)
+PREMARKET_MINUTE_ICT = _to_int("PREMARKET_MINUTE_ICT", 30)
+PREMARKET_MIN_GAP_PCT = float(os.getenv("PREMARKET_MIN_GAP_PCT", "3.0"))
+
 
 # ============ Thai timezone helpers ============
 from datetime import datetime as _dt, timedelta as _td, timezone as _tz

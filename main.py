@@ -3200,6 +3200,72 @@ def handle_manual(message):
         "• 📱 เปิด Hub menu เพื่อดูฟีเจอร์ทั้งหมดในปุ่มเดียว\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━━\n"
+        "**📖 คำศัพท์เทคนิค (อ่านง่ายๆ)**\n"
+        "_เจอใน report Apexify บ่อยๆ — เก็บไว้ดูทุกครั้งที่งง_\n\n"
+
+        "🌡️ **RSI** _(Relative Strength Index)_\n"
+        "วัดความ \"ตึง\" ของราคา 0-100\n"
+        "• > 70 = ตึงเกิน (Overbought) — อาจปรับลง\n"
+        "• < 30 = ของถูก (Oversold) — อาจรีบาวด์\n"
+        "• 40-60 = ปกติ\n\n"
+
+        "⚡ **MACD** _(Moving Average Convergence Divergence)_\n"
+        "ดูแรง momentum เปรียบเทียบ EMA สั้น vs ยาว\n"
+        "• MACD > Signal line = มีแรง buy\n"
+        "• MACD < Signal line = แรง buy หาย/มีแรงขาย\n\n"
+
+        "✨ **Golden Cross**\n"
+        "EMA50 ตัด EMA200 ขึ้น = signal เริ่มเทรนด์ขาขึ้นใหญ่ (bullish)\n\n"
+
+        "💀 **Death Cross**\n"
+        "EMA50 ตัด EMA200 ลง = signal เริ่มเทรนด์ขาลงใหญ่ (bearish)\n\n"
+
+        "📈 **EMA20 / EMA50 / EMA200**\n"
+        "เส้นเฉลี่ยราคา 20/50/200 วันที่ผ่านมา\n"
+        "• ราคา > EMA = เทรนด์ขึ้น\n"
+        "• ราคา < EMA = เทรนด์ลง\n\n"
+
+        "🟢 **แนวรับ (Support)** = ราคาที่มักจะหยุดลง (มี buyer)\n"
+        "🔴 **แนวต้าน (Resistance)** = ราคาที่มักจะหยุดขึ้น (มี seller)\n\n"
+
+        "🛑 **SL (Stop Loss)** = ราคาตัดขาดทุน — ออกถ้าผิดทาง\n"
+        "🎯 **TP (Take Profit)** = ราคาเป้าหมาย — ออกตอนกำไร\n\n"
+
+        "⚖️ **R:R Ratio** _(Risk-Reward)_\n"
+        "กำไรเป้า ÷ ขาดทุนเสี่ยง\n"
+        "• > 2:1 = ดี (เสี่ยง 1 ได้ 2)\n"
+        "• < 1:1 = แย่ (เสี่ยงเกินกำไร — หลีกเลี่ยง)\n\n"
+
+        "🔵 **Bollinger Bands**\n"
+        "ช่องราคาบน/ล่าง วัด volatility\n"
+        "• ทะลุ band บน = pump/overextended\n"
+        "• ทะลุ band ล่าง = panic/oversold\n\n"
+
+        "🟡 **POC (Point of Control)**\n"
+        "ราคาที่มีการซื้อขายหนาแน่นที่สุด → เป็น \"แม่เหล็ก\" ของราคา\n\n"
+
+        "🎯 **Conviction Score** _(Apexify exclusive)_\n"
+        "คะแนน 0-100% ความมั่นใจของ Apexify\n"
+        "ดูจาก: bias alignment + volatility + RSI + volume confirmation\n\n"
+
+        "📊 **Volume Ratio**\n"
+        "Vol วันนี้ ÷ Vol เฉลี่ย 20 วัน\n"
+        "• > 2x = vol สูงผิดปกติ → institutional interest\n"
+        "• < 0.5x = vol แห้ง → ไม่มีคนสนใจ\n\n"
+
+        "🌅 **Pre-Market** = เทรดก่อน 9:30 ET (premarket 4:00-9:30 ET)\n"
+        "🌃 **After-Hours** = เทรดหลัง 16:00 ET (16:00-20:00 ET)\n"
+        "⚠️ Extended hours: vol น้อย ราคาผันผวนสูง\n\n"
+
+        "🐳 **Cluster Buy** _(Smart Money signal)_\n"
+        "ตอน insider (ผู้บริหาร/บอร์ด) หลายคนซื้อหุ้นตัวเดียวกันในช่วงสั้นๆ\n"
+        "→ signal สำคัญที่ \"คนใน\" เห็น opportunity (SEC Form 4)\n\n"
+
+        "📰 **Gap Up / Gap Down**\n"
+        "ราคาเปิดวันนี้สูง/ต่ำกว่าราคาปิดเมื่อวานเยอะ ≥3%\n"
+        "→ news/earnings/catalyst ทำให้ market พรุ่งนี้ตอบสนอง\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━━\n"
         "**📞 ติดต่อ / รายงานปัญหา**\n"
         "หากพบปัญหาหรือมีคำแนะนำ ส่งข้อความถึงแอดมินได้โดยตรง\n"
         "เรายินดีรับฟังและปรับปรุงอย่างต่อเนื่องครับ 🙏\n\n"
@@ -6521,6 +6587,14 @@ if __name__ == "__main__":
         threading.Thread(target=run_proximity_cron, args=(bot,), daemon=True).start()
     except Exception as _e:
         print(f"[main] plan_proximity failed to start: {_e}", flush=True)
+
+    # 🔔 Pre-Market Movers — DM VIP+PRO 1 ชม.ก่อน US เปิด (20:30 ICT = 06:30 ET)
+    # gap ≥3% · hybrid: watchlist matches + top 3 discovery · PP P. request 2026-05-13
+    try:
+        from premarket_cron import run_premarket_cron
+        threading.Thread(target=run_premarket_cron, args=(bot,), daemon=True).start()
+    except Exception as _e:
+        print(f"[main] premarket failed to start: {_e}", flush=True)
 
     # 💓 Heartbeat — เขียน timestamp ไป /tmp/apexify_heartbeat.txt ทุก 60s
     # ใช้คู่กับ heartbeat_watchdog.py (cron */5 min) ที่ DM admin ถ้า stale > 5 min

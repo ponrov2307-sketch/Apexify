@@ -8,6 +8,7 @@ tags: [tier, pricing]
 
 | ฟีเจอร์ | Free | VIP (79฿) | PRO (109฿) |
 |---------|:---:|:---:|:---:|
+| **=== วิเคราะห์ (Analysis) ===** | | | |
 | **วิเคราะห์หุ้น (text)** | 3/วัน | ∞ | ∞ |
 | **กราฟเทคนิค** | ❌ | ✅ basic | ✅ annotated |
 | **AI Trend Radar 3 TF** | ❌ | ✅ | ✅ |
@@ -19,20 +20,32 @@ tags: [tier, pricing]
 | **Confirmation/Invalidation** | ❌ | ❌ | ✅ |
 | **R:R Analysis + Warning** | ❌ | ❌ | ✅ |
 | **Time Horizon + Position Sizing tip** | ❌ | ❌ | ✅ |
+| **⚡ TL;DR Header** (1-บรรทัดสรุปทุก analyze) | ✅ | ✅ | ✅ |
+| **🔥 Screener หุ้นเด่น 10 ตัว** (mega+small mix) | ❌ | ❌ | ✅ |
+| **=== Watchlist / Portfolio ===** | | | |
 | **Watchlist** | 3 | 10 | ∞ |
 | **Portfolio basic** | ✅ (3) | ✅ (10) | ✅ (∞) |
+| **=== Alerts (24/7 Background) ===** | | | |
+| **Smart Alerts (RSI/Golden Cross/whale)** | ❌ | ❌ | ✅ |
+| **Custom Price Alerts (`/setalert`)** | ❌ | ❌ | ✅ |
+| **⚠️ Plan Proximity Warning** (เตือนใกล้ SL/TP/Entry — เฉพาะหุ้นในพอร์ต) | ❌ | ❌ | ✅ |
+| **🐳 Smart Money Tracker** (insider cluster buys, ≤14d fresh — watchlist match) | ❌ | ❌ | ✅ |
+| **🔔 Pre-Market Movers** (20:30 ICT, gap ≥3%) | ❌ | ✅ | ✅ |
+| **Earnings Alerts (`/ealert`)** | ❌ | ✅ | ✅ |
+| **=== Content / Briefing ===** | | | |
 | **Flash News + Digest News** | ❌ | ✅ | ✅ |
+| **🚨 Breaking News (3-layer anti-spam)** | ❌ | ❌ | ✅ |
 | **Morning Briefing (text 8:30)** | ❌ | ✅ | ✅ |
 | **Morning Podcast (เสียง 8:00)** | ❌ | ❌ | ✅ |
 | **Weekly Digest (ศุกร์ 18:00)** | ❌ | ✅ | ✅ |
-| **Smart Alerts (RSI/news/whale)** | ❌ | ❌ | ✅ |
-| **Custom Price Alerts (`/setalert`)** | ❌ | ❌ | ✅ |
-| **Earnings Alerts (`/ealert`)** | ❌ | ✅ | ✅ |
+| **🌅 Daily Watchlist + P&L Recap (8:00)** | ❌ | ✅ | ✅ |
 | **Earnings Analysis AI (`/earnings`)** | ❌ | ✅ | ✅ |
-| **Track Record (`/track`)** | ✅ | ✅ | ✅ |
-| **Daily Portfolio Summary** | ❌ | ✅ | ✅ |
-| **Daily Watchlist Summary (5:00)** | ❌ | ✅ | ✅ |
+| **=== Trust & Other ===** | | | |
+| **Track Record (`/track` + web `/track-record`)** | ✅ | ✅ | ✅ |
+| **📖 คำศัพท์ Glossary (ในคู่มือ `/manual`)** | ✅ | ✅ | ✅ |
+| **🤝 Referral + Streak Rewards** | ✅ | ✅ | ✅ |
 
+> **Admin only** (ไม่ขายให้ user): Daily Stock Picker DM (7:30/7:45 ICT) · Earnings Prep DM (16:00) · Smart Money Admin Top 8 · 📜 subscription_history audit log
 > Admin = ได้ทุกอย่างของ PRO + Admin Dashboard + commands พิเศษ
 
 ## Logic การแบ่ง

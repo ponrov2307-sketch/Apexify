@@ -272,6 +272,68 @@ def _first_valid(*values):
     return None
 
 
+# ============ TL;DR Header (2026-05-13 — AI simulation insight #4) ============
+# คนยุ่ง (P7 "พี่หนุ่ม" busy office) ขอ 1-บรรทัดสรุปก่อนเนื้อหายาว
+# บรรทัดแรกของวิเคราะห์ → ตัดสินใจได้ทันทีโดยไม่ต้องอ่านทั้งหมด
+
+def _build_tldr_free(symbol: str, price: float, support: float, resistance: float) -> str:
+    """Free tier TL;DR — แค่ราคา + แนวรับ/แนวต้าน (level info only)"""
+    parts = [f"*{symbol}* ${price:,.2f}"]
+    if support and support > 0:
+        parts.append(f"แนวรับ ${support:,.2f}")
+    if resistance and resistance > 0:
+        parts.append(f"แนวต้าน ${resistance:,.2f}")
+    return "⚡ *TL;DR:* " + " · ".join(parts)
+
+
+def _build_tldr_vip(symbol: str, price: float, trends: dict, confidence: float = 0) -> str:
+    """VIP tier TL;DR — bias direction + count of bullish/bearish timeframes + confidence"""
+    # นับ bullish/bearish timeframes (day/week/month)
+    bull = 0
+    bear = 0
+    for tf in ("day", "week", "month"):
+        status = (trends.get(tf, {}).get("status_text") or "").lower()
+        if "bull" in status or "ขาขึ้น" in status:
+            bull += 1
+        elif "bear" in status or "ขาลง" in status:
+            bear += 1
+    # Determine overall bias
+    if bull >= 2:
+        emoji = "🟢"
+        label = f"ขาขึ้น {bull}/3 ระยะ"
+    elif bear >= 2:
+        emoji = "🔴"
+        label = f"ขาลง {bear}/3 ระยะ"
+    else:
+        emoji = "⚪"
+        label = "ทรงตัว / mixed"
+    parts = [f"*{symbol}* ${price:,.2f}", f"{emoji} {label}"]
+    if confidence and confidence > 0:
+        parts.append(f"Confidence {confidence:.0f}%")
+    return "⚡ *TL;DR:* " + " · ".join(parts)
+
+
+def _build_tldr_pro(symbol: str, price: float, plan_bias: str, day_plan: dict) -> str:
+    """PRO tier TL;DR — action + entry/TP/SL + position sizing reminder"""
+    # Action จาก plan_bias
+    if plan_bias == "bullish":
+        action = "BUY"
+    elif plan_bias == "bearish":
+        action = "รอจังหวะ"
+    else:
+        action = "WATCH"
+
+    parts = [f"{action} *{symbol}* ${price:,.2f}"]
+    tp1 = _safe_optional_float(day_plan.get("tp1") if day_plan else None)
+    sl = _safe_optional_float(day_plan.get("sl") if day_plan else None)
+    if tp1 is not None:
+        parts.append(f"TP ${tp1:,.2f}")
+    if sl is not None:
+        parts.append(f"SL ${sl:,.2f}")
+    parts.append("เสี่ยง 1-2% port")
+    return "⚡ *TL;DR:* " + " · ".join(parts)
+
+
 def _median(values):
     numbers = sorted(
         value
@@ -1230,7 +1292,15 @@ def _render_news_block(analysis, max_headlines=3):
 
 def _render_vip_report(context, trends, analysis, user_memory=None):
     """VIP: ภาพรวม + Trend Radar + Watch Next + Insight (ไม่มี entry/TP/SL ตัวเลข — นั่นคือ PRO)"""
+    # ⚡ TL;DR (2026-05-13) — 1-บรรทัดสรุปสำหรับคนยุ่ง
+    _symbol = context.get("symbol", "?")
+    _price = _first_valid(context.get("price"), context.get("day", {}).get("price")) or 0
+    _confidence = _safe_optional_float((analysis or {}).get("confidence_score")) or 0
+    tldr_line = _build_tldr_vip(_symbol, _price, trends, _confidence)
+
     sections = [
+        tldr_line,
+        "",
         _build_member_snapshot(context, trends, "vip"),
     ]
     # 💼 ถ้า user ถือ symbol นี้ — แสดง holding line ใต้ snapshot
@@ -1284,7 +1354,13 @@ def _render_pro_report(context, trends, deterministic_plan, analysis, user_memor
         context.get("day", {}).get("price"),
     )
 
+    # ⚡ TL;DR (2026-05-13) — 1-บรรทัดสรุปสำหรับคนยุ่ง (BUY/WATCH + TP + SL)
+    _symbol = context.get("symbol", "?")
+    tldr_line = _build_tldr_pro(_symbol, current_price or 0, plan_bias, day_plan)
+
     sections = [
+        tldr_line,
+        "",
         _build_member_snapshot(context, trends, "pro"),
     ]
     # 💼 ถ้า user ถือ symbol นี้ — แสดง holding line + P&L
@@ -1387,7 +1463,10 @@ def _generate_free_report(tech_data):
     else:
         obv_status = "➖ นิ่งๆ ทรงตัว"
 
-    report = f"🤖 **Apexify: {symbol}** · `{price:,.2f}`\n"
+    # ⚡ TL;DR (2026-05-13) — 1-บรรทัดสรุป (Free tier = level only)
+    tldr_line = _build_tldr_free(symbol, price, support, resistance)
+    report = tldr_line + "\n\n"
+    report += f"🤖 **Apexify: {symbol}** · `{price:,.2f}`\n"
     report += "─" * 15 + "\n"
     report += "*📊 สุขภาพหุ้น*\n"
     report += f"• 🌊 *เทรนด์:* {momentum} `{trend_detail}`\n"

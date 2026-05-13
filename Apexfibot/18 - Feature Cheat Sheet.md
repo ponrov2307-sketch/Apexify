@@ -20,7 +20,9 @@ tags: [cheatsheet, reference]
 
 | ฟีเจอร์                               | Free  | VIP 79฿ |    PRO 109฿     |
 | ------------------------------------- | :---: | :-----: | :-------------: |
+| **=== วิเคราะห์ (Analysis) ===**      |       |         |                 |
 | วิเคราะห์ AI text                     | 3/วัน |    ∞    |        ∞        |
+| ⚡ TL;DR Header (1 บรรทัดสรุป)        |   ✅   |    ✅    |        ✅        |
 | กราฟเทคนิค                            |   ❌   | ✅ basic | ✅ **annotated** |
 | AI Trend Radar 3 TF                   |   ❌   |    ✅    |        ✅        |
 | Conviction Score                      |   ❌   |    ✅    |        ✅        |
@@ -29,20 +31,30 @@ tags: [cheatsheet, reference]
 | **กราฟวาด zone Entry/TP/SL**          |   ❌   |    ❌    |        ✅        |
 | **Confirmation/Invalidation**         |   ❌   |    ❌    |        ✅        |
 | **R:R Warning**                       |   ❌   |    ❌    |        ✅        |
+| 🔥 **Screener หุ้นเด่น 10 ตัว** (mega+small mix) |   ❌   |    ❌    |        ✅        |
 | **/fund** P/E, EPS, Dividend          |   ❌   |    ✅    |        ✅        |
 | **/compare** เปรียบเทียบหุ้น          |   ❌   |    ❌    |        ✅        |
 | **/earnings** AI วิเคราะห์งบ          |   ❌   |    ✅    |        ✅        |
-| Smart Alerts (RSI/MACD/Whale)         |   ❌   |    ❌    |        ✅        |
-| Custom Price Alerts                   |   ❌   |    ❌    |        ✅        |
-| Earnings Alerts                       |   ❌   |    ✅    |        ✅        |
+| **=== Alerts (24/7 Background) ===**  |       |         |                 |
+| Smart Alerts (RSI/Golden Cross/Whale) |   ❌   |    ❌    |        ✅        |
+| Custom Price Alerts (`/setalert`)     |   ❌   |    ❌    |        ✅        |
+| ⚠️ **Plan Proximity** (SL/TP near — portfolio only) |   ❌   |    ❌    |        ✅        |
+| 🐳 **Smart Money Tracker** (cluster buys — watchlist match) |   ❌   |    ❌    |        ✅        |
+| 🔔 **Pre-Market Movers** (20:30 ICT · gap ≥3%) |   ❌   |    ✅    |        ✅        |
+| Earnings Alerts (`/ealert`)           |   ❌   |    ✅    |        ✅        |
+| 🚨 Breaking News (3-layer anti-spam)  |   ❌   |    ❌    |        ✅        |
+| **=== Content / Briefing ===**        |       |         |                 |
 | Morning Briefing (text 8:30)          |   ❌   |    ✅    |        ✅        |
 | Morning Podcast (เสียง 8:00)          |   ❌   |    ❌    |        ✅        |
 | Flash News + Digest News              |   ❌   |    ✅    |        ✅        |
 | Weekly Digest (ศุกร์)                 |   ❌   |    ✅    |        ✅        |
+| 🌅 Daily Watchlist + P&L Recap (8:00) |   ❌   |    ✅    |        ✅        |
+| **=== Watchlist / Portfolio ===**     |       |         |                 |
 | Watchlist                             |   3   |   10    |        ∞        |
 | Portfolio                             |   3   |   10    |        ∞        |
-| Daily Watchlist Summary (5:00)        |   ❌   |    ✅    |        ✅        |
-| **/track** Track Record               |   ✅   |    ✅    |        ✅        |
+| **=== Trust & Engagement ===**        |       |         |                 |
+| **/track** Track Record (+ web)       |   ✅   |    ✅    |        ✅        |
+| 📖 คำศัพท์ Glossary (ใน `/manual`)    |   ✅   |    ✅    |        ✅        |
 | **🔥 Daily Streak** (+1 วัน VIP/7วัน) |   ✅   |    ✅    |        ✅        |
 | 🤝 Referral (ใหม่ได้ VIP 3 วัน)       |   ✅   |    ✅    |        ✅        |
 
@@ -58,6 +70,62 @@ tags: [cheatsheet, reference]
 
 ### PRO 109฿ (ขาย: เทรดได้เลย)
 > "Plan สำเร็จรูป Entry/TP/SL เป็นตัวเลข + เปรียบเทียบหุ้น + Smart Alerts"
+
+---
+
+## 🆕 ฟีเจอร์ที่เพิ่งเพิ่ม (พ.ค. 2026) — ดู [[14 - Recent Changes]]
+
+### 🆕 2026-05-13 — Small Cap Day Trade Coverage (PP P. request)
+- 🔥 **Screener หุ้นเด่น (PRO)** — universe 200 → 225 ตัว (+25 small cap)
+  - Quota: พยายามเติม 4 small + 6 large ใน top 10 (ถ้า signal มี)
+  - Tag `🔥small cap` + warning line
+- ☀️ **Daily Picks pool** 70 → 110 (+31 small cap day trade)
+- 🌅 **Morning Movers** 38 → 60 (+22 small cap)
+- New sectors: mining ⛏️ · power ⚛️ · evtol 🛩️ · materials 💎 · retech 🏠
+
+### 🆕 2026-05-13 — Pre-Market Movers Cron (VIP+PRO, 20:30 ICT)
+- DM VIP+PRO ตอน 1 ชม.ก่อน US เปิด (20:30 ICT = 06:30 ET)
+- Gap ≥3% (premarket vs prev close)
+- Hybrid: watchlist matches (personalized) + top 3 outside (discovery)
+- Universe: ~80 ตัว (Morning Movers + small cap)
+
+### Bot cron + automation (ทำงานเบื้องหลัง)
+- ☀️ **Daily Stock Picker** (7:30 ICT) — DM admin 3 หุ้นน่าโพสต์ + chart + suggested FB hook
+  - Pool: Mag 7 + S&P 500 + 30 story stocks + 23 hot movers + 31 small cap
+  - Fresh news ≤ 48h (Yahoo, Investing.com, Seeking Alpha, CNBC-Tech)
+- 🌅 **Daily P&L Recap PRO** (8:00 ICT) — DM PRO users สรุป watchlist + news ≤24h
+- 📅 **Earnings Prep** (16:00 ICT) — DM admin 1 วันก่อนหุ้นใหญ่รายงานผล (~50 ticker pool)
+- 🐳 **Smart Money Tracker** (16:00 ICT) — DM admin + PRO watchlist หุ้นที่ insider ซื้อใหญ่
+  - Source: OpenInsider Form 4 cluster buys (SEC official, T+2 day filing rule)
+  - Filter: $500K+, price ≥ $5, ≤14d, skip OTC industries
+  - Per-signal dedup ไม่ส่งซ้ำ
+- ⚠️ **Plan Proximity Warning** (poll 5 min) — เตือน PRO ก่อนราคาใกล้ SL/TP/Entry
+  - **เฉพาะหุ้นที่ user ถือจริงในพอร์ต** (JOIN portfolios.shares > 0)
+  - SL ±1.5% · TP ±1.0% · Entry ±1.0% · cooldown 1 ชม./plan/level
+  - DM soft tone: ให้ option (ขายตามแผน/ถือยาว/adjust/DCA) ไม่บังคับ
+- 📬 **Auto-DM Cron** (11:00 ICT) — activation + win-back DMs (max 50/day, 30-day cooldown)
+- 📊 **Plan Evaluator** (ทุก 6 ชม.) — auto evaluate pending Trade Plans
+- 🚨 **Breaking News 3-layer anti-spam** — per-user 60min throttle + topic dedup + daily cap 2/topic
+- 💓 **Heartbeat + Watchdog** — ทุก 60s เขียน timestamp + cron */5 DM admin ถ้า bot ตาย
+
+### Bot data signals (ส่งให้ admin/PRO)
+- 🚨 **Breaking News diversified** — 11 RSS sources (Fed/BLS/Treasury/Reuters/CNBC/CNBC-Tech/WSJ/Yahoo/Investing/SeekingAlpha/MarketWatch)
+  - War keywords ลงเป็น T2 (Gemini judges) — ลด war dominance
+  - Company news (Tesla recall, Nvidia surge, earnings beat) เลื่อนขึ้น T1
+
+### Audit / Admin tools
+- 📜 **subscription_history table** — track ทุก role change (paid/redeem/admin_grant/tier_reward/expire/abnormal_slip)
+- 🔍 **/user_log {uid}** — timeline ของ subscription changes (admin)
+- 📊 **/dm_stats** — auto-DM performance (conversion rate)
+- 🆔 **Slip auto-detect role** — payment slip มาตอนไหน → upgrade ตรง tier ทันที + log
+
+### Dashboard CTA funnel
+- 🎯 **quota_exceeded link → /payment?tier=vip** (เดิม `/`, CTR 0% → expect improvement)
+- 🎯 **analysis_result label specific** "🔔 ติดตาม {SYM} ในเว็บ" (เดิม generic "ดู Dashboard")
+
+### Web Dashboard event tracking
+- 📈 **Tutorial 4 events** — started / step_viewed / completed / skipped (per step)
+- ✅ ปุ่มทุก dismiss ใช้ arrow wrapper (fix bug `MouseEvent` ส่งเป็น completed arg)
 
 ---
 
@@ -136,9 +204,9 @@ tags: [cheatsheet, reference]
 
 ---
 
-## 🌐 Web Dashboard (apexifyy.up.railway.app) — สำหรับ PRO/VIP
+## 🌐 Web Dashboard — apexifyy.up.railway.app
 
-> Telegram bot = quick chat | Web Dashboard = deep view (ใช้คู่กัน)
+> Telegram bot = quick chat | Web Dashboard = deep view (ใช้คู่กัน) · มี **PWA installable**
 
 ### หน้าหลัก / (Trade Plan v2 — 2026-05-01) ⭐
 แต่ละการ์ดในพอร์ตแสดง:
@@ -149,13 +217,43 @@ tags: [cheatsheet, reference]
 - 📈 **Confidence breakdown** — กด C-score ดู factor ที่มาได้
 - 🔔 **Apply Plan button** — กดเดียวตั้ง 3 alerts (TP1/TP2/SL)
 
-### หน้าอื่นในแดชบอร์ด
-- `/news` — AI summarize ข่าวพอร์ต (Gemini fallback chain + 30-min cache)
-- `/morning` — Morning Briefing (ขยายจาก Telegram)
-- `/heatmap` — heatmap ทั้งตลาด + watchlist
-- `/transactions` + `/pnl` — บันทึกธุรกรรม + สรุป FIFO P&L (ใช้ยื่นภาษี)
-- `/earnings` + `/economic-calendar`
-- `/matchmaker` — AI Stock Matchmaker (~290 หุ้น curated)
+### 18 routes ทั้งหมด
+
+| Route | Role | สิ่งที่ได้ |
+|---|---|---|
+| `/` | Free | Home — portfolio + Daily Pulse + Trade Plan cards |
+| `/analytics` | PRO | Allocation pie + Performance attribution + **Port Doctor** (AI) |
+| `/matchmaker` | PRO | AI Stock Matchmaker (~290 curated) |
+| `/pnl` | Free | P&L table per position + hide/show + sortable |
+| `/transactions` | PRO | Trade log + FIFO + **Tax export XLSX** + FX sync |
+| `/watchlist` | Free | Price heatmap + sort + add/del |
+| `/alerts` | Free | Price alerts (create/del via modal) |
+| `/dividend` | Free | Dividend calendar per holding |
+| `/news` | Free | AI summarize ข่าวพอร์ต (Gemini fallback + 30-min cache) |
+| `/feed` | Free | Community posts (create/like/comment) |
+| `/earnings` | Free | Earnings calendar UI |
+| `/economic-calendar` | Free | Macro econ events |
+| `/heatmap` | Free | S&P 500 sector heatmap + correlation matrix |
+| `/benchmark` | Free | Portfolio vs SPY/QQQ/IWM chart |
+| `/sp500` | PRO | Stock duel — เปรียบเทียบ 2 ticker (CAGR/Sharpe/drawdown/correlation) |
+| `/admin` | Admin | Online users + cache flush |
+| `/payment` | Free | Upgrade page + tier highlighting (`?tier=vip`) |
+| `/pnl-share` | Public | OG image card (?t=AAPL&u=Name&p=+12.34) — shareable FB/IG |
+
+### AI features ในเว็บ (Pro-gated, Gemini 2.5 Flash)
+- 💬 **Copilot FAB** (มุมล่างขวา) — chat กับ AI ใน web ไม่ต้องสลับ bot
+- 🩺 **Port Doctor** (/analytics) — AI วิเคราะห์พอร์ต diagnosis + fix
+- ⚖️ **Rebalance Strategy** (/analytics) — AI แนะนำ weights ใหม่ + rationale
+- 🔍 **Matchmaker** — 10 stock recommendations per session
+- ☀️ **Daily Pulse** (auto บน dashboard) — 2-3 Thai sentences
+
+### Tech / Auth
+- 🔐 **Magic link login** — bot ส่ง URL → click → auto-login (48h JWT)
+- 🌐 **i18n** — Thai/English toggle (localStorage)
+- 🎨 **Theme** — Dark (default) / Light toggle
+- 📱 **PWA installable** — manifest + service worker (offline cache + shortcuts)
+- 🇹🇭 **Mobile-first responsive** + safe-area insets
+- 📊 **Analytics tracking** — dashboard_home_viewed, locked_feature_viewed, upgrade_clicked, tutorial_*
 
 ---
 
