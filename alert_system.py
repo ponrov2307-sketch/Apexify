@@ -1826,7 +1826,7 @@ def send_daily_portfolio_summary(bot_instance):
             f"({'+' if total_profit_pct >= 0 else ''}{total_profit_pct:.2f}%)"
         )
         lines.append("")
-        lines.append("<i>💡 /portfolio ดูเชิงลึก · /pnl สร้างการ์ดสวยแชร์ได้</i>")
+        lines.append("<i>💡 พิมพ์ /portfolio ดูเชิงลึก</i>")
 
         try:
             bot_instance.send_message(user_id, "\n".join(lines), parse_mode='HTML')

@@ -421,13 +421,22 @@ def pick_top_3(pool: list = None) -> list[dict]:
 
 
 def _render_chart_image(symbol: str):
-    """Generate chart for symbol — chart เดียวกับที่ bot ส่งให้ user ตอนวิเคราะห์
+    """Generate chart for symbol — ใช้ PRO style (S/R + POC + EMA) แต่ไม่มี Entry/TP/SL
+    (เพราะ daily picker ไม่มี trade plan)
+
     Returns: BytesIO buffer of PNG (สำหรับ bot.send_photo)
     """
     try:
+        from technical_tools import generate_pro_annotated_chart
+        # plan={} → entry/tp/sl = None → skip annotations
+        # ที่เหลือ: EMA + S/R + POC + light theme — pro look
+        chart_buf = generate_pro_annotated_chart(symbol, plan={})
+        if chart_buf is not None:
+            return chart_buf
+        # Fallback: ถ้า pro chart fail → ใช้ basic
         from technical_tools import calculate_technical_indicators
-        _, chart_buf, _ = calculate_technical_indicators(symbol, generate_chart=True)
-        return chart_buf
+        _, basic_buf, _ = calculate_technical_indicators(symbol, generate_chart=True)
+        return basic_buf
     except Exception as e:
         print(f"[daily-picker] chart err {symbol}: {e}", flush=True)
         return None

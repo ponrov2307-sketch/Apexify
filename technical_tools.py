@@ -555,8 +555,14 @@ def generate_pro_annotated_chart(symbol, plan):
             ordered = sorted([entry_low, entry_high])
             fill_between_dict = dict(y1=ordered[0], y2=ordered[1], alpha=0.2, color='#4caf50')
 
+        # Title: ถ้า plan มี entry/tp/sl ครบ → "Entry + TP + SL Plan"
+        #        ถ้า plan empty / partial → "S/R + POC chart" (daily picker case)
+        has_plan_annotations = any(
+            v is not None for v in (entry_low, entry_high, tp1, tp2, sl)
+        )
+        chart_subtitle = "Entry Zone + TP + SL Plan" if has_plan_annotations else "Support / Resistance + POC"
         chart_title = (
-            f"\nApexify PRO — {clean_symbol}  |  Entry Zone + TP + SL Plan\n"
+            f"\nApexify — {clean_symbol}  |  {chart_subtitle}\n"
             f"EMA: 20(Blue) 50(Orange) 200(Purple)"
         )
 
