@@ -75,8 +75,8 @@ SMALL_CAP_DAYTRADE = [
     "USAR", "MP",
     # eVTOL / Air mobility
     "ACHR", "JOBY",
-    # EV small (RIVN/LCID/NIO/XPEV มีแล้ว)
-    "GOEV", "WKHS",
+    # EV small (RIVN/LCID/NIO/XPEV มีแล้ว · GOEV delisted 2026-05)
+    "WKHS",
     # Defense / Drone (KTOS/AVAV มีแล้ว)
     "ONDS",
     # Biotech catalyst (RXRX/RGNX/EXAS/SAVA มีแล้ว)
@@ -121,7 +121,7 @@ SECTOR_TAG = {
     "OKLO": "power", "SMR": "power", "LEU": "power",
     "USAR": "materials", "MP": "materials",
     "ACHR": "evtol", "JOBY": "evtol",
-    "GOEV": "ev", "WKHS": "ev",
+    "WKHS": "ev",   # GOEV delisted 2026-05
     "ONDS": "defense",
     "NVAX": "biotech", "VKTX": "biotech",
     "DJT": "meme",

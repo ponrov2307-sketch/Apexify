@@ -4725,7 +4725,7 @@ def inline_callbacks(call):
                 'ONDS',                                         # Defense drone
                 'OPEN',                                         # Real estate tech
                 'NVAX', 'VKTX',                                 # Biotech catalyst
-                'GOEV', 'WKHS',                                 # EV small
+                'WKHS',                                         # EV small (GOEV delisted 2026-05)
             ]
 
             # 🆕 Small cap set — ใช้ tag + quota top 10 (target 4 small + 6 large)
@@ -4740,7 +4740,7 @@ def inline_callbacks(call):
                 'OKLO', 'SMR', 'LEU', 'BTBT', 'BTDR', 'IREN', 'WULF', 'HUT',
                 'ACHR', 'JOBY', 'HOLO', 'LAES', 'GFAI', 'SERV', 'KSCP', 'QUBT',
                 'BKSY', 'SPIR', 'USAR', 'MP', 'DJT', 'DAVE', 'ONDS', 'OPEN',
-                'NVAX', 'VKTX', 'GOEV', 'WKHS',
+                'NVAX', 'VKTX', 'WKHS',
             }
             SMALL_CAP_QUOTA = 4   # target: ~4 small + ~6 large ใน top 10
 
