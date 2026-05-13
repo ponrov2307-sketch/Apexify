@@ -296,12 +296,24 @@ def gemini_classify_breaking(item: dict) -> dict | None:
         }
     except Exception as e:
         print(f"[BreakingNews] Gemini classify failed (all retries): {e}", flush=True)
-        # Conservative fallback: keyword T1 → MEDIUM (Fed admin notices ตอนนี้ก็จับ)
+        # Fallback: T1 keyword (CPI/NFP/FOMC) → HIGH (don't miss real breaking news)
+        # T2 keyword → MEDIUM. ไม่มี keyword → LOW
+        # เปลี่ยนจากเดิมที่ T1 → MEDIUM (เสี่ยงพลาด FOMC/CPI ตอน Gemini down)
+        tier = keyword_tier(item["title"])
+        if tier == "T1":
+            importance = "HIGH"
+            reasoning = "Gemini error — T1 keyword (CPI/FOMC/NFP) auto-HIGH"
+        elif tier == "T2":
+            importance = "MEDIUM"
+            reasoning = "Gemini error — T2 keyword fallback"
+        else:
+            importance = "LOW"
+            reasoning = "Gemini error — no keyword match"
         return {
             **item,
-            "importance": "MEDIUM" if keyword_tier(item["title"]) else "LOW",
+            "importance": importance,
             "summary_th": item["title"][:80],
-            "reasoning": "Gemini error — keyword fallback (downgraded)",
+            "reasoning": reasoning,
             "tickers": [],
         }
 
@@ -389,10 +401,12 @@ _TOPIC_SIMILARITY_THRESHOLD = 0.45   # Jaccard token overlap ≥ 45% = ถือ
 _TOPIC_DEDUP_WINDOW_SEC = 6 * 60 * 60   # 6 ชม. window
 _MAX_PER_TOPIC_PER_DAY = 2   # ส่งสูงสุด 2 ครั้ง/topic/วัน (เช่น CPI report ส่งแค่ 2 อันแรก)
 
-# In-memory state — reset เมื่อ process restart (OK เพราะ daily reset)
+# In-memory state — primary access (fast)
+# Backed by dispatch_log table — persisted across restarts (no spam after deploy)
 _user_last_sent_at: dict = {}                  # uid → unix ts
 _recent_topics: list[tuple[float, set]] = []   # (timestamp, token_set) recent titles
 _daily_topic_count: dict = {}                  # date_str → {topic_key: count}
+_hydrated_from_db: bool = False                # one-shot DB load on first cycle
 
 
 def _title_tokens(title: str) -> set:
@@ -466,7 +480,7 @@ def _topic_daily_count_exceeded(title: str, now_dt: datetime) -> bool:
 
 
 def _mark_topic_sent(title: str, now_ts: float, now_dt: datetime):
-    """บันทึก topic ที่ส่งไปแล้ว"""
+    """บันทึก topic ที่ส่งไปแล้ว + persist ลง DB (กัน daily-cap reset on restart)"""
     tokens = _title_tokens(title)
     if not tokens:
         return
@@ -480,6 +494,23 @@ def _mark_topic_sent(title: str, now_ts: float, now_dt: datetime):
         oldest = min(_daily_topic_count.keys())
         if oldest != date_str:
             _daily_topic_count.pop(oldest, None)
+    # 🆕 Persist to dispatch_log — hydration uses COUNT(*) per topic per day
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO dispatch_log (dispatch_key, category, raw_key) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+            (f"news_topic:{date_str}:{topic_key}:{int(now_ts)}", "breaking_news_topic", topic_key),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[BreakingNews] persist topic_sent err: {e}", flush=True)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def _can_send_to_user(uid: str, now_ts: float) -> bool:
@@ -489,7 +520,83 @@ def _can_send_to_user(uid: str, now_ts: float) -> bool:
 
 
 def _mark_user_sent(uid: str, now_ts: float):
+    """Mark user as just-sent + persist to DB (survives restart)"""
     _user_last_sent_at[str(uid)] = now_ts
+    # 🆕 Persist to dispatch_log — one row per send (used for hydration)
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+        # Unique key: news_user:{uid}:{ts_int} — never collide
+        c.execute(
+            "INSERT INTO dispatch_log (dispatch_key, category, raw_key) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+            (f"news_user:{uid}:{int(now_ts)}", "breaking_news_user", str(uid)),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[BreakingNews] persist user_sent err uid={uid}: {e}", flush=True)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _hydrate_state_from_db():
+    """Load past throttle/topic-count state from dispatch_log — call once on startup
+    Avoids spam-on-restart: user got alert 30 min ago + bot restarted → still throttle works
+    Avoids daily-cap reset: CPI sent 2x today + restart → cap stays 2 (no 3rd alert)
+    """
+    global _hydrated_from_db
+    if _hydrated_from_db:
+        return
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+
+        # Load per-user throttle — latest news_user entry per user in past 6h
+        c.execute(
+            """
+            SELECT DISTINCT ON (raw_key) raw_key, EXTRACT(EPOCH FROM created_at)
+            FROM dispatch_log
+            WHERE category = 'breaking_news_user'
+              AND created_at > NOW() - INTERVAL '6 hours'
+            ORDER BY raw_key, created_at DESC
+            """
+        )
+        for raw_key, ts in c.fetchall():
+            if raw_key:
+                _user_last_sent_at[str(raw_key)] = float(ts)
+
+        # Load today's per-topic count (for daily cap enforcement)
+        c.execute(
+            """
+            SELECT raw_key, COUNT(*) AS cnt
+            FROM dispatch_log
+            WHERE category = 'breaking_news_topic'
+              AND created_at::date = (NOW() AT TIME ZONE 'Asia/Bangkok')::date
+            GROUP BY raw_key
+            """
+        )
+        today_dt = datetime.utcnow() + timedelta(hours=7)
+        today_key = today_dt.date().isoformat()
+        _daily_topic_count.setdefault(today_key, {})
+        for topic_key, cnt in c.fetchall():
+            if topic_key:
+                _daily_topic_count[today_key][topic_key] = int(cnt)
+
+        print(f"[BreakingNews] hydrated state from DB: "
+              f"{len(_user_last_sent_at)} users throttled · "
+              f"{len(_daily_topic_count.get(today_key, {}))} topics today", flush=True)
+    except Exception as e:
+        print(f"[BreakingNews] hydrate err: {e}", flush=True)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        _hydrated_from_db = True   # set even on error → avoid re-trying forever
 
 
 def is_quiet_hour(now: datetime | None = None) -> bool:
@@ -520,6 +627,9 @@ def process_breaking_news(bot_instance, *, dry_run: bool = False) -> dict:
     stats = {"fetched": 0, "shortlisted": 0, "classified": 0,
              "high": 0, "pushed_users": 0, "skipped_dup": 0, "skipped_quiet": False,
              "skipped_topic_dup": 0, "skipped_topic_cap": 0, "skipped_user_throttle": 0}
+
+    # 🆕 Hydrate throttle/topic state from DB on first cycle (one-shot)
+    _hydrate_state_from_db()
 
     candidates = fetch_news_candidates()
     stats["fetched"] = len(candidates)
