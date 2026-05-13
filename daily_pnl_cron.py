@@ -33,9 +33,13 @@ def _fetch_ticker_snapshot(symbol: str) -> dict:
         if err or not td:
             return None
 
-        price = td.get("price", 0)
-        rsi = td.get("rsi", 50)
-        vol_ratio = td.get("volume_ratio", 1) or 1
+        # 🛡 Coerce None → defaults (`.get(key, default)` returns None if value is None)
+        price = float(td.get("price") or 0)
+        rsi = float(td.get("rsi") or 50)
+        vol_ratio = float(td.get("volume_ratio") or 1)
+        if price <= 0:
+            print(f"[daily-pnl] {symbol} price missing/zero — skip", flush=True)
+            return None
 
         # daily move (close vs prev close)
         move_pct = 0

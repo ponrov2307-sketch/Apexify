@@ -88,10 +88,18 @@ def _next_earnings(symbol: str):
                 if dt < now_utc:
                     continue
                 row = df.loc[idx]
-                eps_est = row.get("EPS Estimate") if hasattr(row, "get") else None
+                # 🛡 Robust EPS extraction — yfinance returns pandas Series with NaN
+                eps_est = None
+                try:
+                    import pandas as pd
+                    raw_eps = row.get("EPS Estimate") if hasattr(row, "get") else None
+                    if raw_eps is not None and not pd.isna(raw_eps):
+                        eps_est = float(raw_eps)
+                except (ValueError, TypeError):
+                    eps_est = None
                 future.append({
                     "date": dt,
-                    "eps_estimate": float(eps_est) if eps_est is not None and not _is_nan(eps_est) else None,
+                    "eps_estimate": eps_est,
                 })
             except Exception:
                 continue

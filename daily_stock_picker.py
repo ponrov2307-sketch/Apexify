@@ -299,7 +299,21 @@ def _fetch_tech(symbol: str) -> dict:
                 td["price_move_pct"] = 0
         except Exception:
             td["price_move_pct"] = 0
-        td["volume_ratio"] = float(td.get("volume", 1)) / max(1, float(td.get("avg_volume", 1)))
+        # 🛡 Volume edge case: ถ้า volume/avg_volume = None / 0 → ratio = 1.0 + log
+        # ป้องกัน score คำนวณผิดจาก garbage data
+        vol = td.get("volume")
+        avg_vol = td.get("avg_volume")
+        try:
+            vol_f = float(vol) if vol is not None else 0
+            avg_f = float(avg_vol) if avg_vol is not None else 0
+        except (ValueError, TypeError):
+            vol_f, avg_f = 0, 0
+        if avg_f > 0 and vol_f > 0:
+            td["volume_ratio"] = vol_f / avg_f
+        else:
+            td["volume_ratio"] = 1.0
+            if vol_f == 0 or avg_f == 0:
+                print(f"[daily-picker] {symbol} volume data missing/zero — ratio defaulted 1.0", flush=True)
         return td
     except Exception as e:
         print(f"[daily-picker] tech err {symbol}: {e}", flush=True)
