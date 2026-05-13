@@ -6,6 +6,269 @@ tags: [changelog]
 
 > เรียงจากใหม่สุดลงล่าง — เก็บแค่ commits สำคัญ
 
+## 2026-05-13 (บ่าย) — Small Cap Day Trade Coverage (PP P. request)
+
+### 🔥 Small Cap Universe Expansion
+**Trigger:** ลูกค้า PP P. (paying PRO) feedback 15:06: *"อยากให้เห็นหุ้นเล็กๆด้วยค่ะเพราะคนเทรดรายวันส่วนมากเป็น small cap"*
+
+### Files affected
+- `daily_stock_picker.py` (Daily Picks 7:45 ICT)
+- `alert_system.py` (Morning Movers 8:00 ICT)
+- `smart_money_cron.py` — ✅ already OK ($5 min keeps small caps)
+
+### What shipped
+
+**Daily Picks pool: 70 → 110 tickers (+31 small cap)**
+- AI small: TEM, HOLO, LAES, GFAI, SERV, KSCP
+- Quantum: QUBT (เพิ่มจาก RGTI/QBTS/ARQQ เดิม)
+- Space small: BKSY, SPIR
+- Crypto mining: BTBT, BTDR, CIFR, IREN, WULF, HUT, CLSK
+- AI Power / Nuclear: OKLO, SMR, LEU
+- Materials: USAR, MP
+- eVTOL: ACHR, JOBY
+- EV small: GOEV, WKHS
+- Defense: ONDS
+- Biotech: NVAX, VKTX
+- Political/meme: DJT
+- Fintech small: DAVE
+- Real estate tech: OPEN
+
+**Morning Movers: 38 → 60 tickers (+22 small cap)** สำหรับ briefing 8:00
+
+**New sector taxonomy + hooks:**
+- 6 sectors ใหม่: `mining` ⛏️ · `power` ⚛️ · `evtol` 🛩️ · `materials` 💎 · `retech` 🏠 · `meme` (enhanced) · `defense` (enhanced)
+- Hook templates BULL/BEAR/FLAT ครบ 7 sectors ใหม่
+- ตัวอย่าง: "BTC ขึ้น mining stocks วิ่งตาม" · "Trump nuclear push ดันเชื้อเพลิงสะอาด" · "eVTOL กำลังจะ commercial launch?"
+
+**Scoring relaxed for small cap:**
+- Outlier cap: 25% → **35%** (small caps วิ่ง 25-35% เป็นเรื่องปกติ)
+- Pump penalty threshold: 15% → **22%**
+- Bonus **+3 score** ถ้า small cap มี `vol_ratio > 2` (real breakout, ไม่ใช่ random noise)
+
+**Visual differentiation:**
+- DM tag `🔥small cap` ติดข้าง ticker
+- Warning line: `⚠️ small cap — volatility สูง, ใช้ size เล็ก, ตั้ง SL เคร่ง`
+- Mega cap ไม่มี warning → mix ยังคงอยู่ ("คละๆกัน" per request)
+
+**Sample size:** 40 → 50 (pool โต 70 → 110)
+
+### Test verified (dry run)
+- ✅ OKLO ⚛️ — sector "power" + nuclear hook + 🔥small cap tag + warning
+- ✅ BTBT ⛏️ — sector "mining" + BTC correlation hook + warning
+- ✅ NVDA 🏛️ — mega cap, no warning, ปกติ (mix retained)
+
+### Marketing implication
+Confirms persona P13 "น้องโจ" (momentum trader) + P14 "พี่บิ๊ก" (options buyer) — pay segment ที่เน้น volatile catalyst plays. Daily Picks ตอนนี้ครอบคลุม Mag 7 → small cap day trade ในข้อความเดียว
+
+---
+
+## 2026-05-12 (เย็น) — Smart Money + Proximity Warning + News Anti-Spam + Brand Polish
+
+### 🐳 Smart Money Tracker (NEW cron 16:00 ICT)
+- ใหม่ `smart_money_cron.py` — daemon thread daily 16:00 ICT
+- Source: **OpenInsider.com** latest-cluster-buys + SEC EDGAR Form 4 (T+2 day filing, 100% reliable)
+- Filter chain:
+  - Value ≥ $500K
+  - Price ≥ $5 (skip penny)
+  - Trade ≤ 14 วันที่ผ่านมา (fresh only, กัน signal เก่า 1-2 เดือน)
+  - Skip "Blank Checks" / "Petroleum & Petroleum Products" industries
+- Classify signals: 🐳 Mega Buy (≥$5M) · 🔥 Cluster x4+ · 📈 Cluster x3 · 💎 Big Buy · 📊 Notable
+- Admin DM: top 8 by value
+- PRO DM: เฉพาะ ticker ที่อยู่ใน user's watchlist (premium signal)
+- **Per-signal dedup**: `smart_money_admin:{ticker}:{trade_date}` + `smart_money_pro:{ticker}:{trade_date}:{user_id}` → ไม่ส่ง cluster เดิมซ้ำ
+- ทดสอบ 12 พ.ค.: 100 fetch → 61 quality → 19 fresh — top includes PSUS $70M (7 insiders), AHCO $24M, PLSE $13M (1 วันก่อน)
+
+### ⚠️ Plan Proximity Warning (NEW poll 5 min)
+- ใหม่ `plan_proximity_cron.py` — เตือน PRO ก่อนราคาใกล้ SL/TP/Entry zone
+- **Scope:** เฉพาะหุ้นที่ user **ถือจริงในพอร์ต** (`shares > 0`) — ไม่ใช่ทุก scan
+  - JOIN analysis_plans × portfolios → user ที่ scan แต่ไม่ซื้อ ไม่โดน spam
+- Thresholds: SL ±1.5% · TP1/TP2 ±1.0% · Entry zone ±1.0%
+- Direction validation: BULL → SL warn เฉพาะตอนยังไม่ทะลุ SL · BEAR → reverse
+- Cooldown: 1 ชม./plan/level (in-memory)
+- Price cache 2 min/symbol (ลด yfinance calls)
+- DM tone: soft, ให้ option (ขายตามแผน · ถือยาว · adjust · DCA · re-analyze) — ไม่บังคับ
+- DM แสดง position + P&L%
+
+### 🚨 News Anti-Spam 3-Layer
+**Problem วันนี้:** CPI day → 12+ alerts ใน 3 ชม. ทั้งเรื่อง CPI/Iran (ซ้ำซ้อน)
+
+**Fix:**
+- **Layer 1: Per-user throttle 60 min** (was declared 30 min แต่ไม่ใช้)
+- **Layer 2: Topic dedup Jaccard ≥ 45%** ใน 6 ชม. window
+- **Layer 3: Per-topic daily cap 2/วัน**
+  - Topic keys: `macro:cpi/ppi/fed/...` · `geo:iran/china/war/...`
+- ทดสอบกับ 12 ข่าวจริงวันนี้: **12 → 5** (-58%)
+
+### 🏷 Brand Polish — "AI" → "Apexify" (Option B)
+- 10+ user-facing strings ใน main.py: pronoun "AI = ตัวบอท" → "Apexify"
+- proximity DM: "แจ้งให้รู้ ไม่บังคับ" → "เป็นแนวทางให้คุณพิจารณา"
+- Heading: "ทำไมเตือน?" → "เหตุผลที่แจ้งเตือน"
+- เก็บไว้ตามเดิม: feature names (AI Trend Radar / AI Verdict / AI plans) · tech disclosure (Google Gemini AI) · brand "Apexify Trading AI" · marketing docs (FB/TikTok templates คงเดิม)
+
+---
+
+## 2026-05-12 — Cron Engine + News Diversify + Funnel Fix + Tutorial Tracking
+
+### Bot cron + automation (6 features ใหม่)
+- ☀️ **Daily Stock Picker** — daily 7:30 ICT DM admin 3 หุ้น + chart + suggested FB hook
+  - Pool: Mag 7 + S&P 500 + 30 story stocks + 23 hot movers (~200 ตัว)
+  - Composite score: momentum + volume + RSI + fresh news bonus (≤6h = +15)
+- 🌅 **Daily P&L Recap PRO** — daily 8:00 ICT DM PRO sliders watchlist + news ≤24h
+- 📅 **Earnings Prep** — daily 16:00 ICT DM admin 1 วันก่อน earnings (~50 ticker pool)
+- 📬 **Auto-DM Cron** — daily 11:00 ICT activation + win-back (50/day, 30-day cooldown)
+- 📊 **Plan Evaluator** — auto /run_outcomes ทุก 6 ชม. (เคยรอ admin manual 5/30 วัน)
+- 💓 **Heartbeat watchdog** — write `/tmp/apexify_heartbeat.txt` every 60s + cron */5 min DM admin ถ้า stale
+
+### News diversify (less war dominance)
+- War keywords (`war/missile/attack/invasion`) ลงเป็น T2 (Gemini decides)
+- Company news (Tesla recall, Nvidia surge, earnings beat) เลื่อนขึ้น T1
+- เพิ่ม 4 RSS sources: CNBC-Tech, Yahoo Finance, Investing.com, Seeking Alpha
+- Reuters Google News query กว้างขึ้น (+ tech, earnings, tariff, chip, AI, 2h window)
+- Tier 2 ใหม่: AI chip, semi, ChatGPT/OpenAI, iPhone, China/yuan/yen, Bitcoin
+
+### Dashboard CTA funnel fix
+- `quota_exceeded` → /payment?tier=vip (เดิม / → CTR 0%) — high-intent moment
+- `analysis_result` label specific "🔔 ติดตาม {SYM} ในเว็บ" (เดิม generic)
+- Funnel data จาก dashboard_events table guided fix
+
+### Audit + admin tools
+- 📜 **subscription_history table** + log_subscription_event() helper
+  - track: paid/redeem/admin_grant/tier_reward/expire/abnormal_slip
+- 🔍 **/user_log {uid}** — timeline ของ subscription changes
+- 📊 **/dm_stats** — auto-DM conversion stats
+- 🆔 **Slip auto-detect role** — payment slip มา → upgrade ตรง tier ทันที + audit log
+- 🚨 **Abnormal slip handling** — log to history + better err message (package list + admin contact)
+
+### Critical fixes
+- **PRO→VIP downgrade bug fixed** (commit 54b15bc):
+  - Customer Neil + Nattanon ที่ paid PRO แล้ว redeem SILVER code = ถูก downgrade VIP
+  - Root cause: `add_subscription` UPDATE role โดยตรงไม่เช็ค hierarchy
+  - Fix: เพิ่ม `_ROLE_RANK` + guard + stacking ตลอดถ้า current_expiry > now
+  - Restored ทั้ง 2 customers
+- **Markdown bug ใน /manual** — `user_id` ใน italic block ตัด parse → ส่งเงียบ
+  - Fix: escape `\_id` + `_safe_send_part()` fallback to plain text
+
+### /หุ้นเด่น expansion + scoring boost
+- Pool: 150 → ~200 tickers (เพิ่ม 30 story + 23 hot movers)
+- Momentum bonus: close_vs_ema20 ±5% = +80, ±3% = +40
+- Volume bonus: vol 3x = +50, 1.8x = +25
+- ผลลัพธ์: ไม่ซ้ำ blue-chip ตลอด — story stocks ติด top 10 ตอน momentum วิ่ง
+
+### Alert system tune
+- Mon/Tue 20:30-21:00 ICT "chaos hour" — threshold สูงขึ้นชั่วคราว
+- Whipsaw block — 45-min cooldown ทิศทางตรงข้าม
+- Whale alert: ต้องมี price confirmation (move ≥ 0.3%) ก่อน — กัน vol-but-no-move noise
+
+### Web tutorial tracking
+- 4 new events: `tutorial_started` / `tutorial_step_viewed` / `tutorial_completed` / `tutorial_skipped`
+- Fix latent bug: onClick={dismiss} ส่ง MouseEvent (truthy) เป็น `completed` arg → กลับลำการตัดสินใจ
+  - Arrow wrappers ทุกที่ + dismiss(completed: boolean)
+
+### Web visible updates
+- 🌡️ **Heatmap redesign jumpquant-style** (`/heatmap`) — S&P 500 cleaner look + correlation matrix
+- 🏆 **Track Record card** ย้ายไป /analytics (placement) + Conservative methodology disclaimer
+- 🎟️ **Redeem code form ใน dashboard** — สวยขึ้น (compact mode)
+- 🥇 **Tier Badge progress pill** — แสดงแม้ยังไม่ได้ badge (เห็น progress)
+- 🔁 **Tier threshold sync bot ↔ web** — Bronze 3/Silver 15/Gold 50/Diamond 21
+- 🔧 **API: /api/me/* router** — mirror conversion features ของ bot ลงเว็บ
+
+### Bot UX polish
+- 🔥 **/track Recent Wins** — แสดง top wins (dedup + cap outlier >100% = filter false data)
+- 🎯 **/setalert guided form** — 3 popular tickers picker + step-by-step (UX ดีขึ้นจาก raw text)
+- 📱 **Dashboard CTA push ใน 7 commands** — `/del /edit /watch /unwatch /delalert /compare /portfolio` error responses มีปุ่ม Dashboard
+- 🐳 **Whale message clarity** — "vol 5 นาที X.Xx · ราคา +Y.YY%" (เดิม cryptic)
+- 💰 **Top-up 20฿ copy** — ปรับ pitch ให้ low-stake mention "10 ครั้ง = 2฿/ครั้ง"
+- 🎁 **/freetrial CTA button** ใน /start tutorial (CTR เพิ่มจากเดิมที่ user ไม่เห็น command)
+
+---
+
+## 2026-05-10 ⭐⭐⭐ MEGA SPRINT — 7 Conversion Levers + Web Mirror + Track Record Fix
+
+> Daily log: [[2026-05-10]] (full breakdown — 27 bot commits + 8 web commits)
+
+### Conversion Stack (push 7 levers ตามที่ user ขอ)
+- **News Grounding** — Gemini เห็นข่าวรายหุ้นก่อนวิเคราะห์
+- **Apexify Confidence Score** — 0-100% deterministic
+- **Smart Paywall** — preview ของ ticker + flash + social proof + track record + redeem field
+- **Top-up 20฿/10 ครั้ง** — pay-per-use pay-as-you-go
+- **Annual marketing** — "ฟรี 2 เดือน · ประหยัด 158/218฿"
+- **Flash Discount 30 min** — auto-trigger เมื่อ free โดน paywall
+- **Code-based discount** — admin /gencode pct% + window — user redeem opens window
+- **Chart preview 3 ครั้ง** — free user wow moment + last-shot urgency
+- **Tier Badges** Bronze/Silver/Gold/Diamond — auto-grant codes + DM celebration
+- **Sunk cost / Anchoring / Scarcity** — text in /me + menu_vip
+- **3 cron DMs** — daily reset (7:00) / streak loss (18:00) / lapsed trial (14:00)
+
+### Intraday Alerts (whale latency 5-6 ชม. → 5-10 นาที)
+- Whale (5m bar 3x avg) · Breakout intraday · Gap Open (>2% in 30m) · Price Acceleration (>3% in 30m)
+- Module ใหม่ `intraday_volume.py` + market session 7 ตลาด
+
+### Chart Vision + Personal Memory + Earnings Revamp
+- Chart Vision: VIP/PRO ส่ง chart screenshot → Gemini Vision อ่าน
+- Personal Memory: bot จำ holdings/watchlist → personalize prompt + render
+- Earnings: ดึง Revenue/YoY/history + inject news + structured verdict 0-10
+
+### Track Record (Backtest Proof) — เจอ critical bugs + fix
+- **`1c806ba`** SQL `INTERVAL '%s hours'` syntax — silent fail 2+ สัปดาห์
+- **`25025ed`** TZ-aware (US/Eastern) vs naive (DB) datetime — TypeError บน 118 symbols
+- **`b6c75e5`** Same-day TP/SL → optimistic → fix conservative (`<=`)
+- **`7b629ab`** ⭐ Entry-not-filled → false TP1 hit (98% เวอร์มาจากนี่)
+  - Fix 2-phase: Phase 1 wait entry fill / Phase 2 TP/SL after fill
+  - เพิ่ม `no_entry` outcome (≥14 วันยังไม่ฟิลล์ → mark)
+- /track + Web TrackRecordCard แสดง realistic Hit Rate excluding no_entry
+
+### Admin Tools (sprint นี้)
+- /whoami /plansdebug /userdebug /reset_quota /backfill_analyses /run_outcomes /reset_outcomes
+- /gencode extended (days mode + discount % mode + custom name)
+
+### Web Dashboard Mirror (ApexifyWebmaster)
+- `/api/me/*` 5 endpoints (profile, track-record, redeem, discount-state, notifications)
+- Tier Badge (header pill) · Track Record Card (analytics) · Redeem form (payment, premium UI)
+
+### Commits ใน bot (เรียง chronological)
+```
+5de6f9c news grounding
+e0ef67a whale intraday
+03baa0a confidence + Apexify rebrand
+94afb74 smart paywall
+30d8cc9 breakout/gap/accel intraday
+7c0dc18 top-up + annual
+4306fd4 chart vision + memory
+9f11e97 tutorial chart leak
+1349804 chart preview 3x
+a18e8b9 compact news + cleanup
+f0d147c earnings + flash + social
+36580b4 payment_type tracking
+793ce8f code-based discount
+8d8b56b backtest proof track record
+e566309 7 conversion levers (badges/sunk/anchor/scarcity/3 DMs)
+588d643 admin counts toward tier + plansdebug
+11b1338 ลด threshold + backfill_analyses
+5f1f55b ACK non-admin + whoami
+331f614 admin skip code (DM spam)
+8e63d6f userdebug + reset_quota + Diamond 14→21
+4ffe17a admin guide updated
+1c806ba SQL bug ⭐ track record critical
+b249b63 verbose run_outcomes
+25025ed TZ + markdown
+b6c75e5 conservative outcome
+9df52ed bundle: H1+M1+M3
+7b629ab entry-filled-first ⭐ root cause 98% เวอร์
+```
+
+### Commits ใน web (ApexifyWebmaster)
+```
+61acc87 /api/me/* router
+acc0a40 tier badge + track record + redeem
+8415dbe progress pill compact
+7bb1b74 + 2c226a8 thresholds sync
+9d72dc6 conservative disclaimer
+54c097a no_entry support
+69f9779 ย้าย Track Record ลงล่าง + Redeem premium UI
+```
+
+---
+
 ## 2026-05-03 (Webmaster Dashboard Section + Commodity Spot + Quality Fixes)
 
 > Daily note: [[2026-05-03]]

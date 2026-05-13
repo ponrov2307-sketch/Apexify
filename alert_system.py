@@ -229,6 +229,25 @@ MORNING_MOVER_UNIVERSE = {
     # International / Consumer
     "SE": "SEA Limited", "MELI": "Mercado Libre", "RDDT": "Reddit",
     "DIS": "Disney", "BABA": "Alibaba",
+    # 🆕 2026-05-13 — Small cap day trade favorites (PP P. feedback)
+    # หุ้นเล็กที่ Thai day trader ติดตาม % move แรงกว่า mega cap
+    # AI Power / Nuclear small
+    "OKLO": "Oklo", "SMR": "NuScale Power", "LEU": "Centrus Energy",
+    # Crypto mining (picks-and-shovels)
+    "BTBT": "Bit Digital", "BTDR": "Bitdeer", "IREN": "Iris Energy",
+    "WULF": "TeraWulf", "CLSK": "CleanSpark", "MARA": "Marathon Digital",
+    # eVTOL
+    "ACHR": "Archer Aviation", "JOBY": "Joby Aviation",
+    # AI small
+    "TEM": "Tempus AI", "BBAI": "BigBear.ai",
+    # Quantum small
+    "RGTI": "Rigetti", "QBTS": "D-Wave", "QUBT": "Quantum Computing Inc",
+    # Space small
+    "BKSY": "BlackSky", "PL": "Planet Labs",
+    # Materials / Rare earth
+    "USAR": "USA Rare Earth", "MP": "MP Materials",
+    # Political / meme small
+    "DJT": "Trump Media",
 }
 MORNING_BRIEFING_LEGAL_DISCLAIMER = (
     "⚠️ **ข้อจำกัดความรับผิดชอบ:** ข้อมูลนี้จัดทำขึ้นเพื่อวัตถุประสงค์ในการให้ข้อมูลทั่วไปเท่านั้น "

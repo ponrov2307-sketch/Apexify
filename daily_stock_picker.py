@@ -57,6 +57,38 @@ SP500_VARIETY = [
     "ORCL", "ADBE", "INTC", "QCOM", "T", "VZ", "TMUS", "GS", "MS", "C",
 ]
 
+# 🆕 2026-05-13 — Small cap day trade favorites
+# Customer PP P. feedback: "เทรดรายวันส่วนมากเป็น small cap ค่ะ คละๆกันมาก็ได้"
+# หุ้นที่ Thai day trader ติดตามจริงๆ ใน 2025-2026 — % move แรงกว่า mega cap
+SMALL_CAP_DAYTRADE = [
+    # AI / Software small ($300M-$5B)
+    "TEM", "HOLO", "LAES", "GFAI", "SERV", "KSCP",
+    # Quantum small (RGTI/QBTS/ARQQ มีแล้วใน STORY_STOCKS)
+    "QUBT",
+    # Space small (RKLB/ASTS/IRDM/PL มีแล้ว)
+    "BKSY", "SPIR",
+    # Crypto mining (picks-and-shovels — different vibe จาก COIN/MSTR)
+    "BTBT", "BTDR", "CIFR", "IREN", "WULF", "HUT", "CLSK",
+    # AI Power / Nuclear (hot 2025-2026)
+    "OKLO", "SMR", "LEU",
+    # Critical Minerals / Rare earth
+    "USAR", "MP",
+    # eVTOL / Air mobility
+    "ACHR", "JOBY",
+    # EV small (RIVN/LCID/NIO/XPEV มีแล้ว)
+    "GOEV", "WKHS",
+    # Defense / Drone (KTOS/AVAV มีแล้ว)
+    "ONDS",
+    # Biotech catalyst (RXRX/RGNX/EXAS/SAVA มีแล้ว)
+    "NVAX", "VKTX",
+    # Political / meme
+    "DJT",
+    # Fintech small (UPST/AFRM/PYPL มีแล้ว)
+    "DAVE",
+    # Real estate tech
+    "OPEN",
+]
+
 # Sector tag — เพื่อ variety enforce (ไม่ pick 3 ตัวจาก sector เดียวกัน)
 SECTOR_TAG = {
     # Mag 7
@@ -80,9 +112,29 @@ SECTOR_TAG = {
     "ORCL": "tech", "ADBE": "tech", "INTC": "semi", "QCOM": "semi",
     "T": "telecom", "VZ": "telecom", "TMUS": "telecom",
     "GS": "finance", "MS": "finance", "C": "finance",
+    # 🆕 Small cap tags
+    "TEM": "ai", "HOLO": "ai", "LAES": "ai", "GFAI": "ai", "SERV": "ai", "KSCP": "ai",
+    "QUBT": "quantum",
+    "BKSY": "space", "SPIR": "space",
+    "BTBT": "mining", "BTDR": "mining", "CIFR": "mining", "IREN": "mining",
+    "WULF": "mining", "HUT": "mining", "CLSK": "mining",
+    "OKLO": "power", "SMR": "power", "LEU": "power",
+    "USAR": "materials", "MP": "materials",
+    "ACHR": "evtol", "JOBY": "evtol",
+    "GOEV": "ev", "WKHS": "ev",
+    "ONDS": "defense",
+    "NVAX": "biotech", "VKTX": "biotech",
+    "DJT": "meme",
+    "DAVE": "fintech",
+    "OPEN": "retech",
 }
 
-ALL_POOL = list(set(MAG_7 + STORY_STOCKS + SP500_VARIETY))
+ALL_POOL = list(set(MAG_7 + STORY_STOCKS + SP500_VARIETY + SMALL_CAP_DAYTRADE))
+
+
+def _is_small_cap(symbol: str) -> bool:
+    """ลูกค้า PP P. feedback: ขอ small cap ด้วย — flag เพื่อใส่ warning ใน DM"""
+    return symbol in SMALL_CAP_DAYTRADE
 
 
 # ============ Suggested hook templates ============
@@ -133,6 +185,36 @@ HOOK_TEMPLATES_BULL = {
         "{sym} {move:+.1f}% — fintech ที่ Apexify เห็น setup ดี",
         "{sym} {move:+.1f}% — credit cycle + earnings catalyst",
     ],
+    # 🆕 Small cap sectors
+    "mining":     [
+        "{sym} {move:+.1f}% — BTC ขึ้น mining stocks วิ่งตาม",
+        "{sym} {move:+.1f}% — picks-and-shovels ของ crypto bull run",
+        "{sym} {move:+.1f}% — hash rate + difficulty คุ้มขุดอีกแล้ว?",
+    ],
+    "power":      [
+        "{sym} {move:+.1f}% — AI data center ต้องการพลังงาน nuclear?",
+        "{sym} {move:+.1f}% — SMR/Microreactor cycle เริ่ม momentum",
+        "{sym} {move:+.1f}% — Trump nuclear push ดันเชื้อเพลิงสะอาด",
+    ],
+    "evtol":      [
+        "{sym} {move:+.1f}% — eVTOL กำลังจะ commercial launch?",
+        "{sym} {move:+.1f}% — air mobility ที่ห้าม sleep on",
+    ],
+    "materials":  [
+        "{sym} {move:+.1f}% — rare earth supply chain reshore?",
+        "{sym} {move:+.1f}% — critical minerals policy push",
+    ],
+    "retech":     [
+        "{sym} {move:+.1f}% — real estate tech ฟื้นพร้อมดอกเบี้ยลง?",
+    ],
+    "meme":       [
+        "{sym} {move:+.1f}% — retail crowd กลับมา?",
+        "{sym} วิ่ง {move:+.1f}% — social sentiment เปลี่ยน",
+    ],
+    "defense":    [
+        "{sym} {move:+.1f}% — defense tech ที่กำลังเร่ง contract",
+        "{sym} {move:+.1f}% — drone/AI defense play",
+    ],
 }
 
 HOOK_TEMPLATES_BEAR = {
@@ -178,6 +260,31 @@ HOOK_TEMPLATES_BEAR = {
         "{sym} {move:+.1f}% — fintech ขายตาม market",
         "{sym} {move:+.1f}% — credit risk concern?",
     ],
+    # 🆕 Small cap sectors — bear context
+    "mining":     [
+        "{sym} {move:+.1f}% — BTC ลง mining stocks ร่วงตาม",
+        "{sym} {move:+.1f}% — hash rate ไม่คุ้มขุด",
+    ],
+    "power":      [
+        "{sym} {move:+.1f}% — nuclear hype พักก่อน",
+        "{sym} {move:+.1f}% — funding/regulatory ติดขัด?",
+    ],
+    "evtol":      [
+        "{sym} {move:+.1f}% — eVTOL certification ล่าช้า?",
+    ],
+    "materials":  [
+        "{sym} {move:+.1f}% — commodities sell-off",
+    ],
+    "retech":     [
+        "{sym} {move:+.1f}% — real estate ดอกเบี้ยยังเป็นภาระ",
+    ],
+    "meme":       [
+        "{sym} {move:+.1f}% — retail crowd ทิ้ง",
+        "{sym} ร่วง {move:+.1f}% — social sentiment เย็น",
+    ],
+    "defense":    [
+        "{sym} {move:+.1f}% — defense rotation ออก",
+    ],
 }
 
 # Flat move (|move| < 0.1%) — ราคาทรงตัว
@@ -192,6 +299,14 @@ HOOK_TEMPLATES_FLAT = {
     "biotech":    ["{sym} ทรงตัว — รอ FDA/trial readout"],
     "semi":       ["{sym} ทรงตัว — chip cycle ดู range-bound"],
     "fintech":    ["{sym} ทรงตัว — รอ earnings/macro signal"],
+    # 🆕 Small cap sectors — flat
+    "mining":     ["{sym} ทรงตัว — รอ BTC คอนเฟิร์มทิศ"],
+    "power":      ["{sym} ทรงตัว — รอ contract/license signal"],
+    "evtol":      ["{sym} ทรงตัว — รอ FAA approval news"],
+    "materials":  ["{sym} ทรงตัว — รอ policy/supply news"],
+    "retech":     ["{sym} ทรงตัว — รอ rate cut signal"],
+    "meme":       ["{sym} ทรงตัว — social ไม่ active"],
+    "defense":    ["{sym} ทรงตัว — รอ contract award"],
 }
 
 # Backward compat — keep HOOK_TEMPLATES name for any external ref
@@ -213,7 +328,11 @@ def _build_hook(symbol: str, move_pct: float, news_headline: str = "") -> str:
     """Pick hook template สำหรับ symbol category — bullish/bearish/flat context-aware"""
     sector = SECTOR_TAG.get(symbol, "story")
     # Map specific sectors → template key (รวม "tech" → tech_mega tone)
-    if sector in ("space", "quantum", "ai", "ev", "crypto", "biotech", "semi", "fintech"):
+    if sector in (
+        "space", "quantum", "ai", "ev", "crypto", "biotech", "semi", "fintech",
+        # 🆕 Small cap sectors
+        "mining", "power", "evtol", "materials", "retech", "meme", "defense",
+    ):
         key = sector
     elif sector in ("tech_mega", "tech"):
         key = "tech_mega"
@@ -236,19 +355,27 @@ def _build_hook(symbol: str, move_pct: float, news_headline: str = "") -> str:
     return hook
 
 
-def _score_pick(tech_data: dict, news_item: dict = None) -> float:
-    """Composite score — เน้น 'ซิ่ง + สตอรี่ + bull bias' สำหรับ FB-able content"""
+def _score_pick(tech_data: dict, news_item: dict = None, symbol: str = "") -> float:
+    """Composite score — เน้น 'ซิ่ง + สตอรี่ + bull bias' สำหรับ FB-able content
+
+    🆕 2026-05-13: Small cap-aware (PP P. ขอให้เห็น small cap ใน picks)
+    - Relax outlier cap (25% → 35%) เพราะ small cap วิ่ง 25-35% เป็นเรื่องปกติ
+    - Pump penalty threshold สูงขึ้น (15% → 22%) สำหรับ small cap
+    - Bonus +3 ถ้า small cap มี vol confirm (vol_ratio > 2)
+    """
     move_raw = tech_data.get("price_move_pct", 0) or 0
     move_abs = abs(move_raw)
     vol_ratio = tech_data.get("volume_ratio", 1) or 1
     rsi = tech_data.get("rsi", 50) or 50
+    is_small = _is_small_cap(symbol) if symbol else False
 
     # Skip boring (< 1% move) — ไม่ค่อย FB-able
     if move_abs < 1.0:
         return -100   # effective skip
 
-    # Cap outlier (> 25% = น่าจะ data error หรือ extreme rare event)
-    if move_abs > 25:
+    # Cap outlier — relaxed for small cap (day trader ปกติเห็น 25-35%)
+    outlier_cap = 35 if is_small else 25
+    if move_abs > outlier_cap:
         return -50
 
     # Big move = priority
@@ -256,8 +383,9 @@ def _score_pick(tech_data: dict, news_item: dict = None) -> float:
     # Bull bias — positive moves ทำ content "หุ้นวิ่ง" ขายดีกว่า "หุ้นร่วง"
     if move_raw > 0:
         score += 4
-    # Outlier cap soft (> 15% = หุ้น pump น่าระวัง)
-    if move_abs > 15:
+    # Outlier cap soft — small cap threshold สูงกว่า (15% → 22%)
+    pump_threshold = 22 if is_small else 15
+    if move_abs > pump_threshold:
         score -= 5
 
     # Vol confirm
@@ -267,6 +395,11 @@ def _score_pick(tech_data: dict, news_item: dict = None) -> float:
         score += 5
     elif rsi > 80 or rsi < 20:
         score -= 5
+
+    # 🆕 Small cap bonus — ดึง small cap ที่มี real breakout (vol confirm) เข้า pick
+    # +3 ไม่มากพอจะ dominate mega cap แต่พอให้ small cap มี fair shot
+    if is_small and vol_ratio > 2:
+        score += 3
 
     # Fresh news bonus — ข่าวสด = FB engagement สูงกว่า
     if news_item:
@@ -389,14 +522,15 @@ def pick_top_3(pool: list = None) -> list[dict]:
     pool = pool or ALL_POOL
     candidates = []
 
-    # Score ทุก symbol ใน pool (cap 40 ตัวเพื่อเร็ว)
-    sample = random.sample(pool, min(40, len(pool)))
+    # Score ทุก symbol ใน pool (cap 50 ตัวเพื่อเร็ว)
+    # 🆕 2026-05-13: ขยายจาก 40 → 50 เพราะ pool ใหญ่ขึ้น (เพิ่ม small cap 30 ตัว)
+    sample = random.sample(pool, min(50, len(pool)))
     for sym in sample:
         td = _fetch_tech(sym)
         if td is None:
             continue
         news = _fetch_news_for_symbol(sym)
-        score = _score_pick(td, news)
+        score = _score_pick(td, news, symbol=sym)
         candidates.append({
             "symbol": sym,
             "tech_data": td,
@@ -545,11 +679,15 @@ def build_daily_picks_message(picks: list[dict]) -> str:
             "tech": "💻", "media": "🎬", "industrial": "🏭", "finance": "🏦",
             "retail": "🛒", "consumer": "🛍️", "healthcare": "🏥", "energy": "⚡",
             "telecom": "📡", "misc": "📊",
+            # 🆕 Small cap sectors
+            "mining": "⛏️", "power": "⚛️", "evtol": "🛩️",
+            "materials": "💎", "retech": "🏠",
         }
         emoji = sector_emoji_map.get(sector, "📊")
 
         emo = rank_emoji[i] if i < len(rank_emoji) else "•"
-        lines.append(f"{emo} *{sym}* {emoji} — ${price:.2f} ({move:+.2f}%)")
+        small_cap_tag = " 🔥small cap" if _is_small_cap(sym) else ""
+        lines.append(f"{emo} *{sym}* {emoji} — ${price:.2f} ({move:+.2f}%){small_cap_tag}")
         lines.append(f"   📊 vol {vol_ratio:.1f}x · RSI {rsi:.1f} · {sector}")
         hook = _build_hook(sym, move, news.get("headline", "") if news else "")
         lines.append(f"   💡 _{hook}_")
@@ -562,6 +700,10 @@ def build_daily_picks_message(picks: list[dict]) -> str:
             else:
                 age_str = f"{age_h/24:.1f} วันที่แล้ว"
             lines.append(f"   🔗 [ข่าวล่าสุด]({news['url'][:120]}) · {age_str}")
+        # 🆕 Small cap warning — ลูกค้า PP P. ขอเพิ่ม small cap (2026-05-13)
+        # ต้องเตือนเพราะ volatility สูง + liquidity ต่ำกว่า mega cap
+        if _is_small_cap(sym):
+            lines.append("   ⚠️ _small cap — volatility สูง, ใช้ size เล็ก, ตั้ง SL เคร่ง_")
         lines.append("")
 
     lines.extend([
