@@ -4662,8 +4662,9 @@ def inline_callbacks(call):
                 'GOEV', 'WKHS',                                 # EV small
             ]
 
-            # 🆕 Small cap set — ใช้ tag + rebalance top 10 (cap ที่ 4 ตัวในกระดาน)
-            # ป้องกัน small cap วิ่งแรงครองหมด → ยังเห็น mega cap คละกัน
+            # 🆕 Small cap set — ใช้ tag + quota top 10 (target 4 small + 6 large)
+            # Quota approach (2026-05-13 update): พยายามเติม small cap ให้ครบ 4 ตัว
+            # ถ้า signal มีน้อยกว่า 4 → เติมเท่าที่มี (graceful fallback)
             SCREENER_SMALL_CAP_SET = {
                 # Existing in scan_list (story stocks + hot movers small)
                 'IONQ', 'RGTI', 'QBTS', 'ARQQ', 'BBAI', 'SOUN', 'NBIS',
@@ -4675,7 +4676,7 @@ def inline_callbacks(call):
                 'BKSY', 'SPIR', 'USAR', 'MP', 'DJT', 'DAVE', 'ONDS', 'OPEN',
                 'NVAX', 'VKTX', 'GOEV', 'WKHS',
             }
-            SMALL_CAP_TOP_LIMIT = 4   # อย่างน้อย 6 mega/large cap ใน top 10
+            SMALL_CAP_QUOTA = 4   # target: ~4 small + ~6 large ใน top 10
 
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -4752,20 +4753,18 @@ def inline_callbacks(call):
 
             candidates.sort(key=lambda x: x[0], reverse=True)
 
-            # 🆕 Rebalance: cap small cap ที่ SMALL_CAP_TOP_LIMIT ตัว (PP P. ขอ "คละๆกัน")
-            # Score เรียงแล้ว — ดึงทีละตัวจนครบ 10 แต่ skip small cap ถ้าเต็ม limit
-            top_10 = []
-            small_cap_count = 0
-            for cand in candidates:
-                _, sym, _, _ = cand
-                is_small = sym in SCREENER_SMALL_CAP_SET
-                if is_small and small_cap_count >= SMALL_CAP_TOP_LIMIT:
-                    continue   # เกิน limit small cap → ข้าม หา large cap อันต่อไป
-                top_10.append(cand)
-                if is_small:
-                    small_cap_count += 1
-                if len(top_10) >= 10:
-                    break
+            # 🆕 Quota-based pick (2026-05-13 v2): พยายามเติม 4 small + 6 large
+            # แยก 2 bucket → ดึง top ของแต่ละ → รวม + sort by score สำหรับ display
+            small_caps_avail = [c for c in candidates if c[1] in SCREENER_SMALL_CAP_SET]
+            large_caps_avail = [c for c in candidates if c[1] not in SCREENER_SMALL_CAP_SET]
+
+            top_small = small_caps_avail[:SMALL_CAP_QUOTA]
+            remaining_slots = 10 - len(top_small)
+            top_large = large_caps_avail[:remaining_slots]
+
+            # Combine และเรียงรวมตาม score สำหรับ display (highest first)
+            top_10 = sorted(top_small + top_large, key=lambda x: -x[0])
+            small_cap_count = len(top_small)
 
             if top_10:
                 lines = []
@@ -4775,7 +4774,7 @@ def inline_callbacks(call):
                     lines.append(f"**{i}. {sym}** (${price:,.2f}){small_tag}\n   👉 {reason_text}")
                 # Subtitle + footer warning เฉพาะเมื่อมี small cap จริง (avoid noise)
                 if small_cap_count > 0:
-                    subtitle = f"_(mega + small cap คละกัน · small cap {small_cap_count}/{SMALL_CAP_TOP_LIMIT} ตัว)_\n\n"
+                    subtitle = f"_(mega + small cap คละกัน · small cap {small_cap_count}/{SMALL_CAP_QUOTA} ตัว)_\n\n"
                     footer_warning = "\n⚠️ _small cap volatility สูง — ใช้ size เล็ก, ตั้ง SL เคร่ง_"
                 else:
                     subtitle = "\n"
