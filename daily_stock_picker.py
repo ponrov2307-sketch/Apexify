@@ -461,19 +461,27 @@ def _generate_simple_plan(tech_data: dict) -> dict:
         entry_high = current * 1.01
 
         if is_bull:
-            # Bull setup: SL ใต้ support (buffer 1.5%), TP1 ที่ resistance, TP2 = 2.5R
-            sl_base = support * 0.985 if support and support < current else current * 0.95
-            sl = max(sl_base, current * 0.93)   # cap SL ≤ 7% loss
-            sl = min(sl, current * 0.985)        # ensure SL < entry
+            # Bull setup: SL ต่ำกว่า entry, TP1 ที่ resistance, TP2 = 2.5R target
+            # SL logic ระบุชัด:
+            #   ถ้ามี support < current → SL ใต้ support 1.5% (zone respect)
+            #   else → SL ที่ -5% (default conservative loss)
+            #   cap: ห้าม SL ห่างเกิน 7% (ไม่ Burn account)
+            if support and support < current:
+                sl = max(support * 0.985, current * 0.93)
+            else:
+                sl = current * 0.95
             tp1 = resistance if resistance and resistance > current * 1.01 else current * 1.05
             risk = current - sl
             tp2 = current + max(risk, current * 0.02) * 2.5
         else:
-            # Bear setup: SL เหนือ resistance, TP1 ที่ support, TP2 = 2.5R
-            sl_base = resistance * 1.015 if resistance and resistance > current else current * 1.05
-            sl = min(sl_base, current * 1.07)
-            sl = max(sl, current * 1.015)
-            tp1 = support if support and support < current * 0.99 else current * 0.95
+            # Bear setup: SL เหนือ entry, TP1 ที่ support (deeper target), TP2 = 2.5R
+            # Bear TP1: ถ้ามี support → ใช้ support (deep target)
+            #          else → -10% (deeper than bull's +5% — bear move บ่อยใหญ่กว่า)
+            if resistance and resistance > current:
+                sl = min(resistance * 1.015, current * 1.07)
+            else:
+                sl = current * 1.05
+            tp1 = support if support and support < current * 0.99 else current * 0.90
             risk = sl - current
             tp2 = current - max(risk, current * 0.02) * 2.5
 
