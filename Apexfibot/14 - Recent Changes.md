@@ -35,6 +35,15 @@ tags: [changelog]
 
 **Morning Movers: 38 → 60 tickers (+22 small cap)** สำหรับ briefing 8:00
 
+**🔥 Screener (PRO `hub_screener`): 200 → 225 tickers (+25 small cap)** — ลูกค้า PP P. clarified ตัวนี้คือที่ขอจริงๆ
+- `SCREENER_SMALL_CAP_SET` (48 tickers): IONQ/RGTI/QBTS/ARQQ/BBAI/SOUN/NBIS/RKLB/ASTS/IRDM/PL/RXRX/EXAS/SAVA/AI/CLSK/CIFR/TEM/ALAB/CRWV/OKLO/SMR/LEU/BTBT/BTDR/IREN/WULF/HUT/ACHR/JOBY/HOLO/LAES/GFAI/SERV/KSCP/QUBT/BKSY/SPIR/USAR/MP/DJT/DAVE/ONDS/OPEN/NVAX/VKTX/GOEV/WKHS
+- `SMALL_CAP_TOP_LIMIT = 4` — รับประกัน ≥ 6 mega/large cap ใน top 10 (ป้องกัน small cap ครองกระดาน)
+- Rebalance: เรียง score → ดึง 10 แต่ skip small cap ถ้าเกิน limit
+- Tag `🔥small cap` หลังราคา
+- Subtitle "mega + small cap คละกัน · small cap N/4 ตัว"
+- Footer warning เฉพาะตอนมี small cap จริง
+- Scan time: 200 → 225 ตัว = +12.5% (~8s → ~9s) ไม่กระทบ UX
+
 **New sector taxonomy + hooks:**
 - 6 sectors ใหม่: `mining` ⛏️ · `power` ⚛️ · `evtol` 🛩️ · `materials` 💎 · `retech` 🏠 · `meme` (enhanced) · `defense` (enhanced)
 - Hook templates BULL/BEAR/FLAT ครบ 7 sectors ใหม่

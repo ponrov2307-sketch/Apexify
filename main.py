@@ -4588,9 +4588,9 @@ def inline_callbacks(call):
                 bot.send_message(user_id, "🔒 **ฟีเจอร์ระดับพรีเมียม (PRO Exclusive)**\nสแกนหุ้นเด่นอัตโนมัติสงวนสิทธิ์ให้ลูกค้าระดับ PRO เท่านั้นครับ 👑", parse_mode="Markdown")
                 return
             
-            scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหุ้นเมกาเด่น...**\n*(สแกน ~200 ตัว US — Mag 7 + S&P 500 + story stocks + hot movers คัด 10 อันดับ)*", parse_mode="Markdown")
+            scan_msg = bot.send_message(user_id, "⏳ **Apexify กำลังสแกนหุ้นเด่น US...**\n*(สแกน ~225 ตัว — Mag 7 + S&P 500 + story stocks + small cap day trade คัด 10 อันดับ คละขนาด)*", parse_mode="Markdown")
 
-            # 🇺🇸 US universe — ~200 ตัว ผสม blue-chip + story stocks + hot movers
+            # 🇺🇸 US universe — ~225 ตัว ผสม blue-chip + story stocks + hot movers + small cap (PP P. 2026-05-13)
             scan_list = [
                 # Mega Tech & Internet (15)
                 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NFLX', 'CRM', 'ORCL',
@@ -4645,7 +4645,37 @@ def inline_callbacks(call):
                 'LDOS', 'TDG',                                  # Defense
                 'CLSK', 'CIFR',                                 # Crypto mining
                 'TEM',                                          # Genomics / AI healthcare
+                # 🆕 2026-05-13 — Small cap day trade favorites (PP P. request)
+                # ขอ small cap ใน screener ด้วย ("คนเทรดรายวันส่วนมากเป็น small cap")
+                'OKLO', 'SMR', 'LEU',                           # AI Power / Nuclear small
+                'BTBT', 'BTDR', 'IREN', 'WULF', 'HUT',          # Crypto mining (CLSK/CIFR/MARA/RIOT มีแล้ว)
+                'ACHR', 'JOBY',                                 # eVTOL
+                'HOLO', 'LAES', 'GFAI', 'SERV', 'KSCP',         # AI small
+                'QUBT',                                         # Quantum (IONQ/RGTI/QBTS/ARQQ มีแล้ว)
+                'BKSY', 'SPIR',                                 # Space small
+                'USAR', 'MP',                                   # Rare earth / Critical minerals
+                'DJT',                                          # Political / meme
+                'DAVE',                                         # Fintech small
+                'ONDS',                                         # Defense drone
+                'OPEN',                                         # Real estate tech
+                'NVAX', 'VKTX',                                 # Biotech catalyst
+                'GOEV', 'WKHS',                                 # EV small
             ]
+
+            # 🆕 Small cap set — ใช้ tag + rebalance top 10 (cap ที่ 4 ตัวในกระดาน)
+            # ป้องกัน small cap วิ่งแรงครองหมด → ยังเห็น mega cap คละกัน
+            SCREENER_SMALL_CAP_SET = {
+                # Existing in scan_list (story stocks + hot movers small)
+                'IONQ', 'RGTI', 'QBTS', 'ARQQ', 'BBAI', 'SOUN', 'NBIS',
+                'RKLB', 'ASTS', 'IRDM', 'PL', 'RXRX', 'EXAS', 'SAVA',
+                'AI', 'CLSK', 'CIFR', 'TEM', 'ALAB', 'CRWV',
+                # Newly added small caps (2026-05-13)
+                'OKLO', 'SMR', 'LEU', 'BTBT', 'BTDR', 'IREN', 'WULF', 'HUT',
+                'ACHR', 'JOBY', 'HOLO', 'LAES', 'GFAI', 'SERV', 'KSCP', 'QUBT',
+                'BKSY', 'SPIR', 'USAR', 'MP', 'DJT', 'DAVE', 'ONDS', 'OPEN',
+                'NVAX', 'VKTX', 'GOEV', 'WKHS',
+            }
+            SMALL_CAP_TOP_LIMIT = 4   # อย่างน้อย 6 mega/large cap ใน top 10
 
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -4721,14 +4751,42 @@ def inline_callbacks(call):
                         candidates.append(result)
 
             candidates.sort(key=lambda x: x[0], reverse=True)
-            top_10 = candidates[:10]
+
+            # 🆕 Rebalance: cap small cap ที่ SMALL_CAP_TOP_LIMIT ตัว (PP P. ขอ "คละๆกัน")
+            # Score เรียงแล้ว — ดึงทีละตัวจนครบ 10 แต่ skip small cap ถ้าเต็ม limit
+            top_10 = []
+            small_cap_count = 0
+            for cand in candidates:
+                _, sym, _, _ = cand
+                is_small = sym in SCREENER_SMALL_CAP_SET
+                if is_small and small_cap_count >= SMALL_CAP_TOP_LIMIT:
+                    continue   # เกิน limit small cap → ข้าม หา large cap อันต่อไป
+                top_10.append(cand)
+                if is_small:
+                    small_cap_count += 1
+                if len(top_10) >= 10:
+                    break
 
             if top_10:
                 lines = []
                 for i, (_, sym, price, reasons) in enumerate(top_10, 1):
                     reason_text = " + ".join(reasons) if reasons else "📊 น่าจับตา"
-                    lines.append(f"**{i}. {sym}** (${price:,.2f})\n   👉 {reason_text}")
-                result_msg = "🔥 **Apexify US Picks — 10 หุ้นเมกาเด่นวันนี้** 🔥\n\n" + "\n\n".join(lines) + "\n\n💡 พิมพ์ชื่อหุ้นเพื่อให้ Apexify วิเคราะห์เชิงลึก"
+                    small_tag = " 🔥small cap" if sym in SCREENER_SMALL_CAP_SET else ""
+                    lines.append(f"**{i}. {sym}** (${price:,.2f}){small_tag}\n   👉 {reason_text}")
+                # Subtitle + footer warning เฉพาะเมื่อมี small cap จริง (avoid noise)
+                if small_cap_count > 0:
+                    subtitle = f"_(mega + small cap คละกัน · small cap {small_cap_count}/{SMALL_CAP_TOP_LIMIT} ตัว)_\n\n"
+                    footer_warning = "\n⚠️ _small cap volatility สูง — ใช้ size เล็ก, ตั้ง SL เคร่ง_"
+                else:
+                    subtitle = "\n"
+                    footer_warning = ""
+                result_msg = (
+                    "🔥 **Apexify US Picks — 10 หุ้นเด่นวันนี้** 🔥\n"
+                    + subtitle
+                    + "\n\n".join(lines)
+                    + "\n\n💡 พิมพ์ชื่อหุ้นเพื่อให้ Apexify วิเคราะห์เชิงลึก"
+                    + footer_warning
+                )
             else:
                 result_msg = "🔥 **Apexify US Picks** 🔥\n\nขณะนี้ตลาดสหรัฐฯ ยังไม่มีหุ้นเข้าเกณฑ์น่าสะสมชัดเจน\n*(เทรนด์ extended ทั้งกระดาน — แนะนำให้รอจังหวะ pullback)*"
                 
