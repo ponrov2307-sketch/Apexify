@@ -420,17 +420,72 @@ def pick_top_3(pool: list = None) -> list[dict]:
     return picks[:3]
 
 
-def _render_chart_image(symbol: str):
-    """Generate chart for symbol — ใช้ PRO style (S/R + POC + EMA) แต่ไม่มี Entry/TP/SL
-    (เพราะ daily picker ไม่มี trade plan)
+def _generate_simple_plan(tech_data: dict) -> dict:
+    """Rule-based trade plan สำหรับ daily picker chart (ไม่กิน AI token)
+    ใช้ S/R + EMA50 + current price + 2.5R target
+
+    Returns plan dict: entry_low, entry_high, tp1, tp2, sl
+    """
+    if not tech_data:
+        return {}
+    try:
+        current = float(tech_data.get("price") or 0)
+        if current <= 0:
+            return {}
+        support = tech_data.get("support")
+        resistance = tech_data.get("resistance")
+        ema50 = tech_data.get("ema50")
+        support = float(support) if support else None
+        resistance = float(resistance) if resistance else None
+        ema50 = float(ema50) if ema50 else None
+
+        # Bias: bull ถ้าราคา > EMA50 (uptrend), else bear
+        is_bull = ema50 is None or current >= ema50
+
+        # Entry zone: ±1% รอบราคาปัจจุบัน (admin/user adjust ได้)
+        entry_low = current * 0.99
+        entry_high = current * 1.01
+
+        if is_bull:
+            # Bull setup: SL ใต้ support (buffer 1.5%), TP1 ที่ resistance, TP2 = 2.5R
+            sl_base = support * 0.985 if support and support < current else current * 0.95
+            sl = max(sl_base, current * 0.93)   # cap SL ≤ 7% loss
+            sl = min(sl, current * 0.985)        # ensure SL < entry
+            tp1 = resistance if resistance and resistance > current * 1.01 else current * 1.05
+            risk = current - sl
+            tp2 = current + max(risk, current * 0.02) * 2.5
+        else:
+            # Bear setup: SL เหนือ resistance, TP1 ที่ support, TP2 = 2.5R
+            sl_base = resistance * 1.015 if resistance and resistance > current else current * 1.05
+            sl = min(sl_base, current * 1.07)
+            sl = max(sl, current * 1.015)
+            tp1 = support if support and support < current * 0.99 else current * 0.95
+            risk = sl - current
+            tp2 = current - max(risk, current * 0.02) * 2.5
+
+        return {
+            "entry_low": round(entry_low, 2),
+            "entry_high": round(entry_high, 2),
+            "tp1": round(tp1, 2),
+            "tp2": round(tp2, 2),
+            "sl": round(sl, 2),
+            "bias": "bullish" if is_bull else "bearish",
+        }
+    except Exception as e:
+        print(f"[daily-picker] plan gen err: {e}", flush=True)
+        return {}
+
+
+def _render_chart_image(symbol: str, tech_data: dict = None):
+    """Generate chart for symbol — PRO style + Entry/TP/SL annotation (rule-based plan)
 
     Returns: BytesIO buffer of PNG (สำหรับ bot.send_photo)
     """
     try:
         from technical_tools import generate_pro_annotated_chart
-        # plan={} → entry/tp/sl = None → skip annotations
-        # ที่เหลือ: EMA + S/R + POC + light theme — pro look
-        chart_buf = generate_pro_annotated_chart(symbol, plan={})
+        # Rule-based plan สำหรับ chart annotation (ไม่กิน AI token)
+        plan = _generate_simple_plan(tech_data) if tech_data else {}
+        chart_buf = generate_pro_annotated_chart(symbol, plan=plan)
         if chart_buf is not None:
             return chart_buf
         # Fallback: ถ้า pro chart fail → ใช้ basic
@@ -532,7 +587,7 @@ def run_once(bot, dry_run: bool = False):
     # Send chart image for each pick — chart เดียวกับที่ bot วิเคราะห์ปกติ
     for p in picks:
         try:
-            chart = _render_chart_image(p["symbol"])
+            chart = _render_chart_image(p["symbol"], p.get("tech_data"))
             if chart:
                 bot.send_photo(config.ADMIN_ID, chart, caption=f"📊 {p['symbol']} chart — Apexify")
                 time.sleep(1.5)   # rate-limit Telegram
