@@ -197,16 +197,18 @@ def _mark_user_sent(user_id: str):
 
 
 def run_once(bot, dry_run: bool = False):
-    """รัน 1 cycle — DM ทุก PRO user ที่มี watchlist"""
+    """รัน 1 cycle — DM ทุก VIP/PRO user ที่มี watchlist
+    (ขยายจาก PRO only 2026-05-13 — replacing legacy send_watchlist_daily_summary 5:00 ICT)
+    """
     try:
-        from database import query_pro_users_with_watchlist
+        from database import query_paying_users_with_watchlist
     except Exception as e:
         print(f"[daily-pnl] DB import err: {e}", flush=True)
         return
 
-    users = query_pro_users_with_watchlist(limit=500)
+    users = query_paying_users_with_watchlist(roles=('vip', 'pro'), limit=500)
     if not users:
-        print("[daily-pnl] no PRO users with watchlist", flush=True)
+        print("[daily-pnl] no VIP/PRO users with watchlist", flush=True)
         return
 
     print(f"[daily-pnl] processing {len(users)} PRO users", flush=True)

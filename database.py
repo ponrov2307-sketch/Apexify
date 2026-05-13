@@ -4180,19 +4180,29 @@ def query_winback_candidates(cooldown_days: int = 30, limit: int = 200):
 
 def query_pro_users_with_watchlist(limit: int = 500) -> list:
     """หา PRO users ที่ยังไม่หมดอายุ + มี watchlist อย่างน้อย 1 ตัว
+    Backward-compat wrapper — เรียก query_paying_users_with_watchlist roles=['pro']
+    """
+    return query_paying_users_with_watchlist(roles=['pro'], limit=limit)
 
-    ใช้สำหรับ Daily P&L Recap cron — DM ทุกเช้าให้ user PRO สรุป watchlist
 
-    Returns: list ของ dict { user_id, username, watchlist: [ticker, ...] }
+def query_paying_users_with_watchlist(roles=('vip', 'pro'), limit: int = 500) -> list:
+    """หา paying users (VIP + PRO ที่ยังไม่หมดอายุ) + มี watchlist อย่างน้อย 1 ตัว
+
+    ใช้สำหรับ Daily P&L Recap cron — ขยายจาก PRO-only เป็น VIP+PRO ที่ยังไม่หมด
+
+    Returns: list ของ dict { user_id, username, role, watchlist: [ticker, ...] }
     """
     conn = get_connection()
     c = conn.cursor()
     try:
+        role_list = list(roles) if not isinstance(roles, str) else [roles]
+        # Use IN with placeholders dynamic
+        placeholders = ",".join(["%s"] * len(role_list))
         c.execute(
-            """
-            SELECT u.user_id, u.username
+            f"""
+            SELECT u.user_id, u.username, u.role
             FROM users u
-            WHERE COALESCE(u.role, 'free') = 'pro'
+            WHERE COALESCE(u.role, 'free') IN ({placeholders})
               AND u.expiry_date IS NOT NULL
               AND u.expiry_date::timestamp > NOW()
               AND EXISTS (
@@ -4202,11 +4212,11 @@ def query_pro_users_with_watchlist(limit: int = 500) -> list:
             ORDER BY u.user_id
             LIMIT %s
             """,
-            (int(limit),),
+            tuple(role_list) + (int(limit),),
         )
         rows = c.fetchall()
     except Exception as e:
-        print(f"[query_pro_users_with_watchlist] err: {e}", flush=True)
+        print(f"[query_paying_users_with_watchlist] err: {e}", flush=True)
         return []
     finally:
         conn.close()
@@ -4216,7 +4226,12 @@ def query_pro_users_with_watchlist(limit: int = 500) -> list:
         uid = str(row[0])
         tickers = _get_user_watchlist_items(uid) or []
         if tickers:
-            out.append({"user_id": uid, "username": row[1] or "", "watchlist": tickers})
+            out.append({
+                "user_id": uid,
+                "username": row[1] or "",
+                "role": row[2] or "",
+                "watchlist": tickers,
+            })
     return out
 
 

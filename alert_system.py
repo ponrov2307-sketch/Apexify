@@ -207,16 +207,28 @@ MORNING_MACRO_ASSETS = {
     "DX-Y.NYB": "Dollar Index",
 }
 MORNING_MOVER_UNIVERSE = {
-    "AAPL": "Apple",
-    "MSFT": "Microsoft",
-    "NVDA": "NVIDIA",
-    "TSLA": "Tesla",
-    "META": "Meta",
-    "AMZN": "Amazon",
-    "GOOGL": "Alphabet",
-    "AMD": "AMD",
-    "NFLX": "Netflix",
-    "PLTR": "Palantir",
+    # Mag 7
+    "AAPL": "Apple", "MSFT": "Microsoft", "GOOGL": "Alphabet",
+    "AMZN": "Amazon", "META": "Meta", "NVDA": "NVIDIA", "TSLA": "Tesla",
+    # Semi / AI hardware
+    "AMD": "AMD", "AVGO": "Broadcom", "MU": "Micron", "ARM": "Arm",
+    "SMCI": "Super Micro", "INTC": "Intel",
+    # Software / SaaS / AI
+    "PLTR": "Palantir", "CRWD": "CrowdStrike", "SNOW": "Snowflake",
+    "NFLX": "Netflix", "ORCL": "Oracle", "CRM": "Salesforce",
+    # Story stocks (Space / Quantum / AI plays)
+    "RKLB": "Rocket Lab", "ASTS": "AST SpaceMobile", "IONQ": "IonQ",
+    "AI": "C3.ai", "SOUN": "SoundHound",
+    # AI Power / Data Center
+    "VST": "Vistra", "CEG": "Constellation", "VRT": "Vertiv",
+    # Crypto / Fintech
+    "COIN": "Coinbase", "MSTR": "MicroStrategy", "HOOD": "Robinhood",
+    "SOFI": "SoFi", "NU": "Nubank",
+    # EV
+    "RIVN": "Rivian", "NIO": "NIO",
+    # International / Consumer
+    "SE": "SEA Limited", "MELI": "Mercado Libre", "RDDT": "Reddit",
+    "DIS": "Disney", "BABA": "Alibaba",
 }
 MORNING_BRIEFING_LEGAL_DISCLAIMER = (
     "⚠️ **ข้อจำกัดความรับผิดชอบ:** ข้อมูลนี้จัดทำขึ้นเพื่อวัตถุประสงค์ในการให้ข้อมูลทั่วไปเท่านั้น "
@@ -1784,21 +1796,37 @@ def send_daily_portfolio_summary(bot_instance):
         total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
         total_icon = "🟢" if total_profit >= 0 else "🔴"
 
-        lines = [f"🔔 <b>สรุปพอร์ตประจำวัน</b>  ({len(rows)} หลักทรัพย์)\n"]
-        for t, s, ac, lp, pf, pp in rows:
+        # 🌟 Sort by absolute pnl desc — มูลค่าสำคัญสุดบน
+        rows_sorted = sorted(rows, key=lambda r: -abs(r[4]))
+        winners = sum(1 for r in rows_sorted if r[4] >= 0)
+        losers = len(rows_sorted) - winners
+
+        lines = [
+            f"📊 <b>สรุปพอร์ตประจำวัน</b>",
+            f"<i>{len(rows_sorted)} หลักทรัพย์ · 🟢 {winners} · 🔴 {losers}</i>",
+            "━━━━━━━━━━━━━━",
+            "",
+        ]
+        for t, s, ac, lp, pf, pp in rows_sorted:
+            arrow = "▲" if pf >= 0 else "▼"
             icon = "🟢" if pf >= 0 else "🔴"
             sign = "+" if pf >= 0 else ""
             lines.append(
-                f"{icon} <b>{t}</b>  {s:,.4g} หุ้น\n"
-                f"   ทุน {ac:,.2f}  →  ล่าสุด {lp:,.2f}\n"
-                f"   {sign}{pf:,.2f}  ({sign}{pp:.2f}%)\n"
+                f"{icon} <b>{t}</b> · {s:,.4g} หุ้น\n"
+                f"   ทุน ${ac:,.2f} → ล่าสุด ${lp:,.2f}\n"
+                f"   {arrow} {sign}${pf:,.2f} ({sign}{pp:.2f}%)"
             )
+            lines.append("")
+        lines.append("━━━━━━━━━━━━━━")
+        lines.append(f"💰 <b>มูลค่ารวม:</b> ${current_value:,.2f}")
+        lines.append(f"💵 <b>ต้นทุน:</b> ${total_invested:,.2f}")
         lines.append(
-            f"─────────────────────\n"
-            f"💰 <b>มูลค่ารวม:</b> {current_value:,.2f}\n"
-            f"💵 <b>ต้นทุนรวม:</b> {total_invested:,.2f}\n"
-            f"{total_icon} <b>กำไร/ขาดทุนรวม:</b> {'+' if total_profit >= 0 else ''}{total_profit:,.2f}  ({'+' if total_profit_pct >= 0 else ''}{total_profit_pct:.2f}%)"
+            f"{total_icon} <b>P&amp;L รวม:</b> "
+            f"{'+' if total_profit >= 0 else ''}${total_profit:,.2f} "
+            f"({'+' if total_profit_pct >= 0 else ''}{total_profit_pct:.2f}%)"
         )
+        lines.append("")
+        lines.append("<i>💡 /portfolio ดูเชิงลึก · /pnl สร้างการ์ดสวยแชร์ได้</i>")
 
         try:
             bot_instance.send_message(user_id, "\n".join(lines), parse_mode='HTML')
@@ -2792,9 +2820,11 @@ def run_alert_loop(bot_instance=None):
             last_stock_news_check_time = time.time()
             print(f"[StockNews] เช็คข่าวรายตัวเสร็จแล้ว ({len(active_symbols or [])} symbols)")
 
-        if thai_time.hour == 5 and last_watchlist_summary_date != current_date_str:
-            send_watchlist_daily_summary(bot_instance)
-            last_watchlist_summary_date = current_date_str
+        # 🚫 Disabled 2026-05-13: overlaps with daily_pnl_cron (08:00 ICT) ที่มี news + UI ดีกว่า
+        # daily_pnl_cron ขยายให้ครอบคลุม VIP+PRO แล้ว — ไม่ต้องส่ง 5:00 ซ้ำ
+        # if thai_time.hour == 5 and last_watchlist_summary_date != current_date_str:
+        #     send_watchlist_daily_summary(bot_instance)
+        #     last_watchlist_summary_date = current_date_str
 
         # 🌟 Weekly Digest — ศุกร์ 18:00 Thai time (weekday()=4 = Friday)
         if (thai_time.weekday() == 4 and thai_time.hour == 18
