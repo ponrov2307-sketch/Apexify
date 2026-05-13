@@ -88,65 +88,178 @@ ALL_POOL = list(set(MAG_7 + STORY_STOCKS + SP500_VARIETY))
 # ============ Suggested hook templates ============
 # แยก bullish (positive move) / bearish (negative move) context
 HOOK_TEMPLATES_BULL = {
-    "tech_mega":  ["{sym} {move:+.1f}% วันนี้ — ตลาดเริ่มเทใส่ Mag 7 อีกครั้ง?", "{sym} หลังตลาด {move:+.1f}% — เทรนด์ระยะยาวยังเขียวอยู่?"],
-    "story":      ["{sym} {move:+.1f}% — สตอรี่นี้ตื่นแล้วใช่ไหม?", "ทำไม {sym} วิ่ง {move:+.1f}% เมื่อคืน?"],
-    "quantum":    ["{sym} {move:+.1f}% — Quantum Computing ตื่นจริงหรือ pump?", "{sym} วิ่งทะลุแนวต้าน — quantum hype ยังไม่จบ"],
-    "space":      ["{sym} {move:+.1f}% — Space stocks กลับมามีคนสนใจ", "{sym} หุ้นดาวเทียมที่นักลงทุนเริ่มจับตา"],
-    "ai":         ["{sym} {move:+.1f}% — AI hype play ที่ยังไม่ peak?", "{sym} — AI software ที่อาจ underrated"],
-    "ev":         ["{sym} {move:+.1f}% — EV recovery หรือ trap?"],
-    "crypto":     ["{sym} {move:+.1f}% — crypto correlation play"],
-    "biotech":    ["{sym} {move:+.1f}% — biotech catalyst ที่ห้ามพลาด?"],
-    "semi":       ["{sym} {move:+.1f}% — chip cycle ยังไม่จบ"],
-    "fintech":    ["{sym} {move:+.1f}% — fintech ที่ Apexify เห็น setup ดี"],
+    "tech_mega":  [
+        "{sym} {move:+.1f}% วันนี้ — ตลาดเริ่มเทใส่ Mag 7 อีกครั้ง?",
+        "{sym} หลังตลาด {move:+.1f}% — เทรนด์ระยะยาวยังเขียวอยู่?",
+        "{sym} {move:+.1f}% — earnings/guidance อะไรขับ?",
+    ],
+    "story":      [
+        "{sym} {move:+.1f}% — สตอรี่นี้ตื่นแล้วใช่ไหม?",
+        "ทำไม {sym} วิ่ง {move:+.1f}% เมื่อคืน?",
+        "{sym} {move:+.1f}% — หุ้นที่ไม่ค่อยมีใครพูดถึงแต่กำลังวิ่ง",
+    ],
+    "quantum":    [
+        "{sym} {move:+.1f}% — Quantum Computing ตื่นจริงหรือ pump?",
+        "{sym} วิ่งทะลุแนวต้าน — quantum hype ยังไม่จบ",
+    ],
+    "space":      [
+        "{sym} {move:+.1f}% — Space stocks กลับมามีคนสนใจ",
+        "{sym} หุ้นดาวเทียมที่นักลงทุนเริ่มจับตา",
+        "{sym} {move:+.1f}% — contract ใหม่/launch มาแล้ว?",
+    ],
+    "ai":         [
+        "{sym} {move:+.1f}% — AI hype play ที่ยังไม่ peak?",
+        "{sym} — AI software ที่อาจ underrated",
+        "{sym} {move:+.1f}% — picks-and-shovels ของ AI cycle",
+    ],
+    "ev":         [
+        "{sym} {move:+.1f}% — EV recovery หรือ trap?",
+        "{sym} {move:+.1f}% — delivery numbers ออกมาแล้วเป็นยังไง?",
+    ],
+    "crypto":     [
+        "{sym} {move:+.1f}% — crypto correlation play",
+        "{sym} วิ่งตาม BTC {move:+.1f}%",
+        "{sym} {move:+.1f}% — เมื่อ crypto market green",
+    ],
+    "biotech":    [
+        "{sym} {move:+.1f}% — biotech catalyst ที่ห้ามพลาด?",
+        "{sym} {move:+.1f}% — FDA/trial readout รออะไร?",
+    ],
+    "semi":       [
+        "{sym} {move:+.1f}% — chip cycle ยังไม่จบ",
+        "{sym} {move:+.1f}% — AI demand spillover ลง semi",
+    ],
+    "fintech":    [
+        "{sym} {move:+.1f}% — fintech ที่ Apexify เห็น setup ดี",
+        "{sym} {move:+.1f}% — credit cycle + earnings catalyst",
+    ],
 }
 
 HOOK_TEMPLATES_BEAR = {
-    "tech_mega":  ["{sym} {move:+.1f}% — Mag 7 เริ่มหายร้อน?", "{sym} ร่วง {move:+.1f}% — โอกาส buy the dip?"],
-    "story":      ["{sym} {move:+.1f}% — สตอรี่จบแล้วหรือยังไม่เริ่ม?", "{sym} ลง {move:+.1f}% — มี catalyst negative อะไร?"],
-    "quantum":    ["{sym} {move:+.1f}% — Quantum hype เริ่มจาง?", "{sym} ลงจากแนวต้าน — รอ confirmation"],
-    "space":      ["{sym} {move:+.1f}% — Space stocks เจอแรงขาย", "{sym} ลง {move:+.1f}% — guidance/earnings มีอะไร?"],
-    "ai":         ["{sym} {move:+.1f}% — AI sector หยุดพัก", "{sym} ลงทั้งที่ fundamental ยังดี — โอกาสเข้า?"],
-    "ev":         ["{sym} {move:+.1f}% — EV cycle ยังไม่ฟื้น"],
-    "crypto":     ["{sym} {move:+.1f}% — crypto sell-off กระทบ"],
-    "biotech":    ["{sym} {move:+.1f}% — biotech รอ catalyst ถัดไป"],
-    "semi":       ["{sym} {move:+.1f}% — chip cycle เริ่ม cool down"],
-    "fintech":    ["{sym} {move:+.1f}% — fintech ขายตาม market"],
+    "tech_mega":  [
+        "{sym} {move:+.1f}% — Mag 7 เริ่มหายร้อน?",
+        "{sym} ร่วง {move:+.1f}% — โอกาส buy the dip?",
+        "{sym} {move:+.1f}% — rotation ออกจาก tech?",
+    ],
+    "story":      [
+        "{sym} {move:+.1f}% — สตอรี่จบแล้วหรือยังไม่เริ่ม?",
+        "{sym} ลง {move:+.1f}% — มี catalyst negative อะไร?",
+        "{sym} {move:+.1f}% — pullback ก่อนวิ่งรอบใหม่?",
+    ],
+    "quantum":    [
+        "{sym} {move:+.1f}% — Quantum hype เริ่มจาง?",
+        "{sym} ลงจากแนวต้าน — รอ confirmation",
+    ],
+    "space":      [
+        "{sym} {move:+.1f}% — Space stocks เจอแรงขาย",
+        "{sym} ลง {move:+.1f}% — guidance/earnings มีอะไร?",
+    ],
+    "ai":         [
+        "{sym} {move:+.1f}% — AI sector หยุดพัก",
+        "{sym} ลงทั้งที่ fundamental ยังดี — โอกาสเข้า?",
+    ],
+    "ev":         [
+        "{sym} {move:+.1f}% — EV cycle ยังไม่ฟื้น",
+        "{sym} {move:+.1f}% — demand จีน/EU กระทบ?",
+    ],
+    "crypto":     [
+        "{sym} {move:+.1f}% — crypto sell-off กระทบ",
+        "{sym} ร่วง {move:+.1f}% — BTC พังลงด้วย",
+    ],
+    "biotech":    [
+        "{sym} {move:+.1f}% — biotech รอ catalyst ถัดไป",
+        "{sym} {move:+.1f}% — trial fail/delay?",
+    ],
+    "semi":       [
+        "{sym} {move:+.1f}% — chip cycle เริ่ม cool down",
+        "{sym} {move:+.1f}% — รอ Nvidia/TSMC ขับ",
+    ],
+    "fintech":    [
+        "{sym} {move:+.1f}% — fintech ขายตาม market",
+        "{sym} {move:+.1f}% — credit risk concern?",
+    ],
+}
+
+# Flat move (|move| < 0.1%) — ราคาทรงตัว
+HOOK_TEMPLATES_FLAT = {
+    "tech_mega":  ["{sym} ทรงตัว — รอ Mag 7 catalyst ตัวต่อไป"],
+    "story":      ["{sym} นิ่งวันนี้ — รอ news catalyst"],
+    "quantum":    ["{sym} ทรงตัว — quantum hype พักก่อน"],
+    "space":      ["{sym} ทรงตัว — รอ contract/launch event"],
+    "ai":         ["{sym} ทรงตัว — AI sector consolidate"],
+    "ev":         ["{sym} ทรงตัว — รอ delivery data"],
+    "crypto":     ["{sym} ทรงตัว — รอ BTC ตัดสินทิศ"],
+    "biotech":    ["{sym} ทรงตัว — รอ FDA/trial readout"],
+    "semi":       ["{sym} ทรงตัว — chip cycle ดู range-bound"],
+    "fintech":    ["{sym} ทรงตัว — รอ earnings/macro signal"],
 }
 
 # Backward compat — keep HOOK_TEMPLATES name for any external ref
 HOOK_TEMPLATES = HOOK_TEMPLATES_BULL
 
 
+def _truncate_smart(text: str, max_len: int = 100) -> str:
+    """ตัด text ที่คำ (whitespace) สุดท้าย — ไม่ตัดกลางคำ"""
+    if not text:
+        return ""
+    text = text.strip()
+    if len(text) <= max_len:
+        return text
+    cut = text[:max_len].rsplit(" ", 1)[0]
+    return cut.rstrip(",.;:!?") + "…"
+
+
 def _build_hook(symbol: str, move_pct: float, news_headline: str = "") -> str:
-    """Pick hook template สำหรับ symbol category — bullish/bearish context-aware"""
+    """Pick hook template สำหรับ symbol category — bullish/bearish/flat context-aware"""
     sector = SECTOR_TAG.get(symbol, "story")
-    # Map specific sectors → template key
+    # Map specific sectors → template key (รวม "tech" → tech_mega tone)
     if sector in ("space", "quantum", "ai", "ev", "crypto", "biotech", "semi", "fintech"):
         key = sector
-    elif sector == "tech_mega":
+    elif sector in ("tech_mega", "tech"):
         key = "tech_mega"
     else:
         key = "story"
 
-    # Pick bull/bear template ตาม sign ของ move
-    pool = HOOK_TEMPLATES_BEAR if move_pct < 0 else HOOK_TEMPLATES_BULL
+    # Pick template pool ตาม move direction
+    if abs(move_pct) < 0.1:
+        pool = HOOK_TEMPLATES_FLAT
+    elif move_pct < 0:
+        pool = HOOK_TEMPLATES_BEAR
+    else:
+        pool = HOOK_TEMPLATES_BULL
+
     templates = pool.get(key, pool.get("story", HOOK_TEMPLATES_BULL["story"]))
     template = random.choice(templates)
     hook = template.format(sym=symbol, move=move_pct)
     if news_headline:
-        hook += f"\n   📰 {news_headline[:80]}"
+        hook += f"\n   📰 {_truncate_smart(news_headline, 100)}"
     return hook
 
 
 def _score_pick(tech_data: dict, news_item: dict = None) -> float:
-    """Composite score — เน้น 'ซิ่ง + สตอรี่' มากกว่า technical"""
-    move = abs(tech_data.get("price_move_pct", 0) or 0)
+    """Composite score — เน้น 'ซิ่ง + สตอรี่ + bull bias' สำหรับ FB-able content"""
+    move_raw = tech_data.get("price_move_pct", 0) or 0
+    move_abs = abs(move_raw)
     vol_ratio = tech_data.get("volume_ratio", 1) or 1
-    # Conviction = ของ ai_analyzer (port ที่นี่ ใช้ rsi/ema estimate)
     rsi = tech_data.get("rsi", 50) or 50
 
+    # Skip boring (< 1% move) — ไม่ค่อย FB-able
+    if move_abs < 1.0:
+        return -100   # effective skip
+
+    # Cap outlier (> 25% = น่าจะ data error หรือ extreme rare event)
+    if move_abs > 25:
+        return -50
+
     # Big move = priority
-    score = move * 2.0
+    score = move_abs * 2.0
+    # Bull bias — positive moves ทำ content "หุ้นวิ่ง" ขายดีกว่า "หุ้นร่วง"
+    if move_raw > 0:
+        score += 4
+    # Outlier cap soft (> 15% = หุ้น pump น่าระวัง)
+    if move_abs > 15:
+        score -= 5
+
     # Vol confirm
     score += min(vol_ratio, 5) * 1.5
     # RSI sweet spot (40-65) = healthy momentum
@@ -154,11 +267,12 @@ def _score_pick(tech_data: dict, news_item: dict = None) -> float:
         score += 5
     elif rsi > 80 or rsi < 20:
         score -= 5
-    # Fresh news bonus — ข่าวสด = คน FB engagement สูงกว่า
+
+    # Fresh news bonus — ข่าวสด = FB engagement สูงกว่า
     if news_item:
         age_h = news_item.get("age_hours", 999)
         if age_h <= 6:
-            score += 15   # very fresh (เช้านี้ / breaking)
+            score += 15
         elif age_h <= 24:
             score += 10
         elif age_h <= 48:
@@ -277,6 +391,9 @@ def pick_top_3(pool: list = None) -> list[dict]:
             "sector": SECTOR_TAG.get(sym, "misc"),
         })
         time.sleep(0.5)   # rate-limit yfinance
+
+    # Filter out boring/outlier (score ≤ 0 = skip — boring move or extreme outlier)
+    candidates = [c for c in candidates if c["score"] > 0]
 
     # Sort by score desc
     candidates.sort(key=lambda x: -x["score"])
