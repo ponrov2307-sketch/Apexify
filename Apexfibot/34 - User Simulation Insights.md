@@ -1,9 +1,12 @@
 # 34 - User Simulation Insights
 
 > **วันที่สร้าง:** 2026-05-13
+> **อัพเดทล่าสุด:** 2026-05-13 (เย็น) — Quick Wins #1, #3 shipped same day
 > **วิธีทำ:** AI จำลอง user 500 คน × 7 วัน รวม 12 archetype (มือใหม่ → นักเทรด)
 > **ใช้ทำอะไร:** ตัดสินใจว่า "จะทำอะไรต่อ", "marketing ยิงไปกลุ่มไหน", "อะไรที่ไม่ต้องทำ"
 > ⚠️ ไม่ใช่ data จริง — เป็นแค่ hypothesis ให้คิดต่อ
+>
+> ✅ **Update:** ที่ shipped จาก insights นี้แล้ว = TL;DR Header (Quick Win #4) · Tooltip ในแมนนวล (Quick Win #2 alternative) · Pre-Market Movers (idea #9) · Company Name in Parens (PP P. extra)
 
 ---
 
@@ -114,42 +117,45 @@
 
 ## 🚨 5 อันดับที่ต้องแก้เร่งด่วน
 
-### 1. ⚡ $ → ฿ Converter (effort: 2 ชม.)
+### 1. 🔵 $ → ฿ Converter (effort: 2 ชม.) — **DEFERRED**
 **ปัญหา:** มือใหม่เห็น TP $250 แล้วงง "= กี่บาท?"
 **แก้:** ทุก price ในวิเคราะห์ แสดง `$250 (~฿8,750)`
-**Cache:** exchange rate 1 ชม.
-**Impact:** มือใหม่ retention ↑ 30%
+**สถานะ:** 🔵 user feedback (2026-05-13): "ดอลล่าจะดูดีกว่า" → defer ไว้ก่อน
 
-### 2. 📖 Tooltip คำศัพท์ (effort: 3 ชม.)
+### 2. ✅ 📖 Tooltip คำศัพท์ → ใส่ใน manual (effort: ~30 นาที) — **DONE 2026-05-13**
 **ปัญหา:** "RSI 62 = อะไร?", "Golden Cross คืออะไร?"
-**แก้:** หลัง message ใส่ปุ่ม `[ℹ️ คำศัพท์]` → ส่ง followup อธิบายแบบบ้านๆ
-**หรือ:** /glossary command
-**Impact:** beginner retention ↑ 25%
+**ที่ทำ:** ใส่ 14 คำศัพท์ในส่วน "📖 คำศัพท์เทคนิค" ของ existing `/manual`
+- RSI · MACD · Golden Cross · Death Cross · EMA20/50/200
+- Support/Resistance · SL/TP · R:R · Bollinger · POC
+- Conviction Score · Volume Ratio · Pre/After Hours · Cluster Buy · Gap
+**Commit:** `32d93bf`
+**ทำไมไม่ทำเป็น button:** user feedback: "ปุ่มเยอะเกินแล้ว" → ใส่ใน manual ดีกว่า
 
-### 3. 📊 Track Record Public Page (effort: 1 วัน)
+### 3. 🔵 📊 Track Record Public Page (effort: 1 วัน) — **DEFERRED**
 **ปัญหา:** "scam ไหม?", "พิสูจน์ได้ไหม?"
-**แก้:** หน้า web `/track-record`
+**แก้:** หน้า web `/track-record` บน ApexifyWebmaster
 - โชว์ Daily Picks ย้อนหลัง 30 วัน
 - ราคา pick vs ราคา now
 - % ที่ขึ้น/ลง
-**Impact:** trust gap หาย, support Phase A anti-scam
+**สถานะ:** 🔵 user feedback: "ค่อยทำ" — ทำคราวหลังในเว็บ
 
-### 4. 🎯 TL;DR Header (effort: 1 ชม.)
+### 4. ✅ 🎯 TL;DR Header (effort: 1 ชม.) — **DONE 2026-05-13**
 **ปัญหา:** คนทำงานยุ่งอ่าน 3 ย่อหน้าไม่ไหว
-**แก้:** บรรทัดแรกของ message ใส่:
-```
-⚡ TL;DR: BUY NVDA $478 · TP $510 · SL $465 · 2% port
-```
-แล้วค่อยตามด้วยรายละเอียด
-**Impact:** "พี่หนุ่ม" (busy office) convert 38 → 50%
+**ที่ทำ:** บรรทัดแรกของ analyze message (ทุก tier):
+- Free: `*AAPL* (Apple) $220 · แนวรับ $215 · แนวต้าน $230`
+- VIP: `*NVDA* (NVIDIA) $478 · 🟢 ขาขึ้น 3/3 ระยะ · Confidence 75%`
+- PRO: `BUY *EOSE* (Eos Energy Enterprises) $8.10 · TP $9.25 · SL $5.78 · เสี่ยง 1-2% port`
+**Commit:** `32d93bf`
+**Bonus:** เพิ่ม company name ในวงเล็บด้วย (PP P. ขอเพิ่ม)
 
-### 5. 🎓 "ลงทุน 10K แรก" Wizard (effort: 1-2 วัน)
+### 5. 🔵 🎓 "ลงทุน 10K แรก" Wizard (effort: 1-2 วัน) — **DEFERRED**
 **ปัญหา:** มือใหม่ /start แล้วไม่รู้จะทำไง
 **แก้:** Wizard ถาม 3 ข้อ:
 1. งบ? (5K / 10K / 30K / 100K+)
 2. risk? (เสี่ยงต่ำ / กลาง / สูง)
 3. → AI gen portfolio แนะนำ 3-5 ตัว + DCA plan
-**Impact:** "พี่นุช" (housewife) convert 9 → 25%
+**สถานะ:** 🔵 user constraint "ไม่เพิ่ม command อีก" → ใส่ใน /start onboarding flow แทน
+**Impact คาดการณ์:** "พี่นุช" (housewife) convert 9 → 25%
 
 ---
 

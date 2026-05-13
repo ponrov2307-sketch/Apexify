@@ -6,6 +6,60 @@ tags: [changelog]
 
 > เรียงจากใหม่สุดลงล่าง — เก็บแค่ commits สำคัญ
 
+## 2026-05-13 (เย็น) — Pre-Market + TL;DR + Glossary + Company Name (5 features)
+
+### 🔔 Pre-Market Movers Cron (NEW · VIP+PRO · 20:30 ICT)
+- ไฟล์ใหม่ `premarket_cron.py` (~250 บรรทัด)
+- Time: 20:30 ICT (= 06:30 ET — 1 ชม. ก่อน US เปิด)
+- Universe: ~80 tickers (Morning Movers + small cap)
+- Filter: gap ≥3%, premarket vol ≥10K
+- Hybrid format: 📌 watchlist match + 🌐 top 3 discovery
+- Parallel scan ThreadPoolExecutor (12 workers)
+- dispatch_log dedup per user/day
+- Skip weekends + market holidays
+- Config: PREMARKET_ENABLED/HOUR_ICT/MINUTE_ICT/MIN_GAP_PCT
+- **Dry-run verified:** 74/75 tickers OK · 6 movers · 15 users processing
+
+### ⚡ TL;DR Header (NEW · ทุก tier)
+- บรรทัดแรกของทุก analyze message
+- Free: `AAPL (Apple) $220 · แนวรับ · แนวต้าน`
+- VIP: `NVDA (NVIDIA) $478 · 🟢 ขาขึ้น 3/3 ระยะ · Confidence 75%`
+- PRO: `BUY EOSE (Eos Energy Enterprises) $8.10 · TP $9.25 · SL $5.78`
+- 3 helpers: `_build_tldr_free/vip/pro` ใน `ai_analyzer.py`
+- Live verified ผ่าน EOSE PRO analysis
+
+### 📖 Glossary in /manual (NEW · ทุก tier · no new command)
+- 14 คำศัพท์ใน existing `/manual`:
+  - RSI · MACD · Golden Cross · Death Cross · EMA20/50/200
+  - Support/Resistance · SL/TP · R:R Ratio · Bollinger Bands · POC
+  - Conviction Score · Volume Ratio · Pre-Market/After-Hours
+  - Cluster Buy · Gap Up/Down
+- ใส่ก่อน "📞 ติดต่อ" — workflow ไม่ขัด
+
+### 🏢 Company Name in Parens (NEW · ทุก ticker display)
+- Helper `get_company_short_name()` ใน `bot_utils.py`
+- Cache 24h, cleans suffixes (", Inc.", " Corporation" etc.), truncate ≤22 chars
+- Apply 5 places:
+  - TL;DR (Free/VIP/PRO)
+  - Snapshot header (VIP/PRO)
+  - Free report header
+  - Pre-Market Movers DM
+  - Screener top 10
+  - Daily Picks admin DM
+- Test results: AAPL→"Apple", NVDA→"NVIDIA", EOSE→"Eos Energy Enterprises"
+
+### 📋 Tier Permissions Audit + Doc Update
+- `03 - Tier Comparison.md` — sectioned restructure (Analysis/Alerts/Content/Trust)
+- Added rows: Smart Money · Plan Proximity · Pre-Market · Glossary · TL;DR · Breaking News · Screener PRO
+- `18 - Feature Cheat Sheet.md` — master table + Recent features section
+- Admin-only features noted: Daily Stock Picker DM · Earnings Prep DM
+
+### Commits (4 in evening session)
+- `32d93bf` — feat: 3 customer-driven features (Pre-Market + TL;DR + Glossary + Tier docs)
+- `b6040e7` — feat(display): add company name in parens to all ticker mentions
+
+---
+
 ## 2026-05-13 (บ่าย) — Small Cap Day Trade Coverage (PP P. request)
 
 ### 🔥 Small Cap Universe Expansion
