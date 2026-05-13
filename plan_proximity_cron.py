@@ -38,18 +38,24 @@ _alerted: dict = {}              # f"{plan_id}:{level}" → unix_ts
 _price_cache: dict = {}          # symbol → (price, ts)
 _PRICE_CACHE_TTL_SEC = 120       # 2 นาที — แต่ละ poll cycle reuse ได้
 
-_thread_lock = threading.Lock()
+# RLock — allow same thread re-acquire (outer run_once holds + inner _alerted_recently re-acquires)
+# Lock() would deadlock; RLock supports nested with-blocks from same thread
+_thread_lock = threading.RLock()
 
 
 # ============ Cooldown ============
 def _alerted_recently(plan_id: int, level: str) -> bool:
+    """Thread-safe read of _alerted dict — guarded by _thread_lock"""
     key = f"{plan_id}:{level}"
-    last = _alerted.get(key, 0)
+    with _thread_lock:
+        last = _alerted.get(key, 0)
     return (time.time() - last) < COOLDOWN_SEC
 
 
 def _mark_alerted(plan_id: int, level: str):
-    _alerted[f"{plan_id}:{level}"] = time.time()
+    """Thread-safe write to _alerted — atomic dict assignment under lock"""
+    with _thread_lock:
+        _alerted[f"{plan_id}:{level}"] = time.time()
 
 
 # ============ Price fetch ============
@@ -188,6 +194,12 @@ def check_plan(bot, plan: dict, current: float, dry_run: bool = False) -> int:
     plan_id = plan["id"]
     bias = (plan["bias"] or "").upper()
 
+    # 🛡 Validate bias — skip ถ้า unknown (กัน false alert จาก typo เช่น "bul" / null)
+    # เปลี่ยนจากเดิมที่ default = warn anyway → safer: skip alert
+    if not bias.startswith(("BULL", "BEAR")):
+        print(f"[proximity] plan_id={plan_id} has invalid bias='{plan['bias']}' — skip", flush=True)
+        return 0
+
     # SL — ทิศใกล้ SL = ราคาเข้าใกล้ SL value (ทั้ง bull/bear)
     sl = plan.get("sl")
     if sl:
@@ -200,8 +212,6 @@ def check_plan(bot, plan: dict, current: float, dry_run: bool = False) -> int:
                 valid = True
             elif bias.startswith("BEAR") and current <= sl:
                 valid = True
-            elif not bias.startswith(("BULL", "BEAR")):
-                valid = True   # unknown bias → warn anyway
             if valid:
                 msg = _format_sl_warning(plan, current, dist_sl)
                 if dry_run:
@@ -225,8 +235,6 @@ def check_plan(bot, plan: dict, current: float, dry_run: bool = False) -> int:
                 valid = True
             elif bias.startswith("BEAR") and current >= tp1:
                 valid = True
-            elif not bias.startswith(("BULL", "BEAR")):
-                valid = True
             if valid:
                 msg = _format_tp_warning(plan, current, dist_tp1, 1, tp1)
                 if dry_run:
@@ -249,8 +257,6 @@ def check_plan(bot, plan: dict, current: float, dry_run: bool = False) -> int:
             if bias.startswith("BULL") and current <= tp2:
                 valid = True
             elif bias.startswith("BEAR") and current >= tp2:
-                valid = True
-            elif not bias.startswith(("BULL", "BEAR")):
                 valid = True
             if valid:
                 msg = _format_tp_warning(plan, current, dist_tp2, 2, tp2)
