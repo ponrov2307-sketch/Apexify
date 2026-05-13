@@ -86,22 +86,39 @@ ALL_POOL = list(set(MAG_7 + STORY_STOCKS + SP500_VARIETY))
 
 
 # ============ Suggested hook templates ============
-HOOK_TEMPLATES = {
+# แยก bullish (positive move) / bearish (negative move) context
+HOOK_TEMPLATES_BULL = {
     "tech_mega":  ["{sym} {move:+.1f}% วันนี้ — ตลาดเริ่มเทใส่ Mag 7 อีกครั้ง?", "{sym} หลังตลาด {move:+.1f}% — เทรนด์ระยะยาวยังเขียวอยู่?"],
-    "story":      ["{sym} +{move:.1f}% — สตอรี่นี้ตื่นแล้วใช่ไหม?", "ทำไม {sym} วิ่ง {move:+.1f}% เมื่อคืน?"],
-    "quantum":    ["{sym} +{move:.1f}% — Quantum Computing ตื่นจริงหรือ pump?", "{sym} วิ่งทะลุแนวต้าน — quantum hype ยังไม่จบ"],
-    "space":      ["{sym} +{move:.1f}% — Space stocks กลับมามีคนสนใจ", "{sym} หุ้นดาวเทียมที่นักลงทุนเริ่มจับตา"],
-    "ai":         ["{sym} +{move:.1f}% — AI hype play ที่ยังไม่ peak?", "{sym} — AI software ที่อาจ underrated"],
-    "ev":         ["{sym} +{move:.1f}% — EV recovery หรือ trap?"],
-    "crypto":     ["{sym} +{move:.1f}% — crypto correlation play"],
-    "biotech":    ["{sym} +{move:.1f}% — biotech catalyst ที่ห้ามพลาด?"],
-    "semi":       ["{sym} +{move:.1f}% — chip cycle ยังไม่จบ"],
-    "fintech":    ["{sym} +{move:.1f}% — fintech ที่ Apexify เห็น setup ดี"],
+    "story":      ["{sym} {move:+.1f}% — สตอรี่นี้ตื่นแล้วใช่ไหม?", "ทำไม {sym} วิ่ง {move:+.1f}% เมื่อคืน?"],
+    "quantum":    ["{sym} {move:+.1f}% — Quantum Computing ตื่นจริงหรือ pump?", "{sym} วิ่งทะลุแนวต้าน — quantum hype ยังไม่จบ"],
+    "space":      ["{sym} {move:+.1f}% — Space stocks กลับมามีคนสนใจ", "{sym} หุ้นดาวเทียมที่นักลงทุนเริ่มจับตา"],
+    "ai":         ["{sym} {move:+.1f}% — AI hype play ที่ยังไม่ peak?", "{sym} — AI software ที่อาจ underrated"],
+    "ev":         ["{sym} {move:+.1f}% — EV recovery หรือ trap?"],
+    "crypto":     ["{sym} {move:+.1f}% — crypto correlation play"],
+    "biotech":    ["{sym} {move:+.1f}% — biotech catalyst ที่ห้ามพลาด?"],
+    "semi":       ["{sym} {move:+.1f}% — chip cycle ยังไม่จบ"],
+    "fintech":    ["{sym} {move:+.1f}% — fintech ที่ Apexify เห็น setup ดี"],
 }
+
+HOOK_TEMPLATES_BEAR = {
+    "tech_mega":  ["{sym} {move:+.1f}% — Mag 7 เริ่มหายร้อน?", "{sym} ร่วง {move:+.1f}% — โอกาส buy the dip?"],
+    "story":      ["{sym} {move:+.1f}% — สตอรี่จบแล้วหรือยังไม่เริ่ม?", "{sym} ลง {move:+.1f}% — มี catalyst negative อะไร?"],
+    "quantum":    ["{sym} {move:+.1f}% — Quantum hype เริ่มจาง?", "{sym} ลงจากแนวต้าน — รอ confirmation"],
+    "space":      ["{sym} {move:+.1f}% — Space stocks เจอแรงขาย", "{sym} ลง {move:+.1f}% — guidance/earnings มีอะไร?"],
+    "ai":         ["{sym} {move:+.1f}% — AI sector หยุดพัก", "{sym} ลงทั้งที่ fundamental ยังดี — โอกาสเข้า?"],
+    "ev":         ["{sym} {move:+.1f}% — EV cycle ยังไม่ฟื้น"],
+    "crypto":     ["{sym} {move:+.1f}% — crypto sell-off กระทบ"],
+    "biotech":    ["{sym} {move:+.1f}% — biotech รอ catalyst ถัดไป"],
+    "semi":       ["{sym} {move:+.1f}% — chip cycle เริ่ม cool down"],
+    "fintech":    ["{sym} {move:+.1f}% — fintech ขายตาม market"],
+}
+
+# Backward compat — keep HOOK_TEMPLATES name for any external ref
+HOOK_TEMPLATES = HOOK_TEMPLATES_BULL
 
 
 def _build_hook(symbol: str, move_pct: float, news_headline: str = "") -> str:
-    """Pick hook template สำหรับ symbol category"""
+    """Pick hook template สำหรับ symbol category — bullish/bearish context-aware"""
     sector = SECTOR_TAG.get(symbol, "story")
     # Map specific sectors → template key
     if sector in ("space", "quantum", "ai", "ev", "crypto", "biotech", "semi", "fintech"):
@@ -110,7 +127,10 @@ def _build_hook(symbol: str, move_pct: float, news_headline: str = "") -> str:
         key = "tech_mega"
     else:
         key = "story"
-    templates = HOOK_TEMPLATES.get(key, HOOK_TEMPLATES["story"])
+
+    # Pick bull/bear template ตาม sign ของ move
+    pool = HOOK_TEMPLATES_BEAR if move_pct < 0 else HOOK_TEMPLATES_BULL
+    templates = pool.get(key, pool.get("story", HOOK_TEMPLATES_BULL["story"]))
     template = random.choice(templates)
     hook = template.format(sym=symbol, move=move_pct)
     if news_headline:
