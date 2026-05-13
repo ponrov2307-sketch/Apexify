@@ -117,8 +117,12 @@ def _parse_trade_date(date_str: str):
 
 def _is_fresh_trade(item: dict, max_days: int = MAX_TRADE_AGE_DAYS) -> bool:
     """เช็คว่า trade_date ใหม่พอ (≤ max_days)"""
-    d = _parse_trade_date(item.get("trade_date", ""))
+    raw_date = item.get("trade_date", "")
+    d = _parse_trade_date(raw_date)
     if d is None:
+        # 🆕 Log parse failure — กัน OpenInsider HTML format change ที่ silent fail
+        if raw_date:
+            print(f"[smart-money] trade_date parse fail: {raw_date!r} (ticker={item.get('ticker', '?')})", flush=True)
         return False
     today = config.thai_today() if hasattr(config, "thai_today") else (datetime.utcnow() + timedelta(hours=7)).date()
     age = (today - d).days
@@ -311,7 +315,8 @@ def _already_ran_today() -> bool:
         c = conn.cursor()
         c.execute("SELECT 1 FROM dispatch_log WHERE dispatch_key=%s LIMIT 1", (_today_key(),))
         return c.fetchone() is not None
-    except Exception:
+    except Exception as e:
+        print(f"[smart-money] _already_ran_today DB err: {e}", flush=True)
         return False
     finally:
         try:
@@ -356,7 +361,8 @@ def _signal_already_sent(key: str) -> bool:
         c = conn.cursor()
         c.execute("SELECT 1 FROM dispatch_log WHERE dispatch_key=%s LIMIT 1", (key,))
         return c.fetchone() is not None
-    except Exception:
+    except Exception as e:
+        print(f"[smart-money] _signal_already_sent DB err key={key[:50]}: {e}", flush=True)
         return False
     finally:
         try:

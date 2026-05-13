@@ -168,7 +168,8 @@ def _user_already_received(user_id: str) -> bool:
         c = conn.cursor()
         c.execute("SELECT 1 FROM dispatch_log WHERE dispatch_key=%s LIMIT 1", (_today_key(user_id),))
         return c.fetchone() is not None
-    except Exception:
+    except Exception as e:
+        print(f"[daily-pnl] _user_already_received DB err uid={user_id}: {e}", flush=True)
         return False
     finally:
         try:

@@ -607,7 +607,8 @@ def _already_ran_today():
         c = conn.cursor()
         c.execute("SELECT 1 FROM dispatch_log WHERE dispatch_key=%s LIMIT 1", (_today_dispatch_key(),))
         return c.fetchone() is not None
-    except Exception:
+    except Exception as e:
+        print(f"[daily-picker] _already_ran_today DB err: {e}", flush=True)
         return False
     finally:
         try:
