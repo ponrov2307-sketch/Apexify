@@ -687,7 +687,14 @@ def build_daily_picks_message(picks: list[dict]) -> str:
 
         emo = rank_emoji[i] if i < len(rank_emoji) else "•"
         small_cap_tag = " 🔥small cap" if _is_small_cap(sym) else ""
-        lines.append(f"{emo} *{sym}* {emoji} — ${price:.2f} ({move:+.2f}%){small_cap_tag}")
+        # 📝 Company name in parens (PP P. 2026-05-13)
+        try:
+            from bot_utils import get_company_short_name
+            _name = get_company_short_name(sym)
+        except Exception:
+            _name = ""
+        _name_label = f" _({_name})_" if _name else ""
+        lines.append(f"{emo} *{sym}*{_name_label} {emoji} — ${price:.2f} ({move:+.2f}%){small_cap_tag}")
         lines.append(f"   📊 vol {vol_ratio:.1f}x · RSI {rsi:.1f} · {sector}")
         hook = _build_hook(sym, move, news.get("headline", "") if news else "")
         lines.append(f"   💡 _{hook}_")

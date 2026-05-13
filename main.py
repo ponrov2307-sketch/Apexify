@@ -4834,10 +4834,17 @@ def inline_callbacks(call):
 
             if top_10:
                 lines = []
+                # 📝 Company name in parens (PP P. 2026-05-13)
+                try:
+                    from bot_utils import get_company_short_name as _get_co_name
+                except Exception:
+                    _get_co_name = lambda x: ""
                 for i, (_, sym, price, reasons) in enumerate(top_10, 1):
                     reason_text = " + ".join(reasons) if reasons else "📊 น่าจับตา"
                     small_tag = " 🔥small cap" if sym in SCREENER_SMALL_CAP_SET else ""
-                    lines.append(f"**{i}. {sym}** (${price:,.2f}){small_tag}\n   👉 {reason_text}")
+                    _name = _get_co_name(sym)
+                    _name_label = f" _({_name})_" if _name else ""
+                    lines.append(f"**{i}. {sym}**{_name_label} (${price:,.2f}){small_tag}\n   👉 {reason_text}")
                 # Subtitle + footer warning เฉพาะเมื่อมี small cap จริง (avoid noise)
                 if small_cap_count > 0:
                     subtitle = f"_(mega + small cap คละกัน · small cap {small_cap_count}/{SMALL_CAP_QUOTA} ตัว)_\n\n"

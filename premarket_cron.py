@@ -158,13 +158,19 @@ def _fmt_vol(vol: float) -> str:
 
 
 def _format_mover(item: dict) -> str:
-    """Format 1 mover line"""
+    """Format 1 mover line — incl. company name in parens (PP P. 2026-05-13)"""
     sym = item["symbol"]
     price = item["premarket_price"]
     gap = item["gap_pct"]
     vol = item["premarket_volume"]
     small_tag = " 🔥small cap" if _is_small_cap(sym) else ""
-    return f"{sym} ${price:,.2f} ({gap:+.1f}%){small_tag} · vol {_fmt_vol(vol)}"
+    try:
+        from bot_utils import get_company_short_name
+        name = get_company_short_name(sym)
+    except Exception:
+        name = ""
+    name_label = f" ({name})" if name else ""
+    return f"{sym}{name_label} ${price:,.2f} ({gap:+.1f}%){small_tag} · vol {_fmt_vol(vol)}"
 
 
 def build_premarket_message(in_watchlist: list, outside_watchlist: list, watchlist_size: int) -> str:

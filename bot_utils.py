@@ -6,12 +6,56 @@
   (ไม่ leak stack trace ไปหา user)
 - broadcast_maintenance_notice(): ส่งข้อความเปิด/ปิด maintenance หา active users
 - alert_admin_error(): ping ADMIN_ID เมื่อ user เจอ error — Sentry-lite
+- get_company_short_name(): ดึงชื่อบริษัทย่อ cached 24h (PP P. 2026-05-13)
 """
 import time
 import traceback
 from threading import Thread
 
 from database import mark_user_inactive
+
+
+# ============ Company name cache (2026-05-13 — PP P. request) ============
+# Display "AAPL (Apple Inc.)" ในทุก ticker mention
+# yfinance .info เป็น HTTP call หนัก → cache 24h (company name แทบไม่เปลี่ยน)
+_company_name_cache = {}    # {symbol_upper: (name, ts)}
+_COMPANY_NAME_TTL = 24 * 3600   # 24 hours
+
+
+def get_company_short_name(symbol: str) -> str:
+    """ดึงชื่อบริษัทย่อ (cached 24h)
+
+    Returns: short name (≤22 chars) หรือ "" ถ้าหาไม่ได้
+    """
+    if not symbol:
+        return ""
+    key = symbol.upper()
+    cached = _company_name_cache.get(key)
+    if cached:
+        name, ts = cached
+        if time.time() - ts < _COMPANY_NAME_TTL:
+            return name
+
+    name = ""
+    try:
+        import yfinance as yf
+        info = yf.Ticker(symbol).info or {}
+        raw = (info.get("shortName") or info.get("longName") or "").strip()
+        # Clean common suffixes — เก็บแค่ส่วน core
+        for suffix in (", Inc.", " Inc.", " Inc", ", Inc", " Corporation", " Corp.", " Corp"):
+            if raw.endswith(suffix):
+                raw = raw[:-len(suffix)].strip()
+                break
+        # Truncate ≤22 chars
+        if len(raw) > 22:
+            raw = raw[:22].rstrip() + "…"
+        name = raw
+    except Exception:
+        # Network err / no info — cache empty string ป้องกัน hammer
+        name = ""
+
+    _company_name_cache[key] = (name, time.time())
+    return name
 
 
 # Maintenance notices — ใช้ทั้งใน admin dashboard และ /maintenance command ในบอท

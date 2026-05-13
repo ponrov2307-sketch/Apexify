@@ -276,9 +276,24 @@ def _first_valid(*values):
 # คนยุ่ง (P7 "พี่หนุ่ม" busy office) ขอ 1-บรรทัดสรุปก่อนเนื้อหายาว
 # บรรทัดแรกของวิเคราะห์ → ตัดสินใจได้ทันทีโดยไม่ต้องอ่านทั้งหมด
 
+def _ticker_with_name(symbol: str) -> str:
+    """Format '*AAPL* (Apple Inc.)' — PP P. 2026-05-13 ขอชื่อบริษัทในวงเล็บ
+
+    ถ้าหาชื่อไม่ได้ → return just '*AAPL*'
+    """
+    try:
+        from bot_utils import get_company_short_name
+        name = get_company_short_name(symbol)
+    except Exception:
+        name = ""
+    if name:
+        return f"*{symbol}* ({name})"
+    return f"*{symbol}*"
+
+
 def _build_tldr_free(symbol: str, price: float, support: float, resistance: float) -> str:
     """Free tier TL;DR — แค่ราคา + แนวรับ/แนวต้าน (level info only)"""
-    parts = [f"*{symbol}* ${price:,.2f}"]
+    parts = [f"{_ticker_with_name(symbol)} ${price:,.2f}"]
     if support and support > 0:
         parts.append(f"แนวรับ ${support:,.2f}")
     if resistance and resistance > 0:
@@ -307,7 +322,7 @@ def _build_tldr_vip(symbol: str, price: float, trends: dict, confidence: float =
     else:
         emoji = "⚪"
         label = "ทรงตัว / mixed"
-    parts = [f"*{symbol}* ${price:,.2f}", f"{emoji} {label}"]
+    parts = [f"{_ticker_with_name(symbol)} ${price:,.2f}", f"{emoji} {label}"]
     if confidence and confidence > 0:
         parts.append(f"Confidence {confidence:.0f}%")
     return "⚡ *TL;DR:* " + " · ".join(parts)
@@ -323,7 +338,7 @@ def _build_tldr_pro(symbol: str, price: float, plan_bias: str, day_plan: dict) -
     else:
         action = "WATCH"
 
-    parts = [f"{action} *{symbol}* ${price:,.2f}"]
+    parts = [f"{action} {_ticker_with_name(symbol)} ${price:,.2f}"]
     tp1 = _safe_optional_float(day_plan.get("tp1") if day_plan else None)
     sl = _safe_optional_float(day_plan.get("sl") if day_plan else None)
     if tp1 is not None:
@@ -1140,10 +1155,18 @@ def _build_member_snapshot(context, trends, tier):
     conviction_score, conviction_label, conviction_emoji = _calculate_conviction_score(context, trends)
     tier_badge = "👑 *PRO Report*" if tier == "pro" else "💎 *VIP Report*"
 
+    # 📝 Company name in parens (PP P. 2026-05-13)
+    try:
+        from bot_utils import get_company_short_name
+        _name = get_company_short_name(symbol)
+    except Exception:
+        _name = ""
+    _ticker_label = f"*🤖 Apexify — {symbol}*" + (f" _({_name})_" if _name else "")
+
     lines = [
         f"{'━' * 17}",
         f"{tier_badge}",
-        f"*🤖 Apexify — {symbol}*",
+        _ticker_label,
     ]
 
     # 🥇 Commodity/crypto description — บอกชัดเจนว่า ETF/coin ตัวนี้คืออะไร
@@ -1466,7 +1489,14 @@ def _generate_free_report(tech_data):
     # ⚡ TL;DR (2026-05-13) — 1-บรรทัดสรุป (Free tier = level only)
     tldr_line = _build_tldr_free(symbol, price, support, resistance)
     report = tldr_line + "\n\n"
-    report += f"🤖 **Apexify: {symbol}** · `{price:,.2f}`\n"
+    # 📝 Company name in header (PP P. 2026-05-13)
+    try:
+        from bot_utils import get_company_short_name
+        _name = get_company_short_name(symbol)
+    except Exception:
+        _name = ""
+    _name_suffix = f" _({_name})_" if _name else ""
+    report += f"🤖 **Apexify: {symbol}**{_name_suffix} · `{price:,.2f}`\n"
     report += "─" * 15 + "\n"
     report += "*📊 สุขภาพหุ้น*\n"
     report += f"• 🌊 *เทรนด์:* {momentum} `{trend_detail}`\n"
