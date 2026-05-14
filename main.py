@@ -3456,6 +3456,147 @@ def handle_admin_dm(message):
         except Exception as e2:
             bot.reply_to(message, f"❌ ส่งไม่ได้: {e}\n(plain text ก็ fail: {e2})")
 
+
+def _build_renewal_dm(username, role_before, days_expired, watchlist_n, port_n, tx_n):
+    """สร้างข้อความ renewal personalized"""
+    greet = f"สวัสดีคุณ {username}" if username and username.strip() else "สวัสดีครับ"
+    tier = (role_before or 'pro').upper()
+    price = 109 if role_before == 'pro' else 79
+
+    # Data tease — บอกของที่ลูกค้ายังมี
+    data_bits = []
+    if watchlist_n and watchlist_n > 0:
+        data_bits.append(f"Watchlist {watchlist_n} ตัว")
+    if port_n and port_n > 0:
+        data_bits.append(f"Portfolio {port_n} ตัว")
+    if tx_n and tx_n > 0:
+        data_bits.append(f"Transactions {tx_n} รายการ")
+    data_line = " + ".join(data_bits) + " ของคุณยังอยู่ครบ ✅\n\n" if data_bits else ""
+
+    # Tier-specific benefits
+    if role_before == 'pro':
+        benefits = (
+            "ที่คุณจะกลับมาได้:\n"
+            "✅ ไม่จำกัด การวิเคราะห์\n"
+            "✅ Entry/TP/SL ตัวเลข + กราฟ annotated\n"
+            "✅ 🔔 Pre-Market Movers (20:30 น. ทุกวัน)\n"
+            "✅ 🐳 Smart Money Tracker (insider cluster buys)\n"
+            "✅ ⚠️ Plan Proximity Warning\n"
+            "✅ 🔥 Screener หุ้นเด่น 10 ตัว (225 ตัวคัดมา)"
+        )
+    else:  # vip
+        benefits = (
+            "ที่คุณจะกลับมาได้:\n"
+            "✅ ไม่จำกัด การวิเคราะห์\n"
+            "✅ AI Trend Radar 3 ระยะ + Watch Next\n"
+            "✅ 🔔 Pre-Market Movers (20:30 น.)\n"
+            "✅ 🌅 Daily Watchlist + P&L Recap (8:00 น.)\n"
+            "✅ Morning Briefing + Weekly Digest"
+        )
+
+    return (
+        f"{greet} 👋\n\n"
+        f"แพ็คเกจ {tier} หมดอายุไป {days_expired} วันแล้ว\n"
+        f"ตอนนี้ใช้ Free (3 การวิเคราะห์/วัน)\n\n"
+        f"{data_line}"
+        f"{benefits}\n\n"
+        f"💎 ต่อ {tier} {price}฿/เดือน → /payment\n"
+        f"🎁 หรือ /freetrial — ลอง PRO 7 วันฟรี (ถ้ายังไม่เคยใช้)\n\n"
+        f"มี feedback อยากให้ปรับ ทักได้ตลอดครับ 🙏"
+    )
+
+
+def _do_dm_expired_send(reply_message, rows):
+    """ส่ง personalized renewal DM ให้ expired users ทุกคน"""
+    success = 0
+    fail = 0
+    for r in rows:
+        uid, role_before, days_expired, username, wl_n, port_n, tx_n = r
+        try:
+            msg = _build_renewal_dm(username, role_before, days_expired, wl_n, port_n, tx_n)
+            bot.send_message(uid, msg, disable_web_page_preview=True)
+            success += 1
+            time.sleep(1.0)   # rate limit Telegram (30 msg/sec global, 1/sec per chat)
+        except Exception as e:
+            err = str(e)
+            if "403" in err or "blocked" in err.lower() or "deactivated" in err.lower():
+                try:
+                    mark_user_inactive(uid)
+                except Exception:
+                    pass
+            fail += 1
+    try:
+        bot.reply_to(reply_message, f"📨 DM Renewal Blast เสร็จ\n✅ ส่งสำเร็จ: {success}\n❌ ล้มเหลว: {fail}")
+    except Exception:
+        pass
+
+
+@bot.message_handler(commands=['dm_expired'])
+def handle_dm_expired(message):
+    """Admin command — DM ลูกค้าที่ expired recently เพื่อขอ renew
+    ใช้: /dm_expired         — preview รายชื่อ + รายละเอียด (ไม่ส่ง)
+         /dm_expired confirm — ส่ง personalized DM ให้ทุกคนใน list
+    """
+    user_id = str(message.chat.id)
+    if user_id != ADMIN_ID:
+        return
+
+    # ตัด keyword "confirm" ออกจาก args
+    parts = message.text.split()
+    is_confirm = len(parts) > 1 and parts[1].lower() == 'confirm'
+
+    # Query expired users (7 วันที่ผ่านมา)
+    try:
+        from database import get_connection
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("""
+            SELECT DISTINCT ON (sh.user_id)
+                sh.user_id,
+                sh.role_before,
+                EXTRACT(DAY FROM (NOW() - NULLIF(sh.expiry_before, '')::timestamptz))::int AS days_expired,
+                COALESCE(u.username, '') AS username,
+                COALESCE((SELECT COUNT(*) FROM user_watchlist WHERE user_id::text = sh.user_id), 0) AS wl_n,
+                COALESCE((SELECT COUNT(*) FROM portfolios WHERE user_id = sh.user_id), 0) AS port_n,
+                COALESCE((SELECT COUNT(*) FROM transactions WHERE user_id = sh.user_id AND deleted_at IS NULL), 0) AS tx_n
+            FROM subscription_history sh
+            LEFT JOIN users u ON u.user_id = sh.user_id
+            WHERE sh.action_type = 'expire'
+              AND sh.created_at >= NOW() - INTERVAL '7 days'
+              AND sh.expiry_before IS NOT NULL
+              AND COALESCE(NULLIF(TRIM(sh.expiry_before), ''), '') <> ''
+            ORDER BY sh.user_id, sh.created_at DESC
+        """)
+        rows = c.fetchall()
+        conn.close()
+    except Exception as e:
+        bot.reply_to(message, f"❌ DB error: {e}")
+        return
+
+    if not rows:
+        bot.reply_to(message, "ไม่พบ expired users ใน 7 วันที่ผ่านมา")
+        return
+
+    # Preview mode
+    if not is_confirm:
+        lines = [f"🔍 พบ {len(rows)} expired users (last 7 days):\n"]
+        for r in rows[:25]:
+            uid, role, days, username, wl, port, tx = r
+            data_bits = []
+            if wl > 0: data_bits.append(f"wl={wl}")
+            if port > 0: data_bits.append(f"port={port}")
+            if tx > 0: data_bits.append(f"tx={tx}")
+            data_str = " " + " ".join(data_bits) if data_bits else ""
+            uname = username or "(no name)"
+            lines.append(f"• `{uid}` {uname} ({role.upper()}, {days}d){data_str}")
+        lines.append(f"\n➡️ พิมพ์ `/dm_expired confirm` เพื่อส่ง personalized DM ทั้งหมด")
+        bot.reply_to(message, "\n".join(lines), parse_mode="Markdown")
+        return
+
+    # Confirmed — send all
+    bot.reply_to(message, f"⏳ กำลังส่ง {len(rows)} DM... (~{len(rows)} วินาที) — รันอยู่เบื้องหลัง")
+    threading.Thread(target=_do_dm_expired_send, args=(message, rows), daemon=True).start()
+
 @bot.message_handler(commands=['stats'])
 def handle_stats(message):
     if str(message.chat.id) != ADMIN_ID: return
