@@ -6538,9 +6538,35 @@ if __name__ == "__main__":
             init_new_features_db()
         except Exception as e:
             print("DB Init Error:", e)
+        # 🆕 2026-05-15: Run auto-downgrade IMMEDIATELY at startup (defense in depth)
+        # Bug: alert_loop's midnight check could be delayed by slow stock_news loop
+        # (~30-60 min per iteration with Gemini 503 retries) → miss midnight window
+        try:
+            from database import auto_downgrade_expired_users
+            auto_downgrade_expired_users()
+        except Exception as _e:
+            print(f"[main] startup downgrade err: {_e}", flush=True)
         run_alert_loop(bot)
 
     threading.Thread(target=_bg_init, daemon=True).start()
+
+    # 🧹 Auto-Downgrade Cron — separate thread, runs every 30 min
+    # 🆕 2026-05-15: ที่ alert_loop midnight check ไม่ได้ trigger เพราะ stock_news
+    # loop ช้ามาก (~50-60 min/iteration ตอน Gemini 503) → ผ่าน midnight window
+    # ทางแก้: thread แยกตัวเอง poll ทุก 30 min — independent ของ alert_loop
+    # Function เป็น idempotent (run 100 ครั้งเหมือนกัน) → safe to call frequently
+    def _downgrade_cron_loop():
+        from database import auto_downgrade_expired_users
+        time.sleep(60)   # warm-up
+        while True:
+            try:
+                auto_downgrade_expired_users()
+            except Exception as _e:
+                print(f"[downgrade-cron] err: {_e}", flush=True)
+            time.sleep(30 * 60)   # 30 min
+
+    threading.Thread(target=_downgrade_cron_loop, daemon=True, name="downgrade-cron").start()
+    print("[main] downgrade cron thread started (poll every 30 min)", flush=True)
 
     # 📬 Auto-DM Cron — daily 11:00 ICT (activation + win-back)
     try:
