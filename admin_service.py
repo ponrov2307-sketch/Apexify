@@ -840,10 +840,15 @@ def get_funnel_snapshot():
         )
         funnel["churned_30d"] = int(c.fetchone()[0] or 0)
 
-        c.execute("SELECT COUNT(*) FROM users WHERE registered_date >= NOW() - INTERVAL '30 days'")
+        # 🐛 Bug fix 2026-05-15: registered_date เป็น text ต้อง cast เป็น timestamp
+        # เดิม `registered_date >= NOW()` → Postgres error 42883 → silent fail (try/except)
+        # → admin dashboard new_30d/new_7d ขึ้น 0 ตลอดมา (เหมือน auto-downgrade bug)
+        c.execute("SELECT COUNT(*) FROM users WHERE registered_date IS NOT NULL "
+                  "AND NULLIF(TRIM(registered_date), '')::timestamp >= NOW() - INTERVAL '30 days'")
         funnel["new_30d"] = int(c.fetchone()[0] or 0)
 
-        c.execute("SELECT COUNT(*) FROM users WHERE registered_date >= NOW() - INTERVAL '7 days'")
+        c.execute("SELECT COUNT(*) FROM users WHERE registered_date IS NOT NULL "
+                  "AND NULLIF(TRIM(registered_date), '')::timestamp >= NOW() - INTERVAL '7 days'")
         funnel["new_7d"] = int(c.fetchone()[0] or 0)
 
         if funnel["total_users"]:
