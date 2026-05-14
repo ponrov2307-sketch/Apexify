@@ -3343,15 +3343,24 @@ def mark_first_audit_done(user_id) -> None:
 
 
 def auto_downgrade_expired_users():
-    """ปรับสถานะคนที่หมดอายุให้กลับเป็น free อัตโนมัติ + log history"""
+    """ปรับสถานะคนที่หมดอายุให้กลับเป็น free อัตโนมัติ + log history
+
+    🐛 Bug fix 2026-05-14: expiry_date เป็น text → ต้อง cast เป็น timestamptz
+    ก่อนนำมาเปรียบเทียบกับ NOW() ไม่งั้น Postgres raise error 42883
+    (operator does not exist: text < timestamp) → silent fail ตลอด
+    ทำให้ user 18 คน expired แล้วยังใช้ PRO/VIP features ฟรี
+    """
     conn = get_connection()
     c = conn.cursor()
     try:
         # หา users ที่ต้อง downgrade (เพื่อ log ก่อน update)
+        # ✋ Cast expiry_date::timestamptz เพราะ DB schema เก็บเป็น text
+        # ใช้ NULLIF เพื่อกัน case ค่าว่าง '' ซึ่งจะทำให้ cast fail
         c.execute("""
             SELECT user_id, role, expiry_date FROM users
             WHERE role IN ('vip', 'pro')
-              AND expiry_date < NOW()
+              AND expiry_date IS NOT NULL
+              AND NULLIF(expiry_date, '')::timestamptz < NOW()
         """)
         expired = c.fetchall() or []
 
@@ -3359,11 +3368,13 @@ def auto_downgrade_expired_users():
         c.execute("""
             UPDATE users SET role = 'free'
             WHERE role IN ('vip', 'pro')
-              AND expiry_date < NOW()
+              AND expiry_date IS NOT NULL
+              AND NULLIF(expiry_date, '')::timestamptz < NOW()
         """)
         conn.commit()
+        print(f"✅ Auto-Downgrade: downgraded {len(expired)} expired users", flush=True)
     except Exception as e:
-        print(f"❌ Auto-Downgrade Error: {e}")
+        print(f"❌ Auto-Downgrade Error: {e}", flush=True)
         conn.rollback()
         expired = []
     finally:
