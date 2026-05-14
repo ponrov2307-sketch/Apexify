@@ -3427,6 +3427,35 @@ def handle_broadcast(message):
     bot.reply_to(message, f"⏳ กำลังส่งข้อความหาผู้ใช้ {len(users)} คน... (รันอยู่เบื้องหลัง)")
     threading.Thread(target=_do_broadcast, args=(message, users, msg_text), daemon=True).start()
 
+
+@bot.message_handler(commands=['dm'])
+def handle_admin_dm(message):
+    """Admin command — ส่ง DM ตรงไปยัง user_id ที่ระบุ
+    ใช้: /dm <user_id> <ข้อความ>  (รองรับ newline)
+    เพิ่ม 2026-05-15 — สำหรับ DM 18 expired users + future ad hoc
+    """
+    user_id = str(message.chat.id)
+    if user_id != ADMIN_ID:
+        return
+    # split max 2: ['/dm', '<uid>', '<rest>']
+    parts = message.text.split(None, 2)
+    if len(parts) < 3:
+        bot.reply_to(message, "❓ ใช้: /dm <user_id> <ข้อความ>\nตัวอย่าง: /dm 12345678 สวัสดีครับ")
+        return
+    target_uid = parts[1].strip()
+    msg_text = parts[2]
+    try:
+        bot.send_message(target_uid, msg_text, parse_mode="Markdown", disable_web_page_preview=True)
+        bot.reply_to(message, f"✅ ส่งหา `{target_uid}` เรียบร้อย ({len(msg_text)} chars)", parse_mode="Markdown")
+    except Exception as e:
+        err = str(e)
+        # Fallback to plain text ถ้า Markdown error
+        try:
+            bot.send_message(target_uid, msg_text.replace("*", "").replace("_", ""), disable_web_page_preview=True)
+            bot.reply_to(message, f"⚠️ ส่งหา `{target_uid}` สำเร็จ (plain text — markdown error)", parse_mode="Markdown")
+        except Exception as e2:
+            bot.reply_to(message, f"❌ ส่งไม่ได้: {e}\n(plain text ก็ fail: {e2})")
+
 @bot.message_handler(commands=['stats'])
 def handle_stats(message):
     if str(message.chat.id) != ADMIN_ID: return
