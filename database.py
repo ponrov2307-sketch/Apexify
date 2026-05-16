@@ -495,6 +495,12 @@ def init_db():
         c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS discount_code TEXT")
     except Exception as _e:
         print(f"[init_db] users.discount_code migration: {_e}", flush=True)
+    # 💰 Cash balance (USD) for portfolio NAV calculation
+    # Requested by nuttapon (Annual PRO customer #1) — 2026-05-16
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS cash_balance NUMERIC(18,2) DEFAULT 0")
+    except Exception as _e:
+        print(f"[init_db] users.cash_balance migration: {_e}", flush=True)
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes
                  (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '', role_type TEXT DEFAULT 'vip')''')
@@ -3463,6 +3469,46 @@ def update_portfolio_stock(user_id, ticker, shares, avg_cost):
         updated = c.rowcount or 0
         conn.commit()
         return updated > 0
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────────────────────────
+# 💰 Cash Balance — portfolio NAV component (USD)
+# Requested by nuttapon (Annual PRO #1) 2026-05-16
+# ─────────────────────────────────────────────────────────────────
+def get_user_cash_balance(user_id) -> float:
+    """ดึงเงินสดเหลือในพอร์ต (USD) — default 0"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT cash_balance FROM users WHERE user_id = %s", (str(user_id),))
+        row = c.fetchone()
+        return float(row[0]) if row and row[0] is not None else 0.0
+    except Exception as e:
+        print(f"[get_user_cash_balance] {e}", flush=True)
+        return 0.0
+    finally:
+        conn.close()
+
+
+def set_user_cash_balance(user_id, amount: float) -> bool:
+    """ตั้งค่าเงินสด — amount เป็น USD ≥ 0 คืน True ถ้าสำเร็จ"""
+    if amount is None or float(amount) < 0:
+        return False
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "UPDATE users SET cash_balance = %s WHERE user_id = %s",
+            (float(amount), str(user_id)),
+        )
+        updated = c.rowcount or 0
+        conn.commit()
+        return updated > 0
+    except Exception as e:
+        print(f"[set_user_cash_balance] {e}", flush=True)
+        return False
     finally:
         conn.close()
 def get_user_watch(user_id: str):

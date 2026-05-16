@@ -35,6 +35,7 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       add_price_alert_db, get_user_price_alerts_db, remove_price_alert_db,
                       get_connection, add_portfolio_stock, get_user_portfolio,
                       delete_portfolio_stock, update_portfolio_stock,
+                      get_user_cash_balance, set_user_cash_balance,
                       get_user_settings, set_user_notifications, set_user_timezone,
                       set_user_language, set_user_digest_frequency, set_user_news_window,
                       ALLOWED_TIMEZONES, ALLOWED_LANGUAGES, ALLOWED_DIGEST_FREQUENCIES,
@@ -1859,6 +1860,10 @@ def handle_portfolio(message):
         total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
         total_icon = "🟢" if total_profit >= 0 else "🔴"
 
+        # 💰 Cash balance + Total NAV — requested by nuttapon (Annual PRO) 2026-05-16
+        cash_balance = get_user_cash_balance(user_id)
+        total_nav = current_value + cash_balance
+
         lines = [f"💼 <b>พอร์ตลงทุน</b>  ({len(rows)} หลักทรัพย์)\n"]
         for ticker, shares, avg_cost, live_price, profit, profit_pct in rows:
             icon = "🟢" if profit >= 0 else "🔴"
@@ -1869,12 +1874,24 @@ def handle_portfolio(message):
                 f"   {sign}{profit:,.2f}  ({sign}{profit_pct:.2f}%)\n"
             )
 
-        lines.append(
-            f"─────────────────────\n"
-            f"💰 <b>มูลค่ารวม:</b> {current_value:,.2f}\n"
-            f"💵 <b>ต้นทุนรวม:</b> {total_invested:,.2f}\n"
+        summary_lines = [
+            f"─────────────────────",
+            f"💼 <b>มูลค่าหุ้น:</b> {current_value:,.2f}",
+            f"💵 <b>ต้นทุนรวม:</b> {total_invested:,.2f}",
+        ]
+        if cash_balance > 0:
+            summary_lines.extend([
+                f"💰 <b>เงินสด:</b> {cash_balance:,.2f}",
+                f"🏦 <b>NAV รวม:</b> {total_nav:,.2f}",
+            ])
+        else:
+            summary_lines.append(
+                f"💰 <b>เงินสด:</b> 0.00  <i>(ตั้งค่าด้วย /setcash)</i>"
+            )
+        summary_lines.append(
             f"{total_icon} <b>กำไร/ขาดทุนรวม:</b> {'+' if total_profit >= 0 else ''}{total_profit:,.2f}  ({'+' if total_profit_pct >= 0 else ''}{total_profit_pct:.2f}%)"
         )
+        lines.append("\n".join(summary_lines))
 
         msg = "\n".join(lines)
         port_markup = InlineKeyboardMarkup()
@@ -1886,6 +1903,60 @@ def handle_portfolio(message):
     except Exception as e:
         print(f"[user_history] {e}", flush=True)
         bot.edit_message_text(friendly_error("ดึงข้อมูลผู้ใช้ไม่สำเร็จ"), chat_id=message.chat.id, message_id=processing_msg.message_id)
+
+
+# 💰 /setcash — set cash balance for NAV calculation (PRO+VIP)
+# Requested by nuttapon (Annual PRO #1) 2026-05-16
+@bot.message_handler(commands=['setcash'])
+def handle_setcash(message):
+    user_id = str(message.chat.id)
+    if not is_allowed(user_id):
+        return
+
+    role = (check_subscription(user_id) or 'free').lower()
+    if role not in ('pro', 'vip', 'admin'):
+        bot.reply_to(
+            message,
+            "💰 <b>เงินสดในพอร์ต (Cash Balance)</b>\n\n"
+            "ฟีเจอร์นี้สำหรับ <b>VIP / PRO</b> เท่านั้น\n"
+            "เพื่อคำนวณ NAV รวม (มูลค่าหุ้น + เงินสด)\n\n"
+            "🚀 อัพเกรดที่ /upgrade",
+            parse_mode='HTML',
+        )
+        return
+
+    # Parse amount
+    try:
+        parts = message.text.split(maxsplit=1)
+        if len(parts) < 2:
+            raise ValueError("missing amount")
+        amount_str = parts[1].strip().replace(',', '').replace('$', '')
+        amount = float(amount_str)
+        if amount < 0:
+            raise ValueError("amount must be >= 0")
+    except (IndexError, ValueError, AttributeError):
+        cur = get_user_cash_balance(user_id)
+        bot.reply_to(
+            message,
+            f"💰 <b>เงินสดปัจจุบัน:</b> ${cur:,.2f}\n\n"
+            f"<b>วิธีใช้:</b>\n"
+            f"<code>/setcash 5000</code>     — ตั้งเงินสด $5,000\n"
+            f"<code>/setcash 0</code>           — ลบเงินสด (set เป็น 0)\n\n"
+            f"<i>หน่วย USD · จะนำไปรวมกับมูลค่าหุ้นใน /port เพื่อคำนวณ NAV</i>",
+            parse_mode='HTML',
+        )
+        return
+
+    success = set_user_cash_balance(user_id, amount)
+    if success:
+        bot.reply_to(
+            message,
+            f"✅ ตั้งเงินสดเรียบร้อย: <b>${amount:,.2f}</b>\n"
+            f"ดู NAV รวมได้ใน /port",
+            parse_mode='HTML',
+        )
+    else:
+        bot.reply_to(message, friendly_error("ตั้งค่าเงินสดไม่สำเร็จ"))
 
 
 def _handle_pnl_all(message):
