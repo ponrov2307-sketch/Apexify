@@ -4928,6 +4928,10 @@ def inline_callbacks(call):
                 total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
                 total_icon = "🟢" if total_profit >= 0 else "🔴"
 
+                # 💰 Cash balance + NAV รวม — same as handle_portfolio
+                cash_balance = get_user_cash_balance(user_id)
+                total_nav = current_value + cash_balance
+
                 lines = [f"💼 <b>พอร์ตลงทุน</b>  ({len(rows)} หลักทรัพย์)\n"]
                 for ticker, shares, avg_cost, live_price, profit, profit_pct in rows:
                     icon = "🟢" if profit >= 0 else "🔴"
@@ -4937,12 +4941,25 @@ def inline_callbacks(call):
                         f"   ทุน {avg_cost:,.2f}  →  ล่าสุด {live_price:,.2f}\n"
                         f"   {sign}{profit:,.2f}  ({sign}{profit_pct:.2f}%)\n"
                     )
-                lines.append(
-                    f"─────────────────────\n"
-                    f"💰 <b>มูลค่ารวม:</b> {current_value:,.2f}\n"
-                    f"💵 <b>ต้นทุนรวม:</b> {total_invested:,.2f}\n"
+
+                summary_lines = [
+                    f"─────────────────────",
+                    f"💼 <b>มูลค่าหุ้น:</b> {current_value:,.2f}",
+                    f"💵 <b>ต้นทุนรวม:</b> {total_invested:,.2f}",
+                ]
+                if cash_balance > 0:
+                    summary_lines.extend([
+                        f"💰 <b>เงินสด:</b> {cash_balance:,.2f}",
+                        f"🏦 <b>NAV รวม:</b> {total_nav:,.2f}",
+                    ])
+                else:
+                    summary_lines.append(
+                        f"💰 <b>เงินสด:</b> 0.00  <i>(ตั้งค่าด้วย /editcash)</i>"
+                    )
+                summary_lines.append(
                     f"{total_icon} <b>กำไร/ขาดทุนรวม:</b> {'+' if total_profit >= 0 else ''}{total_profit:,.2f}  ({'+' if total_profit_pct >= 0 else ''}{total_profit_pct:.2f}%)"
                 )
+                lines.append("\n".join(summary_lines))
                 bot.edit_message_text("\n".join(lines), chat_id=user_id, message_id=load_msg.message_id, parse_mode='HTML')
         except Exception as e:
             print(f"[BotError] {e}", flush=True)
