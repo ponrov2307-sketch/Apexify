@@ -19,7 +19,8 @@ from database import (get_all_active_symbols, get_users_watching, init_db, check
                       mark_user_inactive, get_active_users,
                       get_pending_plans, update_plan_outcome, expire_stale_plans,
                       load_all_alert_states, save_alert_state,
-                      is_earnings_notified, mark_earnings_notified)
+                      is_earnings_notified, mark_earnings_notified,
+                      get_user_cash_balance)
 from bot_utils import safe_send_with_retry
 import json
 import xml.etree.ElementTree as ET 
@@ -1836,16 +1837,26 @@ def send_daily_portfolio_summary(bot_instance):
                 f"   {arrow} {sign}${pf:,.2f} ({sign}{pp:.2f}%)"
             )
             lines.append("")
+        # 💰 Cash balance + NAV รวม — ตรงกับ /port handler
+        cash_balance = get_user_cash_balance(user_id)
+        total_nav = current_value + cash_balance
+
         lines.append("━━━━━━━━━━━━━━")
-        lines.append(f"💰 <b>มูลค่ารวม:</b> ${current_value:,.2f}")
+        lines.append(f"💼 <b>มูลค่าหุ้น:</b> ${current_value:,.2f}")
         lines.append(f"💵 <b>ต้นทุน:</b> ${total_invested:,.2f}")
+        if cash_balance > 0:
+            lines.append(f"💰 <b>เงินสด:</b> ${cash_balance:,.2f}")
+            lines.append(f"🏦 <b>NAV รวม:</b> ${total_nav:,.2f}")
         lines.append(
             f"{total_icon} <b>P&amp;L รวม:</b> "
             f"{'+' if total_profit >= 0 else ''}${total_profit:,.2f} "
             f"({'+' if total_profit_pct >= 0 else ''}{total_profit_pct:.2f}%)"
         )
         lines.append("")
-        lines.append("<i>💡 พิมพ์ /portfolio ดูเชิงลึก</i>")
+        if cash_balance > 0:
+            lines.append("<i>💡 พิมพ์ /portfolio ดูเชิงลึก · /editcash จัดการเงินสด</i>")
+        else:
+            lines.append("<i>💡 พิมพ์ /portfolio ดูเชิงลึก · /editcash บันทึกเงินสด</i>")
 
         try:
             bot_instance.send_message(user_id, "\n".join(lines), parse_mode='HTML')
