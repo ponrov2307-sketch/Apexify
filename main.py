@@ -1934,6 +1934,14 @@ def handle_editcash(message):
 
     parts = (message.text or '').split(maxsplit=1)
 
+    # Build "Open Dashboard" inline keyboard once — reused across all replies
+    def _build_cash_markup():
+        markup = InlineKeyboardMarkup()
+        btn = _dashboard_cta_button(user_id, "🌐 แก้บนเว็บง่ายกว่า", src="editcash_cmd", next_path="/")
+        if btn:
+            markup.add(btn)
+        return markup if btn else None
+
     # No args → show current + recent history + usage
     if len(parts) < 2:
         cur = get_user_cash_balance(user_id)
@@ -1956,12 +1964,14 @@ def handle_editcash(message):
             message,
             f"💰 <b>เงินสดปัจจุบัน:</b> ${cur:,.2f}\n"
             + "\n".join(history_lines)
-            + f"\n\n<b>วิธีใช้:</b>\n"
+            + f"\n\n💡 <b>แก้บนเว็บง่ายกว่า</b> — มี UI 3 ปุ่ม (ฝาก/ถอน/ตั้งใหม่) + live FX\n\n"
+            f"<b>หรือพิมพ์ในบอท:</b>\n"
             f"<code>/editcash 5000</code>      — ตั้งเงินสด $5,000\n"
             f"<code>/editcash +1000</code>     — ฝากเข้า $1,000\n"
             f"<code>/editcash -500</code>      — ถอนออก $500\n\n"
             f"<i>หน่วย USD · นำไปรวมกับมูลค่าหุ้นใน /port เพื่อคำนวณ NAV</i>",
             parse_mode='HTML',
+            reply_markup=_build_cash_markup(),
         )
         return
 
@@ -1986,8 +1996,10 @@ def handle_editcash(message):
             "<b>ตัวอย่าง:</b>\n"
             "<code>/editcash 5000</code>    — ตั้งใหม่\n"
             "<code>/editcash +1000</code>   — ฝากเข้า\n"
-            "<code>/editcash -500</code>    — ถอนออก",
+            "<code>/editcash -500</code>    — ถอนออก\n\n"
+            "<i>💡 แก้บนเว็บง่ายกว่า — มีปุ่ม ฝาก/ถอน/ตั้งใหม่</i>",
             parse_mode='HTML',
+            reply_markup=_build_cash_markup(),
         )
         return
 
@@ -2005,16 +2017,20 @@ def handle_editcash(message):
             message,
             f"✅ <b>ตั้งเงินสดใหม่</b>\n"
             f"💰 ${before:,.2f} → <b>${after:,.2f}</b>\n\n"
-            f"ดู NAV รวมได้ใน /port",
+            f"ดู NAV รวมได้ใน /port\n"
+            f"<i>💡 แก้บนเว็บง่ายกว่า — มีปุ่ม ฝาก/ถอน/ตั้งใหม่ + live FX</i>",
             parse_mode='HTML',
+            reply_markup=_build_cash_markup(),
         )
     elif action_type == 'deposit':
         bot.reply_to(
             message,
             f"➕ <b>ฝากเข้า $+{amount:,.2f}</b>\n"
             f"💰 ${before:,.2f} → <b>${after:,.2f}</b>\n\n"
-            f"ดู NAV รวมได้ใน /port",
+            f"ดู NAV รวมได้ใน /port\n"
+            f"<i>💡 แก้บนเว็บง่ายกว่า — มีปุ่ม ฝาก/ถอน/ตั้งใหม่ + live FX</i>",
             parse_mode='HTML',
+            reply_markup=_build_cash_markup(),
         )
     else:  # withdraw
         actual_withdrawn = abs(delta)
@@ -2025,8 +2041,10 @@ def handle_editcash(message):
             message,
             f"➖ <b>ถอนออก ${actual_withdrawn:,.2f}</b>{capped_note}\n"
             f"💰 ${before:,.2f} → <b>${after:,.2f}</b>\n\n"
-            f"ดู NAV รวมได้ใน /port",
+            f"ดู NAV รวมได้ใน /port\n"
+            f"<i>💡 แก้บนเว็บง่ายกว่า — มีปุ่ม ฝาก/ถอน/ตั้งใหม่ + live FX</i>",
             parse_mode='HTML',
+            reply_markup=_build_cash_markup(),
         )
 
 
@@ -7002,6 +7020,7 @@ if __name__ == "__main__":
             BotCommand("add", "เพิ่มหุ้นเข้าพอร์ต — /add AAPL 10 150"),
             BotCommand("edit", "แก้จำนวน/ราคาเฉลี่ย — /edit AAPL 15 165"),
             BotCommand("del", "ลบหุ้นออกจากพอร์ต — /del AAPL"),
+            BotCommand("editcash", "แก้เงินสดในพอร์ต — /editcash +1000 (PRO/VIP)"),
             BotCommand("pnl", "สร้างการ์ด P&L แบบสวยงาม"),
             BotCommand("watch", "เพิ่มหุ้นเข้า Watchlist — /watch AAPL"),
             BotCommand("unwatch", "ลบหุ้นออกจาก Watchlist — /unwatch AAPL"),
