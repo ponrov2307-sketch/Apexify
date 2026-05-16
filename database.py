@@ -501,6 +501,23 @@ def init_db():
         c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS cash_balance NUMERIC(18,2) DEFAULT 0")
     except Exception as _e:
         print(f"[init_db] users.cash_balance migration: {_e}", flush=True)
+    # 💰 Cash transaction log — audit trail for deposit/withdraw/set actions
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS cash_transactions (
+                id BIGSERIAL PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                action_type TEXT NOT NULL CHECK (action_type IN ('set','deposit','withdraw')),
+                delta NUMERIC(18,2) NOT NULL,
+                balance_before NUMERIC(18,2),
+                balance_after NUMERIC(18,2) NOT NULL,
+                note TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        c.execute("CREATE INDEX IF NOT EXISTS idx_cash_tx_user_date ON cash_transactions(user_id, created_at DESC)")
+    except Exception as _e:
+        print(f"[init_db] cash_transactions migration: {_e}", flush=True)
     # 🌟 อัปเดตตารางเพิ่ม role_type เพื่อแยกโค้ดโปรโมชั่น VIP / PRO
     c.execute('''CREATE TABLE IF NOT EXISTS promo_codes
                  (code TEXT PRIMARY KEY, days INTEGER, max_uses INTEGER DEFAULT 1, current_uses INTEGER DEFAULT 0, used_by TEXT DEFAULT '', role_type TEXT DEFAULT 'vip')''')
@@ -3476,6 +3493,7 @@ def update_portfolio_stock(user_id, ticker, shares, avg_cost):
 # ─────────────────────────────────────────────────────────────────
 # 💰 Cash Balance — portfolio NAV component (USD)
 # Requested by nuttapon (Annual PRO #1) 2026-05-16
+# Option B: full audit trail via cash_transactions log
 # ─────────────────────────────────────────────────────────────────
 def get_user_cash_balance(user_id) -> float:
     """ดึงเงินสดเหลือในพอร์ต (USD) — default 0"""
@@ -3492,23 +3510,119 @@ def get_user_cash_balance(user_id) -> float:
         conn.close()
 
 
+def _log_cash_transaction(c, user_id, action_type: str, delta: float,
+                          balance_before: float, balance_after: float, note: str = None):
+    """Internal — insert audit row. Caller controls conn/commit."""
+    c.execute(
+        """
+        INSERT INTO cash_transactions (user_id, action_type, delta, balance_before, balance_after, note)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (str(user_id), action_type, float(delta), float(balance_before), float(balance_after), note),
+    )
+
+
+def apply_cash_action(user_id, action_type: str, amount: float, note: str = None,
+                       log_to_history: bool = True) -> dict:
+    """แก้ไขเงินสด + (optional) log transaction.
+
+    action_type: 'set' | 'deposit' | 'withdraw'
+    amount: USD positive number (interpretation depends on action_type)
+    log_to_history: when True (default) — log to cash_transactions audit trail.
+
+    Returns: {'ok': bool, 'balance_before': float, 'balance_after': float,
+              'delta': float, 'error': str|None}
+    """
+    if action_type not in ('set', 'deposit', 'withdraw'):
+        return {'ok': False, 'error': f'invalid action_type: {action_type}'}
+    try:
+        amount = float(amount)
+    except (TypeError, ValueError):
+        return {'ok': False, 'error': 'amount must be a number'}
+    if amount < 0:
+        return {'ok': False, 'error': 'amount must be >= 0'}
+
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT cash_balance FROM users WHERE user_id = %s", (str(user_id),))
+        row = c.fetchone()
+        balance_before = float(row[0]) if row and row[0] is not None else 0.0
+
+        if action_type == 'set':
+            balance_after = amount
+        elif action_type == 'deposit':
+            balance_after = balance_before + amount
+        else:  # withdraw
+            balance_after = max(0.0, balance_before - amount)
+
+        delta = balance_after - balance_before
+
+        c.execute(
+            "UPDATE users SET cash_balance = %s WHERE user_id = %s",
+            (balance_after, str(user_id)),
+        )
+        if c.rowcount and c.rowcount > 0:
+            if log_to_history:
+                _log_cash_transaction(c, user_id, action_type, delta, balance_before, balance_after, note)
+            conn.commit()
+            return {
+                'ok': True,
+                'balance_before': balance_before,
+                'balance_after': balance_after,
+                'delta': delta,
+                'error': None,
+            }
+        else:
+            return {'ok': False, 'error': 'user not found'}
+    except Exception as e:
+        print(f"[apply_cash_action] {e}", flush=True)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return {'ok': False, 'error': str(e)}
+    finally:
+        conn.close()
+
+
 def set_user_cash_balance(user_id, amount: float) -> bool:
-    """ตั้งค่าเงินสด — amount เป็น USD ≥ 0 คืน True ถ้าสำเร็จ"""
-    if amount is None or float(amount) < 0:
-        return False
+    """Backwards-compat wrapper — sets cash via apply_cash_action('set', ...)."""
+    result = apply_cash_action(user_id, 'set', amount, note='legacy set')
+    return result.get('ok', False)
+
+
+def get_cash_transactions(user_id, limit: int = 50) -> list:
+    """ดึงประวัติ cash transactions ล่าสุด — ใหม่สุดก่อน"""
     conn = get_connection()
     c = conn.cursor()
     try:
         c.execute(
-            "UPDATE users SET cash_balance = %s WHERE user_id = %s",
-            (float(amount), str(user_id)),
+            """
+            SELECT id, action_type, delta, balance_before, balance_after, note, created_at
+            FROM cash_transactions
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+            LIMIT %s
+            """,
+            (str(user_id), int(limit)),
         )
-        updated = c.rowcount or 0
-        conn.commit()
-        return updated > 0
+        rows = c.fetchall() or []
+        return [
+            {
+                'id': r[0],
+                'action_type': r[1],
+                'delta': float(r[2]),
+                'balance_before': float(r[3]) if r[3] is not None else None,
+                'balance_after': float(r[4]),
+                'note': r[5],
+                'created_at': r[6].isoformat() if r[6] else None,
+            }
+            for r in rows
+        ]
     except Exception as e:
-        print(f"[set_user_cash_balance] {e}", flush=True)
-        return False
+        print(f"[get_cash_transactions] {e}", flush=True)
+        return []
     finally:
         conn.close()
 def get_user_watch(user_id: str):

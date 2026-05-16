@@ -36,6 +36,7 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       get_connection, add_portfolio_stock, get_user_portfolio,
                       delete_portfolio_stock, update_portfolio_stock,
                       get_user_cash_balance, set_user_cash_balance,
+                      apply_cash_action, get_cash_transactions,
                       get_user_settings, set_user_notifications, set_user_timezone,
                       set_user_language, set_user_digest_frequency, set_user_news_window,
                       ALLOWED_TIMEZONES, ALLOWED_LANGUAGES, ALLOWED_DIGEST_FREQUENCIES,
@@ -1905,10 +1906,16 @@ def handle_portfolio(message):
         bot.edit_message_text(friendly_error("ดึงข้อมูลผู้ใช้ไม่สำเร็จ"), chat_id=message.chat.id, message_id=processing_msg.message_id)
 
 
-# 💰 /setcash — set cash balance for NAV calculation (PRO+VIP)
+# 💰 /editcash — edit cash balance for NAV calculation (PRO+VIP)
 # Requested by nuttapon (Annual PRO #1) 2026-05-16
-@bot.message_handler(commands=['setcash'])
-def handle_setcash(message):
+# Single command with 3 modes via prefix:
+#   /editcash 5000   → set to $5,000
+#   /editcash +1000  → deposit $1,000 (add to current)
+#   /editcash -500   → withdraw $500 (subtract from current, min 0)
+#   /editcash        → show current balance + recent history
+# (setcash kept as alias for backwards compat)
+@bot.message_handler(commands=['editcash', 'setcash'])
+def handle_editcash(message):
     user_id = str(message.chat.id)
     if not is_allowed(user_id):
         return
@@ -1925,38 +1932,102 @@ def handle_setcash(message):
         )
         return
 
-    # Parse amount
-    try:
-        parts = message.text.split(maxsplit=1)
-        if len(parts) < 2:
-            raise ValueError("missing amount")
-        amount_str = parts[1].strip().replace(',', '').replace('$', '')
-        amount = float(amount_str)
-        if amount < 0:
-            raise ValueError("amount must be >= 0")
-    except (IndexError, ValueError, AttributeError):
+    parts = (message.text or '').split(maxsplit=1)
+
+    # No args → show current + recent history + usage
+    if len(parts) < 2:
         cur = get_user_cash_balance(user_id)
+        history = get_cash_transactions(user_id, limit=5)
+
+        history_lines = []
+        if history:
+            history_lines.append("\n📜 <b>ประวัติล่าสุด:</b>")
+            for h in history:
+                action_emoji = {'deposit': '➕', 'withdraw': '➖', 'set': '🔄'}.get(h['action_type'], '•')
+                delta_sign = '+' if h['delta'] >= 0 else ''
+                action_th = {'deposit': 'ฝากเข้า', 'withdraw': 'ถอนออก', 'set': 'ตั้งใหม่'}.get(h['action_type'], h['action_type'])
+                # parse ISO date
+                date_str = h['created_at'][:10] if h.get('created_at') else '?'
+                history_lines.append(
+                    f"  {action_emoji} {action_th} <code>{delta_sign}${h['delta']:,.2f}</code> → <b>${h['balance_after']:,.2f}</b> <i>({date_str})</i>"
+                )
+
         bot.reply_to(
             message,
-            f"💰 <b>เงินสดปัจจุบัน:</b> ${cur:,.2f}\n\n"
-            f"<b>วิธีใช้:</b>\n"
-            f"<code>/setcash 5000</code>     — ตั้งเงินสด $5,000\n"
-            f"<code>/setcash 0</code>           — ลบเงินสด (set เป็น 0)\n\n"
-            f"<i>หน่วย USD · จะนำไปรวมกับมูลค่าหุ้นใน /port เพื่อคำนวณ NAV</i>",
+            f"💰 <b>เงินสดปัจจุบัน:</b> ${cur:,.2f}\n"
+            + "\n".join(history_lines)
+            + f"\n\n<b>วิธีใช้:</b>\n"
+            f"<code>/editcash 5000</code>      — ตั้งเงินสด $5,000\n"
+            f"<code>/editcash +1000</code>     — ฝากเข้า $1,000\n"
+            f"<code>/editcash -500</code>      — ถอนออก $500\n\n"
+            f"<i>หน่วย USD · นำไปรวมกับมูลค่าหุ้นใน /port เพื่อคำนวณ NAV</i>",
             parse_mode='HTML',
         )
         return
 
-    success = set_user_cash_balance(user_id, amount)
-    if success:
+    # Parse arg with action prefix
+    arg_raw = parts[1].strip().replace(',', '').replace('$', '').replace(' ', '')
+    try:
+        if arg_raw.startswith('+'):
+            action_type = 'deposit'
+            amount = float(arg_raw[1:])
+        elif arg_raw.startswith('-'):
+            action_type = 'withdraw'
+            amount = float(arg_raw[1:])
+        else:
+            action_type = 'set'
+            amount = float(arg_raw)
+        if amount < 0:
+            raise ValueError("amount must be >= 0")
+    except (ValueError, AttributeError):
         bot.reply_to(
             message,
-            f"✅ ตั้งเงินสดเรียบร้อย: <b>${amount:,.2f}</b>\n"
+            "❌ รูปแบบไม่ถูกต้อง\n\n"
+            "<b>ตัวอย่าง:</b>\n"
+            "<code>/editcash 5000</code>    — ตั้งใหม่\n"
+            "<code>/editcash +1000</code>   — ฝากเข้า\n"
+            "<code>/editcash -500</code>    — ถอนออก",
+            parse_mode='HTML',
+        )
+        return
+
+    result = apply_cash_action(user_id, action_type, amount, note='via telegram')
+    if not result.get('ok'):
+        bot.reply_to(message, friendly_error(result.get('error') or "ตั้งค่าเงินสดไม่สำเร็จ"))
+        return
+
+    before = result['balance_before']
+    after = result['balance_after']
+    delta = result['delta']
+
+    if action_type == 'set':
+        bot.reply_to(
+            message,
+            f"✅ <b>ตั้งเงินสดใหม่</b>\n"
+            f"💰 ${before:,.2f} → <b>${after:,.2f}</b>\n\n"
             f"ดู NAV รวมได้ใน /port",
             parse_mode='HTML',
         )
-    else:
-        bot.reply_to(message, friendly_error("ตั้งค่าเงินสดไม่สำเร็จ"))
+    elif action_type == 'deposit':
+        bot.reply_to(
+            message,
+            f"➕ <b>ฝากเข้า $+{amount:,.2f}</b>\n"
+            f"💰 ${before:,.2f} → <b>${after:,.2f}</b>\n\n"
+            f"ดู NAV รวมได้ใน /port",
+            parse_mode='HTML',
+        )
+    else:  # withdraw
+        actual_withdrawn = abs(delta)
+        capped_note = ""
+        if actual_withdrawn < amount:
+            capped_note = f"\n<i>⚠️ ลดเหลือ ${actual_withdrawn:,.2f} (เงินสดติดลบไม่ได้)</i>"
+        bot.reply_to(
+            message,
+            f"➖ <b>ถอนออก ${actual_withdrawn:,.2f}</b>{capped_note}\n"
+            f"💰 ${before:,.2f} → <b>${after:,.2f}</b>\n\n"
+            f"ดู NAV รวมได้ใน /port",
+            parse_mode='HTML',
+        )
 
 
 def _handle_pnl_all(message):
