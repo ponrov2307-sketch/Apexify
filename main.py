@@ -6957,6 +6957,12 @@ if __name__ == "__main__":
     try:
         from smart_money_cron import run_smart_money_cron
         threading.Thread(target=run_smart_money_cron, args=(bot,), daemon=True).start()
+
+        # 🏛 Congress Trades cron — daily 17:00 ICT
+        # Sources: Senate Stock Watcher + House Stock Watcher (free JSON APIs)
+        # Added 2026-05-17 per user request "ทำ insider เพิ่ม"
+        from congress_cron import run_congress_cron
+        threading.Thread(target=run_congress_cron, args=(bot,), daemon=True).start()
     except Exception as _e:
         print(f"[main] smart_money failed to start: {_e}", flush=True)
 
