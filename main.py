@@ -6963,6 +6963,12 @@ if __name__ == "__main__":
         # Added 2026-05-17 per user request "ทำ insider เพิ่ม"
         from congress_cron import run_congress_cron
         threading.Thread(target=run_congress_cron, args=(bot,), daemon=True).start()
+
+        # 🔥 Unusual Options Activity (UOA) cron — daily 21:30 ICT (1 hr after US open)
+        # Scans ~60 popular tickers via yfinance option_chain (FREE)
+        # Flags vol/OI > 2x = fresh position opening = potential smart money pre-catalyst
+        from uoa_cron import run_uoa_cron
+        threading.Thread(target=run_uoa_cron, args=(bot,), daemon=True).start()
     except Exception as _e:
         print(f"[main] smart_money failed to start: {_e}", flush=True)
 
