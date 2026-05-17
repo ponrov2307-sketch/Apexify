@@ -47,7 +47,11 @@ def _parse_iso_unix(iso_str):
 
 
 def _from_yfinance(symbol):
-    """ดึง news ผ่าน yfinance — รองรับทั้ง schema เก่าและใหม่"""
+    """ดึง news ผ่าน yfinance — รองรับทั้ง schema เก่าและใหม่
+
+    🆕 2026-05-17: Drops articles > 48h (no age filter before — yfinance often
+    surfaces multi-week-old pieces, especially via the "Yahoo Finance" feed).
+    """
     if yf is None:
         return []
     try:
@@ -56,7 +60,10 @@ def _from_yfinance(symbol):
         print(f"[news] yfinance err {symbol}: {type(e).__name__}: {str(e)[:80]}", flush=True)
         return []
 
+    YF_MAX_AGE_SECS = 48 * 3600  # 48 hours
+    now_unix = int(time.time())
     items = []
+    dropped_stale = 0
     for entry in raw[:12]:
         # schema ใหม่ (>=0.2.40 ประมาณ): {"id": ..., "content": {...}}
         content = entry.get("content") if isinstance(entry, dict) else None
@@ -76,12 +83,22 @@ def _from_yfinance(symbol):
         title = title.strip()
         if not title:
             continue
+
+        # 🆕 Age filter — drop > 48h. If pub is 0 (unknown), we KEEP the article
+        # (better to show possibly-stale than miss something legit). The
+        # downstream prompt formatter labels age as "?" in that case.
+        if pub > 0 and (now_unix - pub) > YF_MAX_AGE_SECS:
+            dropped_stale += 1
+            continue
+
         items.append({
             "title": title[:200],
             "summary": (summary or "").strip()[:400],
             "source": (source or "yfinance").strip()[:60],
             "published_unix": pub,
         })
+    if dropped_stale > 0:
+        print(f"[news] yfinance {symbol}: dropped {dropped_stale} stale articles (>48h)", flush=True)
     return items
 
 

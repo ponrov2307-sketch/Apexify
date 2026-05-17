@@ -32,32 +32,101 @@ except Exception:
 from config import gemini_client
 
 
-# ========== Sources ==========
-# All free, no registration. Tier-1 official US macro releases + market/company news mix.
+# ========== Sources + Trust Tiers ==========
+# All free, no registration. Tiered by source reliability for stale-article risk.
+#   Tier A (official): government releases — RSS is always fresh
+#   Tier B (major outlets): direct RSS from CNBC/WSJ/etc — usually fresh
+#   Tier C (aggregator/mixed): Yahoo/Investing/SeekingAlpha — often include stale
+#
+# Each source has max_age_h — articles older than this are dropped at fetch time.
 _RSS_SOURCES = [
-    # Fed press releases — every FOMC + speeches
+    # ===== Tier A: Official (max_age 48h — releases sometimes filed late evening) =====
     ("Fed",        "https://www.federalreserve.gov/feeds/press_all.xml"),
-    # BLS — CPI, NFP, jobless claims
     ("BLS",        "https://www.bls.gov/feed/news_release.rss"),
-    # Treasury press
     ("Treasury",   "https://home.treasury.gov/rss/press-releases"),
-    # Reuters US business via Google News — broaden ครอบคลุม macro + tech + earnings + tariff (กัน war dominance)
+
+    # ===== Tier B: Major outlets (max_age 24h) =====
     ("Reuters",    "https://news.google.com/rss/search?q=site:reuters.com+(Fed+OR+CPI+OR+jobs+OR+inflation+OR+rate+OR+tech+OR+earnings+OR+tariff+OR+chip+OR+AI)+when:2h&hl=en-US&gl=US&ceid=US:en"),
-    # CNBC markets
     ("CNBC",       "https://www.cnbc.com/id/100003114/device/rss/rss.html"),
-    # CNBC tech (เพิ่มความ diversity ไปทาง company/tech)
     ("CNBC-Tech",  "https://www.cnbc.com/id/19854910/device/rss/rss.html"),
-    # MarketWatch top stories
     ("MarketWatch","http://feeds.marketwatch.com/marketwatch/topstories/"),
-    # WSJ markets main
     ("WSJ",        "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"),
-    # Yahoo Finance top stories (company news heavy — earnings, M&A, guidance)
+    # NEW: NASDAQ news — direct outlet for tech/company news
+    ("NASDAQ",     "https://www.nasdaq.com/feed/rssoutbound?category=Markets"),
+    # NEW: Barron's top stories — Wall Street perspective
+    ("Barrons",    "https://www.barrons.com/xml/rss/3_7510.xml"),
+
+    # ===== Tier B-: Fast outlets (real-time but can be noisy) =====
+    # NEW: Benzinga — fast-moving, has rating change articles (analyst upgrades/downgrades)
+    ("Benzinga",   "https://www.benzinga.com/feed"),
+    # NEW: TheStreet — Jim Cramer + earnings + actionable picks
+    ("TheStreet",  "https://www.thestreet.com/.rss/full"),
+    # NEW: Zacks — earnings-focused
+    ("Zacks",      "https://www.zacks.com/rss/news.rss"),
+
+    # ===== Tier C: Aggregators (max_age 12h — known to include stale) =====
     ("Yahoo",      "https://finance.yahoo.com/news/rssindex"),
-    # Investing.com news (broad market news)
     ("Investing",  "https://www.investing.com/rss/news.rss"),
-    # Seeking Alpha breaking (analyst calls, company news)
     ("SeekingAlpha","https://seekingalpha.com/market_currents.xml"),
 ]
+
+
+# Tier-based age limits (hours). Per-source override drops stale articles before
+# they ever reach Gemini classification — saves quota + prevents user-visible noise.
+_SOURCE_MAX_AGE_HOURS: dict[str, float] = {
+    # Tier A — official, RSS always fresh; allow longer because releases are
+    # legitimate "yesterday's CPI" type content
+    "Fed":         48.0,
+    "BLS":         48.0,
+    "Treasury":    48.0,
+
+    # Tier B — major outlets, usually fresh
+    "Reuters":     24.0,
+    "CNBC":        24.0,
+    "CNBC-Tech":   24.0,
+    "MarketWatch": 24.0,
+    "WSJ":         24.0,
+    "NASDAQ":      24.0,
+    "Barrons":     24.0,
+
+    # Tier B- — fast-moving outlets
+    "Benzinga":    18.0,
+    "TheStreet":   24.0,
+    "Zacks":       24.0,
+
+    # Tier C — known stale-prone, strict cap
+    "Yahoo":       12.0,
+    "Investing":   12.0,
+    "SeekingAlpha":12.0,
+}
+
+# Default for any source not in the table (defensive — new sources start strict)
+_DEFAULT_MAX_AGE_HOURS = 24.0
+
+
+# ========== Title heuristics — drop articles that mention old time markers ==========
+# These patterns catch retrospective/recap articles that hit our keywords but are
+# explicitly about old quarters/years. Yahoo aggregator surfaces these often.
+_STALE_TITLE_PATTERNS = re.compile(
+    r"\b("
+    # Specific quarters / years past
+    r"Q[1-4]\s*20\d{2}|"
+    r"(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+20[12]\d|"
+    # Recap / review language
+    r"year[- ]?end\s+(?:review|recap|wrap)|"
+    r"looking\s+back|"
+    r"in\s+review|"
+    r"retrospective|"
+    # Past-tense markers
+    r"how\s+\w+\s+(?:fared|performed|did)\s+in\s+20\d{2}"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _is_stale_by_title(title: str) -> bool:
+    """Heuristic — title explicitly references old time frames → likely a recap."""
+    return bool(_STALE_TITLE_PATTERNS.search(title or ""))
 
 # ========== Keyword pre-filter ==========
 # Tier 1: high-confidence breaking — almost always market-moving.
@@ -128,7 +197,19 @@ _TIER2_KEYWORDS = re.compile(
     r"yuan|yen|BoJ|Bank of Japan|ECB|European Central Bank|"
     r"oil prices?|crude oil|natural gas|"
     # Crypto (high-beta correlation)
-    r"Bitcoin|BTC|Ethereum|crypto (?:rally|crash)"
+    r"Bitcoin|BTC|Ethereum|crypto (?:rally|crash)|"
+    # 🆕 Analyst rating changes — Wall St calls move stocks 5-15% commonly
+    # Pattern: "[Broker] upgrades/downgrades/initiates [Ticker]"
+    # Brokers we care about: JP Morgan, Goldman, Morgan Stanley, BofA, Citi,
+    # Wells Fargo, Barclays, Deutsche Bank, Wedbush, Piper, Jefferies, etc.
+    r"(?:upgrades?|downgrades?|reiterates?|initiates?|raises? price target|"
+    r"cuts? price target|lifts? price target|lowers? price target|"
+    r"buy rating|sell rating|outperform|underperform|overweight|underweight)|"
+    # Common broker name + action patterns (catches "Goldman raises AAPL PT")
+    r"(?:JPMorgan|JP Morgan|Goldman|Morgan Stanley|BofA|Bank of America|"
+    r"Citi(?:group)?|Wells Fargo|Barclays|Deutsche Bank|Wedbush|Piper|"
+    r"Jefferies|RBC|UBS|HSBC|Credit Suisse|Mizuho)\s+(?:says?|sees?|raises?|"
+    r"cuts?|upgrades?|downgrades?|initiates?|reiterates?)"
     r")\b",
     re.IGNORECASE,
 )
@@ -177,11 +258,6 @@ def _parse_rss(xml_bytes: bytes) -> list[dict]:
     return items
 
 
-# Drop articles older than this — anything beyond is stale, even if RSS still
-# advertises it. nuttapon (Annual PRO #1) flagged 2-7 day old "breaking" news.
-_MAX_ARTICLE_AGE_HOURS = 24.0
-
-
 def _article_age_hours(pub_str: str) -> float | None:
     """Returns hours since publication, or None if unparseable."""
     if not pub_str:
@@ -201,14 +277,19 @@ def _article_age_hours(pub_str: str) -> float | None:
 def fetch_news_candidates(per_source_limit: int = 10) -> list[dict]:
     """Pull recent items from all sources. Each item: {title, link, source, published_at, age_hours}.
 
-    Drops articles older than _MAX_ARTICLE_AGE_HOURS (24h default) — RSS feeds
-    sometimes still advertise multi-day-old items that previously caused
-    "old breaking news" reports.
+    Three-stage stale filter (defense-in-depth):
+      1. Per-source age limit (_SOURCE_MAX_AGE_HOURS) — Yahoo 12h, official 48h
+      2. Title heuristic (_STALE_TITLE_PATTERNS) — drops "Q4 2023 / year-end review" etc.
+      3. (Downstream) keyword tier + Gemini classification
+
+    Logs counts of dropped articles per reason so we can tune over time.
     """
     out: list[dict] = []
     seen_titles: set[str] = set()
-    dropped_stale = 0
+    dropped_age = 0
+    dropped_title = 0
     for source_name, url in _RSS_SOURCES:
+        max_age = _SOURCE_MAX_AGE_HOURS.get(source_name, _DEFAULT_MAX_AGE_HOURS)
         try:
             resp = _http_get(url, timeout=12)
             if resp.status_code != 200:
@@ -218,14 +299,16 @@ def fetch_news_candidates(per_source_limit: int = 10) -> list[dict]:
                 if t in seen_titles:
                     continue
 
-                # 🆕 Age filter — must be ≤ 24h to qualify as "breaking"
+                # 🆕 Stage 1: Per-source age limit
                 age = _article_age_hours(it.get("pubDate", ""))
-                if age is not None and age > _MAX_ARTICLE_AGE_HOURS:
-                    dropped_stale += 1
+                if age is not None and age > max_age:
+                    dropped_age += 1
                     continue
-                # If pubDate is missing/unparseable, we keep the article (some
-                # sources like Treasury Atom don't set pubDate). The Gemini
-                # classifier still gates by importance.
+
+                # 🆕 Stage 2: Title heuristic (catches retrospectives even if pubDate looks fresh)
+                if _is_stale_by_title(t):
+                    dropped_title += 1
+                    continue
 
                 # Compute published_at ISO if parseable (for DB storage)
                 published_iso = None
@@ -243,13 +326,17 @@ def fetch_news_candidates(per_source_limit: int = 10) -> list[dict]:
                     "title": t,
                     "link": it["link"],
                     "source": source_name,
-                    "published_at": published_iso,  # ISO string or None
-                    "age_hours": age,                # float or None
+                    "published_at": published_iso,
+                    "age_hours": age,
                 })
         except Exception as e:
             print(f"[BreakingNews] fetch {source_name} failed: {e}", flush=True)
-    if dropped_stale > 0:
-        print(f"[BreakingNews] dropped {dropped_stale} stale articles (>{_MAX_ARTICLE_AGE_HOURS}h)", flush=True)
+    if dropped_age > 0 or dropped_title > 0:
+        print(
+            f"[BreakingNews] dropped: {dropped_age} stale-by-age + "
+            f"{dropped_title} stale-by-title",
+            flush=True,
+        )
     return out
 
 
@@ -271,8 +358,12 @@ _CLASSIFY_PROMPT = """คุณเป็นนักวิเคราะห์�
 
 ประเมินว่าข่าวนี้น่าจะกระทบ S&P 500 หรือ Nasdaq มากแค่ไหนใน 1 ชั่วโมงหลังเผยแพร่:
 - HIGH: ข่าวด่วน/ตัวเลขเศรษฐกิจสำคัญ คาดเคลื่อน >0.5% เช่น CPI, NFP, FOMC, ภาวะสงคราม, OPEC cut, ลดอัตราดอกเบี้ยเซอไพรส์
+       หรือ analyst rating change ของหุ้น mega cap (AAPL, NVDA, TSLA, MSFT, GOOGL, META) จากโบรกใหญ่
 - MEDIUM: ข่าวสำคัญรองลง คาด 0.2-0.5% เช่น คำสัมภาษณ์ Fed, retail sales, ISM
+       หรือ analyst upgrade/downgrade ของหุ้นกลาง/เล็ก
 - LOW: ข่าวทั่วไปไม่น่าทำให้ตลาดเคลื่อนแรง
+
+⚠️ ข่าวเก่า/recap/year-end review → ตอบ LOW เสมอ (ไม่ใช่ breaking)
 
 หากข่าวเฉพาะบริษัท (เช่น Boeing 777 grounded, Apple recalls, Tesla recall) ระบุ ticker ของบริษัทนั้นใน "tickers"
 หากเป็นข่าวมหภาค/ตลาด/นโยบาย (CPI, FOMC, war, OPEC) ที่กระทบทั้งตลาด → "tickers": [] (แสดงว่ากระทบวงกว้าง)
