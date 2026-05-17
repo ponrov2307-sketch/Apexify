@@ -441,7 +441,16 @@ def _send_admin(bot, items_admin: list[dict], dry_run: bool = False):
 
 
 def _send_pro_watchlists(bot, items: list[dict], dry_run: bool = False) -> int:
-    """DM ทุก PRO user ที่ watchlist ติด ticker ใน items — กรอง signal ที่ user เคยรับแล้ว"""
+    """DM ทุก PRO user ที่ watchlist ติด ticker ใน items — กรอง signal ที่ user เคยรับแล้ว
+
+    🆕 2026-05-17: Honors INSIDER_SEND_PRO_INDIVIDUAL flag — when false (default),
+    PRO users don't get individual cron DMs because they get a unified daily
+    digest at 22:00 ICT instead (avoids 3-4 DMs/day spam).
+    """
+    if not getattr(config, "INSIDER_SEND_PRO_INDIVIDUAL", False):
+        print("[smart-money] PRO individual DM disabled — digest handles it", flush=True)
+        return 0
+
     try:
         from database import query_pro_users_with_watchlist
     except Exception as e:

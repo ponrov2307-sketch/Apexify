@@ -6969,6 +6969,13 @@ if __name__ == "__main__":
         # Flags vol/OI > 2x = fresh position opening = potential smart money pre-catalyst
         from uoa_cron import run_uoa_cron
         threading.Thread(target=run_uoa_cron, args=(bot,), daemon=True).start()
+
+        # 📊 Daily Signals Digest — unified PRO DM at 22:00 ICT combining
+        # Smart Money + Congress + UOA into ONE message (reduces 3-4 DMs/day → 1)
+        # Admin still gets individual cron DMs for content creation.
+        # Added 2026-05-17 after user feedback: "มันเยอะไปไหม จะเด้งทั้งวันเลย"
+        from daily_signals_digest import run_digest_cron
+        threading.Thread(target=run_digest_cron, args=(bot,), daemon=True).start()
     except Exception as _e:
         print(f"[main] smart_money failed to start: {_e}", flush=True)
 

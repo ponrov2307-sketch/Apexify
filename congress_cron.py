@@ -376,6 +376,11 @@ def _query_pro_watchlists(limit: int = 500) -> list[dict]:
 
 
 def _send_pro_watchlists(bot, items: list[dict], dry_run: bool = False) -> int:
+    # 🆕 Honors INSIDER_SEND_PRO_INDIVIDUAL — PRO users get unified digest instead
+    if not getattr(config, "INSIDER_SEND_PRO_INDIVIDUAL", False):
+        print("[congress] PRO individual DM disabled — digest handles it", flush=True)
+        return 0
+
     pool_tickers = {it["ticker"] for it in items}
     if not pool_tickers:
         return 0

@@ -293,6 +293,11 @@ def _send_admin(bot, signals: list[dict], dry_run: bool = False) -> int:
 
 
 def _send_pro_watchlists(bot, signals: list[dict], dry_run: bool = False) -> int:
+    # 🆕 Honors INSIDER_SEND_PRO_INDIVIDUAL — PRO users get unified digest instead
+    if not getattr(config, "INSIDER_SEND_PRO_INDIVIDUAL", False):
+        print("[uoa] PRO individual DM disabled — digest handles it", flush=True)
+        return 0
+
     pool_tickers = {s["ticker"] for s in signals}
     if not pool_tickers:
         return 0
