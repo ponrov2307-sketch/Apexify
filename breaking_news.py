@@ -20,6 +20,7 @@ import re
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime as _rss_parsedate
 
 try:
     from curl_cffi import requests as cffi_requests
@@ -176,10 +177,37 @@ def _parse_rss(xml_bytes: bytes) -> list[dict]:
     return items
 
 
+# Drop articles older than this — anything beyond is stale, even if RSS still
+# advertises it. nuttapon (Annual PRO #1) flagged 2-7 day old "breaking" news.
+_MAX_ARTICLE_AGE_HOURS = 24.0
+
+
+def _article_age_hours(pub_str: str) -> float | None:
+    """Returns hours since publication, or None if unparseable."""
+    if not pub_str:
+        return None
+    try:
+        dt = _rss_parsedate(pub_str)
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        delta = datetime.now(timezone.utc) - dt
+        return max(0.0, delta.total_seconds() / 3600.0)
+    except Exception:
+        return None
+
+
 def fetch_news_candidates(per_source_limit: int = 10) -> list[dict]:
-    """Pull recent items from all sources. Each item: {title, link, source}."""
+    """Pull recent items from all sources. Each item: {title, link, source, published_at, age_hours}.
+
+    Drops articles older than _MAX_ARTICLE_AGE_HOURS (24h default) — RSS feeds
+    sometimes still advertise multi-day-old items that previously caused
+    "old breaking news" reports.
+    """
     out: list[dict] = []
     seen_titles: set[str] = set()
+    dropped_stale = 0
     for source_name, url in _RSS_SOURCES:
         try:
             resp = _http_get(url, timeout=12)
@@ -189,14 +217,39 @@ def fetch_news_candidates(per_source_limit: int = 10) -> list[dict]:
                 t = it["title"]
                 if t in seen_titles:
                     continue
+
+                # 🆕 Age filter — must be ≤ 24h to qualify as "breaking"
+                age = _article_age_hours(it.get("pubDate", ""))
+                if age is not None and age > _MAX_ARTICLE_AGE_HOURS:
+                    dropped_stale += 1
+                    continue
+                # If pubDate is missing/unparseable, we keep the article (some
+                # sources like Treasury Atom don't set pubDate). The Gemini
+                # classifier still gates by importance.
+
+                # Compute published_at ISO if parseable (for DB storage)
+                published_iso = None
+                try:
+                    dt = _rss_parsedate(it.get("pubDate", "")) if it.get("pubDate") else None
+                    if dt is not None:
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        published_iso = dt.astimezone(timezone.utc).isoformat()
+                except Exception:
+                    pass
+
                 seen_titles.add(t)
                 out.append({
                     "title": t,
                     "link": it["link"],
                     "source": source_name,
+                    "published_at": published_iso,  # ISO string or None
+                    "age_hours": age,                # float or None
                 })
         except Exception as e:
             print(f"[BreakingNews] fetch {source_name} failed: {e}", flush=True)
+    if dropped_stale > 0:
+        print(f"[BreakingNews] dropped {dropped_stale} stale articles (>{_MAX_ARTICLE_AGE_HOURS}h)", flush=True)
     return out
 
 
@@ -674,6 +727,7 @@ def process_breaking_news(bot_instance, *, dry_run: bool = False) -> dict:
                 summary_th=record.get("summary_th", ""),
                 importance=record["importance"],
                 reasoning=record.get("reasoning", ""),
+                published_at=record.get("published_at"),  # 🆕 RSS pubDate (ISO)
             )
         except Exception as e:
             print(f"[BreakingNews] log insert failed: {e}", flush=True)

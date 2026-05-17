@@ -3799,21 +3799,43 @@ def is_breaking_news_seen(url_hash: str) -> bool:
         conn.close()
 
 
+def _ensure_breaking_news_published_at_column(c) -> None:
+    """Idempotent migration — adds published_at column if missing.
+
+    Added 2026-05-17 after nuttapon flagged 2-7 day old "breaking" news being
+    shown. We now store the article's actual publish time so the frontend can
+    display it instead of classified_at (= when bot processed, misleading).
+    """
+    try:
+        c.execute(
+            "ALTER TABLE breaking_news_log ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ"
+        )
+    except Exception as e:
+        print(f"[migrate] breaking_news_log.published_at: {e}")
+
+
 def log_breaking_news(url_hash: str, source: str, title: str, link: str,
-                      summary_th: str, importance: str, reasoning: str) -> int | None:
-    """Insert classified news. Returns id, or None on duplicate."""
+                      summary_th: str, importance: str, reasoning: str,
+                      published_at: str | None = None) -> int | None:
+    """Insert classified news. Returns id, or None on duplicate.
+
+    published_at: ISO-format string of article's original publish time (from RSS
+    pubDate). None if source didn't provide one. Frontend uses this for the
+    "X ago" display — far more honest than classified_at.
+    """
     conn = get_connection()
     c = conn.cursor()
     try:
+        _ensure_breaking_news_published_at_column(c)
         c.execute(
             """
             INSERT INTO breaking_news_log
-                (url_hash, source, title, link, summary_th, importance, reasoning)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (url_hash, source, title, link, summary_th, importance, reasoning, published_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (url_hash) DO NOTHING
             RETURNING id
             """,
-            (url_hash, source, title, link, summary_th, importance, reasoning),
+            (url_hash, source, title, link, summary_th, importance, reasoning, published_at),
         )
         row = c.fetchone()
         conn.commit()
