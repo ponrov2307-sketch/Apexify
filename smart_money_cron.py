@@ -267,7 +267,6 @@ def format_admin_message(items: list[dict], top_n: int = TOP_N_ADMIN) -> str:
         "━━━━━━━━━━━━━━",
         "_ข้อมูล: SEC Form 4 (กฎหมายบังคับ insider file ภายใน T+2 วัน)_",
         "_ที่มา: openinsider.com · sec.gov_",
-        "_💡 เอา hook ไปต่อยอด ChatGPT/Gemini สำหรับ FB content_",
     ])
     return "\n".join(lines)
 

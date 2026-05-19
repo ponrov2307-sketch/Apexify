@@ -217,10 +217,7 @@ def _build_message(items: list) -> str:
         lines.append(f"   📊 {eps_str} · {move_str}")
         lines.append(f"   💡 _{it['hook']}_")
         lines.append("")
-    lines.extend([
-        "━━━━━━━━━━━━━━",
-        "_tease FB เย็นนี้ก่อน เอาไปทำคอนเทนต์เต็มในวัน earnings_",
-    ])
+    lines.append("━━━━━━━━━━━━━━")
     return "\n".join(lines)
 
 
