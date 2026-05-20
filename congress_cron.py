@@ -2,25 +2,39 @@
 congress_cron.py — DM admin (และ PRO watchlist) ทุกวัน 17:00 ICT
                    ดูหุ้นที่ Senator / Representative US ซื้อ-ขายในรอบ 14 วัน
 
-Sources (FREE public APIs, no auth):
-  - Senate Stock Watcher: https://senatestockwatcher.com/api/v2/all_transactions
-  - House Stock Watcher:  https://housestockwatcher.com/api/v2/all_transactions
+⚠️ STATUS 2026-05-17:
+  Both senatestockwatcher.com AND housestockwatcher.com APIs are DEAD
+  (DNS/server unreachable — confirmed ECONNREFUSED 2 days running).
+  Cron is now DISABLED BY DEFAULT (CONGRESS_ENABLED=false) until a working
+  free source is identified or paid Quiver Quant subscription is approved.
 
-User value:
+Backup sources investigated (and their status):
+  - Capitol Trades BFF API: Cloudflare-blocked (HTTP 503)
+  - Capitol Trades HTML scrape: HTML loads but no clean __NEXT_DATA__ structure
+  - Quiver Quantitative: PAID API only ($X/mo)
+  - Senate EFD / House Clerk: Anti-bot 403, official requires login
+  - GitHub data dumps: Updated weekly, not realtime
+
+Future paths (when user prioritizes this feature):
+  1. Subscribe to Quiver Quant API (cleanest, ~$30-50/mo)
+  2. Build robust Capitol Trades HTML scraper (most effort, free)
+  3. Schedule manual data refresh from House Clerk zip files (low priority,
+     45-day disclosure delay limits "breaking" value)
+
+User value (kept for reference):
   - admin: viral content "นักการเมือง US ซื้อหุ้นอะไรสัปดาห์นี้"
   - PRO: alert เฉพาะ ticker ที่อยู่ใน watchlist (premium signal)
 
-Reliability:
-  - STOCK Act บังคับ politician disclose ภายใน 45 วันหลัง trade
-  - API update ภายในวันที่ filing เผยแพร่
-  - Delay: trade → filing → API ≈ T+0 ถึง T+45 days (most file T+30)
-
-Workflow:
+Workflow (when working):
   1. Daily cron 17:00 ICT
   2. Fetch both Senate + House APIs (JSON arrays)
   3. Filter: amount_max ≥ $50K · trade_date ≤ 14d ago · skip "Exchange"
   4. Format top 8 by amount → DM admin
   5. Match PRO watchlist → DM premium signal (per-ticker dedup)
+
+Error suppression: After consecutive empty/error days, suppresses admin DM
+to avoid daily spam ("ดึงข้อมูลไม่ได้" was triggering 2 days running before
+this fix was deployed).
 """
 
 import re
@@ -423,6 +437,19 @@ def _send_pro_watchlists(bot, items: list[dict], dry_run: bool = False) -> int:
 
 
 # ============ Entry points ============
+# Track consecutive failure count to suppress repeat error DMs
+# (key: dispatch_log "congress:no_data:YYYY-MM-DD" → admin already notified today)
+def _suppress_error_today() -> bool:
+    """If admin was already alerted today about no data → suppress repeat DM."""
+    today = config.thai_today() if hasattr(config, "thai_today") else config.thai_now().date()
+    return _check_dispatch(f"congress:no_data:{today.isoformat()}")
+
+
+def _mark_error_today():
+    today = config.thai_today() if hasattr(config, "thai_today") else config.thai_now().date()
+    _mark_dispatch(f"congress:no_data:{today.isoformat()}", "congress_no_data", "admin")
+
+
 def run_once(bot, dry_run: bool = False):
     """1 cycle — fetch + filter + DM"""
     print("[congress] starting scan...", flush=True)
@@ -433,9 +460,16 @@ def run_once(bot, dry_run: bool = False):
     print(f"[congress] fetched {len(senate_raw)} Senate + {len(house_raw)} House", flush=True)
 
     if not raw_items:
-        if not dry_run:
+        # 🆕 Silence repeat error DMs — admin doesn't need same warning daily
+        # (sources currently dead — see module docstring for status)
+        if not dry_run and not _suppress_error_today():
             try:
-                bot.send_message(config.ADMIN_ID, "⚠️ Congress Trades: ดึงข้อมูลไม่ได้วันนี้")
+                bot.send_message(
+                    config.ADMIN_ID,
+                    "⚠️ Congress Trades: API ทั้ง Senate + House ตาย (ECONNREFUSED). "
+                    "Source แก้แล้วจะกลับมาเอง · ตั้ง CONGRESS_ENABLED=false ถ้าอยากปิด log นี้ทันที",
+                )
+                _mark_error_today()
             except Exception:
                 pass
         return
@@ -444,12 +478,14 @@ def run_once(bot, dry_run: bool = False):
     print(f"[congress] after filter: {len(filtered)} (≥${MIN_AMOUNT_USD/1000:.0f}K · ≤{MAX_TRADE_AGE_DAYS}d)", flush=True)
 
     if not filtered:
-        if not dry_run:
+        # Same suppression for empty-after-filter case
+        if not dry_run and not _suppress_error_today():
             try:
                 bot.send_message(
                     config.ADMIN_ID,
                     "🏛 Congress Trades: ไม่มี trades เข้าเกณฑ์วันนี้",
                 )
+                _mark_error_today()
             except Exception:
                 pass
         return
@@ -460,9 +496,14 @@ def run_once(bot, dry_run: bool = False):
 
 
 def run_congress_cron(bot):
-    """Daemon thread — daily at CONGRESS_HOUR_ICT (default 17:00 ICT)"""
-    if not getattr(config, "CONGRESS_ENABLED", True):
-        print("[congress] disabled — thread exiting", flush=True)
+    """Daemon thread — daily at CONGRESS_HOUR_ICT (default 17:00 ICT).
+
+    🆕 2026-05-17: Default DISABLED because data sources died (Stock Watcher APIs).
+    Set CONGRESS_ENABLED=true once a working source is wired in.
+    """
+    # NOTE: default flipped from True → False (2026-05-17, dead source)
+    if not getattr(config, "CONGRESS_ENABLED", False):
+        print("[congress] disabled — sources currently dead (see module docstring)", flush=True)
         return
 
     target_h = getattr(config, "CONGRESS_HOUR_ICT", 17)
