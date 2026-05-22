@@ -32,7 +32,7 @@ import config
 # ============ Constants ============
 MIN_GAP_PCT = float(getattr(config, "PREMARKET_MIN_GAP_PCT", 3.0))
 MIN_PREMARKET_VOL = 10_000        # ตัด ticker ที่ไม่มี vol จริง (กัน noise)
-TOP_DISCOVERY = 3                  # gap movers นอก watchlist ที่จะแสดง
+TOP_DISCOVERY = 10                 # gap movers นอก watchlist ที่จะแสดง
 MAX_WATCHLIST_DISPLAY = 5          # cap watchlist matches แสดงสูงสุด
 WORKERS = 12                       # ThreadPoolExecutor concurrent fetches
 
