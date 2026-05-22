@@ -3228,14 +3228,6 @@ def process_referral(referrer_id, new_user_id, admin_override=False):
         else:
             if effective_role == 'free':
                 c.execute("UPDATE users SET usage_count = GREATEST(0, usage_count - 3) WHERE user_id = %s", (referrer_id,))
-            elif effective_role in ('pro', 'vip'):
-                # 🌟 PRO/VIP unlimited อยู่แล้ว → +3 quota ไร้ความหมาย
-                # ให้ +7 วันต่อ referral แทน (จับต้องได้ จูงใจ referrer ระดับจ่ายเงินให้ชวนต่อ)
-                c.execute("""
-                    UPDATE users SET
-                        expiry_date = GREATEST(COALESCE(expiry_date, NOW()), NOW()) + INTERVAL '7 days'
-                    WHERE user_id = %s
-                """, (referrer_id,))
 
         # 🌟 Referred user bonus — VIP 3 วันฟรี (v2 ใหม่)
         # ใช้ INSERT ON CONFLICT DO UPDATE เพราะ new user อาจยังไม่มี row
@@ -3255,6 +3247,32 @@ def process_referral(referrer_id, new_user_id, admin_override=False):
         return False, False
     finally:
         conn.close()
+
+def grant_referral_welcome_bonus(new_user_id) -> bool:
+    """ให้โบนัส VIP 3 วันแก่ผู้ถูกแนะนำอย่างเดียว (ไม่เครดิต referrer).
+    ใช้ตอน admin อนุมัติ pending ที่ referrer ระบุไม่ได้ — จะได้ไม่ค้างคา."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            INSERT INTO users (user_id, role, expiry_date, registered_date, status)
+            VALUES (%s, 'vip', NOW() + INTERVAL '3 days', NOW(), 'active')
+            ON CONFLICT (user_id) DO UPDATE SET
+                role = CASE WHEN users.role IN ('vip', 'pro') THEN users.role ELSE 'vip' END,
+                expiry_date = GREATEST(COALESCE(users.expiry_date, NOW()), NOW()) + INTERVAL '3 days'
+            """,
+            (str(new_user_id),),
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"[referral_welcome] {e}", flush=True)
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
 
 def get_referral_stats(user_id):
     """ดูว่าชวนเพื่อนไปแล้วกี่คน"""
