@@ -3186,12 +3186,19 @@ def process_referral(referrer_id, new_user_id, admin_override=False):
             "INSERT INTO referrals (referrer_id, referred_id) VALUES (%s, %s) ON CONFLICT (referred_id) DO NOTHING",
             (referrer_id, new_user_id),
         )
-        # Bail if INSERT was a no-op (referred_id already credited to someone).
-        # Without this, a re-call computes new_count from the existing rows and
-        # could re-fire milestone bonuses on every retry — silent VIP leak.
+        # INSERT no-op = referred_id ถูก credit ไปแล้ว.
+        #  - flow ปกติ: bail (กัน re-fire milestone bonus ทุก retry — silent VIP leak)
+        #  - admin /award_ref (override): re-assign ให้ referrer ที่ admin ระบุ
+        #    (pending.awarded flag กันการ award ซ้ำอยู่แล้ว)
         if c.rowcount == 0:
-            conn.commit()
-            return False, False
+            if admin_override:
+                c.execute(
+                    "UPDATE referrals SET referrer_id = %s WHERE referred_id = %s",
+                    (referrer_id, new_user_id),
+                )
+            else:
+                conn.commit()
+                return False, False
 
         c.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = %s", (referrer_id,))
         new_count = c.fetchone()[0]
@@ -3221,6 +3228,14 @@ def process_referral(referrer_id, new_user_id, admin_override=False):
         else:
             if effective_role == 'free':
                 c.execute("UPDATE users SET usage_count = GREATEST(0, usage_count - 3) WHERE user_id = %s", (referrer_id,))
+            elif effective_role in ('pro', 'vip'):
+                # 🌟 PRO/VIP unlimited อยู่แล้ว → +3 quota ไร้ความหมาย
+                # ให้ +7 วันต่อ referral แทน (จับต้องได้ จูงใจ referrer ระดับจ่ายเงินให้ชวนต่อ)
+                c.execute("""
+                    UPDATE users SET
+                        expiry_date = GREATEST(COALESCE(expiry_date, NOW()), NOW()) + INTERVAL '7 days'
+                    WHERE user_id = %s
+                """, (referrer_id,))
 
         # 🌟 Referred user bonus — VIP 3 วันฟรี (v2 ใหม่)
         # ใช้ INSERT ON CONFLICT DO UPDATE เพราะ new user อาจยังไม่มี row

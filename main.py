@@ -2993,52 +2993,72 @@ def handle_finduser(message):
 
 @bot.message_handler(commands=['award_ref'])
 def handle_award_ref(message):
-    """[Admin] /award_ref <pending_id> <referrer_telegram_id>"""
+    """[Admin] /award_ref <pending_id> [referrer_telegram_id]
+    ถ้าไม่ใส่ referrer → resolve จาก referrer_query ของ pending ให้อัตโนมัติ"""
     user_id = str(message.chat.id)
     if str(user_id) != str(ADMIN_ID):
         return
     parts = (message.text or "").split()
-    if len(parts) != 3:
-        bot.reply_to(message, "Usage: `/award_ref <pending_id> <referrer_telegram_id>`",
+    if len(parts) < 2:
+        bot.reply_to(message, "Usage: `/award_ref <pending_id> [referrer_telegram_id]`",
                      parse_mode="Markdown")
         return
     try:
         pid = int(parts[1].lstrip("#"))
-        ref_id = parts[2].lstrip("@")
     except ValueError:
         bot.reply_to(message, "❌ pending_id ต้องเป็นตัวเลข")
         return
-    # referrer ต้องเป็น telegram_id ตัวเลข — ถ้าใส่ @username/ชื่อ รางวัลจะไม่เข้าใคร
-    if not ref_id.isdigit():
-        bot.reply_to(
-            message,
-            f"❌ referrer ต้องเป็น *telegram_id ตัวเลข* (ใส่มา: `{ref_id}`)\n\n"
-            f"หา id ก่อน: `/finduser {ref_id}` แล้วค่อย `/award_ref {pid} <id ตัวเลข>`",
-            parse_mode="Markdown",
-        )
-        return
-    from database import mark_referral_awarded
-    # NOTE: Use existing process_referral logic to actually grant the reward
-    # by simulating a back-dated referral. We import process_referral lazily.
+
+    from database import (mark_referral_awarded, process_referral,
+                          list_pending_referrals, find_users_by_name)
     try:
-        from database import process_referral
-        # Find the new_user from pending row
-        from database import list_pending_referrals
         target = next((r for r in list_pending_referrals(limit=200) if r["id"] == pid), None)
         if not target:
             bot.reply_to(message, f"❌ pending_id `{pid}` ไม่พบ หรือ awarded ไปแล้ว",
                          parse_mode="Markdown")
             return
-        # admin_override=True — credit ย้อนหลังให้ referrer แม้ new user register แล้ว
+
+        # ── resolve referrer ──
+        if len(parts) >= 3:
+            ref_id = parts[2].lstrip("@")
+        else:
+            # auto-resolve จาก referrer_query ของ pending
+            q = (target.get("referrer_query") or "").lstrip("@").strip()
+            if not q:
+                bot.reply_to(message, f"❌ pending #{pid} ไม่มีข้อมูล referrer — ระบุเอง: `/award_ref {pid} <id>`",
+                             parse_mode="Markdown")
+                return
+            ref_id = q  # may be name/username → resolve below
+
+        # ถ้ายังไม่ใช่ตัวเลข → ลอง resolve ชื่อ/username เป็น telegram_id
+        if not ref_id.isdigit():
+            matches = find_users_by_name(ref_id, limit=5)
+            if len(matches) == 1:
+                ref_id = matches[0][0]
+            elif len(matches) == 0:
+                bot.reply_to(
+                    message,
+                    f"❌ resolve `{ref_id}` เป็น user ไม่ได้\n\n"
+                    f"หา id เอง: `/finduser {ref_id}` แล้ว `/award_ref {pid} <id ตัวเลข>`",
+                    parse_mode="Markdown")
+                return
+            else:
+                lines = [f"⚠️ `{ref_id}` ตรงหลายคน เลือก id แล้วสั่ง:"]
+                for uid, uname in matches:
+                    lines.append(f"`/award_ref {pid} {uid}` — {uname or '(no name)'}")
+                bot.reply_to(message, "\n".join(lines), parse_mode="Markdown")
+                return
+
+        # admin_override=True — credit ย้อนหลัง + re-assign ได้แม้ referred_id มีอยู่แล้ว
         success, milestone = process_referral(ref_id, target["new_user_id"], admin_override=True)
         if not success:
-            bot.reply_to(message, "❌ ล้มเหลว — referral นี้ถูก credit ให้คนอื่นไปแล้ว (referred_id ซ้ำ) หรือ referrer = new user")
+            bot.reply_to(message, "❌ ล้มเหลว — referrer = new user (กันปั่น) หรือ DB error")
             return
         mark_referral_awarded(pid, ref_id)
         bot.reply_to(
             message,
             f"✅ Awarded — referrer `{ref_id}` ได้รับ "
-            f"{'milestone bonus + 10 days' if milestone else '+3 quota'}\n"
+            f"{'milestone bonus +10 วัน' if milestone else '+7 วัน (PRO/VIP) หรือ +3 quota (free)'}\n"
             f"new user `{target['new_user_id']}` ได้ VIP 3 วันฟรี",
             parse_mode="Markdown",
         )
