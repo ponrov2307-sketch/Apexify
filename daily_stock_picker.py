@@ -569,63 +569,37 @@ def pick_top_3(pool: list = None) -> list[dict]:
 
 
 def _generate_simple_plan(tech_data: dict) -> dict:
-    """Rule-based trade plan สำหรับ daily picker chart (ไม่กิน AI token)
-    ใช้ S/R + EMA50 + current price + 2.5R target
+    """Trade plan สำหรับ daily picker chart — ใช้ logic เดียวกับ /analyze
+    (`_build_deterministic_plan`) เพื่อให้จุดเข้าถูกคำนวณจากแนวรับ/POC/EMA20
+    (ไม่ใช่ราคาปัจจุบัน) เหมือนกราฟวิเคราะห์หุ้นปกติ. ไม่กิน AI token.
 
-    Returns plan dict: entry_low, entry_high, tp1, tp2, sl
+    Returns plan dict: entry_low, entry_high, tp1, tp2, sl, bias
     """
     if not tech_data:
         return {}
     try:
+        from ai_analyzer import _fallback_context_from_tech_data, _build_deterministic_plan
+
         current = float(tech_data.get("price") or 0)
         if current <= 0:
             return {}
-        support = tech_data.get("support")
-        resistance = tech_data.get("resistance")
         ema50 = tech_data.get("ema50")
-        support = float(support) if support else None
-        resistance = float(resistance) if resistance else None
         ema50 = float(ema50) if ema50 else None
+        bias = "bullish" if (ema50 is None or current >= ema50) else "bearish"
 
-        # Bias: bull ถ้าราคา > EMA50 (uptrend), else bear
-        is_bull = ema50 is None or current >= ema50
-
-        # Entry zone: ±1% รอบราคาปัจจุบัน (admin/user adjust ได้)
-        entry_low = current * 0.99
-        entry_high = current * 1.01
-
-        if is_bull:
-            # Bull setup: SL ต่ำกว่า entry, TP1 ที่ resistance, TP2 = 2.5R target
-            # SL logic ระบุชัด:
-            #   ถ้ามี support < current → SL ใต้ support 1.5% (zone respect)
-            #   else → SL ที่ -5% (default conservative loss)
-            #   cap: ห้าม SL ห่างเกิน 7% (ไม่ Burn account)
-            if support and support < current:
-                sl = max(support * 0.985, current * 0.93)
-            else:
-                sl = current * 0.95
-            tp1 = resistance if resistance and resistance > current * 1.01 else current * 1.05
-            risk = current - sl
-            tp2 = current + max(risk, current * 0.02) * 2.5
-        else:
-            # Bear setup: SL เหนือ entry, TP1 ที่ support (deeper target), TP2 = 2.5R
-            # Bear TP1: ถ้ามี support → ใช้ support (deep target)
-            #          else → -10% (deeper than bull's +5% — bear move บ่อยใหญ่กว่า)
-            if resistance and resistance > current:
-                sl = min(resistance * 1.015, current * 1.07)
-            else:
-                sl = current * 1.05
-            tp1 = support if support and support < current * 0.99 else current * 0.90
-            risk = sl - current
-            tp2 = current - max(risk, current * 0.02) * 2.5
+        context = _fallback_context_from_tech_data(tech_data)
+        result = _build_deterministic_plan(context, bias)
+        dp = result.get("day_plan") or {}
+        if dp.get("entry_low") is None or dp.get("tp1") is None:
+            return {}
 
         return {
-            "entry_low": round(entry_low, 2),
-            "entry_high": round(entry_high, 2),
-            "tp1": round(tp1, 2),
-            "tp2": round(tp2, 2),
-            "sl": round(sl, 2),
-            "bias": "bullish" if is_bull else "bearish",
+            "entry_low": round(float(dp["entry_low"]), 2),
+            "entry_high": round(float(dp["entry_high"]), 2),
+            "tp1": round(float(dp["tp1"]), 2),
+            "tp2": round(float(dp["tp2"]), 2),
+            "sl": round(float(dp["sl"]), 2),
+            "bias": result.get("bias", bias),
         }
     except Exception as e:
         print(f"[daily-picker] plan gen err: {e}", flush=True)
