@@ -3008,6 +3008,15 @@ def handle_award_ref(message):
     except ValueError:
         bot.reply_to(message, "❌ pending_id ต้องเป็นตัวเลข")
         return
+    # referrer ต้องเป็น telegram_id ตัวเลข — ถ้าใส่ @username/ชื่อ รางวัลจะไม่เข้าใคร
+    if not ref_id.isdigit():
+        bot.reply_to(
+            message,
+            f"❌ referrer ต้องเป็น *telegram_id ตัวเลข* (ใส่มา: `{ref_id}`)\n\n"
+            f"หา id ก่อน: `/finduser {ref_id}` แล้วค่อย `/award_ref {pid} <id ตัวเลข>`",
+            parse_mode="Markdown",
+        )
+        return
     from database import mark_referral_awarded
     # NOTE: Use existing process_referral logic to actually grant the reward
     # by simulating a back-dated referral. We import process_referral lazily.
@@ -3020,9 +3029,10 @@ def handle_award_ref(message):
             bot.reply_to(message, f"❌ pending_id `{pid}` ไม่พบ หรือ awarded ไปแล้ว",
                          parse_mode="Markdown")
             return
-        success, milestone = process_referral(ref_id, target["new_user_id"])
+        # admin_override=True — credit ย้อนหลังให้ referrer แม้ new user register แล้ว
+        success, milestone = process_referral(ref_id, target["new_user_id"], admin_override=True)
         if not success:
-            bot.reply_to(message, "❌ process_referral ล้มเหลว — อาจ user ใหม่ยังไม่ register เป็น row หรือ already-recorded")
+            bot.reply_to(message, "❌ ล้มเหลว — referral นี้ถูก credit ให้คนอื่นไปแล้ว (referred_id ซ้ำ) หรือ referrer = new user")
             return
         mark_referral_awarded(pid, ref_id)
         bot.reply_to(

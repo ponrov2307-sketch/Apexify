@@ -3154,8 +3154,12 @@ def should_send_user_notification(user_id, category="general", now_utc=None):
     return True
 
 
-def process_referral(referrer_id, new_user_id):
+def process_referral(referrer_id, new_user_id, admin_override=False):
     """จัดการเมื่อมีคนกดลิงก์ชวนเพื่อนเข้ามาใช้งานบอทครั้งแรก
+
+    admin_override=True (จาก /award_ref) — ข้าม guard "new user ต้องยังไม่มี row"
+    เพราะ admin credit ย้อนหลังให้คนที่ register ใช้บอทไปแล้ว. การกัน double-credit
+    ยังอยู่ที่ ON CONFLICT (referred_id) DO NOTHING ด้านล่าง.
     รางวัล Referrer:
       - ทุก referral → ลด usage_count 3 (สำหรับ free) = +3 quota
       - ทุก 3 referrals → upgrade เป็น VIP + ต่อ 10 วัน (milestone)
@@ -3171,9 +3175,12 @@ def process_referral(referrer_id, new_user_id):
     conn = get_connection()
     c = conn.cursor()
     try:
-        c.execute("SELECT user_id FROM users WHERE user_id = %s", (new_user_id,))
-        if c.fetchone():
-            return False, False
+        # Guard "new user ต้องยังไม่มี row" — ใช้กับ /start REF_ flow เท่านั้น
+        # admin /award_ref (override) credit คนที่ register แล้วได้
+        if not admin_override:
+            c.execute("SELECT user_id FROM users WHERE user_id = %s", (new_user_id,))
+            if c.fetchone():
+                return False, False
 
         c.execute(
             "INSERT INTO referrals (referrer_id, referred_id) VALUES (%s, %s) ON CONFLICT (referred_id) DO NOTHING",
