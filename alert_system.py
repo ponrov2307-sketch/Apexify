@@ -943,6 +943,35 @@ def get_fresh_global_news():
     return [n for n in balanced_news if n["title"] not in sent_snapshot]
 
 # ==========================================
+# 🌟 Robust JSON-array extractor — Gemini บางครั้งใส่ข้อความอธิบายนำหน้า/code fence
+# ก่อน JSON ทำให้ json.loads ตรงๆ พัง. ดึง array จาก [ ... ] ตัวแรก-สุดท้ายแทน.
+# ==========================================
+def _extract_json_list(text: str):
+    if not text:
+        return None
+    cleaned = text.strip().replace('```json', '').replace('```', '').strip()
+    try:
+        v = json.loads(cleaned)
+        if isinstance(v, dict):
+            return [v]
+        if isinstance(v, list):
+            return v
+    except (json.JSONDecodeError, ValueError):
+        pass
+    start, end = cleaned.find('['), cleaned.rfind(']')
+    if start != -1 and end != -1 and end > start:
+        try:
+            v = json.loads(cleaned[start:end + 1])
+            if isinstance(v, list):
+                return v
+            if isinstance(v, dict):
+                return [v]
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return None
+
+
+# ==========================================
 # 🌟 ระบบส่งข่าวด่วนรายชั่วโมง (Flash News) - [อัปเกรดระบบดักจับ Error]
 # ==========================================
 def broadcast_hourly_urgent_news(bot_instance, force=False):
@@ -967,6 +996,10 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
     ถ้าหลายพาดหัวพูดถึงเรื่องเดียวกัน ให้เลือกเพียงข่าวเดียวจากกลุ่มนั้น (ห้ามซ้ำประเด็น)
     (ถ้าข่าวมีความรุนแรงหรือสงคราม ให้สรุปเฉพาะผลกระทบทางเศรษฐกิจเท่านั้น)
 
+    ⚠️ ข้ามข่าวประจำที่ไม่ใช่เหตุการณ์สำคัญ เช่น "opening/closing bell", "ตลาดเปิด/ปิดทำการ",
+    "market wrap" ตามปกติ — ถ้ามีแต่ข่าวประเภทนี้ไม่มีเหตุการณ์จริง ให้ตอบ [] ว่างเท่านั้น
+
+    ⚠️ สำคัญ: ตอบเป็น JSON Array อย่างเดียว ห้ามมีข้อความอธิบายนำหน้าหรือต่อท้าย ห้ามมี markdown
     ตอบกลับในรูปแบบ JSON Array เท่านั้น:
     [
         {{
@@ -979,20 +1012,16 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
     """
     try:
         ai_check = _gemini_generate_with_retry(prompt)
-        result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
+        result_text = ai_check.text or ""
 
-        # 🌟 1. ดักจับกรณี AI ไม่ยอมตอบเป็น JSON
-        try:
-            analysis_list = json.loads(result_text)
-            # รองรับกรณี AI ส่งกลับมาเป็น object เดี่ยว (ไม่เป็น array)
-            if isinstance(analysis_list, dict):
-                analysis_list = [analysis_list]
-        except json.JSONDecodeError:
-            bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News Error:** AI ไม่ได้ตอบเป็น JSON!\n\n**ข้อความที่ AI ตอบมา:**\n{result_text[:500]}")
+        # 🌟 robust extract — รองรับกรณี AI ใส่ข้อความนำหน้า/code fence ก่อน JSON
+        analysis_list = _extract_json_list(result_text)
+        if analysis_list is None:
+            print(f"[FlashNews] AI non-JSON → silent drop. preview: {result_text[:150]}", flush=True)
             return
-
-        if not isinstance(analysis_list, list) or len(analysis_list) == 0:
-            bot_instance.send_message(ADMIN_ID, f"⚠️ **Flash News Error:** ข้อมูลแหว่ง\n\n**JSON ที่ได้:**\n{result_text[:300]}")
+        if len(analysis_list) == 0:
+            # AI ตัดสินว่าไม่มีข่าวสำคัญจริง (เช่น มีแต่ opening bell) — ปกติ ไม่ต้อง alert
+            print(f"[FlashNews] AI returned [] (no urgent news worth pushing)", flush=True)
             return
 
         # 🌟 2. สร้าง sections สำหรับแต่ละข่าว
@@ -1088,6 +1117,10 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
     ถ้าหลายพาดหัวพูดถึงเรื่องเดียวกัน ให้เลือกเพียงข่าวเดียวจากกลุ่มนั้น (ห้ามซ้ำประเด็น)
     (เน้นเรื่องเศรษฐกิจ หลีกเลี่ยงเนื้อหาความรุนแรง)
 
+    ⚠️ ข้ามข่าวประจำที่ไม่ใช่เหตุการณ์สำคัญ เช่น "opening/closing bell", "ตลาดเปิด/ปิดทำการ",
+    "market wrap" ตามปกติ — ถ้ามีแต่ข่าวประเภทนี้ไม่มีเหตุการณ์จริง ให้ตอบ [] ว่างเท่านั้น
+
+    ⚠️ สำคัญ: ตอบเป็น JSON Array อย่างเดียว ห้ามมีข้อความอธิบายนำหน้าหรือต่อท้าย ห้ามมี markdown
     ตอบกลับในรูปแบบ JSON Array เท่านั้น:
     [
         {{
@@ -1101,15 +1134,12 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
     """
     try:
         ai_check = _gemini_generate_with_retry(prompt)
-        result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
-        try:
-            analysis_list = json.loads(result_text)
-        except json.JSONDecodeError as je:
-            print(f"[DigestNews] AI returned non-JSON → silent drop. preview: {result_text[:150]}", flush=True)
-            return
+        result_text = ai_check.text or ""
 
-        if not isinstance(analysis_list, list):
-            print(f"[DigestNews] AI returned {type(analysis_list).__name__} not list → silent drop", flush=True)
+        # 🌟 robust extract — รองรับ AI ใส่ข้อความนำหน้า/code fence ก่อน JSON
+        analysis_list = _extract_json_list(result_text)
+        if analysis_list is None:
+            print(f"[DigestNews] AI returned non-JSON → silent drop. preview: {result_text[:150]}", flush=True)
             return
         if len(analysis_list) == 0:
             print(f"[DigestNews] AI returned empty list (no headlines worth pushing)", flush=True)
