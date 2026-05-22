@@ -3901,6 +3901,43 @@ def record_digest_feedback(user_id: str, digest_key: str, vote: str) -> None:
         conn.close()
 
 
+def get_digest_feedback_stats(days: int = 7) -> dict:
+    """Aggregate News Digest 👍/👎 — recent window + all-time. Closes the loop on
+    the feedback buttons (otherwise they're write-only)."""
+    conn = get_connection()
+    c = conn.cursor()
+    empty = {"up": 0, "down": 0, "total": 0, "pct_useful": 0.0}
+    try:
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS digest_feedback (
+                user_id TEXT NOT NULL, digest_key TEXT NOT NULL, vote TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (user_id, digest_key)
+            )
+            """
+        )
+
+        def _agg(where_clause, params):
+            c.execute(
+                f"SELECT vote, COUNT(*) FROM digest_feedback {where_clause} GROUP BY vote",
+                params,
+            )
+            d = {row[0]: int(row[1]) for row in c.fetchall()}
+            up, down = d.get("up", 0), d.get("down", 0)
+            total = up + down
+            return {"up": up, "down": down, "total": total,
+                    "pct_useful": round(up / total * 100, 1) if total else 0.0}
+
+        recent = _agg("WHERE created_at > NOW() - (%s || ' days')::interval", (str(int(days)),))
+        alltime = _agg("", ())
+        return {"days": int(days), "recent": recent, "alltime": alltime}
+    except Exception as e:
+        print(f"[digest_stats] {e}", flush=True)
+        return {"days": int(days), "recent": dict(empty), "alltime": dict(empty)}
+    finally:
+        conn.close()
+
+
 def mark_breaking_news_sent(news_id: int, count: int) -> None:
     """Update sent_to_count after successful push."""
     conn = get_connection()

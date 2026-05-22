@@ -364,6 +364,32 @@ def handle_force_news(message):
         print(f"[force_news] {e}", flush=True)
         bot.edit_message_text(friendly_error("ดึงข่าวไม่สำเร็จ"), message.chat.id, load_msg.message_id)
 
+
+@bot.message_handler(commands=['digest_stats'])
+def handle_digest_stats(message):
+    """[Admin] สรุป feedback 👍/👎 ของ News Digest — ปิด loop ปุ่ม feedback"""
+    if str(message.chat.id) != ADMIN_ID:
+        return
+    try:
+        from database import get_digest_feedback_stats
+        s = get_digest_feedback_stats(7)
+        r, a = s["recent"], s["alltime"]
+        msg = (
+            "📊 *Digest Feedback Stats*\n\n"
+            f"*7 วันล่าสุด:*\n"
+            f"👍 {r['up']} · 👎 {r['down']} · รวม {r['total']} โหวต\n"
+            f"มีประโยชน์ *{r['pct_useful']}%*\n\n"
+            f"*ทั้งหมด:*\n"
+            f"👍 {a['up']} · 👎 {a['down']} · รวม {a['total']} โหวต\n"
+            f"มีประโยชน์ *{a['pct_useful']}%*"
+        )
+        if a["total"] == 0:
+            msg += "\n\n_ยังไม่มี feedback — รอ user กด 👍/👎 ใต้ digest_"
+        bot.reply_to(message, msg, parse_mode="Markdown")
+    except Exception as e:
+        print(f"[digest_stats] {e}", flush=True)
+        bot.reply_to(message, friendly_error("ดึงสถิติไม่สำเร็จ"))
+
 @bot.message_handler(commands=['streak_debug'])
 def handle_streak_debug(message):
     """Admin: ตรวจ schema + สถานะ streak ของตัวเอง"""
