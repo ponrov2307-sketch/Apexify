@@ -894,8 +894,19 @@ def get_fresh_global_news():
                     title = _normalize_news_title(title_elem.text)
                     link = link_elem.text.strip() if link_elem is not None else ""
                     source = _extract_news_source(item, title=title, link=link)
+                    # 🌟 publish age (hours) — None ถ้า source ไม่ให้ pubDate
+                    age_hours = None
+                    pub_elem = item.find('pubDate')
+                    if pub_elem is not None and pub_elem.text:
+                        try:
+                            pub_dt = parsedate_to_datetime(pub_elem.text)
+                            if pub_dt.tzinfo is None:
+                                pub_dt = pub_dt.replace(tzinfo=timezone.utc)
+                            age_hours = (datetime.now(timezone.utc) - pub_dt).total_seconds() / 3600
+                        except Exception:
+                            age_hours = None
                     if title and title not in seen_titles:
-                        raw_news.append({"title": title, "link": link, "source": source})
+                        raw_news.append({"title": title, "link": link, "source": source, "age_hours": age_hours})
                         seen_titles.add(title)
         except Exception as e:
             print(f"⚠️ [GlobalNews] ดึง RSS ล้มเหลวสำหรับ {url}: {e}")
@@ -1061,10 +1072,13 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
     fresh_news = get_fresh_global_news()
     if not fresh_news: return
     
+    # 🌟 #3 freshness guard — เลือกข่าว < 18 ชม. ก่อน; ถ้าน้อยเกิน fall back ทั้งหมด
+    _recent = [n for n in fresh_news if (n.get("age_hours") is None or n["age_hours"] <= 18)]
+    digest_pool = (_recent if len(_recent) >= 3 else fresh_news)[:MAX_DIGEST_HEADLINES]
     titles_str = "\n".join(
-        [f"- [{n.get('source', 'Unknown Source')}] {n['title']}" for n in fresh_news[:MAX_DIGEST_HEADLINES]]
+        [f"- [{n.get('source', 'Unknown Source')}] {n['title']}" for n in digest_pool]
     )
-    
+
     prompt = f"""
     คุณคือนักวิเคราะห์การเงิน
     นี่คือพาดหัวข่าวล่าสุด:
@@ -1117,12 +1131,14 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             conn.close()
             return
         sent_to_users = set()
-        from database import is_breaking_news_seen, log_breaking_news, _get_user_watchlist_items
+        import html as _html
+        from database import is_news_seen_within, log_breaking_news, _get_user_watchlist_items
+        from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
         # title → link map (for "อ่านต่อ" source links)
         link_map = {
             _normalize_news_title(n.get('title', '')): (n.get('link') or '')
-            for n in fresh_news[:MAX_DIGEST_HEADLINES]
+            for n in digest_pool
         }
 
         base_sections = []  # {text, tickers, title, link, summary, hash}
@@ -1146,11 +1162,11 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             if not (original_title and summary):
                 continue
 
-            # 🌟 #4 DB-backed dedup — survives restart (in-memory set ลืมหลัง deploy)
+            # 🌟 #8 windowed dedup (48h) — survives restart; topic resurfaces later ได้
             digest_hash = "digest:" + hashlib.md5(original_title.encode("utf-8")).hexdigest()
             if not force:
                 try:
-                    if is_breaking_news_seen(digest_hash):
+                    if is_news_seen_within(digest_hash, 48):
                         continue
                 except Exception as de:
                     print(f"[DigestNews] dedup check err: {de}", flush=True)
@@ -1162,15 +1178,16 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             summary = _compact_news_text(summary, max_chars=200, max_lines=2)
             link = link_map.get(original_title, "")
 
-            section = f"{emoji} *{headline_th}*\n{summary}"
+            # 🌟 #2 HTML-safe (escape กัน special char ทำ parse พัง ส่งไม่ขึ้น)
+            section = f"{emoji} <b>{_html.escape(headline_th)}</b>\n{_html.escape(summary)}"
             if tickers:  # 🌟 #1 affected tickers line
-                section += "\n📊 เกี่ยวข้อง: " + " · ".join(tickers)
+                section += "\n📊 เกี่ยวข้อง: " + _html.escape(" · ".join(tickers))
             if link:     # 🌟 #3 source link
-                section += f"\n[อ่านต่อ ›]({link})"
+                section += f"\n<a href=\"{_html.escape(link, quote=True)}\">อ่านต่อ ›</a>"
 
             base_sections.append({
                 "text": section, "tickers": tickers, "title": original_title,
-                "link": link, "summary": summary, "hash": digest_hash,
+                "link": link, "summary": summary, "hash": digest_hash, "emoji": emoji,
             })
             if not force:
                 with _sent_news_lock:
@@ -1181,7 +1198,7 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             conn.close()
             return
 
-        # 🌟 #4 persist dedup keys so a restart won't re-send the same digest
+        # 🌟 #8 persist dedup keys (windowed check above reads these back)
         if not force:
             for s in base_sections:
                 try:
@@ -1190,21 +1207,61 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
                 except Exception as le:
                     print(f"[DigestNews] dedup log err: {le}", flush=True)
 
-        body = "\n\n".join(s["text"] for s in base_sections)
-        cta = "\n\n━━━━━━\n_💡 พิมพ์ ticker เพื่อให้ Apexify วิเคราะห์เชิงลึก_"
+        # 🌟 #4 market mood — จากทิศ emoji ของข่าวที่เลือก
+        bulls = sum(1 for s in base_sections if ("🟢" in s["emoji"] or "📈" in s["emoji"]))
+        bears = sum(1 for s in base_sections if ("🔴" in s["emoji"] or "📉" in s["emoji"]))
+        if bulls > bears:
+            mood = "🟢 <i>โทนตลาดวันนี้: เอนบวก</i>"
+        elif bears > bulls:
+            mood = "🔴 <i>โทนตลาดวันนี้: เอนลบ</i>"
+        else:
+            mood = "🟡 <i>โทนตลาดวันนี้: ผสม</i>"
+
+        # 🌟 #3 freshness timestamp (ICT) + digest key (#7 feedback grouping)
+        _ict = datetime.now(timezone(timedelta(hours=7)))
+        now_th = _ict.strftime("%H:%M")
+        digest_key = _ict.date().isoformat()
+
+        cta = "\n\n━━━━━━\n<i>💡 พิมพ์ ticker เพื่อให้ Apexify วิเคราะห์เชิงลึก</i>"
+
+        # affected tickers ทั้งหมด (สำหรับปุ่มวิเคราะห์) — dedupe, คงลำดับ
+        all_tickers = []
+        for s in base_sections:
+            for t in s["tickers"]:
+                if t not in all_tickers:
+                    all_tickers.append(t)
 
         for uid in eligible_users:
-            # 🌟 #2 personalize — flag news touching the user's watchlist
+            # 🌟 #5 personalize + reorder — ข่าวที่กระทบ watchlist ขึ้นก่อน
             try:
                 wl = {t.upper() for t in _get_user_watchlist_items(uid)}
             except Exception:
                 wl = set()
+            ordered = sorted(
+                base_sections,
+                key=lambda s: 0 if (wl and any(t in wl for t in s["tickers"])) else 1,
+            )
             hits = sorted({t for s in base_sections for t in s["tickers"] if t in wl})
-            header = "📰 *Apex News Digest*"
+
+            header = f"📰 <b>Apex News Digest</b>  <i>ณ {now_th}</i>\n{mood}"
             if hits:
-                header += f"\n📌 _กระทบ {' · '.join(hits)} ใน watchlist คุณ_"
-            msg = header + "\n\n" + body + cta
-            if safe_send(bot_instance, uid, msg, parse_mode='Markdown'):
+                header += f"\n📌 <i>กระทบ {_html.escape(' · '.join(hits))} ใน watchlist คุณ</i>"
+            msg = header + "\n\n" + "\n\n".join(s["text"] for s in ordered) + cta
+
+            # 🌟 #1 ปุ่มวิเคราะห์ (reuse tutorial_analyze_) + 🌟 #7 ปุ่ม feedback
+            kb = InlineKeyboardMarkup(row_width=2)
+            btns = [
+                InlineKeyboardButton(f"📊 วิเคราะห์ {t}", callback_data=f"tutorial_analyze_{t}")
+                for t in all_tickers[:4]
+            ]
+            for i in range(0, len(btns), 2):
+                kb.add(*btns[i:i + 2])
+            kb.add(
+                InlineKeyboardButton("👍 มีประโยชน์", callback_data=f"digest_fb_up_{digest_key}"),
+                InlineKeyboardButton("👎 เฉยๆ", callback_data=f"digest_fb_down_{digest_key}"),
+            )
+
+            if safe_send(bot_instance, uid, msg, parse_mode='HTML', reply_markup=kb):
                 sent_to_users.add(uid)
             time.sleep(0.5)
         for uid in sent_to_users:

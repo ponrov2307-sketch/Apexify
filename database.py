@@ -3848,6 +3848,59 @@ def log_breaking_news(url_hash: str, source: str, title: str, link: str,
         conn.close()
 
 
+def is_news_seen_within(url_hash: str, hours: int = 48) -> bool:
+    """Windowed dedup — was this hash logged within the last `hours`?
+    Used by News Digest so an identical headline can resurface after the window
+    (permanent dedup would block a recurring topic forever)."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "SELECT 1 FROM breaking_news_log "
+            "WHERE url_hash = %s AND classified_at > NOW() - (%s || ' hours')::interval LIMIT 1",
+            (url_hash, str(int(hours))),
+        )
+        return c.fetchone() is not None
+    except Exception as e:
+        print(f"[news] is_news_seen_within err: {e}", flush=True)
+        return False
+    finally:
+        conn.close()
+
+
+def record_digest_feedback(user_id: str, digest_key: str, vote: str) -> None:
+    """Store 👍/👎 feedback on a News Digest. Idempotent table create.
+    digest_key = per-digest id (e.g. date string); vote = 'up'|'down'."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS digest_feedback (
+                user_id TEXT NOT NULL,
+                digest_key TEXT NOT NULL,
+                vote TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                PRIMARY KEY (user_id, digest_key)
+            )
+            """
+        )
+        c.execute(
+            """
+            INSERT INTO digest_feedback (user_id, digest_key, vote)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id, digest_key) DO UPDATE SET vote = EXCLUDED.vote, created_at = NOW()
+            """,
+            (str(user_id), str(digest_key), str(vote)),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[digest_feedback] {e}", flush=True)
+        conn.rollback()
+    finally:
+        conn.close()
+
+
 def mark_breaking_news_sent(news_id: int, count: int) -> None:
     """Update sent_to_count after successful push."""
     conn = get_connection()

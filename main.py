@@ -4308,6 +4308,25 @@ def quick_action_callbacks(call):
             parse_mode="Markdown")
 
 
+@bot.callback_query_handler(func=lambda call: call.data.startswith('digest_fb_'))
+def digest_feedback_callback(call):
+    """👍/👎 feedback บน News Digest — เก็บลง DB เพื่อเรียนรู้ว่า user ชอบข่าวแบบไหน"""
+    user_id = str(call.message.chat.id)
+    try:
+        rest = call.data[len('digest_fb_'):]   # "up_2026-05-23" / "down_..."
+        vote, _, key = rest.partition('_')
+        from database import record_digest_feedback
+        record_digest_feedback(user_id, key or 'unknown', vote)
+        thanks = "ขอบคุณสำหรับ feedback! 🙏" if vote == 'up' else "รับทราบ ขอบคุณครับ 🙏 เราจะปรับให้ดีขึ้น"
+        bot.answer_callback_query(call.id, thanks, show_alert=False)
+    except Exception as e:
+        print(f"[digest_fb] {e}", flush=True)
+        try:
+            bot.answer_callback_query(call.id)
+        except Exception:
+            pass
+
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('delalert_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_') or call.data.startswith('tutorial_') or call.data.startswith('qr_pay_') or call.data == 'breaking_toggle' or call.data.startswith('referral_') or call.data.startswith('setalert_'))
 def inline_callbacks(call):
     user_id = str(call.message.chat.id)
