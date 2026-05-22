@@ -1080,7 +1080,8 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             "original_title": "พาดหัวข่าวต้นฉบับที่เลือก",
             "emoji": "emoji 1-2 ตัวที่สื่อทิศทางตลาด เช่น 🔴📉 หรือ 🟢📈 หรือ 🟡⚡️",
             "headline_th": "พาดหัวสั้นๆ เป็นภาษาไทย ไม่เกิน 10 คำ",
-            "summary": "สรุปสั้นๆ 1-2 ประโยค รวมผลกระทบต่อตลาดด้วย (ภาษาไทย)"
+            "summary": "สรุปสั้นๆ 1-2 ประโยค รวมผลกระทบต่อตลาดด้วย (ภาษาไทย)",
+            "affected_tickers": ["หุ้น US ที่ได้รับผลกระทบจากข่าวนี้มากที่สุด 1-3 ตัว เป็น ticker จริง เช่น NVDA, AAPL — ถ้าเป็นข่าวมหภาคกว้างๆ ไม่มีหุ้นเฉพาะ ให้ใส่ [] ว่าง"]
         }}
     ]
     """
@@ -1116,7 +1117,15 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             conn.close()
             return
         sent_to_users = set()
-        digest_sections = []
+        from database import is_breaking_news_seen, log_breaking_news, _get_user_watchlist_items
+
+        # title → link map (for "อ่านต่อ" source links)
+        link_map = {
+            _normalize_news_title(n.get('title', '')): (n.get('link') or '')
+            for n in fresh_news[:MAX_DIGEST_HEADLINES]
+        }
+
+        base_sections = []  # {text, tickers, title, link, summary, hash}
         with _sent_news_lock:
             seen_titles = list(sent_pro_news)
 
@@ -1125,27 +1134,76 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
             emoji = item.get('emoji', '📰')
             headline_th = item.get('headline_th', '') or original_title
             summary = item.get('summary', '')
+            # 🌟 #1 affected tickers — sanitize to uppercase, alnum/dot, max 3
+            raw_tickers = item.get('affected_tickers') or []
+            tickers = []
+            for t in raw_tickers:
+                tk = re.sub(r'[^A-Z0-9.\-]', '', str(t).upper().strip())
+                if tk and 1 <= len(tk) <= 6:
+                    tickers.append(tk)
+            tickers = tickers[:3]
 
-            if original_title and summary:
-                # 🌟 similarity dedup — กรองข่าวคล้ายกัน
-                if not force and _is_duplicate_news(original_title, seen_titles):
+            if not (original_title and summary):
+                continue
+
+            # 🌟 #4 DB-backed dedup — survives restart (in-memory set ลืมหลัง deploy)
+            digest_hash = "digest:" + hashlib.md5(original_title.encode("utf-8")).hexdigest()
+            if not force:
+                try:
+                    if is_breaking_news_seen(digest_hash):
+                        continue
+                except Exception as de:
+                    print(f"[DigestNews] dedup check err: {de}", flush=True)
+                if _is_duplicate_news(original_title, seen_titles):
                     continue
-                # 🌟 cross-dedup: ใช้ category "news" ร่วมกับ Flash News (skip when force=True)
-                if not force and not _claim_dispatch_once("news", original_title):
+                if not _claim_dispatch_once("news", original_title):
                     continue
-                summary = _compact_news_text(summary, max_chars=200, max_lines=2)
-                digest_sections.append(f"{emoji} *{headline_th}*\n{summary}")
-                if not force:
-                    with _sent_news_lock:
-                        sent_pro_news.add(original_title)
-                    seen_titles.append(original_title)
-        if not digest_sections:
+
+            summary = _compact_news_text(summary, max_chars=200, max_lines=2)
+            link = link_map.get(original_title, "")
+
+            section = f"{emoji} *{headline_th}*\n{summary}"
+            if tickers:  # 🌟 #1 affected tickers line
+                section += "\n📊 เกี่ยวข้อง: " + " · ".join(tickers)
+            if link:     # 🌟 #3 source link
+                section += f"\n[อ่านต่อ ›]({link})"
+
+            base_sections.append({
+                "text": section, "tickers": tickers, "title": original_title,
+                "link": link, "summary": summary, "hash": digest_hash,
+            })
+            if not force:
+                with _sent_news_lock:
+                    sent_pro_news.add(original_title)
+                seen_titles.append(original_title)
+
+        if not base_sections:
             conn.close()
             return
 
-        msg = "📰 *Apex News Digest*\n\n" + "\n\n".join(digest_sections)
+        # 🌟 #4 persist dedup keys so a restart won't re-send the same digest
+        if not force:
+            for s in base_sections:
+                try:
+                    log_breaking_news(s["hash"], "digest", s["title"], s["link"],
+                                      s["summary"], "digest", "news digest dedup")
+                except Exception as le:
+                    print(f"[DigestNews] dedup log err: {le}", flush=True)
+
+        body = "\n\n".join(s["text"] for s in base_sections)
+        cta = "\n\n━━━━━━\n_💡 พิมพ์ ticker เพื่อให้ Apexify วิเคราะห์เชิงลึก_"
 
         for uid in eligible_users:
+            # 🌟 #2 personalize — flag news touching the user's watchlist
+            try:
+                wl = {t.upper() for t in _get_user_watchlist_items(uid)}
+            except Exception:
+                wl = set()
+            hits = sorted({t for s in base_sections for t in s["tickers"] if t in wl})
+            header = "📰 *Apex News Digest*"
+            if hits:
+                header += f"\n📌 _กระทบ {' · '.join(hits)} ใน watchlist คุณ_"
+            msg = header + "\n\n" + body + cta
             if safe_send(bot_instance, uid, msg, parse_mode='Markdown'):
                 sent_to_users.add(uid)
             time.sleep(0.5)
