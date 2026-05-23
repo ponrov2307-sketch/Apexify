@@ -3066,11 +3066,22 @@ def handle_award_ref(message):
             if raw.isdigit():
                 ref_id = raw
             else:
-                matches = find_users_by_name(raw, limit=5)
-                if len(matches) == 1:
-                    ref_id = matches[0][0]
-                elif len(matches) > 1:
-                    candidates = matches
+                # 1) ลอง Telegram @username — เคสที่เก็บใน users.username (display name) ไม่ match
+                import re as _re
+                if _re.match(r'^[A-Za-z0-9_]{3,32}$', raw):
+                    try:
+                        chat = bot.get_chat(f"@{raw}")
+                        if chat and getattr(chat, "id", None):
+                            ref_id = str(chat.id)
+                    except Exception:
+                        pass  # ไม่มี @username นี้ ลอง fallback ต่อ
+                # 2) Fallback: หาในตาราง users (display name match)
+                if not ref_id:
+                    matches = find_users_by_name(raw, limit=5)
+                    if len(matches) == 1:
+                        ref_id = matches[0][0]
+                    elif len(matches) > 1:
+                        candidates = matches
 
         if ref_id:
             # เครดิตครบ: referrer + new user (กฎเดิม) — plain text ไม่ใช้ Markdown กัน parse error
