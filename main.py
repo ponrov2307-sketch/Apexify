@@ -3050,18 +3050,18 @@ def handle_award_ref(message):
         return
 
     from database import (mark_referral_awarded, process_referral, list_pending_referrals,
-                          find_users_by_name, grant_referral_welcome_bonus)
+                          find_users_by_name)
     try:
         target = next((r for r in list_pending_referrals(limit=200) if r["id"] == pid), None)
         if not target:
-            bot.reply_to(message, f"❌ pending_id `{pid}` ไม่พบ หรือ awarded ไปแล้ว",
-                         parse_mode="Markdown")
+            bot.reply_to(message, f"❌ pending_id {pid} ไม่พบ หรือ awarded ไปแล้ว")
             return
         new_uid = target["new_user_id"]
 
         # ── resolve referrer (ไม่ block ถ้าหาไม่เจอ) ──
         raw = parts[2].lstrip("@") if len(parts) >= 3 else (target.get("referrer_query") or "").lstrip("@").strip()
         ref_id = None
+        candidates: list[tuple[str, str]] = []
         if raw:
             if raw.isdigit():
                 ref_id = raw
@@ -3069,40 +3069,39 @@ def handle_award_ref(message):
                 matches = find_users_by_name(raw, limit=5)
                 if len(matches) == 1:
                     ref_id = matches[0][0]
-                elif len(matches) > 1 and len(parts) >= 3:
-                    # admin ระบุชื่อมาเองแต่กำกวม → โชว์ตัวเลือก (เฉพาะตอนใส่ arg มา)
-                    lines = [f"⚠️ `{raw}` ตรงหลายคน เลือก id:"]
-                    for uid, uname in matches:
-                        lines.append(f"`/award_ref {pid} {uid}` — {uname or '(no name)'}")
-                    bot.reply_to(message, "\n".join(lines), parse_mode="Markdown")
-                    return
-                # 0 match หรือ auto-resolve กำกวม → ref_id = None (ไปทาง welcome-only)
+                elif len(matches) > 1:
+                    candidates = matches
 
         if ref_id:
-            # เครดิตครบ: referrer + new user
+            # เครดิตครบ: referrer + new user (กฎเดิม) — plain text ไม่ใช้ Markdown กัน parse error
             success, milestone = process_referral(ref_id, new_uid, admin_override=True)
             if not success:
                 bot.reply_to(message, "❌ ล้มเหลว — referrer = new user (กันปั่น) หรือ DB error")
                 return
             mark_referral_awarded(pid, ref_id)
+            reward = "milestone +10 วัน" if milestone else "ตามกฎ (free +3 quota / PRO-VIP รอ milestone)"
             bot.reply_to(
                 message,
-                f"✅ Awarded — referrer `{ref_id}` ได้รับ "
-                f"{'milestone +10 วัน' if milestone else '+3 quota (free) / VIP→milestone เท่านั้น'}\n"
-                f"new user `{new_uid}` ได้ VIP 3 วันฟรี",
-                parse_mode="Markdown",
+                f"✅ Awarded\n"
+                f"   referrer {ref_id} → {reward}\n"
+                f"   new user {new_uid} → VIP 3 วันฟรี",
             )
+        elif candidates:
+            # ชื่อกำกวม — โชว์รายการให้ admin เลือก id (ไม่ mutate)
+            lines = [f"⚠️ '{raw}' ตรงหลายคน เลือก id:"]
+            for uid, uname in candidates:
+                lines.append(f"   /award_ref {pid} {uid}  — {uname or '(no name)'}")
+            bot.reply_to(message, "\n".join(lines))
         else:
-            # referrer ระบุไม่ได้ ("บางคนใส่มาไม่ตรง") → ให้โบนัส new user + เคลียร์ pending
-            grant_referral_welcome_bonus(new_uid)
-            mark_referral_awarded(pid, "unresolved")
-            hint = f" (ระบุว่า: {raw})" if raw else ""
+            # resolve ไม่เจอ → คงไว้ในคิว ไม่ mutate DB (ให้ admin retry กับ id เอง)
+            hint = f"'{raw}'" if raw else "(ไม่ระบุ)"
             bot.reply_to(
                 message,
-                f"✅ อนุมัติ pending #{pid} — new user `{new_uid}` ได้ VIP 3 วัน\n"
-                f"⚠️ referrer ระบุไม่ได้{hint} → ไม่เครดิต referrer\n"
-                f"_ถ้ารู้ id ผู้แนะนำ: `/award_ref {pid} <id>` (แต่ pending นี้เคลียร์แล้ว)_",
-                parse_mode="Markdown",
+                f"⚠️ pending #{pid}: หา referrer {hint} เป็น user ไม่เจอ\n\n"
+                f"ระบุ id เอง:\n"
+                f"   /award_ref {pid} <telegram_id>\n\n"
+                f"หา id ก่อน:  /finduser {raw or '<ชื่อ>'}\n"
+                f"หรือลบ pending:  /del_pending {pid}",
             )
     except Exception as e:
         print(f"[award_ref] {e}", flush=True)
