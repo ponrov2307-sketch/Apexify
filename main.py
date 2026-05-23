@@ -3050,7 +3050,7 @@ def handle_award_ref(message):
         return
 
     from database import (mark_referral_awarded, process_referral, list_pending_referrals,
-                          find_users_by_name)
+                          find_users_by_name, grant_referral_welcome_bonus)
     try:
         target = next((r for r in list_pending_referrals(limit=200) if r["id"] == pid), None)
         if not target:
@@ -3098,21 +3098,38 @@ def handle_award_ref(message):
                 f"   new user {new_uid} → VIP 3 วันฟรี",
             )
         elif candidates:
-            # ชื่อกำกวม — โชว์รายการให้ admin เลือก id (ไม่ mutate)
-            lines = [f"⚠️ '{raw}' ตรงหลายคน เลือก id:"]
-            for uid, uname in candidates:
-                lines.append(f"   /award_ref {pid} {uid}  — {uname or '(no name)'}")
-            bot.reply_to(message, "\n".join(lines))
+            # ชื่อกำกวม — auto-pick ตัวแรก (admin ขอแบบ one-shot)
+            ref_id = candidates[0][0]
+            picked_name = candidates[0][1] or "(no name)"
+            success, milestone = process_referral(ref_id, new_uid, admin_override=True)
+            if not success:
+                bot.reply_to(message, "❌ ล้มเหลว — referrer = new user (กันปั่น) หรือ DB error")
+                return
+            mark_referral_awarded(pid, ref_id)
+            reward = "milestone +10 วัน" if milestone else "ตามกฎ (free +3 quota / PRO-VIP รอ milestone)"
+            other_lines = [f"   อื่น ๆ: /award_ref {pid} {uid}  — {uname or '(no name)'}"
+                           for uid, uname in candidates[1:]]
+            other_block = ("\n\n_ตรงหลายคน — auto-pick ตัวแรก. ถ้าผิดคน ลบ + retry:_\n"
+                           "   /del_pending " + str(pid) + "\n" + "\n".join(other_lines)) if other_lines else ""
+            bot.reply_to(
+                message,
+                f"✅ Awarded (auto-pick: {picked_name})\n"
+                f"   referrer {ref_id} → {reward}\n"
+                f"   new user {new_uid} → VIP 3 วันฟรี"
+                f"{other_block}",
+            )
         else:
-            # resolve ไม่เจอ → คงไว้ในคิว ไม่ mutate DB (ให้ admin retry กับ id เอง)
+            # resolve ไม่เจอ → award แค่ new user (VIP 3 วันฟรี) + เคลียร์ queue
+            # admin ขอ one-shot — ไม่ต้องพิม id เพิ่ม
+            grant_referral_welcome_bonus(new_uid)
+            mark_referral_awarded(pid, "unresolved")
             hint = f"'{raw}'" if raw else "(ไม่ระบุ)"
             bot.reply_to(
                 message,
-                f"⚠️ pending #{pid}: หา referrer {hint} เป็น user ไม่เจอ\n\n"
-                f"ระบุ id เอง:\n"
-                f"   /award_ref {pid} <telegram_id>\n\n"
-                f"หา id ก่อน:  /finduser {raw or '<ชื่อ>'}\n"
-                f"หรือลบ pending:  /del_pending {pid}",
+                f"✅ Awarded (referrer ไม่ระบุ)\n"
+                f"   referrer {hint} → หาไม่เจอ ข้าม credit\n"
+                f"   new user {new_uid} → VIP 3 วันฟรี\n"
+                f"   pending #{pid} → เคลียร์",
             )
     except Exception as e:
         print(f"[award_ref] {e}", flush=True)
