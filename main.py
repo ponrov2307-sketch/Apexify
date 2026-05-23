@@ -1850,28 +1850,55 @@ def handle_portfolio(message):
     """คำสั่งเช็คพอร์ตผ่านแชท"""
     user_id = str(message.chat.id)
     if not is_allowed(user_id): return
-    
+
     processing_msg = bot.reply_to(message, "⏳ กำลังดึงข้อมูลพอร์ตและราคาล่าสุดจากตลาด...")
     try:
         portfolio = get_user_portfolio(user_id)
         if not portfolio:
             bot.edit_message_text("📊 พอร์ตลงทุนของคุณยังว่างเปล่า\nพิมพ์ <code>/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]</code> เพื่อเพิ่มหุ้นเข้าพอร์ตครับ", chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='HTML')
             return
-        
+
+        # 🌟 ลูกค้าขอ RSI ประกอบการตัดสินใจ ซื้อ/ขาย (2026-05-23, nuttapon)
+        # ดึง price + RSI ใน 1 รอบ yf.history + parallel เพื่อไม่ให้ /port ช้าลง
+        def _fetch_price_rsi(ticker: str):
+            try:
+                allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+                clean = ticker.replace(".", "-") if "." in ticker and not ticker.endswith(allowed_suffixes) else ticker
+                hist = yf.Ticker(clean).history(period="40d", interval="1d", auto_adjust=False)
+                if hist is None or hist.empty:
+                    return None, None
+                closes = hist["Close"].dropna()
+                if len(closes) < 2:
+                    return None, None
+                live = float(closes.iloc[-1])
+                rsi = None
+                if len(closes) >= 15:
+                    import pandas as pd
+                    delta = closes.diff()
+                    gain = delta.where(delta > 0, 0).rolling(14).mean()
+                    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+                    rs = gain / loss
+                    series = 100 - (100 / (1 + rs))
+                    last = series.iloc[-1]
+                    if not pd.isna(last):
+                        rsi = int(round(float(last)))
+                return live, rsi
+            except Exception:
+                return None, None
+
+        from concurrent.futures import ThreadPoolExecutor
+        workers = min(8, max(1, len(portfolio)))
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="port") as pool:
+            fetched = list(pool.map(lambda a: _fetch_price_rsi(a['ticker']), portfolio))
+
         total_invested = 0
         current_value = 0
-        
         rows = []
-        for asset in portfolio:
+        for asset, (live_price, rsi) in zip(portfolio, fetched):
             ticker = asset['ticker']
             shares = asset['shares']
             avg_cost = asset['avg_cost']
-
-            try:
-                allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
-                clean_ticker = ticker.replace(".", "-") if "." in ticker and not ticker.endswith(allowed_suffixes) else ticker
-                live_price = float(yf.Ticker(clean_ticker).fast_info.last_price)
-            except Exception:
+            if live_price is None:
                 live_price = avg_cost
 
             invested = shares * avg_cost
@@ -1881,7 +1908,7 @@ def handle_portfolio(message):
 
             total_invested += invested
             current_value += current
-            rows.append((ticker, shares, avg_cost, live_price, profit, profit_pct))
+            rows.append((ticker, shares, avg_cost, live_price, profit, profit_pct, rsi))
 
         total_profit = current_value - total_invested
         total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
@@ -1892,12 +1919,25 @@ def handle_portfolio(message):
         total_nav = current_value + cash_balance
 
         lines = [f"💼 <b>พอร์ตลงทุน</b>  ({len(rows)} หลักทรัพย์)\n"]
-        for ticker, shares, avg_cost, live_price, profit, profit_pct in rows:
+        for ticker, shares, avg_cost, live_price, profit, profit_pct, rsi in rows:
             icon = "🟢" if profit >= 0 else "🔴"
             sign = "+" if profit >= 0 else ""
+            # RSI ป้าย ซื้อได้/ขายได้ — ประกอบการตัดสินใจ (ลูกค้าขอ 2026-05-23)
+            #   ≥70 overbought = ราคาขึ้นแรง อาจกำลังเหนื่อย → ขายได้
+            #   ≤30 oversold  = ราคาลงแรง อาจใกล้กลับตัว → ซื้อได้
+            #   30-70 neutral  = ยังไม่บอกชัด
+            if rsi is None:
+                rsi_part = ""
+            elif rsi >= 70:
+                rsi_part = f"   📊 RSI {rsi} 🔴 <i>overbought — น่าขาย</i>\n"
+            elif rsi <= 30:
+                rsi_part = f"   📊 RSI {rsi} 🟢 <i>oversold — น่าซื้อ</i>\n"
+            else:
+                rsi_part = f"   📊 RSI {rsi} ⚪ <i>กลาง</i>\n"
             lines.append(
                 f"{icon} <b>{ticker}</b>  {shares:,.4g} หุ้น\n"
                 f"   ทุน {avg_cost:,.2f}  →  ล่าสุด {live_price:,.2f}\n"
+                f"{rsi_part}"
                 f"   {sign}{profit:,.2f}  ({sign}{profit_pct:.2f}%)\n"
             )
 
