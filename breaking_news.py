@@ -372,7 +372,8 @@ _CLASSIFY_PROMPT = """คุณเป็นนักวิเคราะห์�
 {{"importance": "HIGH|MEDIUM|LOW", "summary_th": "สรุปไทย 80 ตัวอักษรกระชับ (สำหรับข้อความ Telegram)", "reasoning": "เหตุผลภาษาไทย 1 ประโยค", "audio_script_th": "บท narration ภาษาไทย 4-6 ประโยค (~250-400 ตัวอักษร) สำหรับเสียง อธิบายข่าว+เหตุผล+ผลกระทบที่อาจเกิด+คำแนะนำเตรียมตัวสำหรับนักลงทุน เขียนเป็นประโยคต่อเนื่อง อ่านลื่น ห้ามใช้ bullet", "tickers": []}}"""
 
 
-_GEMINI_FALLBACK_CHAIN = ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro")
+# ตัด gemini-2.5-pro ออก — แพง 10-20× ของ flash, save cost (2026-05-24)
+_GEMINI_FALLBACK_CHAIN = ("gemini-2.5-flash", "gemini-2.5-flash-lite")
 
 
 def _gemini_classify_with_retry(prompt: str, retries: int = 2):

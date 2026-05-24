@@ -163,7 +163,8 @@ def _gemini_generate_with_retry(prompt, model='gemini-2.5-flash', retries=4, del
     Retry เมื่อเจอ 503 (overload) หรือ 404 (model deprecated)
     """
     # ใช้โมเดลตระกูล 2.5 ทั้งหมด (2.0-flash ถูก deprecated แล้ว 2026)
-    fallback_chain = [model, 'gemini-2.5-flash-lite', 'gemini-2.5-pro']
+    # ตัด gemini-2.5-pro ออก — แพง 10-20× ของ flash, save cost (2026-05-24)
+    fallback_chain = [model, 'gemini-2.5-flash-lite']
     last_err = None
     for attempt in range(retries + 1):
         current_model = fallback_chain[min(attempt, len(fallback_chain) - 1)]
