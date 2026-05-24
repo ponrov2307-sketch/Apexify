@@ -33,9 +33,10 @@ def _gemini_call_with_timeout(timeout_s=GEMINI_DEFAULT_TIMEOUT_S, **kwargs):
     except _FutureTimeout:
         raise TimeoutError(f"Gemini API timed out after {timeout_s}s") from None
 
-# 🌟 Cache Gemini responses — key by (symbol, bias, rounded price 1%) เพื่อ hit เมื่อ user ขอหุ้นเดียวซ้ำใน 5 นาที
+# 🌟 Cache Gemini responses — key by (symbol, bias, rounded price 1%) เพื่อ hit เมื่อ user ขอหุ้นเดียวซ้ำใน 30 นาที
 # ลด Gemini API call 50%+ + ลดเวลา 3-8 วิ → 0 วิ บน cache hit
-_ai_response_cache = TTLCache(maxsize=200, ttl=300)
+# TTL ขยาย 5min→30min (2026-05-24) — price-bucket guard ดักหุ้นเคลื่อนแล้วอยู่
+_ai_response_cache = TTLCache(maxsize=200, ttl=1800)
 _ai_cache_lock = RLock()
 
 
