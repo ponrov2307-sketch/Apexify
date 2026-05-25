@@ -679,6 +679,24 @@ def init_db():
     c.execute("CREATE INDEX IF NOT EXISTS idx_sub_history_user ON subscription_history(user_id, created_at DESC)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_sub_history_action ON subscription_history(action_type)")
 
+    # 📊 Gemini usage log — token tracking per feature/model (added 2026-05-25)
+    # ใช้ดู cost driver จริง: feature ไหนกินมาก, cache hit rate, รุ่นไหนถูกเรียกบ่อย
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS gemini_usage_log (
+            id BIGSERIAL PRIMARY KEY,
+            feature TEXT NOT NULL,
+            model TEXT NOT NULL,
+            prompt_tokens INTEGER,
+            output_tokens INTEGER,
+            total_tokens INTEGER,
+            cached BOOLEAN DEFAULT FALSE,
+            user_id TEXT,
+            ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_gemini_usage_ts ON gemini_usage_log (ts DESC)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_gemini_usage_feature ON gemini_usage_log (feature, ts DESC)")
+
     conn.commit()
     conn.close()
     init_watchlist_db()
@@ -709,6 +727,95 @@ def log_command(user_id, command):
         if conn:
             try: conn.close()
             except Exception: pass
+
+
+def log_gemini_usage(feature, model, response=None, user_id=None, cached=False,
+                     prompt_tokens=None, output_tokens=None, total_tokens=None):
+    """Log Gemini API call cost. Safe to fail silently.
+    response: ส่ง raw response object → จะดึง usage_metadata ให้
+    cached: True ถ้าเป็น cache hit (ไม่เรียก API จริง — token = 0)
+    """
+    if response is not None and not cached and total_tokens is None:
+        try:
+            meta = getattr(response, 'usage_metadata', None)
+            if meta is not None:
+                prompt_tokens = getattr(meta, 'prompt_token_count', None)
+                output_tokens = getattr(meta, 'candidates_token_count', None)
+                total_tokens = getattr(meta, 'total_token_count', None)
+        except Exception:
+            pass
+    if cached:
+        prompt_tokens = prompt_tokens or 0
+        output_tokens = output_tokens or 0
+        total_tokens = total_tokens or 0
+    conn = None
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO gemini_usage_log (feature, model, prompt_tokens, output_tokens, total_tokens, cached, user_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (str(feature)[:64], str(model)[:48], prompt_tokens, output_tokens, total_tokens,
+             bool(cached), str(user_id) if user_id else None),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[log_gemini_usage] {e}", flush=True)
+        if conn:
+            try: conn.rollback()
+            except Exception: pass
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
+
+
+def get_gemini_usage_stats(days=7):
+    """รวม Gemini usage stats per feature + model (default ย้อน 7 วัน)
+    Returns: {
+      "rows": [{"feature","model","calls","cached_calls","total_tokens"}, ...],
+      "totals": {"calls","cached_calls","total_tokens","hit_rate_pct"},
+      "days": int
+    }
+    """
+    conn = None
+    out = {"rows": [], "totals": {"calls": 0, "cached_calls": 0, "total_tokens": 0, "hit_rate_pct": 0.0}, "days": days}
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("""
+            SELECT feature, model,
+                   COUNT(*) AS calls,
+                   COUNT(*) FILTER (WHERE cached) AS cached_calls,
+                   COALESCE(SUM(total_tokens) FILTER (WHERE NOT cached), 0) AS total_tokens
+            FROM gemini_usage_log
+            WHERE ts > NOW() - (%s || ' days')::INTERVAL
+            GROUP BY feature, model
+            ORDER BY total_tokens DESC, calls DESC
+        """, (str(int(days)),))
+        rows = c.fetchall()
+        total_calls = total_cached = total_tokens = 0
+        for feature, model, calls, cached_calls, tokens in rows:
+            out["rows"].append({
+                "feature": feature, "model": model,
+                "calls": int(calls), "cached_calls": int(cached_calls),
+                "total_tokens": int(tokens or 0),
+            })
+            total_calls += int(calls)
+            total_cached += int(cached_calls)
+            total_tokens += int(tokens or 0)
+        out["totals"]["calls"] = total_calls
+        out["totals"]["cached_calls"] = total_cached
+        out["totals"]["total_tokens"] = total_tokens
+        if total_calls > 0:
+            out["totals"]["hit_rate_pct"] = round(100.0 * total_cached / total_calls, 1)
+    except Exception as e:
+        print(f"[get_gemini_usage_stats] {e}", flush=True)
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
+    return out
 
 
 def log_dashboard_event(user_id: str, role: str | None, event_name: str,

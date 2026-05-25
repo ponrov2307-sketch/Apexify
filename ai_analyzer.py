@@ -23,15 +23,22 @@ GEMINI_DEFAULT_TIMEOUT_S = 30
 GEMINI_IMAGE_TIMEOUT_S = 45  # image analysis ช้ากว่าปกติ
 
 
-def _gemini_call_with_timeout(timeout_s=GEMINI_DEFAULT_TIMEOUT_S, **kwargs):
+def _gemini_call_with_timeout(timeout_s=GEMINI_DEFAULT_TIMEOUT_S, feature='unknown', user_id=None, **kwargs):
     """Wrap client.models.generate_content() ด้วย hard timeout
     Background call ยังทำงานต่อใน pool (ไม่ cancel ได้) แต่ caller หลุด
+    feature: label สำหรับ token usage log
     """
     fut = _gemini_timeout_pool.submit(client.models.generate_content, **kwargs)
     try:
-        return fut.result(timeout=timeout_s)
+        resp = fut.result(timeout=timeout_s)
     except _FutureTimeout:
         raise TimeoutError(f"Gemini API timed out after {timeout_s}s") from None
+    try:
+        from database import log_gemini_usage
+        log_gemini_usage(feature, kwargs.get('model', 'unknown'), response=resp, user_id=user_id)
+    except Exception:
+        pass
+    return resp
 
 # 🌟 Cache Gemini responses — key by (symbol, bias, rounded price 1%) เพื่อ hit เมื่อ user ขอหุ้นเดียวซ้ำใน 5 นาที
 # ลด Gemini API call 50%+ + ลดเวลา 3-8 วิ → 0 วิ บน cache hit
@@ -800,6 +807,11 @@ def _request_member_payload(prompt, defaults, cache_key=None):
         cached = _ai_cache_get(cache_key)
         if cached is not None:
             print(f"[ai-cache] HIT  {cache_key}", flush=True)
+            try:
+                from database import log_gemini_usage
+                log_gemini_usage('analyze_member', 'gemini-2.5-flash', cached=True)
+            except Exception:
+                pass
             return json.loads(json.dumps(cached, ensure_ascii=False))
 
     fallback = json.loads(json.dumps(defaults, ensure_ascii=False))
@@ -824,7 +836,7 @@ def _request_member_payload(prompt, defaults, cache_key=None):
             kwargs = {"model": "gemini-2.5-flash", "contents": candidate_prompt}
             if config is not None:
                 kwargs["config"] = config
-            response = _gemini_call_with_timeout(timeout_s=GEMINI_DEFAULT_TIMEOUT_S, **kwargs)
+            response = _gemini_call_with_timeout(timeout_s=GEMINI_DEFAULT_TIMEOUT_S, feature='analyze_member', **kwargs)
             raw_text = getattr(response, "text", "") or ""
             payload_block = _extract_json_block(raw_text)
             if not payload_block:
@@ -1696,9 +1708,11 @@ def analyze_payment_slip(file_path_or_bytes):
         else:
             image = PIL.Image.open(file_path_or_bytes)
 
+        # 🪶 OCR JSON extract — flash-lite พอสำหรับอ่านตัวเลข + ref no (เซฟ 3-4×)
         response = _gemini_call_with_timeout(
             timeout_s=GEMINI_IMAGE_TIMEOUT_S,
-            model="gemini-2.5-flash",
+            feature='slip_ocr',
+            model="gemini-2.5-flash-lite",
             contents=[image, prompt],
         )
         return response.text
@@ -1766,7 +1780,7 @@ def analyze_chart_image(file_path_or_bytes):
         }
         if config is not None:
             kwargs["config"] = config
-        response = _gemini_call_with_timeout(timeout_s=GEMINI_IMAGE_TIMEOUT_S, **kwargs)
+        response = _gemini_call_with_timeout(timeout_s=GEMINI_IMAGE_TIMEOUT_S, feature='chart_vision', **kwargs)
         raw = getattr(response, "text", "") or ""
         block = _extract_json_block(raw)
         if not block:

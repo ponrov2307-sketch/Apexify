@@ -158,9 +158,10 @@ def _is_gemini_model_unavailable_error(err):
     )
 
 
-def _gemini_generate_with_retry(prompt, model='gemini-2.5-flash', retries=4, delay=20):
+def _gemini_generate_with_retry(prompt, model='gemini-2.5-flash', retries=4, delay=20, feature='unknown'):
     """เรียก Gemini พร้อม retry + exponential backoff + fallback model
     Retry เมื่อเจอ 503 (overload) หรือ 404 (model deprecated)
+    feature: label สำหรับ token usage log (ดูใน gemini_usage_log table)
     """
     # ใช้โมเดลตระกูล 2.5 ทั้งหมด (2.0-flash ถูก deprecated แล้ว 2026)
     # ตัด gemini-2.5-pro ออก — แพง 10-20× ของ flash, save cost (2026-05-24)
@@ -169,7 +170,13 @@ def _gemini_generate_with_retry(prompt, model='gemini-2.5-flash', retries=4, del
     for attempt in range(retries + 1):
         current_model = fallback_chain[min(attempt, len(fallback_chain) - 1)]
         try:
-            return client.models.generate_content(model=current_model, contents=prompt)
+            resp = client.models.generate_content(model=current_model, contents=prompt)
+            try:
+                from database import log_gemini_usage
+                log_gemini_usage(feature, current_model, response=resp)
+            except Exception:
+                pass
+            return resp
         except Exception as e:
             last_err = e
             # 404: โมเดลไม่มี → ข้ามไปโมเดลถัดไปทันที (ไม่ต้องรอ)
@@ -306,6 +313,31 @@ def _is_duplicate_news(title, existing_titles, threshold=0.62):
         if difflib.SequenceMatcher(None, t, ex.lower()).ratio() >= threshold:
             return True
     return False
+
+
+# 🚫 Routine news pre-filter — ตัด headlines แบบประจำที่ไม่ใช่เหตุการณ์ก่อนยิง Gemini classify
+# เซฟ ~30-40% ของ classify calls เพราะปกติ feed RSS เต็มไปด้วยข่าวประจำ (added 2026-05-25)
+_ROUTINE_NEWS_PATTERNS = re.compile(
+    r"(?:"
+    r"opening\s+bell|closing\s+bell|market\s+(?:open|close|wrap|summary|recap|update|outlook|preview)|"
+    r"stocks?\s+(?:to\s+watch|on\s+the\s+move|in\s+focus)\s+(?:today|this\s+(?:morning|week))|"
+    r"what\s+to\s+watch|things\s+to\s+watch|premarket\s+(?:movers|preview)|"
+    r"after[- ]?hours?\s+(?:movers|trading)|earnings\s+calendar|economic\s+calendar|"
+    r"week\s+ahead|week\s+in\s+review|daily\s+(?:wrap|recap|briefing)|"
+    r"morning\s+brief|evening\s+brief|"
+    r"ตลาด(?:เปิด|ปิด)(?:ทำการ)?|สรุปตลาด(?:วันนี้)?|จับตา(?:หุ้น|ตลาด)วันนี้"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _is_routine_news_title(title):
+    """True ถ้าเป็น routine headline (opening bell / market wrap / stocks to watch ...) → skip Gemini classify
+    ทำงานคู่กับ AI's own filter ใน prompt — แต่ทำที่ Python ก่อน เซฟ token call
+    """
+    if not title:
+        return True
+    return bool(_ROUTINE_NEWS_PATTERNS.search(str(title)))
 
 
 def _extract_news_source(item, title="", link=""):
@@ -561,7 +593,10 @@ def check_hot_news(symbol):
             link = link_elem.text if link_elem is not None else f"https://news.google.com/search?q={search_term}"
 
             if not title: return
-            
+            # 🚫 ตัด routine headlines (opening bell / market wrap) ก่อนยิง Gemini — เซฟ token
+            if _is_routine_news_title(title):
+                return
+
             if symbol not in sent_stock_news_history:
                 sent_stock_news_history[symbol] = set()
             if title in sent_stock_news_history[symbol]:
@@ -577,7 +612,13 @@ def check_hot_news(symbol):
             }}
             """
             
-            ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+            # 🪶 classify task — ใช้ flash-lite (เซฟ ~3-4× ของ flash)
+            ai_check = client.models.generate_content(model='gemini-2.5-flash-lite', contents=prompt)
+            try:
+                from database import log_gemini_usage
+                log_gemini_usage('stock_news_classify', 'gemini-2.5-flash-lite', response=ai_check)
+            except Exception:
+                pass
             result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
             
             try:
@@ -906,7 +947,7 @@ def get_fresh_global_news():
                             age_hours = (datetime.now(timezone.utc) - pub_dt).total_seconds() / 3600
                         except Exception:
                             age_hours = None
-                    if title and title not in seen_titles:
+                    if title and title not in seen_titles and not _is_routine_news_title(title):
                         raw_news.append({"title": title, "link": link, "source": source, "age_hours": age_hours})
                         seen_titles.add(title)
         except Exception as e:
@@ -1012,7 +1053,7 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
     ]
     """
     try:
-        ai_check = _gemini_generate_with_retry(prompt)
+        ai_check = _gemini_generate_with_retry(prompt, feature='flash_news')
         result_text = ai_check.text or ""
 
         # 🌟 robust extract — รองรับกรณี AI ใส่ข้อความนำหน้า/code fence ก่อน JSON
@@ -1134,7 +1175,7 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
     ]
     """
     try:
-        ai_check = _gemini_generate_with_retry(prompt)
+        ai_check = _gemini_generate_with_retry(prompt, feature='digest_news')
         result_text = ai_check.text or ""
 
         # 🌟 robust extract — รองรับ AI ใส่ข้อความนำหน้า/code fence ก่อน JSON
@@ -1534,6 +1575,11 @@ def generate_podcast_script(market_info):
     """
     try:
         res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        try:
+            from database import log_gemini_usage
+            log_gemini_usage('podcast_script', 'gemini-2.5-flash', response=res)
+        except Exception:
+            pass
         return _clean_podcast_script(res.text)
     except Exception as e:
         print(f"❌ [Podcast] generate_podcast_script ล้มเหลว: {e}")
@@ -1789,6 +1835,11 @@ def send_morning_briefing(bot_instance, force=False):
             3. พิมพ์มาแค่เนื้อหาสรุป 3-4 บรรทัดจบ พร้อมให้กำลังใจท้ายข้อความ
             """
             ai_check = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+            try:
+                from database import log_gemini_usage
+                log_gemini_usage('morning_briefing', 'gemini-2.5-flash', response=ai_check)
+            except Exception:
+                pass
             summary = ai_check.text.strip()
             movers_section = (
                 f"📈 **หุ้นน่าจับตาคืนก่อน:**\n{movers_text}\n\n"
@@ -2616,7 +2667,7 @@ def send_weekly_performance_digest(bot_instance):
         รูปแบบ: "📅 วันที่ประมาณ — เหตุการณ์ (ผลกระทบคาด)"
         ห้ามใส่ข้อความนำ/ท้าย ตอบเฉพาะ bullets
         """
-        eco_resp = _gemini_generate_with_retry(eco_prompt)
+        eco_resp = _gemini_generate_with_retry(eco_prompt, feature='weekly_economic_preview')
         economic_preview = eco_resp.text.strip()[:500]
     except Exception as e:
         print(f"[WeeklyDigest] AI eco preview failed: {e}", flush=True)

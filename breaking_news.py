@@ -383,6 +383,11 @@ def _gemini_classify_with_retry(prompt: str, retries: int = 2):
         for attempt in range(retries + 1):
             try:
                 resp = gemini_client.models.generate_content(model=model, contents=prompt)
+                try:
+                    from database import log_gemini_usage
+                    log_gemini_usage('breaking_news_classify', model, response=resp)
+                except Exception:
+                    pass
                 return resp
             except Exception as e:
                 last_err = e

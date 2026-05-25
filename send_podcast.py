@@ -81,6 +81,11 @@ def generate_script(market_info):
     - อย่างน้อย 3 ย่อหน้า และ 10 ประโยค
     """
     response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+    try:
+        from database import log_gemini_usage
+        log_gemini_usage('podcast_short', 'gemini-2.5-flash', response=response)
+    except Exception:
+        pass
     return _clean_script(response.text)
 
 # ==========================================

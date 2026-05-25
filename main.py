@@ -390,6 +390,42 @@ def handle_digest_stats(message):
         print(f"[digest_stats] {e}", flush=True)
         bot.reply_to(message, friendly_error("ดึงสถิติไม่สำเร็จ"))
 
+@bot.message_handler(commands=['gemini_stats'])
+def handle_gemini_stats(message):
+    """[Admin] Gemini token usage by feature + model. Usage: /gemini_stats [days]"""
+    if str(message.chat.id) != ADMIN_ID:
+        return
+    try:
+        from database import get_gemini_usage_stats
+        parts = (message.text or "").split()
+        days = 7
+        if len(parts) > 1 and parts[1].isdigit():
+            days = max(1, min(int(parts[1]), 90))
+        stats = get_gemini_usage_stats(days=days)
+        if not stats["rows"]:
+            bot.reply_to(message, f"_ยังไม่มี usage data ใน {days} วันล่าสุด_", parse_mode="Markdown")
+            return
+        t = stats["totals"]
+        lines = [
+            f"📊 *Gemini Usage — ย้อน {days} วัน*",
+            f"Calls: *{t['calls']:,}* · Cache hits: *{t['cached_calls']:,}* ({t['hit_rate_pct']}%)",
+            f"Total tokens: *{t['total_tokens']:,}*",
+            "",
+            "*Top features (by tokens):*",
+        ]
+        for row in stats["rows"][:15]:
+            model_short = row["model"].replace("gemini-2.5-", "")
+            lines.append(
+                f"• `{row['feature']}` [{model_short}] — {row['calls']:,} calls"
+                f" · {row['total_tokens']:,} tok"
+                + (f" · {row['cached_calls']:,} cached" if row['cached_calls'] else "")
+            )
+        bot.reply_to(message, "\n".join(lines), parse_mode="Markdown")
+    except Exception as e:
+        print(f"[gemini_stats] {e}", flush=True)
+        bot.reply_to(message, friendly_error("ดึง stats ไม่สำเร็จ"))
+
+
 @bot.message_handler(commands=['streak_debug'])
 def handle_streak_debug(message):
     """Admin: ตรวจ schema + สถานะ streak ของตัวเอง"""
@@ -659,6 +695,11 @@ def handle_ask(message):
 """.strip()
 
         response = ai_client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        try:
+            from database import log_gemini_usage
+            log_gemini_usage('ask_chat', 'gemini-2.5-flash', response=response, user_id=user_id)
+        except Exception:
+            pass
         answer = response.text.strip()[:800]
 
         # Thai quality guard
@@ -4979,6 +5020,11 @@ def inline_callbacks(call):
             """
             
             ai_response = ai_client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+            try:
+                from database import log_gemini_usage
+                log_gemini_usage('news_command', 'gemini-2.5-flash', response=ai_response, user_id=user_id)
+            except Exception:
+                pass
             final_news = "🌐 **สรุปข่าวด่วนตลาดลงทุน (💎 APEXIFY Digest)** 🌐\n\n" + ai_response.text.strip()
             
             bot.edit_message_text(final_news, user_id, load_msg.message_id, parse_mode="Markdown")
@@ -5829,6 +5875,11 @@ Schema:
             )
         except Exception:
             response = gemini_client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        try:
+            from database import log_gemini_usage
+            log_gemini_usage('earnings_verdict', 'gemini-2.5-flash', response=response)
+        except Exception:
+            pass
 
         import json as _json
         raw = (getattr(response, 'text', '') or '').strip()
@@ -6262,6 +6313,11 @@ def handle_compare(message):
 ห้ามชี้นำซื้อขาย ห้ามใช้คำ "ซื้อเลย" "ขายเลย" "การันตี"
 """.strip()
             ai_resp = ai_client.models.generate_content(model='gemini-2.5-flash', contents=ai_prompt)
+            try:
+                from database import log_gemini_usage
+                log_gemini_usage('compare_verdict', 'gemini-2.5-flash', response=ai_resp)
+            except Exception:
+                pass
             ai_verdict = ai_resp.text.strip()[:800]
             comparison_lines.append(f"\n🤖 **AI Verdict:**\n{ai_verdict}")
         except Exception as e:
