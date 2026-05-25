@@ -340,6 +340,42 @@ def _is_routine_news_title(title):
     return bool(_ROUTINE_NEWS_PATTERNS.search(str(title)))
 
 
+# 🕰 Stale/historical news pre-filter — ตัดข่าวเก่า/retrospective/educational ก่อนยิง Gemini
+# เคสจริง 2026-05-25: flash-lite ผ่าน "TQQQ Cost Holders 81% in 2022" → severity=HIGH ผิด
+# เน้นเฉพาะ "ข่าวปัจจุบัน" — ข่าว retrospective/year-in-review/look-back ไม่ใช่ market-moving (added 2026-05-25)
+_STALE_NEWS_PATTERNS = re.compile(
+    r"(?:"
+    # อ้างปีในอดีต — "in 2022", "of 2023", "during 2024", "back in 2021"
+    r"\b(?:in|of|during|back\s+in|throughout|since|from)\s+20[012]\d\b|"
+    # year-end recap / year in review
+    r"year[- ]?end\s+(?:review|recap|wrap|outlook\s+looking\s+back)|"
+    r"year\s+in\s+review|annual\s+(?:review|recap)|"
+    # retrospective / lookback / historical
+    r"looking\s+back|look\s+back\s+at|in\s+retrospect|retrospective|"
+    r"historical\s+(?:perspective|review|performance)|"
+    r"a\s+(?:decade|year)\s+(?:in|of|after|ago)|"
+    # how XXX fared / performed
+    r"how\s+\w+\s+(?:fared|performed|did|ended|closed)\s+in\s+20\d\d|"
+    # educational what-if
+    r"what\s+if\s+you\s+(?:had\s+)?invested|"
+    r"if\s+you\s+(?:had\s+)?invested|"
+    # decline narratives อ้างประวัติ (Cost Holders / Lost Investors)
+    r"cost\s+(?:holders|investors|shareholders)\s+\d+\s*(?:percent|%)|"
+    r"lost\s+\d+\s*(?:percent|%)\s+in\s+20\d\d"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _is_stale_news_title(title):
+    """True ถ้าเป็นข่าวเก่า/retrospective/historical → skip Gemini classify
+    Apexify เน้นข่าวปัจจุบันที่กระทบราคาเท่านั้น
+    """
+    if not title:
+        return True
+    return bool(_STALE_NEWS_PATTERNS.search(str(title)))
+
+
 def _extract_news_source(item, title="", link=""):
     source_elem = item.find("source")
     if source_elem is not None and source_elem.text:
@@ -596,6 +632,9 @@ def check_hot_news(symbol):
             # 🚫 ตัด routine headlines (opening bell / market wrap) ก่อนยิง Gemini — เซฟ token
             if _is_routine_news_title(title):
                 return
+            # 🕰 ตัด stale/historical headlines (in 2022 / retrospective / looking back) — ไม่ใช่ข่าวปัจจุบัน
+            if _is_stale_news_title(title):
+                return
 
             if symbol not in sent_stock_news_history:
                 sent_stock_news_history[symbol] = set()
@@ -603,14 +642,31 @@ def check_hot_news(symbol):
                 return
 
             prompt = f"""
-            วิเคราะห์ผลกระทบต่อหุ้น {symbol} จากพาดหัวข่าวนี้: "{title}"
-            ตอบกลับในรูปแบบ JSON เท่านั้น โดยพิจารณาอย่างเข้มงวด:
-            {{
-                "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
-                "severity": "HIGH" (เฉพาะข่าวด่วนที่มีผลกระทบรุนแรงต่อราคาหุ้นจริงๆ เท่านั้น นอกนั้นให้ตอบ LOW),
-                "reason": "อธิบายว่าข่าวนี้กระทบราคาหุ้นอย่างไร และนักลงทุนควรระวังหรือจับตาอะไร 2-3 ประโยค (ภาษาไทย)"
-            }}
-            """
+วิเคราะห์ผลกระทบต่อหุ้น {symbol} จากพาดหัวข่าวนี้: "{title}"
+ตอบเป็น JSON เท่านั้น พิจารณาเข้มงวดมาก
+
+severity = "HIGH" เฉพาะข่าว **ปัจจุบัน** ที่กระทบราคาหุ้น {symbol} **โดยตรงและรุนแรง** เท่านั้น เช่น:
+- Earnings beat/miss ใหญ่ของ {symbol}
+- M&A / acquisition / spinoff ของ {symbol}
+- FDA approval / lawsuit / regulatory action ต่อ {symbol}
+- Major analyst upgrade/downgrade ของ {symbol} จากโบรกใหญ่
+- Guidance change / executive departure ของ {symbol}
+
+❌ ตอบ "LOW" ถ้าข่าวเข้าข่ายต่อไปนี้:
+- ข่าวเก่า/retrospective/historical (พูดถึงปีในอดีต เช่น "in 2022", "year in review", "looking back")
+- ข่าว educational / "what if" / hypothetical scenarios
+- ข่าวเกี่ยวกับหุ้นอื่นที่ไม่ใช่ {symbol} ตรงๆ (เช่น ETF ตระกูล leveraged TQQQ/SQQQ/SOXL ไม่ใช่ข่าว QQQ)
+- ข่าวมหภาคทั่วไปที่ไม่ได้เจาะจง {symbol}
+- ข่าว opening bell / market wrap / daily recap / sector update
+- ข่าวแนะนำหุ้นทั่วไป "stocks to buy", "best picks"
+
+ตอบ:
+{{
+    "sentiment": "BULLISH" หรือ "BEARISH" หรือ "NEUTRAL",
+    "severity": "HIGH" หรือ "LOW",
+    "reason": "อธิบายว่าข่าวกระทบ {symbol} อย่างไร 2-3 ประโยค ภาษาไทย"
+}}
+"""
             
             # 🪶 classify task — ใช้ flash-lite (เซฟ ~3-4× ของ flash)
             ai_check = client.models.generate_content(model='gemini-2.5-flash-lite', contents=prompt)
@@ -947,7 +1003,9 @@ def get_fresh_global_news():
                             age_hours = (datetime.now(timezone.utc) - pub_dt).total_seconds() / 3600
                         except Exception:
                             age_hours = None
-                    if title and title not in seen_titles and not _is_routine_news_title(title):
+                    if (title and title not in seen_titles
+                            and not _is_routine_news_title(title)
+                            and not _is_stale_news_title(title)):
                         raw_news.append({"title": title, "link": link, "source": source, "age_hours": age_hours})
                         seen_titles.add(title)
         except Exception as e:
