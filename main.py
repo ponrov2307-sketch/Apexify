@@ -1886,6 +1886,122 @@ def handle_unwatch(message):
 # ==========================================
 # 🌟 ระบบบันทึกและดูพอร์ตลงทุน (แก้บั๊ก Telegram Markdown)
 # ==========================================
+def _portfolio_empty_html() -> str:
+    """Empty-portfolio HTML — ใช้ทั้ง /port + hub_portfolio callback ให้ตรงกัน"""
+    return (
+        "💼 <b>พอร์ตลงทุน</b>\n\nยังไม่มีหุ้นในพอร์ต\n\n"
+        "เพิ่มหุ้นด้วยคำสั่ง:\n<code>/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]</code>\n"
+        "เช่น <code>/add PTT.BK 100 32.50</code>"
+    )
+
+
+def _render_portfolio_html(user_id: str, portfolio: list) -> str:
+    """Render พอร์ตเต็มเป็น HTML — single source of truth สำหรับ /port + hub_portfolio.
+    มี RSI per row + cash + NAV (ลูกค้าขอ 2026-05-23, nuttapon).
+    ก่อนหน้ามี 2 implementations drift กัน (RSI/cash hint ต่างกัน) → refactor 2026-05-24."""
+    # ดึง price + RSI ใน 1 รอบ yf.history + parallel เพื่อไม่ให้ /port ช้าลง
+    def _fetch_price_rsi(ticker: str):
+        try:
+            allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
+            clean = ticker.replace(".", "-") if "." in ticker and not ticker.endswith(allowed_suffixes) else ticker
+            hist = yf.Ticker(clean).history(period="40d", interval="1d", auto_adjust=False)
+            if hist is None or hist.empty:
+                return None, None
+            closes = hist["Close"].dropna()
+            if len(closes) < 2:
+                return None, None
+            live = float(closes.iloc[-1])
+            rsi = None
+            if len(closes) >= 15:
+                import pandas as pd
+                delta = closes.diff()
+                gain = delta.where(delta > 0, 0).rolling(14).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+                rs = gain / loss
+                series = 100 - (100 / (1 + rs))
+                last = series.iloc[-1]
+                if not pd.isna(last):
+                    rsi = int(round(float(last)))
+            return live, rsi
+        except Exception:
+            return None, None
+
+    from concurrent.futures import ThreadPoolExecutor
+    workers = min(8, max(1, len(portfolio)))
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="port") as pool:
+        fetched = list(pool.map(lambda a: _fetch_price_rsi(a['ticker']), portfolio))
+
+    total_invested = 0
+    current_value = 0
+    rows = []
+    for asset, (live_price, rsi) in zip(portfolio, fetched):
+        ticker = asset['ticker']
+        shares = asset['shares']
+        avg_cost = asset['avg_cost']
+        if live_price is None:
+            live_price = avg_cost
+
+        invested = shares * avg_cost
+        current = shares * live_price
+        profit = current - invested
+        profit_pct = (profit / invested * 100) if invested > 0 else 0
+
+        total_invested += invested
+        current_value += current
+        rows.append((ticker, shares, avg_cost, live_price, profit, profit_pct, rsi))
+
+    total_profit = current_value - total_invested
+    total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
+    total_icon = "🟢" if total_profit >= 0 else "🔴"
+
+    # 💰 Cash balance + Total NAV — requested by nuttapon (Annual PRO) 2026-05-16
+    cash_balance = get_user_cash_balance(user_id)
+    total_nav = current_value + cash_balance
+
+    lines = [f"💼 <b>พอร์ตลงทุน</b>  ({len(rows)} หลักทรัพย์)\n"]
+    for ticker, shares, avg_cost, live_price, profit, profit_pct, rsi in rows:
+        icon = "🟢" if profit >= 0 else "🔴"
+        sign = "+" if profit >= 0 else ""
+        # RSI ป้าย ซื้อได้/ขายได้ — ประกอบการตัดสินใจ (ลูกค้าขอ 2026-05-23)
+        #   ≥70 overbought = ราคาขึ้นแรง อาจกำลังเหนื่อย → ขายได้
+        #   ≤30 oversold  = ราคาลงแรง อาจใกล้กลับตัว → ซื้อได้
+        #   30-70 neutral  = ยังไม่บอกชัด
+        if rsi is None:
+            rsi_part = ""
+        elif rsi >= 70:
+            rsi_part = f"   📊 RSI {rsi} 🔴 <i>overbought — น่าขาย</i>\n"
+        elif rsi <= 30:
+            rsi_part = f"   📊 RSI {rsi} 🟢 <i>oversold — น่าซื้อ</i>\n"
+        else:
+            rsi_part = f"   📊 RSI {rsi} ⚪ <i>กลาง</i>\n"
+        lines.append(
+            f"{icon} <b>{ticker}</b>  {shares:,.4g} หุ้น\n"
+            f"   ทุน {avg_cost:,.2f}  →  ล่าสุด {live_price:,.2f}\n"
+            f"{rsi_part}"
+            f"   {sign}{profit:,.2f}  ({sign}{profit_pct:.2f}%)\n"
+        )
+
+    summary_lines = [
+        f"─────────────────────",
+        f"💼 <b>มูลค่าหุ้น:</b> {current_value:,.2f}",
+        f"💵 <b>ต้นทุนรวม:</b> {total_invested:,.2f}",
+    ]
+    if cash_balance > 0:
+        summary_lines.extend([
+            f"💰 <b>เงินสด:</b> {cash_balance:,.2f}",
+            f"🏦 <b>NAV รวม:</b> {total_nav:,.2f}",
+        ])
+    else:
+        summary_lines.append(
+            f"💰 <b>เงินสด:</b> 0.00  <i>(ตั้งค่าด้วย /editcash)</i>"
+        )
+    summary_lines.append(
+        f"{total_icon} <b>กำไร/ขาดทุนรวม:</b> {'+' if total_profit >= 0 else ''}{total_profit:,.2f}  ({'+' if total_profit_pct >= 0 else ''}{total_profit_pct:.2f}%)"
+    )
+    lines.append("\n".join(summary_lines))
+    return "\n".join(lines)
+
+
 @bot.message_handler(commands=['portfolio', 'port'])
 def handle_portfolio(message):
     """คำสั่งเช็คพอร์ตผ่านแชท"""
@@ -1896,112 +2012,10 @@ def handle_portfolio(message):
     try:
         portfolio = get_user_portfolio(user_id)
         if not portfolio:
-            bot.edit_message_text("📊 พอร์ตลงทุนของคุณยังว่างเปล่า\nพิมพ์ <code>/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]</code> เพื่อเพิ่มหุ้นเข้าพอร์ตครับ", chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='HTML')
+            bot.edit_message_text(_portfolio_empty_html(), chat_id=message.chat.id, message_id=processing_msg.message_id, parse_mode='HTML')
             return
 
-        # 🌟 ลูกค้าขอ RSI ประกอบการตัดสินใจ ซื้อ/ขาย (2026-05-23, nuttapon)
-        # ดึง price + RSI ใน 1 รอบ yf.history + parallel เพื่อไม่ให้ /port ช้าลง
-        def _fetch_price_rsi(ticker: str):
-            try:
-                allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
-                clean = ticker.replace(".", "-") if "." in ticker and not ticker.endswith(allowed_suffixes) else ticker
-                hist = yf.Ticker(clean).history(period="40d", interval="1d", auto_adjust=False)
-                if hist is None or hist.empty:
-                    return None, None
-                closes = hist["Close"].dropna()
-                if len(closes) < 2:
-                    return None, None
-                live = float(closes.iloc[-1])
-                rsi = None
-                if len(closes) >= 15:
-                    import pandas as pd
-                    delta = closes.diff()
-                    gain = delta.where(delta > 0, 0).rolling(14).mean()
-                    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-                    rs = gain / loss
-                    series = 100 - (100 / (1 + rs))
-                    last = series.iloc[-1]
-                    if not pd.isna(last):
-                        rsi = int(round(float(last)))
-                return live, rsi
-            except Exception:
-                return None, None
-
-        from concurrent.futures import ThreadPoolExecutor
-        workers = min(8, max(1, len(portfolio)))
-        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="port") as pool:
-            fetched = list(pool.map(lambda a: _fetch_price_rsi(a['ticker']), portfolio))
-
-        total_invested = 0
-        current_value = 0
-        rows = []
-        for asset, (live_price, rsi) in zip(portfolio, fetched):
-            ticker = asset['ticker']
-            shares = asset['shares']
-            avg_cost = asset['avg_cost']
-            if live_price is None:
-                live_price = avg_cost
-
-            invested = shares * avg_cost
-            current = shares * live_price
-            profit = current - invested
-            profit_pct = (profit / invested * 100) if invested > 0 else 0
-
-            total_invested += invested
-            current_value += current
-            rows.append((ticker, shares, avg_cost, live_price, profit, profit_pct, rsi))
-
-        total_profit = current_value - total_invested
-        total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
-        total_icon = "🟢" if total_profit >= 0 else "🔴"
-
-        # 💰 Cash balance + Total NAV — requested by nuttapon (Annual PRO) 2026-05-16
-        cash_balance = get_user_cash_balance(user_id)
-        total_nav = current_value + cash_balance
-
-        lines = [f"💼 <b>พอร์ตลงทุน</b>  ({len(rows)} หลักทรัพย์)\n"]
-        for ticker, shares, avg_cost, live_price, profit, profit_pct, rsi in rows:
-            icon = "🟢" if profit >= 0 else "🔴"
-            sign = "+" if profit >= 0 else ""
-            # RSI ป้าย ซื้อได้/ขายได้ — ประกอบการตัดสินใจ (ลูกค้าขอ 2026-05-23)
-            #   ≥70 overbought = ราคาขึ้นแรง อาจกำลังเหนื่อย → ขายได้
-            #   ≤30 oversold  = ราคาลงแรง อาจใกล้กลับตัว → ซื้อได้
-            #   30-70 neutral  = ยังไม่บอกชัด
-            if rsi is None:
-                rsi_part = ""
-            elif rsi >= 70:
-                rsi_part = f"   📊 RSI {rsi} 🔴 <i>overbought — น่าขาย</i>\n"
-            elif rsi <= 30:
-                rsi_part = f"   📊 RSI {rsi} 🟢 <i>oversold — น่าซื้อ</i>\n"
-            else:
-                rsi_part = f"   📊 RSI {rsi} ⚪ <i>กลาง</i>\n"
-            lines.append(
-                f"{icon} <b>{ticker}</b>  {shares:,.4g} หุ้น\n"
-                f"   ทุน {avg_cost:,.2f}  →  ล่าสุด {live_price:,.2f}\n"
-                f"{rsi_part}"
-                f"   {sign}{profit:,.2f}  ({sign}{profit_pct:.2f}%)\n"
-            )
-
-        summary_lines = [
-            f"─────────────────────",
-            f"💼 <b>มูลค่าหุ้น:</b> {current_value:,.2f}",
-            f"💵 <b>ต้นทุนรวม:</b> {total_invested:,.2f}",
-        ]
-        if cash_balance > 0:
-            summary_lines.extend([
-                f"💰 <b>เงินสด:</b> {cash_balance:,.2f}",
-                f"🏦 <b>NAV รวม:</b> {total_nav:,.2f}",
-            ])
-        else:
-            summary_lines.append(
-                f"💰 <b>เงินสด:</b> 0.00  <i>(ตั้งค่าด้วย /setcash)</i>"
-            )
-        summary_lines.append(
-            f"{total_icon} <b>กำไร/ขาดทุนรวม:</b> {'+' if total_profit >= 0 else ''}{total_profit:,.2f}  ({'+' if total_profit_pct >= 0 else ''}{total_profit_pct:.2f}%)"
-        )
-        lines.append("\n".join(summary_lines))
-
-        msg = "\n".join(lines)
+        msg = _render_portfolio_html(user_id, portfolio)
         port_markup = InlineKeyboardMarkup()
         _port_btn = _dashboard_cta_button(user_id, "📊 ดูพอร์ต + chart บน Dashboard", src="portfolio_cmd", next_path="/")
         if _port_btn:
@@ -5086,71 +5100,11 @@ def inline_callbacks(call):
         try:
             portfolio = get_user_portfolio(user_id)
             if not portfolio:
-                bot.edit_message_text(
-                    "💼 <b>พอร์ตลงทุน</b>\n\nยังไม่มีหุ้นในพอร์ต\n\n"
-                    "เพิ่มหุ้นด้วยคำสั่ง:\n<code>/add [ชื่อหุ้น] [จำนวน] [ราคาเฉลี่ย]</code>\n"
-                    "เช่น <code>/add PTT.BK 100 32.50</code>",
-                    chat_id=user_id, message_id=load_msg.message_id, parse_mode='HTML'
-                )
+                bot.edit_message_text(_portfolio_empty_html(), chat_id=user_id, message_id=load_msg.message_id, parse_mode='HTML')
             else:
-                total_invested = 0
-                current_value = 0
-                rows = []
-                for asset in portfolio:
-                    ticker = asset['ticker']
-                    shares = asset['shares']
-                    avg_cost = asset['avg_cost']
-                    try:
-                        allowed_suffixes = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
-                        clean_ticker = ticker.replace(".", "-") if "." in ticker and not ticker.endswith(allowed_suffixes) else ticker
-                        live_price = float(yf.Ticker(clean_ticker).fast_info.last_price)
-                    except Exception:
-                        live_price = avg_cost
-                    invested = shares * avg_cost
-                    current = shares * live_price
-                    profit = current - invested
-                    profit_pct = (profit / invested * 100) if invested > 0 else 0
-                    total_invested += invested
-                    current_value += current
-                    rows.append((ticker, shares, avg_cost, live_price, profit, profit_pct))
-
-                total_profit = current_value - total_invested
-                total_profit_pct = (total_profit / total_invested * 100) if total_invested > 0 else 0
-                total_icon = "🟢" if total_profit >= 0 else "🔴"
-
-                # 💰 Cash balance + NAV รวม — same as handle_portfolio
-                cash_balance = get_user_cash_balance(user_id)
-                total_nav = current_value + cash_balance
-
-                lines = [f"💼 <b>พอร์ตลงทุน</b>  ({len(rows)} หลักทรัพย์)\n"]
-                for ticker, shares, avg_cost, live_price, profit, profit_pct in rows:
-                    icon = "🟢" if profit >= 0 else "🔴"
-                    sign = "+" if profit >= 0 else ""
-                    lines.append(
-                        f"{icon} <b>{ticker}</b>  {shares:,.4g} หุ้น\n"
-                        f"   ทุน {avg_cost:,.2f}  →  ล่าสุด {live_price:,.2f}\n"
-                        f"   {sign}{profit:,.2f}  ({sign}{profit_pct:.2f}%)\n"
-                    )
-
-                summary_lines = [
-                    f"─────────────────────",
-                    f"💼 <b>มูลค่าหุ้น:</b> {current_value:,.2f}",
-                    f"💵 <b>ต้นทุนรวม:</b> {total_invested:,.2f}",
-                ]
-                if cash_balance > 0:
-                    summary_lines.extend([
-                        f"💰 <b>เงินสด:</b> {cash_balance:,.2f}",
-                        f"🏦 <b>NAV รวม:</b> {total_nav:,.2f}",
-                    ])
-                else:
-                    summary_lines.append(
-                        f"💰 <b>เงินสด:</b> 0.00  <i>(ตั้งค่าด้วย /editcash)</i>"
-                    )
-                summary_lines.append(
-                    f"{total_icon} <b>กำไร/ขาดทุนรวม:</b> {'+' if total_profit >= 0 else ''}{total_profit:,.2f}  ({'+' if total_profit_pct >= 0 else ''}{total_profit_pct:.2f}%)"
-                )
-                lines.append("\n".join(summary_lines))
-                bot.edit_message_text("\n".join(lines), chat_id=user_id, message_id=load_msg.message_id, parse_mode='HTML')
+                # ใช้ helper เดียวกับ /port slash command — กัน drift (2026-05-24)
+                msg = _render_portfolio_html(user_id, portfolio)
+                bot.edit_message_text(msg, chat_id=user_id, message_id=load_msg.message_id, parse_mode='HTML')
         except Exception as e:
             print(f"[BotError] {e}", flush=True)
             bot.edit_message_text("❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งครับ", chat_id=user_id, message_id=load_msg.message_id)
