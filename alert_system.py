@@ -680,6 +680,33 @@ severity = "HIGH" เฉพาะข่าว **ปัจจุบัน** ท�
             try:
                 analysis = json.loads(result_text)
                 if analysis.get('severity') == 'HIGH':
+                    # 🛡 Stage 2 verify — flash double-check ที่ flash-lite ว่า HIGH
+                    # ก่อน: flash-lite ตัดสินเอง → เคย miss "TQQQ 2022" stale (2026-05-25)
+                    # หลัง: 2-stage pipeline = stable เท่า flash + เซฟ flash call ส่วนใหญ่
+                    try:
+                        verify_resp = client.models.generate_content(
+                            model='gemini-2.5-flash', contents=prompt
+                        )
+                        try:
+                            from database import log_gemini_usage
+                            log_gemini_usage('stock_news_verify', 'gemini-2.5-flash', response=verify_resp)
+                        except Exception:
+                            pass
+                        verify_text = (verify_resp.text or "").strip().replace('```json', '').replace('```', '')
+                        verify_analysis = json.loads(verify_text)
+                        if verify_analysis.get('severity') != 'HIGH':
+                            # flash overrule — flash-lite อ่านพลาด → drop
+                            print(f"[StockNews] {symbol} flash overrule LOW — drop", flush=True)
+                            sent_stock_news_history[symbol].add(title)
+                            last_stock_news_sent_at[symbol] = now
+                            return
+                        # ใช้ flash response (คุณภาพดีกว่า) แทน
+                        analysis = verify_analysis
+                    except Exception as ve:
+                        # ถ้า verify ล้ม → conservative drop (ดีกว่าส่ง alert ผิด)
+                        print(f"[StockNews] {symbol} verify failed: {ve} — drop")
+                        return
+
                     sentiment = analysis.get('sentiment', 'NEUTRAL')
                     reason = _compact_news_text(
                         analysis.get('reason', 'ไม่มีคำอธิบายเพิ่มเติม'),
@@ -691,7 +718,7 @@ severity = "HIGH" เฉพาะข่าว **ปัจจุบัน** ท�
                         sent_stock_news_history[symbol].add(title)
                         last_stock_news_sent_at[symbol] = now
                         return
-                    
+
                     emoji_status = "🚀 เชิงบวก" if sentiment == "BULLISH" else "🩸 เชิงลบ" if sentiment == "BEARISH" else "⚪️ กลางๆ"
                     
                     msg = (
