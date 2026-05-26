@@ -12,6 +12,7 @@ import intraday_volume
 import psycopg2
 from database import (get_all_active_symbols, get_users_watching, init_db, check_subscription,
                       get_connection, log_alert, get_all_active_price_alerts, deactivate_price_alert,
+                      pause_excess_alerts_for_expired_user, resume_paused_alerts_for_user,
                       auto_downgrade_expired_users, init_new_features_db,
                       should_send_user_notification, mark_digest_sent,
                       reset_daily_free_usage, get_expiring_subscriptions,
@@ -1453,10 +1454,67 @@ def clear_web_price_alert(user_id, ticker):
         conn.close()
 
 def check_custom_price_alerts():
-    """🌟 เช็ค Alert จากตารางเดียว และตัดสิทธิ์คนหมด PRO ทันที"""
+    """🌟 เช็ค Alert + PRO-expiry teaser logic (2026-05-24)
+
+    เก่า: ถ้า user หมด PRO → DELETE alerts ทั้งหมด (user หาย data ถาวร)
+    ใหม่: เก็บ 3 alerts (oldest by id) active เป็น teaser, pause ที่เหลือ
+          ตอนต่อ PRO กลับ → auto-resume alerts ทั้งหมด
+    """
     bot_alerts = get_all_active_price_alerts()
-    if not bot_alerts: return
-    
+
+    # 🌟 Pre-process: collect user_ids ที่มี alerts (active หรือ paused) → apply teaser/resume
+    # รวม paused users เพราะ user อาจมี active=0 + paused>0 (รอ resume เมื่อต่อ PRO)
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            SELECT DISTINCT user_id FROM user_price_alerts
+            WHERE is_active = 1 OR paused_by_expiry = 1
+        """)
+        all_alert_users = [r[0] for r in c.fetchall()]
+    except Exception as e:
+        print(f"[PriceAlert] query users err: {e}", flush=True)
+        all_alert_users = list({a[1] for a in bot_alerts}) if bot_alerts else []
+    finally:
+        conn.close()
+
+    if not all_alert_users and not bot_alerts: return
+
+    user_role_cache = {uid: check_subscription(uid) for uid in all_alert_users}
+    needs_refetch = False
+    for uid, role in user_role_cache.items():
+        if role == 'pro':
+            # ต่อ PRO กลับ → resume alerts ที่ pause ไว้
+            resumed = resume_paused_alerts_for_user(uid)
+            if resumed > 0:
+                needs_refetch = True
+                try:
+                    safe_send(bot, uid,
+                        f"🎉 ต่อ PRO สำเร็จ\n"
+                        f"🔓 *{resumed} alerts* ที่ pause ไว้กลับมาทำงานแล้ว",
+                        parse_mode="Markdown")
+                except Exception:
+                    pass
+        else:
+            # หมด PRO → เก็บ 3 alerts active เป็น teaser, pause ที่เหลือ
+            paused = pause_excess_alerts_for_expired_user(uid, keep=3)
+            if paused > 0:
+                needs_refetch = True
+                try:
+                    safe_send(bot, uid,
+                        f"⚠️ PRO หมดอายุ\n\n"
+                        f"✅ Apexify เก็บ Price Alerts *3 ตัวแรก* ให้ใช้ฟรี\n"
+                        f"🔒 อีก *{paused}* ตัวรอ unlock — ต่อ PRO กลับมาใช้ได้ทันทีครับ\n\n"
+                        f"พิม `/pricing` หรือ `/upgrade` เพื่อต่อ",
+                        parse_mode="Markdown")
+                except Exception:
+                    pass
+
+    # Re-fetch ถ้ามีการ pause/resume — is_active เปลี่ยน
+    if needs_refetch:
+        bot_alerts = get_all_active_price_alerts()
+        if not bot_alerts: return
+
     current_prices = {}
     for alert in bot_alerts:
         sym = alert[2]
@@ -1466,14 +1524,12 @@ def check_custom_price_alerts():
                 if not err and tech_data: current_prices[sym] = tech_data['price']
             except Exception as e:
                 print(f"[PriceAlert] ดึงราคา {sym} ไม่สำเร็จ: {e}")
-            
+
     for alert in bot_alerts:
         a_id, user_id, symbol, target_price, condition = alert
-        
-        # 🌟 ถ้ายศตกจาก PRO ให้ลบ Alert นั้นทิ้งอัตโนมัติ!
-        if check_subscription(user_id) != 'pro':
-            deactivate_price_alert(a_id)
-            continue
+
+        # 🌟 Role check ทำใน pre-process แล้ว — alerts ที่เหลือ active = ถูกต้องตาม tier
+        # (user หมด PRO มีสูงสุด 3 alerts active เป็น teaser)
 
         if not should_send_user_notification(user_id, category="general"):
             continue

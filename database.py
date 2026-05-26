@@ -2906,8 +2906,11 @@ def init_new_features_db():
                   user_id TEXT,
                   symbol TEXT,
                   target_price REAL,
-                  condition TEXT, 
+                  condition TEXT,
                   is_active INTEGER DEFAULT 1)''')
+    # 🌟 paused_by_expiry — เก็บ alerts ของ user ที่หมด PRO ไว้ (3 ตัวให้ active เป็น teaser)
+    # NULL/0 = ปกติ · 1 = ถูก pause เพราะ PRO หมด (resume เมื่อต่อ PRO กลับ)
+    c.execute("ALTER TABLE user_price_alerts ADD COLUMN IF NOT EXISTS paused_by_expiry INTEGER DEFAULT 0")
     
     c.execute('''CREATE TABLE IF NOT EXISTS referrals
                  (id SERIAL PRIMARY KEY,
@@ -3470,6 +3473,81 @@ def deactivate_price_alert(alert_id):
     c.execute("DELETE FROM user_price_alerts WHERE id = %s", (alert_id,))
     conn.commit()
     conn.close()
+
+
+def pause_excess_alerts_for_expired_user(user_id: str, keep: int = 3) -> int:
+    """เก็บ {keep} alerts (oldest by id) ให้ active, pause ที่เหลือเป็น teaser
+    ใช้เมื่อ user หมด PRO — ไม่ลบ data, แค่ flag paused_by_expiry=1 + is_active=0
+    Returns: จำนวน alerts ที่ถูก pause (0 ถ้าไม่มี action — เช่น user มี ≤3 alerts อยู่แล้ว)
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        # หา active alerts ของ user, oldest first (sort by id เพราะไม่มี created_at column)
+        c.execute("""
+            SELECT id FROM user_price_alerts
+            WHERE user_id = %s AND is_active = 1
+            ORDER BY id ASC
+        """, (str(user_id),))
+        ids = [r[0] for r in c.fetchall()]
+        if len(ids) <= keep:
+            return 0
+        to_pause = ids[keep:]
+        c.execute("""
+            UPDATE user_price_alerts
+            SET is_active = 0, paused_by_expiry = 1
+            WHERE id = ANY(%s)
+        """, (to_pause,))
+        affected = c.rowcount
+        conn.commit()
+        return affected
+    except Exception as e:
+        print(f"[pause_excess] {e}", flush=True)
+        conn.rollback()
+        return 0
+    finally:
+        conn.close()
+
+
+def resume_paused_alerts_for_user(user_id: str) -> int:
+    """Reactivate alerts ที่ pause ไว้ — ใช้เมื่อ user ต่อ PRO กลับ
+    Returns: จำนวน alerts ที่ถูก reactivate
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            UPDATE user_price_alerts
+            SET is_active = 1, paused_by_expiry = 0
+            WHERE user_id = %s AND paused_by_expiry = 1
+        """, (str(user_id),))
+        affected = c.rowcount
+        conn.commit()
+        return affected
+    except Exception as e:
+        print(f"[resume_paused] {e}", flush=True)
+        conn.rollback()
+        return 0
+    finally:
+        conn.close()
+
+
+def count_paused_alerts_for_user(user_id: str) -> int:
+    """นับจำนวน alerts ที่ถูก pause ไว้ — ใช้โชว์ใน UI ("🔒 X alerts รอ unlock")"""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            SELECT COUNT(*) FROM user_price_alerts
+            WHERE user_id = %s AND paused_by_expiry = 1
+        """, (str(user_id),))
+        result = c.fetchone()
+        return int(result[0]) if result else 0
+    except Exception as e:
+        print(f"[count_paused] {e}", flush=True)
+        return 0
+    finally:
+        conn.close()
 # ==========================================
 # 🌟 ระบบ Auto-Downgrade (ลดขั้นคนหมดอายุอัตโนมัติ)
 # ==========================================
