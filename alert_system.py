@@ -592,57 +592,14 @@ def send_alert_to_users(symbol, message, alert_type="tech"):
 # ==========================================
 # 🌟 ระบบสแกนข่าวหุ้นรายตัว (เฉพาะข่าวด่วนจริงๆ)
 # ==========================================
-def check_hot_news(symbol):
-    try:
-        is_thai_stock = symbol.endswith('.BK')
-        search_term = symbol.replace('.BK', '')
-        now = time.time()
+# 🌟 batch classify: ส่งกฎครั้งเดียว + ข่าวหลายตัว → ลด token ~80-90%
+# (เดิมยิง flash-lite 1 call/ข่าว → กฎ ~440 token ถูกส่งซ้ำทุก call)
+STOCK_NEWS_BATCH_SIZE = 20
 
-        if now - last_stock_news_sent_at.get(symbol, 0) < STOCK_NEWS_COOLDOWN_SECONDS:
-            return
-        
-        if is_thai_stock:
-            url = f"https://news.google.com/rss/search?q={search_term}+หุ้น+when:1d&hl=th&gl=TH&ceid=TH:th"
-        else:
-            url = f"https://news.google.com/rss/search?q={search_term}+stock+when:1d&hl=en-US&gl=US&ceid=US:en"
 
-        response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
-        root = ET.fromstring(response.content)
-        items = root.findall('.//item')
-        
-        if items:
-            title_elem = items[0].find('title')
-            link_elem = items[0].find('link')
-            pub_date_elem = items[0].find('pubDate')
-            if title_elem is None: return
-
-            # 🌟 กรองข่าวเก่ากว่า 6 ชั่วโมงออก
-            if pub_date_elem is not None and pub_date_elem.text:
-                try:
-                    pub_dt = parsedate_to_datetime(pub_date_elem.text)
-                    age_hours = (datetime.now(pub_dt.tzinfo) - pub_dt).total_seconds() / 3600
-                    if age_hours > 6:
-                        return
-                except Exception:
-                    pass  # ถ้า parse วันที่ไม่ได้ให้ผ่านไปก่อน
-
-            title = _normalize_news_title(title_elem.text)
-            link = link_elem.text if link_elem is not None else f"https://news.google.com/search?q={search_term}"
-
-            if not title: return
-            # 🚫 ตัด routine headlines (opening bell / market wrap) ก่อนยิง Gemini — เซฟ token
-            if _is_routine_news_title(title):
-                return
-            # 🕰 ตัด stale/historical headlines (in 2022 / retrospective / looking back) — ไม่ใช่ข่าวปัจจุบัน
-            if _is_stale_news_title(title):
-                return
-
-            if symbol not in sent_stock_news_history:
-                sent_stock_news_history[symbol] = set()
-            if title in sent_stock_news_history[symbol]:
-                return
-
-            prompt = f"""
+def _build_stock_news_prompt(symbol, title):
+    """prompt classify เดี่ยว — ใช้ตอน stage-2 verify (flash) และ fallback เดี่ยว"""
+    return f"""
 วิเคราะห์ผลกระทบต่อหุ้น {symbol} จากพาดหัวข่าวนี้: "{title}"
 ตอบเป็น JSON เท่านั้น พิจารณาเข้มงวดมาก
 
@@ -668,79 +625,274 @@ severity = "HIGH" เฉพาะข่าว **ปัจจุบัน** ท�
     "reason": "อธิบายว่าข่าวกระทบ {symbol} อย่างไร 2-3 ประโยค ภาษาไทย"
 }}
 """
-            
-            # 🪶 classify task — ใช้ flash-lite (เซฟ ~3-4× ของ flash)
-            ai_check = client.models.generate_content(model='gemini-2.5-flash-lite', contents=prompt)
+
+
+def _build_stock_news_batch_prompt(candidates):
+    """prompt classify แบบ batch — กฎชุดเดียว + ข่าวหลายตัว ขอ JSON array กลับมาตาม index"""
+    news_lines = "\n".join(
+        f'{i + 1}. [{c["symbol"]}] "{c["title"]}"'
+        for i, c in enumerate(candidates)
+    )
+    return f"""
+จัดประเภทผลกระทบของข่าวต่อหุ้นแต่ละตัวด้านล่าง พิจารณาเข้มงวดมาก ตอบเป็น JSON array เท่านั้น
+
+severity = "HIGH" เฉพาะข่าว **ปัจจุบัน** ที่กระทบราคาหุ้นเป้าหมาย **โดยตรงและรุนแรง** เท่านั้น เช่น:
+- Earnings beat/miss ใหญ่ของหุ้นตัวนั้น
+- M&A / acquisition / spinoff ของหุ้นตัวนั้น
+- FDA approval / lawsuit / regulatory action ต่อหุ้นตัวนั้น
+- Major analyst upgrade/downgrade จากโบรกใหญ่
+- Guidance change / executive departure
+
+❌ ตอบ "LOW" ถ้าข่าวเข้าข่ายต่อไปนี้:
+- ข่าวเก่า/retrospective/historical (พูดถึงปีในอดีต เช่น "in 2022", "year in review", "looking back")
+- ข่าว educational / "what if" / hypothetical scenarios
+- ข่าวเกี่ยวกับหุ้นอื่นที่ไม่ใช่หุ้นเป้าหมายตรงๆ (เช่น ETF ตระกูล leveraged TQQQ/SQQQ/SOXL ไม่ใช่ข่าว QQQ)
+- ข่าวมหภาคทั่วไปที่ไม่ได้เจาะจงหุ้นนั้น
+- ข่าว opening bell / market wrap / daily recap / sector update
+- ข่าวแนะนำหุ้นทั่วไป "stocks to buy", "best picks"
+
+ข่าวที่ต้องจัดประเภท ({len(candidates)} รายการ):
+{news_lines}
+
+ตอบเป็น JSON array ความยาวเท่ากับจำนวนข่าว เรียงตาม index เดิม ห้ามมีข้อความอื่นนอก array:
+[
+  {{"index": 1, "symbol": "...", "sentiment": "BULLISH|BEARISH|NEUTRAL", "severity": "HIGH|LOW", "reason": "อธิบายผลกระทบ 2-3 ประโยค ภาษาไทย"}}
+]
+"""
+
+
+def _fetch_news_candidate(symbol):
+    """ดึงข่าวล่าสุดของ symbol + ผ่าน filters ทั้งหมด (ไม่เรียก Gemini)
+    คืน {"symbol","title","link"} หรือ None ถ้าไม่มีข่าวที่ควร classify
+    """
+    try:
+        is_thai_stock = symbol.endswith('.BK')
+        search_term = symbol.replace('.BK', '')
+        now = time.time()
+
+        if now - last_stock_news_sent_at.get(symbol, 0) < STOCK_NEWS_COOLDOWN_SECONDS:
+            return None
+
+        if is_thai_stock:
+            url = f"https://news.google.com/rss/search?q={search_term}+หุ้น+when:1d&hl=th&gl=TH&ceid=TH:th"
+        else:
+            url = f"https://news.google.com/rss/search?q={search_term}+stock+when:1d&hl=en-US&gl=US&ceid=US:en"
+
+        response = cffi_requests.get(url, impersonate="chrome110", timeout=15)
+        root = ET.fromstring(response.content)
+        items = root.findall('.//item')
+        if not items:
+            return None
+
+        title_elem = items[0].find('title')
+        link_elem = items[0].find('link')
+        pub_date_elem = items[0].find('pubDate')
+        if title_elem is None:
+            return None
+
+        # 🌟 กรองข่าวเก่ากว่า 6 ชั่วโมงออก
+        if pub_date_elem is not None and pub_date_elem.text:
             try:
-                from database import log_gemini_usage
-                log_gemini_usage('stock_news_classify', 'gemini-2.5-flash-lite', response=ai_check)
+                pub_dt = parsedate_to_datetime(pub_date_elem.text)
+                age_hours = (datetime.now(pub_dt.tzinfo) - pub_dt).total_seconds() / 3600
+                if age_hours > 6:
+                    return None
             except Exception:
-                pass
-            result_text = ai_check.text.strip().replace('```json', '').replace('```', '')
-            
-            try:
-                analysis = json.loads(result_text)
-                if analysis.get('severity') == 'HIGH':
-                    # 🛡 Stage 2 verify — flash double-check ที่ flash-lite ว่า HIGH
-                    # ก่อน: flash-lite ตัดสินเอง → เคย miss "TQQQ 2022" stale (2026-05-25)
-                    # หลัง: 2-stage pipeline = stable เท่า flash + เซฟ flash call ส่วนใหญ่
-                    try:
-                        verify_resp = client.models.generate_content(
-                            model='gemini-2.5-flash', contents=prompt
-                        )
-                        try:
-                            from database import log_gemini_usage
-                            log_gemini_usage('stock_news_verify', 'gemini-2.5-flash', response=verify_resp)
-                        except Exception:
-                            pass
-                        verify_text = (verify_resp.text or "").strip().replace('```json', '').replace('```', '')
-                        verify_analysis = json.loads(verify_text)
-                        if verify_analysis.get('severity') != 'HIGH':
-                            # flash overrule — flash-lite อ่านพลาด → drop
-                            print(f"[StockNews] {symbol} flash overrule LOW — drop", flush=True)
-                            sent_stock_news_history[symbol].add(title)
-                            last_stock_news_sent_at[symbol] = now
-                            return
-                        # ใช้ flash response (คุณภาพดีกว่า) แทน
-                        analysis = verify_analysis
-                    except Exception as ve:
-                        # ถ้า verify ล้ม → conservative drop (ดีกว่าส่ง alert ผิด)
-                        print(f"[StockNews] {symbol} verify failed: {ve} — drop")
-                        return
+                pass  # ถ้า parse วันที่ไม่ได้ให้ผ่านไปก่อน
 
-                    sentiment = analysis.get('sentiment', 'NEUTRAL')
-                    reason = _compact_news_text(
-                        analysis.get('reason', 'ไม่มีคำอธิบายเพิ่มเติม'),
-                        max_chars=100,
-                        max_lines=1,
-                    )
-                    dispatch_key = f"{symbol}|{title}"
-                    if not _claim_dispatch_once("stock_news", dispatch_key):
-                        sent_stock_news_history[symbol].add(title)
-                        last_stock_news_sent_at[symbol] = now
-                        return
+        title = _normalize_news_title(title_elem.text)
+        link = link_elem.text if link_elem is not None else f"https://news.google.com/search?q={search_term}"
 
-                    emoji_status = "🚀 เชิงบวก" if sentiment == "BULLISH" else "🩸 เชิงลบ" if sentiment == "BEARISH" else "⚪️ กลางๆ"
-                    
-                    msg = (
-                        f"🗞 **ข่าวด่วน {symbol}**\n"
-                        f"📌 {title}\n"
-                        f"📊 {emoji_status}\n"
-                        f"💡 {reason}\n"
-                        f"🔗 [อ่านต่อ]({link})"
-                    )
-                    
-                    send_alert_to_users(symbol, msg, alert_type="news")
-                    sent_stock_news_history[symbol].add(title) 
-                    last_stock_news_sent_at[symbol] = now
-                    
-                    if len(sent_stock_news_history[symbol]) > 50:
-                        sent_stock_news_history[symbol].clear()
-                        
-            except json.JSONDecodeError as e:
-                print(f"⚠️ [StockNews] JSON decode ล้มเหลวสำหรับ {symbol}: {e}")
+        if not title:
+            return None
+        # 🚫 ตัด routine headlines (opening bell / market wrap) ก่อนยิง Gemini — เซฟ token
+        if _is_routine_news_title(title):
+            return None
+        # 🕰 ตัด stale/historical headlines (in 2022 / retrospective / looking back)
+        if _is_stale_news_title(title):
+            return None
+
+        if symbol not in sent_stock_news_history:
+            sent_stock_news_history[symbol] = set()
+        if title in sent_stock_news_history[symbol]:
+            return None  # 🔁 dedup — เคยประเมิน title นี้แล้ว ไม่ classify ซ้ำ
+
+        return {"symbol": symbol, "title": title, "link": link}
     except Exception as e:
-        print(f"❌ [StockNews] check_hot_news ล้มเหลวสำหรับ {symbol}: {e}")
+        print(f"❌ [StockNews] fetch candidate ล้มเหลวสำหรับ {symbol}: {e}")
+        return None
+
+
+def _verify_and_dispatch_high(cand, analysis):
+    """stage-2 verify (flash) ต่อข่าวที่ flash-lite ว่า HIGH → ส่ง alert ถ้ายืนยัน
+    ใช้ร่วมกันทั้ง batch และ single path
+    """
+    symbol = cand["symbol"]
+    title = cand["title"]
+    link = cand["link"]
+    now = time.time()
+    if symbol not in sent_stock_news_history:
+        sent_stock_news_history[symbol] = set()
+
+    # 🛡 Stage 2 verify — flash double-check ที่ flash-lite ว่า HIGH
+    # ก่อน: flash-lite ตัดสินเอง → เคย miss "TQQQ 2022" stale (2026-05-25)
+    try:
+        verify_resp = client.models.generate_content(
+            model='gemini-2.5-flash', contents=_build_stock_news_prompt(symbol, title)
+        )
+        try:
+            from database import log_gemini_usage
+            log_gemini_usage('stock_news_verify', 'gemini-2.5-flash', response=verify_resp)
+        except Exception:
+            pass
+        verify_text = (verify_resp.text or "").strip().replace('```json', '').replace('```', '')
+        verify_analysis = json.loads(verify_text)
+        if verify_analysis.get('severity') != 'HIGH':
+            # flash overrule — flash-lite อ่านพลาด → drop
+            print(f"[StockNews] {symbol} flash overrule LOW — drop", flush=True)
+            sent_stock_news_history[symbol].add(title)
+            last_stock_news_sent_at[symbol] = now
+            return
+        analysis = verify_analysis  # ใช้ flash response (คุณภาพดีกว่า)
+    except Exception as ve:
+        # ถ้า verify ล้ม → conservative drop (ดีกว่าส่ง alert ผิด)
+        print(f"[StockNews] {symbol} verify failed: {ve} — drop")
+        return
+
+    sentiment = analysis.get('sentiment', 'NEUTRAL')
+    reason = _compact_news_text(
+        analysis.get('reason', 'ไม่มีคำอธิบายเพิ่มเติม'),
+        max_chars=100,
+        max_lines=1,
+    )
+    dispatch_key = f"{symbol}|{title}"
+    if not _claim_dispatch_once("stock_news", dispatch_key):
+        sent_stock_news_history[symbol].add(title)
+        last_stock_news_sent_at[symbol] = now
+        return
+
+    emoji_status = "🚀 เชิงบวก" if sentiment == "BULLISH" else "🩸 เชิงลบ" if sentiment == "BEARISH" else "⚪️ กลางๆ"
+    msg = (
+        f"🗞 **ข่าวด่วน {symbol}**\n"
+        f"📌 {title}\n"
+        f"📊 {emoji_status}\n"
+        f"💡 {reason}\n"
+        f"🔗 [อ่านต่อ]({link})"
+    )
+    send_alert_to_users(symbol, msg, alert_type="news")
+    sent_stock_news_history[symbol].add(title)
+    last_stock_news_sent_at[symbol] = now
+    if len(sent_stock_news_history[symbol]) > 50:
+        sent_stock_news_history[symbol].clear()
+
+
+def _handle_classified(cand, analysis):
+    """รับผล classify 1 ข่าว → HIGH ไป verify+dispatch, LOW จำไว้กัน classify ซ้ำ"""
+    symbol = cand["symbol"]
+    title = cand["title"]
+    if symbol not in sent_stock_news_history:
+        sent_stock_news_history[symbol] = set()
+    if analysis.get('severity') == 'HIGH':
+        _verify_and_dispatch_high(cand, analysis)
+    else:
+        # 🔁 LOW → mark history เพื่อไม่ classify ข่าวเดิมซ้ำในรอบถัดไป (เดิมไม่ mark = waste)
+        sent_stock_news_history[symbol].add(title)
+        if len(sent_stock_news_history[symbol]) > 50:
+            sent_stock_news_history[symbol].clear()
+
+
+def _classify_and_handle_single(cand):
+    """classify ข่าวเดี่ยว (flash-lite) + handle — fallback ของ batch และ check_hot_news"""
+    symbol = cand["symbol"]
+    try:
+        ai_check = client.models.generate_content(
+            model='gemini-2.5-flash-lite', contents=_build_stock_news_prompt(symbol, cand["title"])
+        )
+        try:
+            from database import log_gemini_usage
+            log_gemini_usage('stock_news_classify', 'gemini-2.5-flash-lite', response=ai_check)
+        except Exception:
+            pass
+        result_text = (ai_check.text or "").strip().replace('```json', '').replace('```', '')
+        analysis = json.loads(result_text)
+    except json.JSONDecodeError as e:
+        print(f"⚠️ [StockNews] JSON decode ล้มเหลวสำหรับ {symbol}: {e}")
+        return
+    except Exception as e:
+        print(f"❌ [StockNews] classify เดี่ยวล้มเหลวสำหรับ {symbol}: {e}")
+        return
+    _handle_classified(cand, analysis)
+
+
+def _classify_news_batch(candidates):
+    """ยิง flash-lite 1 call จัดประเภทข่าวหลายตัว
+    คืน list ของ analysis (dict|None) เรียงตาม candidates หรือ None ถ้า parse ทั้งก้อนไม่ได้
+    """
+    try:
+        resp = client.models.generate_content(
+            model='gemini-2.5-flash-lite', contents=_build_stock_news_batch_prompt(candidates)
+        )
+        try:
+            from database import log_gemini_usage
+            log_gemini_usage('stock_news_classify_batch', 'gemini-2.5-flash-lite', response=resp)
+        except Exception:
+            pass
+        text = (resp.text or "").strip().replace('```json', '').replace('```', '')
+        arr = json.loads(text)
+        if not isinstance(arr, list):
+            return None
+        by_index = {}
+        for item in arr:
+            if isinstance(item, dict) and 'index' in item:
+                try:
+                    by_index[int(item['index'])] = item
+                except Exception:
+                    pass
+        # map กลับตามลำดับ candidate (index 1-based); None ถ้า batch ไม่ตอบรายการนั้น
+        return [by_index.get(i + 1) for i in range(len(candidates))]
+    except Exception as e:
+        print(f"⚠️ [StockNews] batch classify ล้มเหลว: {e}")
+        return None
+
+
+def check_hot_news_batch(symbols):
+    """เช็คข่าวหุ้นรายตัวแบบ batch — รวบข่าวทุก symbol แล้ว classify เป็นชุด (ลด token ~80-90%)
+    ความสดเท่าเดิม (ทำงานในรอบ cron เดียวกัน) + คง stage-2 verify ต่อ HIGH
+    fallback: batch parse ไม่ได้ / ข่าวหายจาก response → classify เดี่ยว (ไม่ fetch ซ้ำ)
+    """
+    candidates = []
+    for symbol in (symbols or []):
+        cand = _fetch_news_candidate(symbol)
+        if cand:
+            candidates.append(cand)
+    if not candidates:
+        return
+
+    for start in range(0, len(candidates), STOCK_NEWS_BATCH_SIZE):
+        chunk = candidates[start:start + STOCK_NEWS_BATCH_SIZE]
+        results = _classify_news_batch(chunk)
+        if results is None:
+            # 🛟 batch พังทั้งก้อน → classify เดี่ยวจาก candidate ที่ fetch ไว้แล้ว
+            for c in chunk:
+                _classify_and_handle_single(c)
+            continue
+        for c, analysis in zip(chunk, results):
+            try:
+                if analysis is None:
+                    _classify_and_handle_single(c)  # ข่าวนี้หายจาก batch → เดี่ยว
+                else:
+                    _handle_classified(c, analysis)
+            except Exception as e:
+                print(f"❌ [StockNews] handle {c['symbol']}: {e}")
+
+    print(f"[StockNews] batch classify เสร็จ ({len(candidates)} ข่าวเข้า AI)", flush=True)
+
+
+def check_hot_news(symbol):
+    """เช็คข่าวหุ้นเดี่ยว (backward-compat / fallback) — fetch + classify + handle"""
+    cand = _fetch_news_candidate(symbol)
+    if cand:
+        _classify_and_handle_single(cand)
 
 def check_market_conditions():
     active_symbols = get_all_active_symbols()
@@ -3180,11 +3332,10 @@ def run_alert_loop(bot_instance=None):
 
         if current_time - last_stock_news_check_time >= STOCK_NEWS_CHECK_INTERVAL_SECONDS:
             active_symbols = get_all_active_symbols()
-            for symbol in (active_symbols or []):
-                try:
-                    check_hot_news(symbol)
-                except Exception as e:
-                    print(f"❌ [StockNewsLoop] {symbol}: {e}")
+            try:
+                check_hot_news_batch(active_symbols)
+            except Exception as e:
+                print(f"❌ [StockNewsLoop] batch: {e}")
             last_stock_news_check_time = time.time()
             print(f"[StockNews] เช็คข่าวรายตัวเสร็จแล้ว ({len(active_symbols or [])} symbols)")
 
