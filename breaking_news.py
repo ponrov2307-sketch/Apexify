@@ -369,7 +369,7 @@ _CLASSIFY_PROMPT = """คุณเป็นนักวิเคราะห์�
 หากเป็นข่าวมหภาค/ตลาด/นโยบาย (CPI, FOMC, war, OPEC) ที่กระทบทั้งตลาด → "tickers": [] (แสดงว่ากระทบวงกว้าง)
 
 ตอบ JSON:
-{{"importance": "HIGH|MEDIUM|LOW", "summary_th": "สรุปไทย 80 ตัวอักษรกระชับ (สำหรับข้อความ Telegram)", "reasoning": "เหตุผลภาษาไทย 1 ประโยค", "audio_script_th": "บท narration ภาษาไทย 4-6 ประโยค (~250-400 ตัวอักษร) สำหรับเสียง อธิบายข่าว+เหตุผล+ผลกระทบที่อาจเกิด+คำแนะนำเตรียมตัวสำหรับนักลงทุน เขียนเป็นประโยคต่อเนื่อง อ่านลื่น ห้ามใช้ bullet", "tickers": []}}"""
+{{"importance": "HIGH|MEDIUM|LOW", "summary_th": "สรุปไทย 80 ตัวอักษรกระชับ (สำหรับข้อความ Telegram)", "reasoning": "เหตุผลภาษาไทย 1 ประโยค", "tickers": []}}"""
 
 
 # ตัด gemini-2.5-pro ออก — แพง 10-20× ของ flash, save cost (2026-05-24)
@@ -441,7 +441,7 @@ def gemini_classify_breaking(item: dict) -> dict | None:
             "importance": importance,
             "summary_th": str(data.get("summary_th", item["title"]))[:200],
             "reasoning": str(data.get("reasoning", ""))[:300],
-            "audio_script_th": str(data.get("audio_script_th", ""))[:600],
+            # audio_script_th: ไม่ขอใน classify แล้ว — gen เฉพาะข่าว HIGH ที่ push จริง (ดู _build_audio_script)
             "tickers": tickers,
         }
     except Exception as e:
@@ -473,16 +473,49 @@ def gemini_classify_breaking(item: dict) -> dict | None:
 _TTS_VOICE = "th-TH-PremwadeeNeural"  # Same voice as morning podcast
 
 
+def _generate_breaking_narration(record: dict) -> str:
+    """gen บท narration ภาษาไทยด้วย Gemini — เรียกเฉพาะข่าว HIGH ที่ push จริง
+    (เดิมขอ audio_script_th พ่วงทุกข่าวใน classify → output แพงถูกผลิตทิ้งกับ MEDIUM/LOW)
+    """
+    if not gemini_client:
+        return ""
+    title = (record.get("title") or "").strip()
+    summary = (record.get("summary_th") or "").strip()
+    reasoning = (record.get("reasoning") or "").strip()
+    prompt = (
+        "เขียนบท narration ภาษาไทยสำหรับอ่านเป็นเสียง อธิบายข่าวด่วนตลาดสหรัฐนี้\n"
+        f"ข่าว: {title}\n"
+        f"สรุป: {summary}\n"
+        f"เหตุผล: {reasoning}\n\n"
+        "เขียน 4-6 ประโยค (~250-400 ตัวอักษร) อธิบายข่าว+ผลกระทบที่อาจเกิด"
+        "+คำแนะนำเตรียมตัวสำหรับนักลงทุน เขียนเป็นประโยคต่อเนื่อง อ่านลื่น "
+        "ห้ามใช้ bullet ตอบเฉพาะบท narration ไม่ต้องมีหัวข้อ"
+    )
+    try:
+        resp = gemini_client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+        try:
+            from database import log_gemini_usage
+            log_gemini_usage("breaking_narration", "gemini-2.5-flash", response=resp)
+        except Exception:
+            pass
+        return (resp.text or "").strip()
+    except Exception as e:
+        print(f"[BreakingNews] narration gen failed: {e}", flush=True)
+        return ""
+
+
 def _build_audio_script(record: dict) -> str:
     """Build a natural-sounding Thai script from the news record.
 
-    Prefer audio_script_th (narration 4-6 sentences from Gemini) — fallback to
-    summary_th + reasoning if missing (older records / Gemini fallback path).
+    narration: gen ด้วย Gemini เฉพาะตอนนี้ (push HIGH) — ถ้าว่าง/มีอยู่แล้ว (legacy)
+    ก็ใช้ของเดิม; ถ้า Gemini ล้ม fallback เป็น summary_th + reasoning
     """
     narration = (record.get("audio_script_th") or "").strip()
+    if not narration:
+        narration = _generate_breaking_narration(record)
     if narration:
         return f"ข่าวด่วนตลาดสหรัฐ. {narration}"
-    # Fallback for legacy records without audio_script_th
+    # Fallback — Gemini ใช้ไม่ได้ / ล้ม
     summary = (record.get("summary_th") or record.get("title") or "").strip()
     reasoning = (record.get("reasoning") or "").strip()
     parts = ["ข่าวด่วนตลาดสหรัฐ", summary]
