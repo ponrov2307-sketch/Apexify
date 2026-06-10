@@ -4290,6 +4290,21 @@ def has_pending_referral(new_user_id: str) -> bool:
         conn.close()
 
 
+def has_referrer(new_user_id: str) -> bool:
+    """User นี้ถูก credit ให้ผู้แนะนำไปแล้วหรือยัง (มากับลิงก์ REF_)?
+    ใช้กันไม่ให้ถาม 'มีเพื่อนแนะนำไหม' ซ้ำกับคนที่มีผู้แนะนำอยู่แล้ว."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "SELECT 1 FROM referrals WHERE referred_id = %s LIMIT 1",
+            (str(new_user_id),),
+        )
+        return c.fetchone() is not None
+    finally:
+        conn.close()
+
+
 def add_pending_referral(new_user_id: str, new_user_name: str | None,
                          referrer_query: str) -> int | None:
     conn = get_connection()

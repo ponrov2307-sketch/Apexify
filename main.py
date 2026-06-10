@@ -1555,41 +1555,16 @@ def send_welcome(message):
     if user_id == ADMIN_ID:
         markup.add(KeyboardButton("👑 แผงควบคุมแอดมิน"))
 
+    # 🌟 ข้อความที่ 1 — ต้อนรับสั้นๆ (ไม่ใช่กำแพงตัวอักษร) + ปักคีย์บอร์ดล่าง
+    #    เป้าหมาย: ให้ "ลอง" เห็น wow ภายใน 5 วิ ก่อนต้องอ่าน/ตัดสินใจอะไร
     welcome_text = (
         f"⚡️ ยินดีต้อนรับคุณ **{full_name}** สู่ **Apexify!**\n\n"
-        "🤖 บอทวิเคราะห์หุ้นด้วย AI — รองรับหุ้นทั่วโลก, แจ้งเตือนสัญญาณเทคนิค, สรุปข่าวตลาดรายวัน\n\n"
-        f"🎁 **ทดลองใช้ฟรี {FREE_DAILY_QUOTA} ครั้ง/วัน** ไม่ต้องสมัคร\n\n"
-        "**เริ่มต้น 3 ขั้นตอน:**\n"
-        "1️⃣ พิมพ์ชื่อหุ้น → รับรายงานวิเคราะห์ทันที\n"
-        "   `AAPL` `TSLA` `NVDA` `PTT.BK` `AOT.BK`\n"
-        "2️⃣ กด ⭐ ใต้รายงาน → เพิ่มเข้า Watchlist\n"
-        "3️⃣ รับแจ้งเตือนสัญญาณ & ข่าวอัตโนมัติ\n\n"
-        "👇 กด **📱 เปิดเมนูหลัก** เพื่อดูฟีเจอร์ทั้งหมด"
+        "🤖 บอทวิเคราะห์หุ้นด้วย AI — รองรับหุ้นทั่วโลก\n\n"
+        "👇 **ลองเลย** กดดูตัวอย่างวิเคราะห์ ฟรี ไม่ต้องตั้งค่าอะไร"
     )
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode="Markdown")
 
-    # 🌟 ขอข้อมูลผู้แนะนำ — เฉพาะ user ใหม่ที่ไม่ได้มากับลิงก์ REF_
-    # PP P. case: เพื่อนส่งแคปหน้าจอ + URL ทำให้ referral หาย → กู้ผ่านฟอร์มนี้
-    try:
-        from database import has_pending_referral
-        if not referred_welcome_bonus and not has_pending_referral(user_id):
-            ref_markup = InlineKeyboardMarkup(row_width=2)
-            ref_markup.add(
-                InlineKeyboardButton("✋ มาเอง", callback_data="referral_self"),
-                InlineKeyboardButton("👥 มีเพื่อนแนะนำ", callback_data="referral_friend"),
-            )
-            bot.send_message(
-                int(user_id),
-                "🤝 **มีเพื่อนแนะนำ Apexify ให้คุณไหมครับ?**\n\n"
-                "ถ้ามี เพื่อนของคุณจะได้รับ VIP +10 วัน เป็นรางวัลขอบคุณ\n"
-                "(ระบบจะถามชื่อ/Telegram ID ของเพื่อน)",
-                parse_mode="Markdown",
-                reply_markup=ref_markup,
-            )
-    except Exception as e:
-        print(f"[ReferralCapture] ask error: {e}", flush=True)
-
-    # 🌟 Referral welcome bonus — แจ้ง new user ว่าได้ VIP 3 วันฟรี
+    # 🌟 Referral welcome bonus — แจ้ง new user ที่มากับลิงก์ชวนเพื่อนว่าได้ VIP 3 วันฟรี
     if referred_welcome_bonus:
         try:
             bot.send_message(user_id,
@@ -1605,27 +1580,29 @@ def send_welcome(message):
         except Exception as e:
             print(f"[ReferralWelcome] error: {e}", flush=True)
 
-    # Tutorial card with inline keyboard
+    # 🌟 ข้อความที่ 2 — การ์ด "ลอง" มาก่อน (สิ่งแรกที่ user ได้กด = ของจริงทันที)
+    #    ปุ่มลองหุ้นขึ้นนำ, ดัน "ทดลอง PRO" ลงล่างเพื่อไม่แย่งความสนใจ
     tutorial_markup = InlineKeyboardMarkup(row_width=2)
-    # 🎁 Surface /freetrial as primary CTA — fix 96% activation gap
-    tutorial_markup.add(
-        InlineKeyboardButton("🎁 ทดลอง PRO ฟรี 7 วัน — เริ่มเลย!", callback_data="trigger_freetrial")
-    )
     tutorial_markup.add(
         InlineKeyboardButton("📊 ลอง AAPL", callback_data="tutorial_analyze_AAPL"),
         InlineKeyboardButton("⚡ ลอง NVDA", callback_data="tutorial_analyze_NVDA"),
     )
     tutorial_markup.add(InlineKeyboardButton("🇹🇭 ลอง PTT.BK", callback_data="tutorial_analyze_PTT.BK"))
+    tutorial_markup.add(
+        InlineKeyboardButton("🎁 ทดลอง PRO ฟรี 7 วัน", callback_data="trigger_freetrial")
+    )
     tutorial_markup.add(InlineKeyboardButton("📱 เปิดเมนูหลัก", callback_data="hub_home"))
     _, login_url, _ = issue_dashboard_login_url(user_id)
     if login_url:
         tutorial_markup.add(InlineKeyboardButton("🌐 Web Dashboard", url=login_url))
     bot.send_message(
         user_id,
-        "🚀 **เริ่มต้นได้เลยครับ!**\n\nกดปุ่มด้านล่างเพื่อทดลองวิเคราะห์หุ้น หรือเปิดฟีเจอร์ที่ต้องการ 👇",
+        "🚀 **เริ่มเลย — กดลองวิเคราะห์หุ้นตัวไหนก็ได้** (ฟรี) 👇",
         reply_markup=tutorial_markup,
         parse_mode="Markdown",
     )
+    # 🌟 หมายเหตุ: การถาม"มีเพื่อนแนะนำไหม" ย้ายไปไว้ "หลังวิเคราะห์หุ้นตัวแรก" (Phase 2)
+    #    ดูในฟังก์ชันวิเคราะห์ตรง trigger `new_total == 1` — อย่าขอ favor ก่อนให้คุณค่า
 
 # ==========================================
 # 🌟 ระบบบันทึกและดูพอร์ตลงทุน (Apex Wealth Master)
@@ -7025,6 +7002,30 @@ def handle_main(message):
                 bot.send_message(message.chat.id, msg, parse_mode="Markdown")
             except Exception as _e:
                 print(f"[tier-dm] {tier.get('tier_id')}: {_e}", flush=True)
+
+    # 🌟 Phase 2 referral capture — ถาม"มีเพื่อนแนะนำไหม" หลังวิเคราะห์ตัวแรกเสร็จ
+    #    (ย้ายออกจาก /start: อย่าขอ favor ก่อน user ได้เห็นคุณค่า → คนใหม่หนีตรงนั้น)
+    #    new_total == 1 = วิเคราะห์ครั้งแรกพอดี → fire ครั้งเดียวอัตโนมัติ ไม่ถามซ้ำ
+    if new_total == 1 and user_id != ADMIN_ID:
+        try:
+            from database import has_pending_referral, has_referrer
+            if not has_pending_referral(user_id) and not has_referrer(user_id):
+                ref_markup = InlineKeyboardMarkup(row_width=2)
+                ref_markup.add(
+                    InlineKeyboardButton("✋ มาเอง", callback_data="referral_self"),
+                    InlineKeyboardButton("👥 มีเพื่อนแนะนำ", callback_data="referral_friend"),
+                )
+                bot.send_message(
+                    int(user_id),
+                    "🤝 **เป็นไงบ้างครับ ชอบไหม?**\n\n"
+                    "มีเพื่อนแนะนำ Apexify ให้คุณหรือเปล่า? ถ้ามี "
+                    "เพื่อนของคุณจะได้รับ VIP +10 วัน เป็นรางวัลขอบคุณ\n"
+                    "(ระบบจะถามชื่อ/Telegram ID ของเพื่อน)",
+                    parse_mode="Markdown",
+                    reply_markup=ref_markup,
+                )
+        except Exception as _e:
+            print(f"[ReferralCapture] post-analysis ask error: {_e}", flush=True)
 
 
 if __name__ == "__main__":
