@@ -83,6 +83,18 @@ def build_dashboard_login_url(telegram_id: str, src: str = "command", next_path:
     return f"{base_url}/login-token?token={quote(token, safe='')}&{params}"
 
 
+def build_password_reset_url(telegram_id: str) -> str:
+    """Magic-link URL for the /reset-password page.
+
+    Reuses the same signed JWT as dashboard login (DASHBOARD_LOGIN_SECRET +
+    TTL) — the token is the proof of Telegram ownership, so the holder can
+    set a new password without the old one. `quote` is imported at module top.
+    """
+    token = build_dashboard_login_token(telegram_id)
+    base_url = DASHBOARD_BASE_URL.rstrip("/")
+    return f"{base_url}/reset-password?token={quote(token, safe='')}"
+
+
 def build_admin_dashboard_url(telegram_id: str) -> str:
     token = build_admin_dashboard_token(telegram_id)
     base_url = BOT_WEB_BASE_URL.rstrip("/")
@@ -106,6 +118,34 @@ def issue_dashboard_login_url(telegram_id: str, src: str = "command", next_path:
     except Exception:
         logger.warning(
             "dashboard_token_issue_failed telegram_id=%s reason=internal_error",
+            mask_telegram_id(telegram_id),
+        )
+        return False, "", "internal_error"
+
+
+def issue_password_reset_url(telegram_id: str) -> tuple[bool, str, str]:
+    """Issue a /reset-password magic-link URL, or (False, "", reason) if unavailable.
+
+    Mirrors `issue_dashboard_login_url`: same readiness gate + logging, just a
+    different destination path. The token proves Telegram ownership so the
+    holder can set a new password without the old one.
+    """
+    ready, reason = is_dashboard_login_ready()
+    if not ready:
+        logger.warning(
+            "password_reset_token_issue_failed telegram_id=%s reason=%s",
+            mask_telegram_id(telegram_id),
+            reason,
+        )
+        return False, "", reason
+
+    try:
+        url = build_password_reset_url(telegram_id)
+        logger.info("password_reset_token_issued telegram_id=%s", mask_telegram_id(telegram_id))
+        return True, url, "ok"
+    except Exception:
+        logger.warning(
+            "password_reset_token_issue_failed telegram_id=%s reason=internal_error",
             mask_telegram_id(telegram_id),
         )
         return False, "", "internal_error"

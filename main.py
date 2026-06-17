@@ -15,6 +15,7 @@ from config import TELEGRAM_TOKEN, ADMIN_ID, DASHBOARD_LOGIN_TOKEN_TTL, APEXIFY_
 from dashboard_login import (
     issue_admin_dashboard_url, issue_dashboard_login_url,
     build_dashboard_login_url, is_dashboard_login_ready,
+    issue_password_reset_url,
 )
 # 🌟 Import ฟังก์ชันฐานข้อมูลทั้งหมด รวมถึงระบบจัดการพอร์ต
 from database import (get_all_users, init_db, register_user, check_subscription, add_subscription,
@@ -146,6 +147,9 @@ def _build_settings_keyboard(settings):
     )
     markup.add(
         InlineKeyboardButton("Refresh", callback_data="settings_refresh"),
+    )
+    markup.add(
+        InlineKeyboardButton("🔑 ตั้ง/รีเซ็ตรหัสผ่าน (เว็บ)", callback_data="open_pw_reset"),
     )
     return markup
 
@@ -4487,7 +4491,7 @@ def digest_feedback_callback(call):
             pass
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('delalert_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_') or call.data.startswith('tutorial_') or call.data.startswith('qr_pay_') or call.data == 'breaking_toggle' or call.data == 'sr_alerts_toggle' or call.data.startswith('referral_') or call.data.startswith('setalert_'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('delalert_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_') or call.data.startswith('tutorial_') or call.data.startswith('qr_pay_') or call.data == 'breaking_toggle' or call.data == 'sr_alerts_toggle' or call.data == 'open_pw_reset' or call.data.startswith('referral_') or call.data.startswith('setalert_'))
 def inline_callbacks(call):
     user_id = str(call.message.chat.id)
     if not is_allowed(user_id): return
@@ -5484,6 +5488,22 @@ def inline_callbacks(call):
         except Exception as e:
             print(f"[sr_alerts_toggle] {e}", flush=True)
             bot.answer_callback_query(call.id, "❌ บันทึกไม่สำเร็จ ลองใหม่นะครับ", show_alert=True)
+
+    elif call.data == 'open_pw_reset':
+        try:
+            ok, url, reason = issue_password_reset_url(user_id)
+            if not ok:
+                bot.answer_callback_query(call.id, "ยังเปิดใช้ไม่ได้ ลองใหม่ภายหลังนะครับ", show_alert=True)
+                return
+            mk = InlineKeyboardMarkup()
+            mk.add(InlineKeyboardButton("🔑 ตั้งรหัสผ่านใหม่", url=url))
+            bot.send_message(user_id,
+                "กดปุ่มด้านล่างเพื่อตั้ง/รีเซ็ตรหัสผ่านเว็บ (ลิงก์ใช้ได้ชั่วคราว)\n"
+                "ไม่ต้องจำรหัสเดิม — ตั้งใหม่ได้เลย", reply_markup=mk)
+            bot.answer_callback_query(call.id)
+        except Exception as e:
+            print(f"[open_pw_reset] {e}", flush=True)
+            bot.answer_callback_query(call.id, "❌ ลองใหม่นะครับ", show_alert=True)
 
     elif call.data == 'hub_price_alert':
         try:
