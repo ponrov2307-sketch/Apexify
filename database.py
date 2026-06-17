@@ -3022,6 +3022,7 @@ def init_new_features_db():
         ("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS news_start_hour INTEGER NOT NULL DEFAULT %s", (DEFAULT_NEWS_START_HOUR,)),
         ("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS news_end_hour INTEGER NOT NULL DEFAULT %s", (DEFAULT_NEWS_END_HOUR,)),
         ("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS last_digest_sent_at TIMESTAMPTZ", None),
+        ("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS sr_alerts_enabled BOOLEAN NOT NULL DEFAULT TRUE", None),
     ]:
         sql, params = col_ddl
         try:
@@ -3046,6 +3047,7 @@ def get_user_settings(user_id):
         "news_start_hour": default_start,
         "news_end_hour": default_end,
         "last_digest_sent_at": None,
+        "sr_alerts_enabled": True,
     }
 
     conn = get_connection()
@@ -3057,7 +3059,7 @@ def get_user_settings(user_id):
         c.execute(
             """
             SELECT notifications_enabled, timezone, language, digest_frequency_hours,
-                   news_start_hour, news_end_hour, last_digest_sent_at
+                   news_start_hour, news_end_hour, last_digest_sent_at, sr_alerts_enabled
             FROM user_settings
             WHERE user_id = %s
             """,
@@ -3073,6 +3075,7 @@ def get_user_settings(user_id):
         digest_frequency_hours = _normalize_digest_frequency(row[3])
         news_start_hour, news_end_hour = _normalize_news_window(row[4], row[5])
         last_digest_sent_at = _coerce_utc_datetime(row[6])
+        sr_alerts_enabled = bool(row[7]) if len(row) > 7 and row[7] is not None else True
 
         c.execute(
             """
@@ -3106,6 +3109,7 @@ def get_user_settings(user_id):
             "news_start_hour": news_start_hour,
             "news_end_hour": news_end_hour,
             "last_digest_sent_at": last_digest_sent_at,
+            "sr_alerts_enabled": sr_alerts_enabled,
         }
     except Exception:
         conn.rollback()
@@ -3130,6 +3134,22 @@ def set_user_notifications(user_id, enabled):
     finally:
         conn.close()
     return get_user_settings(uid)
+
+def set_user_sr_alerts(user_id, enabled):
+    uid = str(user_id)
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        _ensure_user_settings_row(c, uid)
+        c.execute(
+            "UPDATE user_settings SET sr_alerts_enabled = %s WHERE user_id = %s",
+            (bool(enabled), uid),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
 
 
 def set_user_timezone(user_id, timezone_name):
@@ -3238,6 +3258,10 @@ def should_send_user_notification(user_id, category="general", now_utc=None):
         return False
 
     category_name = str(category or "general").strip().lower()
+
+    if category_name == "sr_alert" and not settings.get("sr_alerts_enabled", True):
+        return False
+
     now = now_utc or datetime.now(timezone.utc)
     now = _coerce_utc_datetime(now) or datetime.now(timezone.utc)
 

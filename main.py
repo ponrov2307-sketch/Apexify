@@ -38,7 +38,7 @@ from database import (get_all_users, init_db, register_user, check_subscription,
                       get_user_cash_balance, set_user_cash_balance,
                       apply_cash_action, get_cash_transactions,
                       get_user_settings, set_user_notifications, set_user_timezone,
-                      set_user_language, set_user_digest_frequency, set_user_news_window,
+                      set_user_language, set_user_digest_frequency, set_user_news_window, set_user_sr_alerts,
                       ALLOWED_TIMEZONES, ALLOWED_LANGUAGES, ALLOWED_DIGEST_FREQUENCIES,
                       has_used_free_trial, activate_free_trial,
                       add_earnings_alert_db, get_user_earnings_alerts_db, remove_earnings_alert_db,
@@ -128,17 +128,20 @@ def _build_settings_keyboard(settings):
         settings.get("news_start_hour", 7),
         settings.get("news_end_hour", 22),
     )
+    sr_alerts_enabled = settings.get("sr_alerts_enabled", True)
+    sr_btn_label = "🔕 ปิดเตือนแนวรับ/แนวต้าน" if sr_alerts_enabled else "🔔 เปิดเตือนแนวรับ/แนวต้าน"
 
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
         InlineKeyboardButton(f"Alerts: {notifications_label}", callback_data="settings_toggle"),
+        InlineKeyboardButton(sr_btn_label, callback_data="sr_alerts_toggle"),
+    )
+    markup.add(
         InlineKeyboardButton(f"Timezone: {timezone_label}", callback_data="settings_tz_next"),
-    )
-    markup.add(
         InlineKeyboardButton(f"Language: {language_label}", callback_data="settings_lang_next"),
-        InlineKeyboardButton(f"Digest: {digest_label}", callback_data="settings_digest_next"),
     )
     markup.add(
+        InlineKeyboardButton(f"Digest: {digest_label}", callback_data="settings_digest_next"),
         InlineKeyboardButton(f"News window: {news_window_label}", callback_data="settings_window_cycle"),
     )
     markup.add(
@@ -4484,7 +4487,7 @@ def digest_feedback_callback(call):
             pass
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('delalert_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_') or call.data.startswith('tutorial_') or call.data.startswith('qr_pay_') or call.data == 'breaking_toggle' or call.data.startswith('referral_') or call.data.startswith('setalert_'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('addwatch_') or call.data.startswith('delwatch_') or call.data.startswith('delalert_') or call.data.startswith('menu_') or call.data.startswith('hub_') or call.data.startswith('admin_') or call.data.startswith('settings_') or call.data.startswith('tutorial_') or call.data.startswith('qr_pay_') or call.data == 'breaking_toggle' or call.data == 'sr_alerts_toggle' or call.data.startswith('referral_') or call.data.startswith('setalert_'))
 def inline_callbacks(call):
     user_id = str(call.message.chat.id)
     if not is_allowed(user_id): return
@@ -5456,6 +5459,32 @@ def inline_callbacks(call):
             from bot_utils import alert_admin_error
             alert_admin_error(bot, "breaking_toggle", e, user_id=user_id)
             bot.answer_callback_query(call.id, "❌ บันทึกไม่สำเร็จ ลองใหม่อีกครั้งนะครับ", show_alert=True)
+
+    elif call.data == 'sr_alerts_toggle':
+        if role != 'pro' and user_id != ADMIN_ID:
+            bot.answer_callback_query(call.id, "🔒 PRO เท่านั้น", show_alert=True)
+            return
+        try:
+            from database import get_user_settings, set_user_sr_alerts
+            now_on = bool(get_user_settings(user_id).get("sr_alerts_enabled", True))
+            new_state = not now_on
+            set_user_sr_alerts(user_id, new_state)
+            
+            # Update the settings panel inline keyboard
+            settings = get_user_settings(user_id)
+            new_markup = _build_settings_keyboard(settings)
+            
+            try:
+                bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=new_markup)
+            except Exception:
+                pass
+            bot.answer_callback_query(
+                call.id,
+                "🔕 ปิดเตือนแนวรับ/แนวต้านแล้ว" if not new_state else "✅ เปิดแล้ว",
+            )
+        except Exception as e:
+            print(f"[sr_alerts_toggle] {e}", flush=True)
+            bot.answer_callback_query(call.id, "❌ บันทึกไม่สำเร็จ ลองใหม่นะครับ", show_alert=True)
 
     elif call.data == 'hub_price_alert':
         try:

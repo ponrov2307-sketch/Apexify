@@ -61,6 +61,10 @@ ACCEL_THRESHOLD_NORMAL = 3.0
 ACCEL_THRESHOLD_CHAOS = 5.0
 WHIPSAW_SUPPRESS_MIN = 45       # นาที — ห้าม opposite alert ใน window นี้
 
+# กัน alert ชนิดเทคนิค/แนวรับต้าน เด้งซ้ำเรื่องเดียวกันต่อหุ้น (เช่น breakout + acceleration การวิ่งเดียวกัน)
+TECH_ALERT_COOLDOWN_SECONDS = 30 * 60   # 30 นาที/หุ้น (รวม tech + sr)
+_last_noisy_alert_at = {}               # symbol -> epoch ts (in-memory, รีเซ็ตตอน restart = OK เหมือน last_alert_state)
+
 
 def _is_chaos_hour():
     """Mon/Tue first 30 min of US market open (20:30-21:00 ICT) = chaos
@@ -575,13 +579,24 @@ def _current_thai_date_str():
     return (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
 
 def send_alert_to_users(symbol, message, alert_type="tech"):
+    # 🆕 cooldown ต่อหุ้น เฉพาะ alert ชนิด noisy (tech/sr) — กันเด้งซ้ำเรื่องเดียวกัน
+    if alert_type in ("tech", "sr"):
+        now_ts = time.time()
+        if now_ts - _last_noisy_alert_at.get(symbol, 0) < TECH_ALERT_COOLDOWN_SECONDS:
+            return  # เพิ่งเตือนหุ้นนี้ไป — ข้าม
+        _last_noisy_alert_at[symbol] = now_ts
     users = get_users_watching(symbol)
     for user_id in users:
         role = check_subscription(user_id)
         if role != 'pro':
             continue
 
-        category = "flash_news" if alert_type == "news" else "general"
+        if alert_type == "news":
+            category = "flash_news"
+        elif alert_type == "sr":
+            category = "sr_alert"
+        else:
+            category = "general"
         if not should_send_user_notification(user_id, category=category):
             continue
 
@@ -981,7 +996,7 @@ def check_market_conditions():
                 print(f"⚠️ [BreakoutIntraday] {symbol}: {type(e).__name__}: {str(e)[:80]}", flush=True)
 
             if breakout_condition != 'normal' and msg and breakout_condition != last_alert_state[symbol].get('breakout', 'normal'):
-                send_alert_to_users(symbol, msg, alert_type="tech")
+                send_alert_to_users(symbol, msg, alert_type="sr")
                 log_alert(symbol, f"BREAKOUT_{breakout_condition.upper()}", price)
                 _set_alert_state(symbol, 'breakout', breakout_condition)
             elif breakout_condition == 'normal':
