@@ -5465,7 +5465,6 @@ def inline_callbacks(call):
             bot.answer_callback_query(call.id, "🔒 PRO เท่านั้น", show_alert=True)
             return
         try:
-            from database import get_user_settings, set_user_sr_alerts
             now_on = bool(get_user_settings(user_id).get("sr_alerts_enabled", True))
             new_state = not now_on
             set_user_sr_alerts(user_id, new_state)
