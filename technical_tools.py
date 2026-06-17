@@ -9,6 +9,21 @@ from cachetools import TTLCache
 
 ALLOWED_MARKET_SUFFIXES = (".BK", ".AX", ".L", ".HK", ".T", ".DE", ".SI", ".KS", ".KQ", ".TW", ".PA")
 
+def _apply_scanner_levels(clean_symbol, computed_support, computed_resistance):
+    """คืน (support, resistance) จากสแกนถ้ามี; ไม่งั้นคืนค่าที่คำนวณเอง.
+    หุ้นต่างประเทศ (.BK/.HK/...) ไม่อยู่ใน universe สแกน → ใช้ค่าคำนวณเดิม."""
+    try:
+        sym = (clean_symbol or "").strip().upper()
+        if not sym or any(sym.endswith(sfx) for sfx in ALLOWED_MARKET_SUFFIXES):
+            return computed_support, computed_resistance
+        import database  # lazy — กัน circular import
+        lv = database.get_scanner_levels(sym)
+        if lv and lv.get("support_1") and lv.get("resistance_1"):
+            return lv["support_1"], lv["resistance_1"]
+    except Exception:
+        pass
+    return computed_support, computed_resistance
+
 _yf_history_cache = TTLCache(maxsize=400, ttl=300)
 _yf_cache_lock = RLock()
 _yf_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="yfetch")
@@ -281,6 +296,11 @@ def build_multitimeframe_trade_context(symbol):
     week_snapshot = _build_interval_snapshot(weekly_data, 'week')
     month_snapshot = _build_interval_snapshot(monthly_data, 'month')
 
+    if day_snapshot.get('available'):
+        _s, _r = _apply_scanner_levels(clean_symbol, day_snapshot.get('support'), day_snapshot.get('resistance'))
+        day_snapshot['support'] = _s
+        day_snapshot['resistance'] = _r
+
     daily_rsi = day_snapshot.get('rsi')
     daily_volume_ratio = day_snapshot.get('volume_ratio')
     week_volume_ratio = week_snapshot.get('volume_ratio')
@@ -346,6 +366,8 @@ def calculate_technical_indicators(symbol, generate_chart=True):
             recent20 = data.tail(20)
             support = float(recent20['Low'].min())
             resistance = float(recent20['High'].max())
+            support, resistance = _apply_scanner_levels(clean_symbol, support, resistance)
+
             
             # 🌟 [เพิ่มใหม่] คำนวณ Volume Profile (โซนคนติดดอย/กระจุกตัว) จากข้อมูล 60 วันย้อนหลัง
             recent60 = data.tail(60)
@@ -474,6 +496,7 @@ def generate_pro_annotated_chart(symbol, plan):
         recent20 = data.tail(20)
         support = float(recent20['Low'].min())
         resistance = float(recent20['High'].max())
+        support, resistance = _apply_scanner_levels(clean_symbol, support, resistance)
         recent60 = data.tail(60)
         price_bins = pd.cut(recent60['Close'], bins=10)
         vol_profile = recent60.groupby(price_bins, observed=False)['Volume'].sum()

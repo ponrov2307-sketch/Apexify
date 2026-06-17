@@ -4907,3 +4907,41 @@ def _fetch_dispatched_users(category: str, cooldown_days: int) -> set:
         return set()
     finally:
         conn.close()
+
+
+def get_scanner_levels(symbol, max_age_days=5):
+    """อ่านแนวรับ/แนวต้านจาก stock_levels (ตารางเดียวกับสแกนเว็บบน Supabase).
+    คืน dict หรือ None เมื่อ ไม่เจอ / S1,R1 เป็น NULL / เก่าเกิน max_age_days / error.
+    กลืน exception ทั้งหมด — ห้ามทำ flow วิเคราะห์พัง."""
+    try:
+        sym = (symbol or "").strip().upper()
+        if not sym:
+            return None
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            c.execute(
+                """
+                SELECT support_1, support_2, resistance_1, resistance_2
+                FROM stock_levels
+                WHERE ticker = %s
+                  AND support_1 IS NOT NULL
+                  AND resistance_1 IS NOT NULL
+                  AND updated_at > now() - make_interval(days => %s)
+                """,
+                (sym, int(max_age_days)),
+            )
+            row = c.fetchone()
+            c.close()
+        finally:
+            conn.close()  # คืน pool
+        if not row:
+            return None
+        return {
+            "support_1": float(row[0]),
+            "support_2": float(row[1]) if row[1] is not None else None,
+            "resistance_1": float(row[2]),
+            "resistance_2": float(row[3]) if row[3] is not None else None,
+        }
+    except Exception:
+        return None
