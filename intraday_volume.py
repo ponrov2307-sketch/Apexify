@@ -115,6 +115,26 @@ def _resolve_market(symbol):
     return _MARKETS[0]
 
 
+def _is_candle_fresh(symbol, candle_ts):
+    """เช็คว่าแท่งเทียนเป็นของ 'วันนี้' จริงในเขตเวลาตลาดนั้นๆ
+
+    กัน stale candle: ตอนตลาดปิด (วันหยุดที่ is_market_open ไม่รู้จัก เพราะเช็คแค่
+    weekday+เวลา ไม่มีปฏิทินวันหยุด, หรือ yfinance data lag) yfinance จะคืนแท่งปิดตลาด
+    ของวันทำการก่อนหน้ามาแทน — ถ้าไม่เช็ค วันที่ ของแท่งนั้นจะถูกเข้าใจผิดว่าเป็นแท่งสดใหม่
+    (ดู detect_gap_open ที่เช็คแบบนี้อยู่แล้ว — ฟังก์ชันนี้ generalize ให้ใช้ร่วมกัน)
+    """
+    if candle_ts is None:
+        return False
+    market = _resolve_market(symbol)
+    tz = ZoneInfo(market["tz"])
+    today_local = datetime.now(timezone.utc).astimezone(tz).date()
+    try:
+        candle_date = candle_ts.tz_convert(tz).date() if hasattr(candle_ts, "tz_convert") else None
+    except Exception:
+        candle_date = None
+    return candle_date is not None and candle_date == today_local
+
+
 def is_market_open(symbol, now_utc=None):
     """เช็คว่าตลาดของ symbol นี้กำลังเปิดอยู่ไหม"""
     market = _resolve_market(symbol)
@@ -230,6 +250,16 @@ def detect_volume_spike(symbol, threshold=3.0, lookback_bars=12, min_history=20)
         completed = df  # fallback ใช้ทั้งหมดถ้าตัดทิ้งแล้วเหลือน้อย
 
     current = completed.iloc[-1]
+
+    if not _is_candle_fresh(symbol, current.name if hasattr(current, "name") else None):
+        return {
+            "spike": False, "ratio": 0.0,
+            "current_volume": 0.0, "avg_volume": 0.0,
+            "current_close": 0.0, "current_open": 0.0,
+            "candle_time": None, "session_open": True,
+            "reason": "stale_candle",
+        }
+
     history = completed.iloc[-(lookback_bars + 1):-1]  # candle ก่อนหน้า lookback ตัว
     if len(history) < min_history // 2:
         # lookback ไม่พอ — ลองใช้ทั้งหมดที่มี
@@ -290,6 +320,10 @@ def detect_breakout_intraday(symbol, daily_resistance, daily_support, vol_confir
         return None
 
     current = completed.iloc[-1]
+
+    if not _is_candle_fresh(symbol, current.name if hasattr(current, "name") else None):
+        return None
+
     cur_close = float(current["Close"])
     cur_vol = float(current["Volume"])
 
