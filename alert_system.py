@@ -2013,32 +2013,22 @@ def _get_upcoming_economic_events(days_ahead=3):
             upcoming.append(f"{importance} **{event}** ({label})")
     return upcoming
 
-_TOP_MOVERS_TICKERS = [
-    "AAPL", "MSFT", "NVDA", "TSLA", "META", "AMZN", "GOOGL",
-    "PTT.BK", "ADVANC.BK", "KBANK.BK", "AOT.BK", "SCB.BK",
-]
-
 def _get_top_movers_section():
-    moves = []
-    for sym in _TOP_MOVERS_TICKERS:
-        try:
-            hist = yf.Ticker(sym).history(period='2d')
-            if len(hist) >= 2:
-                prev = hist['Close'].iloc[-2]
-                curr = hist['Close'].iloc[-1]
-                if prev > 0:
-                    pct = (curr - prev) / prev * 100
-                    moves.append((sym, pct))
-        except Exception as e:
-            print(f"[TopMovers] {sym} fetch failed: {e}", flush=True)
-    if not moves:
+    """Gainers/Losers จาก stock_levels ทั้ง universe (~3600 ตัวสหรัฐฯ, ตารางเดียวกับ
+    สแกนเว็บ) แทนรายชื่อ hardcode เดิม — losers การันตีติดลบจริง ไม่ใช่แค่ 3 ตัวท้าย
+    ของลิสต์เล็กที่อาจเป็นบวกได้ถ้าวันนั้นขึ้นทั้งกระดาน"""
+    from database import get_broad_top_movers
+    gainers, losers = get_broad_top_movers(limit=3)
+    if not gainers and not losers:
         return ""
-    moves.sort(key=lambda x: x[1], reverse=True)
-    gainers = moves[:3]
-    losers = moves[-3:]
-    g_str = "  ".join(f"{s} {p:+.1f}%" for s, p in gainers)
-    l_str = "  ".join(f"{s} {p:+.1f}%" for s, p in reversed(losers))
-    return f"🏆 **Gainers:** {g_str}\n📉 **Losers:** {l_str}"
+    lines = []
+    if gainers:
+        g_str = "  ".join(f"{s} {p:+.1f}%" for s, p in gainers)
+        lines.append(f"🏆 **Gainers:** {g_str}")
+    if losers:
+        l_str = "  ".join(f"{s} {p:+.1f}%" for s, p in losers)
+        lines.append(f"📉 **Losers:** {l_str}")
+    return "\n".join(lines)
 
 # ==========================================
 # 🌟 ฟีเจอร์ Morning Apexify Briefing (08:30 น.)

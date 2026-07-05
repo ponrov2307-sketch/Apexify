@@ -4969,3 +4969,61 @@ def get_scanner_levels(symbol, max_age_days=5):
         }
     except Exception:
         return None
+
+
+# Leveraged/inverse ETFs (2x/3x bull-bear pairs) เหวี่ยงแรงกว่าหุ้นจริงตามกลไก
+# ไม่ใช่แรงซื้อ/ขายออร์แกนิก — ตัด ออกจาก gainers/losers เพราะไม่ใช่สัญญาณตลาดจริง
+# หมายเหตุ: รายชื่อดูแลเอง ไม่ครบทุกตัว — มีสินค้าลักษณะนี้ออกใหม่เรื่อยๆ
+_LEVERAGED_ETF_EXCLUDE = {
+    "TQQQ", "SQQQ", "UPRO", "SPXU", "SPXL", "SPXS", "UDOW", "SDOW", "TNA", "TZA",
+    "SOXL", "SOXS", "FAS", "FAZ", "TECL", "TECS", "LABU", "LABD", "DRN", "DRV",
+    "ERX", "ERY", "NUGT", "DUST", "JNUG", "JDST", "YINN", "YANG", "CURE", "RETL",
+    "WEBL", "WEBS", "PILL", "TSLL", "TSLQ", "TSLS", "TSLZ", "NVDL", "NVDS", "NVDD",
+    "MSTU", "MSTX", "MSTZ", "AAPU", "AAPD", "AMZU", "AMZD", "GGLL", "GGLS", "METU",
+    "METD", "MSFU", "MSFD", "CONL", "SMCX", "SMCL", "PLTU", "PLTD", "AMDL", "AMDS",
+    "COIU", "COID", "NFLU", "NFLD",
+}
+
+
+def get_broad_top_movers(limit=3, min_dollar_volume=50_000_000):
+    """หา gainers/losers จริงจาก stock_levels ทั้ง universe (~3600 ตัวสหรัฐฯ, ตาราง
+    เดียวกับสแกนเว็บ) แทนที่จะกระจุกอยู่แค่รายชื่อ hardcode ไม่กี่ตัว — กรอง
+    avg_dollar_volume กันหุ้นเล็ก/วอลุ่มบางที่ % เหวี่ยงแรงแต่ไม่มีความหมาย และตัด
+    leveraged/inverse ETF ออกเพราะเหวี่ยงแรงกว่าตลาดจริงตามกลไก ไม่ใช่สัญญาณ
+    คืน (gainers, losers) เป็น list ของ (ticker, change_pct); losers การันตีติดลบจริง
+    (ว่างได้ทั้งคู่ถ้า error/ไม่มีข้อมูลผ่านเกณฑ์ — ไม่ throw)"""
+    try:
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            fetch_n = limit + len(_LEVERAGED_ETF_EXCLUDE)  # กันพอเผื่อกรองออกแล้วเหลือไม่ครบ
+            c.execute(
+                """
+                SELECT ticker, change_pct FROM stock_levels
+                WHERE change_pct IS NOT NULL AND change_pct > 0
+                  AND avg_dollar_volume > %s
+                  AND updated_at > now() - interval '2 days'
+                ORDER BY change_pct DESC LIMIT %s
+                """,
+                (min_dollar_volume, fetch_n),
+            )
+            gainers = [(row[0], float(row[1])) for row in c.fetchall()
+                       if row[0] not in _LEVERAGED_ETF_EXCLUDE][:limit]
+            c.execute(
+                """
+                SELECT ticker, change_pct FROM stock_levels
+                WHERE change_pct IS NOT NULL AND change_pct < 0
+                  AND avg_dollar_volume > %s
+                  AND updated_at > now() - interval '2 days'
+                ORDER BY change_pct ASC LIMIT %s
+                """,
+                (min_dollar_volume, fetch_n),
+            )
+            losers = [(row[0], float(row[1])) for row in c.fetchall()
+                      if row[0] not in _LEVERAGED_ETF_EXCLUDE][:limit]
+            c.close()
+        finally:
+            conn.close()
+        return gainers, losers
+    except Exception:
+        return [], []
