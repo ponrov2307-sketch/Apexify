@@ -112,6 +112,10 @@ def _scan_smart_money() -> list[dict]:
 
 def _scan_congress() -> list[dict]:
     """Returns Congress trades (after filter)."""
+    if not getattr(config, "CONGRESS_ENABLED", False):
+        # Senate/House Stock Watcher APIs ตายตั้งแต่ 2026-05-17 (ดู congress_cron.py) —
+        # เช็ค flag เดียวกับ run_congress_cron กันยิง API ตายทุกคืนแบบเงียบๆ
+        return []
     try:
         from congress_cron import fetch_senate_transactions, fetch_house_transactions, filter_and_enrich
         raw = fetch_senate_transactions() + fetch_house_transactions()
