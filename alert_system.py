@@ -170,7 +170,8 @@ def _gemini_generate_with_retry(prompt, model='gemini-2.5-flash', retries=4, del
     """
     # ใช้โมเดลตระกูล 2.5 ทั้งหมด (2.0-flash ถูก deprecated แล้ว 2026)
     # ตัด gemini-2.5-pro ออก — แพง 10-20× ของ flash, save cost (2026-05-24)
-    fallback_chain = [model, 'gemini-2.5-flash-lite']
+    # fallback ข้ามตระกูล: lite ล้ม → flash, flash ล้ม → lite
+    fallback_chain = [model, 'gemini-2.5-flash' if model == 'gemini-2.5-flash-lite' else 'gemini-2.5-flash-lite']
     last_err = None
     for attempt in range(retries + 1):
         current_model = fallback_chain[min(attempt, len(fallback_chain) - 1)]
@@ -208,7 +209,7 @@ _rss_cache = {"data": [], "ts": 0.0}  # 🌟 Cache RSS ร่วมระหว�
 FLASH_NEWS_INTERVAL_SECONDS = 3 * 3600
 DIGEST_NEWS_CHECK_INTERVAL_SECONDS = 3600
 STOCK_NEWS_COOLDOWN_SECONDS = 2 * 3600
-STOCK_NEWS_CHECK_INTERVAL_SECONDS = 30 * 60  # 🌟 เช็คข่าวหุ้นรายตัวทุก 30 นาที
+STOCK_NEWS_CHECK_INTERVAL_SECONDS = 60 * 60  # 🌟 เช็คข่าวหุ้นรายตัวทุก 60 นาที (2026-07-09: 30→60 ลด Gemini cost; ข่าวช้าลงสูงสุด 1 ชม. — ข่าวด่วนจริงมี breaking_news 5 นาทีคอยจับอยู่แล้ว)
 _RSS_CACHE_TTL = 1800  # 30 นาที
 MAX_FLASH_HEADLINES = 12
 MAX_DIGEST_HEADLINES = 12
@@ -578,6 +579,26 @@ def _get_morning_macro_assets_text():
 def _current_thai_date_str():
     return (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
 
+# 🆕 teaser quota — free/vip ที่กดดาว watchlist ได้ breakout (sr) alert จำกัดต่อวัน
+# เป็นทีเซอร์ดันอัป PRO; in-memory รีเซ็ตข้ามวัน (restart แล้วหาย ไม่เป็นไร)
+_teaser_sent_today = {}  # user_id -> (date_str, count)
+_TEASER_DAILY_CAP = {"free": 1, "vip": 3}
+
+
+def _claim_teaser_quota(user_id, role):
+    cap = _TEASER_DAILY_CAP.get(role, 0)
+    if cap <= 0:
+        return False
+    today = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")  # วันตามเวลาไทย
+    d, n = _teaser_sent_today.get(user_id, (today, 0))
+    if d != today:
+        n = 0
+    if n >= cap:
+        return False
+    _teaser_sent_today[user_id] = (today, n + 1)
+    return True
+
+
 def send_alert_to_users(symbol, message, alert_type="tech"):
     # 🆕 cooldown ต่อหุ้น เฉพาะ alert ชนิด noisy (tech/sr) — กันเด้งซ้ำเรื่องเดียวกัน
     if alert_type in ("tech", "sr"):
@@ -588,7 +609,9 @@ def send_alert_to_users(symbol, message, alert_type="tech"):
     users = get_users_watching(symbol)
     for user_id in users:
         role = check_subscription(user_id)
-        if role != 'pro':
+        is_teaser = role != 'pro'
+        # 🆕 teaser: free/vip ได้เฉพาะ breakout แนวรับ/ต้าน (sr) ตามโควตาต่อวัน
+        if is_teaser and alert_type != "sr":
             continue
 
         if alert_type == "news":
@@ -600,7 +623,13 @@ def send_alert_to_users(symbol, message, alert_type="tech"):
         if not should_send_user_notification(user_id, category=category):
             continue
 
+        # หักโควตาหลังผ่านทุกด่าน — ไม่งั้น user ที่ปิดแจ้งเตือนโดนกินโควตาฟรี
+        if is_teaser and not _claim_teaser_quota(user_id, role):
+            continue
+
         full_msg = f"🚨 **APEXIFY ALERT: {symbol}** 🚨\n\n{message}"
+        if is_teaser:
+            full_msg += "\n\n🔓 อัปเกรด PRO รับแจ้งเตือนครบทุกสัญญาณ (RSI · Golden Cross · Whale · ข่าวด่วน)"
         safe_send(bot, user_id, full_msg, parse_mode="Markdown", disable_web_page_preview=True)
         time.sleep(0.5)
 
@@ -665,6 +694,8 @@ severity = "HIGH" เฉพาะข่าว **ปัจจุบัน** ท�
 - ข่าวมหภาคทั่วไปที่ไม่ได้เจาะจงหุ้นนั้น
 - ข่าว opening bell / market wrap / daily recap / sector update
 - ข่าวแนะนำหุ้นทั่วไป "stocks to buy", "best picks"
+
+⚠️ ถ้าไม่แน่ใจว่าเข้าเกณฑ์ HIGH จริง → ตอบ "LOW" (HIGH ต้องชัดเจนเท่านั้น)
 
 ข่าวที่ต้องจัดประเภท ({len(candidates)} รายการ):
 {news_lines}
@@ -797,7 +828,8 @@ def _verify_and_dispatch_high(cand, analysis):
     send_alert_to_users(symbol, msg, alert_type="news")
     sent_stock_news_history[symbol].add(title)
     last_stock_news_sent_at[symbol] = now
-    if len(sent_stock_news_history[symbol]) > 50:
+    if len(sent_stock_news_history[symbol]) > 200:
+        # 200 (เดิม 50) — clear ทิ้งทั้งชุดทำ dedup หาย ข่าวเดิมโดน classify ซ้ำ
         sent_stock_news_history[symbol].clear()
 
 
@@ -812,7 +844,7 @@ def _handle_classified(cand, analysis):
     else:
         # 🔁 LOW → mark history เพื่อไม่ classify ข่าวเดิมซ้ำในรอบถัดไป (เดิมไม่ mark = waste)
         sent_stock_news_history[symbol].add(title)
-        if len(sent_stock_news_history[symbol]) > 50:
+        if len(sent_stock_news_history[symbol]) > 200:
             sent_stock_news_history[symbol].clear()
 
 
@@ -852,9 +884,10 @@ def _classify_news_batch(candidates):
             log_gemini_usage('stock_news_classify_batch', 'gemini-2.5-flash-lite', response=resp)
         except Exception:
             pass
-        text = (resp.text or "").strip().replace('```json', '').replace('```', '')
-        arr = json.loads(text)
-        if not isinstance(arr, list):
+        # robust extract — เดิม json.loads ตรงๆ ทำให้ AI แถมข้อความหน้า/หลัง array
+        # แล้วพังทั้งก้อน → fallback ยิงเดี่ยวทีละข่าว (688 single calls/สัปดาห์)
+        arr = _extract_json_list(resp.text or "")
+        if arr is None:
             return None
         by_index = {}
         for item in arr:
@@ -887,14 +920,24 @@ def check_hot_news_batch(symbols):
         chunk = candidates[start:start + STOCK_NEWS_BATCH_SIZE]
         results = _classify_news_batch(chunk)
         if results is None:
-            # 🛟 batch พังทั้งก้อน → classify เดี่ยวจาก candidate ที่ fetch ไว้แล้ว
+            results = _classify_news_batch(chunk)  # 🛟 retry ทั้งก้อน 1 ครั้งก่อนยอมแพ้
+        if results is None:
+            # batch พังซ้ำสอง → classify เดี่ยวจาก candidate ที่ fetch ไว้แล้ว (ควรหายาก)
             for c in chunk:
                 _classify_and_handle_single(c)
             continue
+        # 🛟 รายการที่หายจาก response → รวบยิงเป็น mini-batch ครั้งเดียว
+        # (เดิมยิงเดี่ยวทีละข่าว = template ~440 tok ถูกส่งซ้ำต่อข่าว)
+        missing = [(i, c) for i, (c, a) in enumerate(zip(chunk, results)) if a is None]
+        if missing:
+            mini = _classify_news_batch([c for _, c in missing])
+            if mini is not None:
+                for (idx, _), analysis in zip(missing, mini):
+                    results[idx] = analysis
         for c, analysis in zip(chunk, results):
             try:
                 if analysis is None:
-                    _classify_and_handle_single(c)  # ข่าวนี้หายจาก batch → เดี่ยว
+                    _classify_and_handle_single(c)  # ยังหายหลัง mini-batch → เดี่ยว
                 else:
                     _handle_classified(c, analysis)
             except Exception as e:
@@ -1306,7 +1349,8 @@ def broadcast_hourly_urgent_news(bot_instance, force=False):
     ]
     """
     try:
-        ai_check = _gemini_generate_with_retry(prompt, feature='flash_news')
+        # 2026-07-09: flash→flash-lite — งานเลือก 2 หัวข่าว+สรุปสั้น lite เอาอยู่
+        ai_check = _gemini_generate_with_retry(prompt, model='gemini-2.5-flash-lite', feature='flash_news')
         result_text = ai_check.text or ""
 
         # 🌟 robust extract — รองรับกรณี AI ใส่ข้อความนำหน้า/code fence ก่อน JSON
@@ -1428,7 +1472,8 @@ def check_and_broadcast_pro_news(bot_instance, force=False):
     ]
     """
     try:
-        ai_check = _gemini_generate_with_retry(prompt, feature='digest_news')
+        # 2026-07-09: flash→flash-lite — งานเลือก 2 หัวข่าว+สรุปสั้น lite เอาอยู่
+        ai_check = _gemini_generate_with_retry(prompt, model='gemini-2.5-flash-lite', feature='digest_news')
         result_text = ai_check.text or ""
 
         # 🌟 robust extract — รองรับ AI ใส่ข้อความนำหน้า/code fence ก่อน JSON

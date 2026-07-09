@@ -373,10 +373,12 @@ _CLASSIFY_PROMPT = """คุณเป็นนักวิเคราะห์�
 
 
 # ตัด gemini-2.5-pro ออก — แพง 10-20× ของ flash, save cost (2026-05-24)
-_GEMINI_FALLBACK_CHAIN = ("gemini-2.5-flash", "gemini-2.5-flash-lite")
+# 2026-07-09: สลับ flash-lite ขึ้นนำ — classify ขั้นแรกใช้ lite, HIGH ถูก verify
+# ด้วย flash อีกชั้นก่อน push (_verify_breaking_high) เลยไม่เสียคุณภาพ alert
+_GEMINI_FALLBACK_CHAIN = ("gemini-2.5-flash-lite", "gemini-2.5-flash")
 
 
-def _gemini_classify_with_retry(prompt: str, retries: int = 2):
+def _gemini_classify_with_retry(prompt: str, retries: int = 2, feature: str = 'breaking_news_classify'):
     """Try the fallback chain with backoff on 503/overload errors."""
     last_err = None
     for model in _GEMINI_FALLBACK_CHAIN:
@@ -385,7 +387,7 @@ def _gemini_classify_with_retry(prompt: str, retries: int = 2):
                 resp = gemini_client.models.generate_content(model=model, contents=prompt)
                 try:
                     from database import log_gemini_usage
-                    log_gemini_usage('breaking_news_classify', model, response=resp)
+                    log_gemini_usage(feature, model, response=resp)
                 except Exception:
                     pass
                 return resp
@@ -466,6 +468,118 @@ def gemini_classify_breaking(item: dict) -> dict | None:
             "reasoning": reasoning,
             "tickers": [],
         }
+
+
+_CLASSIFY_BATCH_PROMPT = """คุณเป็นนักวิเคราะห์ข่าวการเงิน US ตอบเป็น JSON array เท่านั้น ห้ามใส่ข้อความอื่น
+
+ประเมินว่าข่าวแต่ละหัวข้อด้านล่างน่าจะกระทบ S&P 500 หรือ Nasdaq มากแค่ไหนใน 1 ชั่วโมงหลังเผยแพร่:
+- HIGH: ข่าวด่วน/ตัวเลขเศรษฐกิจสำคัญ คาดเคลื่อน >0.5% เช่น CPI, NFP, FOMC, ภาวะสงคราม, OPEC cut, ลดอัตราดอกเบี้ยเซอไพรส์
+       หรือ analyst rating change ของหุ้น mega cap (AAPL, NVDA, TSLA, MSFT, GOOGL, META) จากโบรกใหญ่
+- MEDIUM: ข่าวสำคัญรองลง คาด 0.2-0.5% เช่น คำสัมภาษณ์ Fed, retail sales, ISM
+       หรือ analyst upgrade/downgrade ของหุ้นกลาง/เล็ก
+- LOW: ข่าวทั่วไปไม่น่าทำให้ตลาดเคลื่อนแรง
+
+⚠️ ข่าวเก่า/recap/year-end review → ตอบ LOW เสมอ (ไม่ใช่ breaking)
+⚠️ ถ้าไม่แน่ใจระหว่างสองระดับ ให้เลือกระดับที่ต่ำกว่า
+
+หากข่าวเฉพาะบริษัท (เช่น Boeing 777 grounded, Apple recalls, Tesla recall) ระบุ ticker ของบริษัทนั้นใน "tickers"
+หากเป็นข่าวมหภาค/ตลาด/นโยบาย (CPI, FOMC, war, OPEC) ที่กระทบทั้งตลาด → "tickers": [] (แสดงว่ากระทบวงกว้าง)
+
+ข่าวที่ต้องประเมิน ({n} รายการ):
+{lines}
+
+ตอบเป็น JSON array ความยาวเท่ากับจำนวนข่าว เรียงตาม index เดิม ห้ามมีข้อความอื่นนอก array:
+[
+  {{"index": 1, "importance": "HIGH|MEDIUM|LOW", "summary_th": "สรุปไทย 80 ตัวอักษรกระชับ", "reasoning": "เหตุผลภาษาไทย 1 ประโยค", "tickers": []}}
+]"""
+
+
+def _normalize_classified(item: dict, data: dict) -> dict:
+    """แปลงผล classify (dict จาก Gemini) → record มาตรฐาน ใช้ร่วม single/batch"""
+    importance = str(data.get("importance", "LOW")).upper()
+    if importance not in ("HIGH", "MEDIUM", "LOW"):
+        importance = "LOW"
+    raw_tickers = data.get("tickers") or []
+    if isinstance(raw_tickers, str):
+        raw_tickers = [raw_tickers]
+    tickers = [str(t).upper().strip() for t in raw_tickers if str(t).strip()][:10]
+    return {
+        **item,
+        "importance": importance,
+        "summary_th": str(data.get("summary_th", item["title"]))[:200],
+        "reasoning": str(data.get("reasoning", ""))[:300],
+        "tickers": tickers,
+    }
+
+
+def gemini_classify_breaking_batch(items: list[dict]) -> list[dict | None] | None:
+    """Classify หลายหัวข่าวใน 1 call — กฎชุดเดียวไม่ถูกส่งซ้ำต่อข่าว (ลด token ~80%)
+
+    คืน list เรียงตาม items (None ต่อรายการที่หายจาก response ให้ caller fallback
+    เดี่ยว) หรือ None ถ้า call/parse ล้มทั้งก้อน
+    """
+    if not gemini_client or not items:
+        return None
+    lines = "\n".join(
+        f'{i + 1}. [{it["source"]}] "{it["title"]}"' for i, it in enumerate(items)
+    )
+    prompt = _CLASSIFY_BATCH_PROMPT.format(n=len(items), lines=lines)
+    try:
+        resp = _gemini_classify_with_retry(prompt, feature='breaking_news_classify_batch')
+        text = (resp.text or "").strip()
+        text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
+        # robust extract — เผื่อ AI แถมข้อความหน้า/หลัง array
+        if not text.startswith("["):
+            start, end = text.find("["), text.rfind("]")
+            if start == -1 or end <= start:
+                return None
+            text = text[start:end + 1]
+        arr = json.loads(text)
+        if not isinstance(arr, list):
+            return None
+        by_index = {}
+        for entry in arr:
+            if isinstance(entry, dict) and "index" in entry:
+                try:
+                    by_index[int(entry["index"])] = entry
+                except Exception:
+                    pass
+        return [
+            _normalize_classified(it, by_index[i + 1]) if (i + 1) in by_index else None
+            for i, it in enumerate(items)
+        ]
+    except Exception as e:
+        print(f"[BreakingNews] batch classify failed: {e}", flush=True)
+        return None
+
+
+def _verify_breaking_high(record: dict) -> dict:
+    """stage-2 verify — HIGH จาก flash-lite ถูกเช็คซ้ำด้วย flash ก่อนถือเป็น HIGH จริง
+
+    HIGH มีน้อย (~2-3/รอบ) cost จิ๋วเทียบกับที่ประหยัดจากการใช้ lite classify.
+    ถ้า verify ล้ม (Gemini down) → คง HIGH ไว้ (fail-open: พลาด push CPI/FOMC
+    แย่กว่า push เกินหนึ่งข่าว)
+    """
+    if not gemini_client:
+        return record
+    prompt = _CLASSIFY_PROMPT.format(title=record["title"], source=record["source"])
+    try:
+        resp = gemini_client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+        try:
+            from database import log_gemini_usage
+            log_gemini_usage("breaking_news_verify", "gemini-2.5-flash", response=resp)
+        except Exception:
+            pass
+        text = (resp.text or "").strip()
+        text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
+        data = json.loads(text)
+        verified = _normalize_classified(record, data)
+        if verified["importance"] != "HIGH":
+            print(f"[BreakingNews] flash overrule {verified['importance']}: {record['title'][:60]}", flush=True)
+        return verified  # ใช้ผล flash ทั้ง importance/summary/reasoning (คุณภาพดีกว่า)
+    except Exception as e:
+        print(f"[BreakingNews] verify failed ({e}) — keep lite verdict", flush=True)
+        return record
 
 
 # ========== Thai TTS (Edge TTS) ==========
@@ -841,11 +955,26 @@ def process_breaking_news(bot_instance, *, dry_run: bool = False) -> dict:
     stats["skipped_quiet"] = quiet
     subscribers: list[str] = [] if quiet else get_breaking_news_subscribers()
 
-    for item in shortlist:
-        record = gemini_classify_breaking(item)
+    # 🆕 batch classify 1 call/รอบ (เดิมยิงทีละหัวข่าว template ถูกส่งซ้ำ ~8 เท่า)
+    # fallback: ทั้งก้อนล้ม → เดี่ยวทุกตัว, รายการหายจาก response → เดี่ยวเฉพาะตัวนั้น
+    batch_results = gemini_classify_breaking_batch(shortlist)
+    if batch_results is None:
+        records = [gemini_classify_breaking(item) for item in shortlist]
+    else:
+        records = [
+            r if r is not None else gemini_classify_breaking(item)
+            for item, r in zip(shortlist, batch_results)
+        ]
+
+    for record in records:
         if record is None:
             continue
         stats["classified"] += 1
+
+        # 🆕 stage-2: HIGH จาก lite ต้องผ่าน flash ยืนยันก่อน (ทำก่อน persist
+        # เพื่อให้ breaking_news_log เก็บ verdict สุดท้าย)
+        if record["importance"] == "HIGH":
+            record = _verify_breaking_high(record)
 
         # Persist (also acts as a final dedup guarantee via UNIQUE constraint)
         try:
