@@ -6845,6 +6845,14 @@ def handle_main(message):
         bot.edit_message_text(friendly, message.chat.id, load_msg.message_id)
         return
 
+    # 🐋 Guru teaser — ถ้าเซียนถือหุ้นตัวนี้ ชวนไปส่องพอร์ตบนเว็บ (funnel bot→web,
+    # best-effort + cache 24h ต่อ symbol — พลาดแล้วเงียบ ไม่แตะเนื้อหาวิเคราะห์)
+    try:
+        from guru_link import guru_teaser_line
+        report += guru_teaser_line(symbol)
+    except Exception as _e:
+        print(f"[GuruLink] err: {_e}", flush=True)
+
     # 🌟 PRO: สร้างกราฟ annotated หลังได้ plan
     if role == 'pro' and plan:
         _safe_edit(f"🎨 กำลังวาดกราฟ **{symbol}** + Plan...")
